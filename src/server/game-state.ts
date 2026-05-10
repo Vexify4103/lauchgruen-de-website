@@ -13,8 +13,19 @@ import type {
 import { STARTING_HEARTS } from "./types";
 import { generateGameId } from "../lib/stream-id";
 
-const games = new Map<GameId, GameState>();
-const questionPool = new Map<string, Question>();
+// Custom Next.js server + App Router loads this module twice (once via tsx for
+// the Socket.IO handler, once via Next's bundler for API routes). Stash the
+// stores on globalThis so both copies share the same in-memory state.
+const globalForStore = globalThis as unknown as {
+  __qd_games?: Map<GameId, GameState>;
+  __qd_questions?: Map<string, Question>;
+};
+const games: Map<GameId, GameState> =
+  globalForStore.__qd_games ?? new Map<GameId, GameState>();
+const questionPool: Map<string, Question> =
+  globalForStore.__qd_questions ?? new Map<string, Question>();
+globalForStore.__qd_games = games;
+globalForStore.__qd_questions = questionPool;
 
 export function registerQuestionPool(questions: Question[]): void {
   questionPool.clear();
@@ -121,7 +132,7 @@ export function markCellUsed(
 
 export function nextTurn(game: GameState): PlayerId | null {
   const eligible = game.playerOrder.filter(
-    (pid) => !game.players[pid]?.eliminated,
+    (pid) => pid !== game.hostId && !game.players[pid]?.eliminated,
   );
   if (eligible.length === 0) return null;
   const currentIdx = game.currentTurn ? eligible.indexOf(game.currentTurn) : -1;
@@ -130,18 +141,26 @@ export function nextTurn(game: GameState): PlayerId | null {
   return game.currentTurn;
 }
 
+export function getNonHostPlayers(game: GameState): Player[] {
+  return game.playerOrder
+    .filter((pid) => pid !== game.hostId)
+    .map((pid) => game.players[pid])
+    .filter((p): p is Player => Boolean(p));
+}
+
 export function checkGameOver(game: GameState): PlayerId | null {
-  const alive = Object.values(game.players).filter((p) => !p.eliminated);
+  const contestants = getNonHostPlayers(game);
+  const alive = contestants.filter((p) => !p.eliminated);
   const allCellsUsed = game.board.length > 0 && game.board.every((c) => c.used);
 
-  if (alive.length === 1 && Object.keys(game.players).length > 1) {
+  if (contestants.length > 1 && alive.length === 1) {
     return alive[0].id;
   }
+  if (contestants.length > 0 && alive.length === 0) {
+    return null;
+  }
   if (allCellsUsed) {
-    // Highest score wins on board exhaustion
-    const winner = [...Object.values(game.players)].sort(
-      (a, b) => b.score - a.score,
-    )[0];
+    const winner = [...contestants].sort((a, b) => b.score - a.score)[0];
     return winner?.id ?? null;
   }
   return null;

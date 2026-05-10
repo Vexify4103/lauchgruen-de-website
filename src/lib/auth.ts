@@ -21,7 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Twitch({
       clientId: process.env.TWITCH_CLIENT_ID,
       clientSecret: process.env.TWITCH_CLIENT_SECRET,
-      authorization: { params: { scope: "user:read:email" } },
+      authorization: { params: { scope: "openid user:read:email" } },
     }),
   ],
   callbacks: {

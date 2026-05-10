@@ -224,13 +224,13 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       const game = getGame(gameId);
       if (!game || !isHost(socket, game)) return;
       if (game.phase !== "lobby") return;
-      const playerCount = Object.keys(game.players).length;
-      if (playerCount < 1) {
-        emitError(socket, "NO_PLAYERS", "Need at least 1 player");
+      const contestants = game.playerOrder.filter((pid) => pid !== game.hostId);
+      if (contestants.length < 1) {
+        emitError(socket, "NO_PLAYERS", "Need at least 1 contestant");
         return;
       }
       game.phase = "playing";
-      game.currentTurn = game.playerOrder[0] ?? null;
+      game.currentTurn = contestants[0];
       broadcastAll(io, game);
     });
 
@@ -373,6 +373,7 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       const game = getGame(gameId);
       if (!game || !isHost(socket, game)) return;
       if (!game.players[parsed.data.playerId]) return;
+      if (parsed.data.playerId === game.hostId) return;
       game.currentTurn = parsed.data.playerId;
       broadcastAll(io, game);
     });

@@ -8,6 +8,7 @@ import { ParticipantTile } from "@/components/ParticipantTile";
 import { QuestionModal } from "@/components/QuestionModal";
 import { BuzzButton } from "@/components/BuzzButton";
 import { HostControls } from "@/components/HostControls";
+import { TurnIndicator } from "@/components/TurnIndicator";
 
 interface Props {
   gameId: string;
@@ -24,14 +25,16 @@ export function GameClient({ gameId, userId, mode }: Props) {
 
   if (!game || !connected) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-zinc-300">
-        Connecting to game…
+      <div className="min-h-screen flex items-center justify-center bg-emerald-950 text-amber-300">
+        🐻 Connecting to game…
       </div>
     );
   }
 
   const isHost = game.hostId === userId;
-  const players = game.playerOrder
+  const hostPlayer = game.players[game.hostId];
+  const contestants = game.playerOrder
+    .filter((id) => id !== game.hostId)
     .map((id) => game.players[id])
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
@@ -42,53 +45,94 @@ export function GameClient({ gameId, userId, mode }: Props) {
       : undefined;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 p-4">
-      <header className="flex items-center justify-between mb-4">
-        <Link href="/" className="text-zinc-500 text-sm hover:text-zinc-300">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 p-4 flex flex-col">
+      {/* Top bar with logo */}
+      <div className="flex items-center justify-between mb-3 px-2">
+        <Link
+          href="/"
+          className="text-emerald-400/70 text-sm hover:text-amber-300 transition-colors"
+        >
           ← Home
         </Link>
-        <div className="text-sm text-zinc-400">
-          Game{" "}
-          <span className="font-mono font-bold text-yellow-400">{gameId}</span>{" "}
-          · {mode === "host" ? "HOST" : "PLAYER"} ·{" "}
-          <span className="font-mono">{game.phase}</span>
+        <div className="text-2xl font-extrabold tracking-tight text-amber-300 drop-shadow">
+          🐻 QUIZ<span className="text-emerald-200">DUELL</span> 🍯
         </div>
-      </header>
+        <div className="text-xs text-emerald-300/70">
+          {gameId} ·{" "}
+          <span className="font-mono text-amber-300">{game.phase}</span>
+        </div>
+      </div>
 
       {game.phase === "finished" && game.winnerId ? (
-        <div className="text-center py-12 bg-yellow-500/10 border-2 border-yellow-400 rounded-lg mb-4">
-          <div className="text-5xl font-extrabold text-yellow-400 mb-2">
+        <div className="text-center py-6 bg-amber-500/10 border-2 border-amber-400 rounded-xl mb-4">
+          <div className="text-5xl font-extrabold text-amber-300 mb-2 drop-shadow-lg">
             🏆 {game.players[game.winnerId]?.displayName} wins!
           </div>
-          <div className="text-zinc-400">Final score: {game.players[game.winnerId]?.score}</div>
+          <div className="text-emerald-200">
+            Final score: {game.players[game.winnerId]?.score}
+          </div>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        <div className="flex flex-col gap-4">
-          <Board game={game} onPickCell={handlePickCell} />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {players.map((p) => (
-              <ParticipantTile
-                key={p.id}
-                player={p}
-                gameId={gameId}
-                isCurrentTurn={game.currentTurn === p.id}
-                isHost={p.id === game.hostId}
-                hideVideo={mode === "host" && p.id === userId}
-              />
-            ))}
-          </div>
+      {/* Main 3-col layout: host cam | board | right panel */}
+      <div className="grid grid-cols-[300px_1fr_260px] gap-4 flex-1 min-h-0">
+        {/* Host cam (top-left, big) */}
+        <div className="flex flex-col gap-3 min-h-0">
+          {hostPlayer ? (
+            <ParticipantTile
+              player={hostPlayer}
+              gameId={gameId}
+              isCurrentTurn={false}
+              isHost
+              hideVideo={isHost && mode === "host"}
+              variant="host"
+              showStats={false}
+            />
+          ) : (
+            <div className="aspect-[4/3] bg-emerald-950/60 border-2 border-emerald-800 rounded-xl flex items-center justify-center text-emerald-700">
+              host offline
+            </div>
+          )}
         </div>
-        <aside className="flex flex-col gap-4">
-          {isHost ? <HostControls /> : null}
-          {!isHost && game.phase !== "lobby" && game.phase !== "finished" ? (
-            <BuzzButton myPlayerId={userId} />
-          ) : null}
-        </aside>
+
+        {/* Board */}
+        <div className="min-h-0">
+          <Board game={game} onPickCell={handlePickCell} />
+        </div>
+
+        {/* Right panel: buzz / host controls + turn indicator */}
+        <div className="flex flex-col gap-3 min-h-0">
+          {isHost ? (
+            <HostControls game={game} />
+          ) : (
+            <div className="flex justify-center pt-2">
+              <BuzzButton myPlayerId={userId} />
+            </div>
+          )}
+          <TurnIndicator game={game} />
+        </div>
       </div>
 
-      <QuestionModal game={game} />
+      {/* Bottom row: contestants */}
+      <div
+        className="grid gap-3 mt-4"
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(contestants.length, 1)}, minmax(0, 1fr))`,
+        }}
+      >
+        {contestants.map((p) => (
+          <ParticipantTile
+            key={p.id}
+            player={p}
+            gameId={gameId}
+            isCurrentTurn={game.currentTurn === p.id}
+            isHost={false}
+            hideVideo={mode === "play" && p.id === userId}
+          />
+        ))}
+      </div>
+
+      <QuestionModal game={game} isHost={isHost} />
     </div>
   );
 }

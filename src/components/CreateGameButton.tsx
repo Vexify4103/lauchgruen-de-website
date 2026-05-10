@@ -22,9 +22,9 @@ export function CreateGameButton() {
           router.push(`/lobby/${gameId}`);
         });
       }}
-      className="rounded-md bg-purple-600 hover:bg-purple-500 disabled:opacity-50 transition-colors px-5 py-3 font-semibold"
+      className="rounded-md bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 disabled:opacity-50 transition-all px-5 py-3 font-extrabold text-emerald-950 shadow-lg shadow-amber-400/20"
     >
-      {pending ? "Creating…" : "Host a new game"}
+      {pending ? "🐻 Creating…" : "🍯 Host a new game"}
     </button>
   );
 }

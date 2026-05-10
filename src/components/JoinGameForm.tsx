@@ -11,20 +11,21 @@ export function JoinGameForm() {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        const trimmed = gameId.trim();
+        const trimmed = gameId.trim().toUpperCase();
         if (trimmed) router.push(`/lobby/${encodeURIComponent(trimmed)}`);
       }}
       className="flex gap-2"
     >
       <input
         value={gameId}
-        onChange={(e) => setGameId(e.target.value)}
-        placeholder="Game code"
-        className="flex-1 rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 placeholder:text-zinc-500"
+        onChange={(e) => setGameId(e.target.value.toUpperCase())}
+        placeholder="GAME CODE"
+        className="flex-1 rounded-md bg-emerald-950/60 border border-emerald-700 px-3 py-2 placeholder:text-emerald-700 text-amber-100 font-mono uppercase tracking-widest focus:border-amber-400 focus:outline-none"
+        maxLength={8}
       />
       <button
         type="submit"
-        className="rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors px-4 py-2 font-semibold"
+        className="rounded-md bg-emerald-700 hover:bg-emerald-600 transition-colors px-4 py-2 font-bold text-emerald-50"
       >
         Join
       </button>

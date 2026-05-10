@@ -15,8 +15,7 @@ export function BuzzButton({ myPlayerId }: Props) {
   const buzzersOpen = game?.activeQuestion?.buzzersOpen ?? false;
   const alreadyTried =
     game?.activeQuestion?.alreadyTried.includes(myPlayerId) ?? false;
-  const isAnswerer =
-    game?.activeQuestion?.currentAnswerer === myPlayerId;
+  const isAnswerer = game?.activeQuestion?.currentAnswerer === myPlayerId;
   const player = game?.players[myPlayerId];
   const eligible =
     !!player &&
@@ -50,19 +49,19 @@ export function BuzzButton({ myPlayerId }: Props) {
         className={[
           "w-44 h-44 rounded-full font-extrabold text-4xl transition-all border-4",
           eligible && !pressed
-            ? "bg-red-600 border-red-300 text-white hover:bg-red-500 active:scale-95 shadow-lg shadow-red-500/50"
+            ? "bg-gradient-to-br from-amber-400 to-amber-600 border-amber-200 text-emerald-950 hover:scale-105 active:scale-95 shadow-2xl shadow-amber-400/60 animate-pulse-slow"
             : pressed
-              ? "bg-yellow-600 border-yellow-300 text-white"
-              : "bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed",
+              ? "bg-emerald-600 border-emerald-300 text-white"
+              : "bg-emerald-950 border-emerald-800 text-emerald-700 cursor-not-allowed",
         ].join(" ")}
       >
         BUZZ
       </button>
       {alreadyTried ? (
-        <div className="text-sm text-zinc-500">Already tried</div>
+        <div className="text-sm text-emerald-400/70">Already tried</div>
       ) : null}
       {lastBuzzWinner && lastBuzzWinner.playerId === myPlayerId ? (
-        <div className="text-sm text-yellow-400">
+        <div className="text-sm text-amber-300 font-bold">
           You buzzed in! ({lastBuzzWinner.reactionMs}ms)
         </div>
       ) : null}

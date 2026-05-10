@@ -7,28 +7,34 @@ export default async function Home() {
   const session = await auth();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 text-zinc-50 px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 px-6">
       <main className="flex w-full max-w-xl flex-col items-center gap-8 py-16">
-        <h1 className="text-4xl font-bold tracking-tight">QuizDuell</h1>
-        <p className="text-zinc-400 text-center">
+        <h1 className="text-5xl font-extrabold tracking-tight text-amber-300 drop-shadow-lg">
+          🐻 QUIZ<span className="text-emerald-200">DUELL</span> 🍯
+        </h1>
+        <p className="text-emerald-200/80 text-center">
           A real-time, multi-streamer Jeopardy-style gameshow.
         </p>
 
         {session?.user ? (
           <div className="flex flex-col items-center gap-6 w-full">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 bg-emerald-950/60 border border-emerald-800 rounded-xl px-4 py-3">
               {session.user.image && (
                 <Image
                   src={session.user.image}
                   alt={session.user.name ?? "avatar"}
                   width={48}
                   height={48}
-                  className="rounded-full"
+                  className="rounded-full border-2 border-amber-400"
                 />
               )}
               <div>
-                <div className="font-semibold">{session.user.name}</div>
-                <div className="text-sm text-zinc-400">@{session.user.twitchLogin}</div>
+                <div className="font-bold text-amber-100">
+                  {session.user.name}
+                </div>
+                <div className="text-sm text-emerald-300/70">
+                  @{session.user.twitchLogin}
+                </div>
               </div>
             </div>
 
@@ -45,7 +51,7 @@ export default async function Home() {
             >
               <button
                 type="submit"
-                className="text-sm text-zinc-500 hover:text-zinc-300 underline"
+                className="text-sm text-emerald-400/70 hover:text-amber-300 underline transition-colors"
               >
                 Sign out
               </button>
@@ -60,7 +66,7 @@ export default async function Home() {
           >
             <button
               type="submit"
-              className="rounded-full bg-purple-600 hover:bg-purple-500 transition-colors px-6 py-3 font-semibold"
+              className="rounded-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 transition-all px-8 py-4 font-extrabold text-emerald-950 text-lg shadow-lg shadow-amber-400/30"
             >
               Sign in with Twitch
             </button>

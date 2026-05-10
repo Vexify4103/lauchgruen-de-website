@@ -12,15 +12,16 @@ const POINT_VALUES = [100, 200, 300, 400, 500] as const;
 export function Board({ game, onPickCell }: Props) {
   return (
     <div
-      className="grid gap-1 select-none"
+      className="grid gap-1.5 select-none w-full h-full"
       style={{
         gridTemplateColumns: `repeat(${game.categories.length}, minmax(0, 1fr))`,
+        gridTemplateRows: `auto repeat(${POINT_VALUES.length}, minmax(0, 1fr))`,
       }}
     >
       {game.categories.map((cat) => (
         <div
           key={cat.id}
-          className="bg-blue-700 text-center font-bold uppercase tracking-wide py-3 rounded-md"
+          className="bg-gradient-to-b from-amber-500 to-amber-600 text-emerald-950 text-center font-extrabold uppercase tracking-wider py-3 rounded-lg text-sm border border-amber-400/60 shadow-md"
         >
           {cat.displayName}
         </div>
@@ -34,7 +35,7 @@ export function Board({ game, onPickCell }: Props) {
             return (
               <div
                 key={`${cat.id}-${points}`}
-                className="bg-zinc-800 rounded-md min-h-[80px]"
+                className="bg-emerald-950/60 rounded-lg"
               />
             );
           }
@@ -46,11 +47,13 @@ export function Board({ game, onPickCell }: Props) {
               disabled={used || !onPickCell}
               onClick={() => onPickCell?.(cat.id, points)}
               className={[
-                "rounded-md min-h-[80px] text-3xl font-extrabold transition-colors",
+                "rounded-lg text-3xl font-extrabold transition-all border",
                 used
-                  ? "bg-zinc-900 text-zinc-700"
-                  : "bg-blue-900 text-yellow-400 hover:bg-blue-800",
-                onPickCell && !used ? "cursor-pointer" : "cursor-default",
+                  ? "bg-emerald-950/40 text-emerald-900 border-emerald-900/30"
+                  : "bg-gradient-to-br from-emerald-800 to-emerald-900 text-amber-300 border-emerald-700 shadow-inner",
+                onPickCell && !used
+                  ? "cursor-pointer hover:from-emerald-700 hover:to-emerald-800 hover:scale-[1.02] hover:shadow-lg hover:shadow-amber-400/20"
+                  : "cursor-default",
               ].join(" ")}
             >
               {used ? "" : points}
