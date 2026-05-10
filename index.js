@@ -15,6 +15,12 @@ const { spawn, spawnSync } = require("child_process");
 const { existsSync } = require("fs");
 const path = require("path");
 
+// Load .env, .env.local, .env.production, .env.production.local in the order
+// Next.js itself uses. Without this, `tsx server.ts` (our custom server) only
+// sees vars set in the host shell — Pterodactyl users putting secrets in
+// .env.local would otherwise hit "PORT not applied" surprises.
+require("@next/env").loadEnvConfig(__dirname);
+
 const ROOT      = __dirname;
 const TSX       = path.join(ROOT, "node_modules", ".bin", "tsx");
 const NEXT_BIN  = path.join(ROOT, "node_modules", ".bin", "next");
