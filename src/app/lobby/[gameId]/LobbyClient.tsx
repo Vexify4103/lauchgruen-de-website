@@ -37,8 +37,13 @@ export function LobbyClient({ gameId, userId }: Props) {
     else router.push(`/play/${gameId}`);
   }, [game, userId, gameId, router]);
 
+  // No &room= on the push URL: putting the publisher in a room makes their
+  // tab subscribe to every other publisher's stream (cams AND audio) since
+  // room peers default to bidirectional. We only need a publish-only tab.
+  // Our streamIds are globally unique (8 random bytes) so there's no
+  // collision risk from skipping the room.
   const pushUrl = vdoStreamId
-    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&room=quizduell-${encodeURIComponent(gameId)}&webcam&autostart&cleanoutput`
+    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&autostart&cleanoutput`
     : null;
 
   const isHost = game?.hostId === userId;
