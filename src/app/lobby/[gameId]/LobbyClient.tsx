@@ -37,21 +37,27 @@ export function LobbyClient({ gameId, userId }: Props) {
     else router.push(`/play/${gameId}`);
   }, [game, userId, gameId, router]);
 
-  // No &room= on the push URL: putting the publisher in a room makes their
-  // tab subscribe to every other publisher's stream (cams AND audio) since
-  // room peers default to bidirectional. We only need a publish-only tab.
-  // Our streamIds are globally unique (8 random bytes) so there's no
-  // collision risk from skipping the room.
-  const pushUrl = vdoStreamId
-    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&autostart&cleanoutput`
-    : null;
-
   const isHost = game?.hostId === userId;
   const players = game ? Object.values(game.players) : [];
   const contestants = players.filter((p) => p.id !== game?.hostId);
   const me = game?.players[userId];
   const allReady =
     contestants.length > 0 && contestants.every((p) => p.ready);
+
+  // No &room= on the push URL: putting the publisher in a room makes their
+  // tab subscribe to every other publisher's stream (cams AND audio) since
+  // room peers default to bidirectional. We only need a publish-only tab.
+  // Our streamIds are globally unique (8 random bytes) so there's no
+  // collision risk from skipping the room.
+  // &meshcast: relay the publisher's stream through VDO.Ninja's hosted SFU
+  //   so they only upload it once instead of N times (one per viewer).
+  // &label: shows the player's Twitch display name in VDO.Ninja's own UI.
+  const labelParam = me?.displayName
+    ? `&label=${encodeURIComponent(me.displayName)}`
+    : "";
+  const pushUrl = vdoStreamId
+    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&autostart&cleanoutput&meshcast${labelParam}`
+    : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 px-6 py-10">

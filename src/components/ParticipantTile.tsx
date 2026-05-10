@@ -28,7 +28,8 @@ export function ParticipantTile({
   // so we view by streamId directly. Including &room= here causes VDO.Ninja
   // to fall into "join room as participant" mode and prompt for a camera
   // instead of just viewing the publisher's stream.
-  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&cover&cleanoutput&noaudio&transparent`;
+  // &autorecover: auto-reconnect if the P2P link drops mid-game.
+  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&cover&cleanoutput&noaudio&transparent&autorecover`;
 
   const glowClasses = isCurrentTurn
     ? "border-amber-300 shadow-[0_0_24px_rgba(252,211,77,0.6)] animate-pulse-slow"
