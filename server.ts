@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
-import { registerSocketHandlers } from "./src/server/socket.js";
+import { registerSocketHandlers } from "./src/server/socket";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME ?? "localhost";

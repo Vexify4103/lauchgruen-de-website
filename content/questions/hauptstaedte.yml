@@ -1,0 +1,18 @@
+category: hauptstaedte
+displayName: Hauptstädte
+questions:
+  - points: 100
+    prompt: "Hauptstadt von Italien?"
+    answer: Rom
+  - points: 200
+    prompt: "Hauptstadt von Australien?"
+    answer: Canberra
+  - points: 300
+    prompt: "Hauptstadt von Kanada?"
+    answer: Ottawa
+  - points: 400
+    prompt: "Hauptstadt von Kasachstan?"
+    answer: Astana
+  - points: 500
+    prompt: "Hauptstadt von Bhutan?"
+    answer: Thimphu

@@ -1,0 +1,18 @@
+category: sehenswuerdigkeiten
+displayName: Sehenswürdigkeiten
+questions:
+  - points: 100
+    prompt: "In welcher Stadt steht der Eiffelturm?"
+    answer: Paris
+  - points: 200
+    prompt: "In welchem Land steht der Big Ben?"
+    answer: Großbritannien
+  - points: 300
+    prompt: "In welcher Stadt steht die Christusstatue auf dem Berg Corcovado?"
+    answer: Rio de Janeiro
+  - points: 400
+    prompt: "In welchem Land steht die Felsenstadt Petra?"
+    answer: Jordanien
+  - points: 500
+    prompt: "In welchem Land steht der Tempel Angkor Wat?"
+    answer: Kambodscha

@@ -1,0 +1,156 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { io, type Socket } from "socket.io-client";
+import type { ClientGameState } from "@/server/types";
+
+type Role = "player" | "spectator";
+
+interface SocketContextValue {
+  socket: Socket | null;
+  connected: boolean;
+  game: ClientGameState | null;
+  vdoStreamId: string | null;
+  joinGame: (gameId: string) => Promise<{ ok: boolean; vdoStreamId?: string }>;
+  spectateGame: (gameId: string) => Promise<{ ok: boolean }>;
+  leaveGame: () => void;
+  emit: (event: string, payload?: unknown) => void;
+  lastBuzzWinner: { playerId: string; reactionMs: number } | null;
+  buzzersOpenedAt: number | null;
+}
+
+const SocketContext = createContext<SocketContextValue | null>(null);
+
+export function SocketProvider({ children }: { children: ReactNode }) {
+  const socketRef = useRef<Socket | null>(null);
+  const roleRef = useRef<Role>("player");
+  const [connected, setConnected] = useState(false);
+  const [game, setGame] = useState<ClientGameState | null>(null);
+  const [vdoStreamId, setVdoStreamId] = useState<string | null>(null);
+  const [lastBuzzWinner, setLastBuzzWinner] = useState<
+    { playerId: string; reactionMs: number } | null
+  >(null);
+  const [buzzersOpenedAt, setBuzzersOpenedAt] = useState<number | null>(null);
+
+  const ensureSocket = useCallback((role: Role) => {
+    const existing = socketRef.current;
+    if (existing && roleRef.current === role) return existing;
+    if (existing) {
+      existing.disconnect();
+      socketRef.current = null;
+    }
+    roleRef.current = role;
+    const socket = io({
+      transports: ["websocket", "polling"],
+      auth: { role },
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => setConnected(true));
+    socket.on("disconnect", () => setConnected(false));
+    socket.on("state", (state: ClientGameState) => setGame(state));
+    socket.on("buzzers_opened", () => {
+      setBuzzersOpenedAt(Date.now());
+      setLastBuzzWinner(null);
+    });
+    socket.on(
+      "buzz_winner",
+      (payload: { playerId: string; reactionMs: number }) => {
+        setLastBuzzWinner(payload);
+      },
+    );
+    socket.on(
+      "error",
+      (payload: { code: string; message: string }) => {
+        console.warn("[socket] server error:", payload);
+      },
+    );
+    socket.on("connect_error", (err) => {
+      console.error("[socket] connect_error:", err.message);
+    });
+    return socket;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
+  const joinGame = useCallback(
+    (gameId: string) =>
+      new Promise<{ ok: boolean; vdoStreamId?: string }>((resolve) => {
+        const s = ensureSocket("player");
+        const send = () =>
+          s.emit(
+            "join_game",
+            { gameId },
+            (resp: { ok: boolean; vdoStreamId?: string }) => {
+              if (resp?.ok && resp.vdoStreamId) setVdoStreamId(resp.vdoStreamId);
+              resolve(resp ?? { ok: false });
+            },
+          );
+        if (s.connected) send();
+        else s.once("connect", send);
+      }),
+    [ensureSocket],
+  );
+
+  const spectateGame = useCallback(
+    (gameId: string) =>
+      new Promise<{ ok: boolean }>((resolve) => {
+        const s = ensureSocket("spectator");
+        const send = () =>
+          s.emit("spectate_game", { gameId }, (resp: { ok: boolean }) =>
+            resolve(resp ?? { ok: false }),
+          );
+        if (s.connected) send();
+        else s.once("connect", send);
+      }),
+    [ensureSocket],
+  );
+
+  const leaveGame = useCallback(() => {
+    socketRef.current?.emit("leave_game");
+    setGame(null);
+    setVdoStreamId(null);
+  }, []);
+
+  const emit = useCallback((event: string, payload?: unknown) => {
+    socketRef.current?.emit(event, payload);
+  }, []);
+
+  return (
+    <SocketContext.Provider
+      value={{
+        socket: socketRef.current,
+        connected,
+        game,
+        vdoStreamId,
+        joinGame,
+        spectateGame,
+        leaveGame,
+        emit,
+        lastBuzzWinner,
+        buzzersOpenedAt,
+      }}
+    >
+      {children}
+    </SocketContext.Provider>
+  );
+}
+
+export function useSocket(): SocketContextValue {
+  const ctx = useContext(SocketContext);
+  if (!ctx) throw new Error("useSocket must be used inside SocketProvider");
+  return ctx;
+}
