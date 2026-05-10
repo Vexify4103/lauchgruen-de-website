@@ -84,7 +84,6 @@ export function GameClient({ gameId, userId, mode }: Props) {
               gameId={gameId}
               isCurrentTurn={false}
               isHost
-              hideVideo={isHost && mode === "host"}
               variant="host"
               showStats={false}
             />
@@ -127,7 +126,6 @@ export function GameClient({ gameId, userId, mode }: Props) {
             gameId={gameId}
             isCurrentTurn={game.currentTurn === p.id}
             isHost={false}
-            hideVideo={mode === "play" && p.id === userId}
           />
         ))}
       </div>
