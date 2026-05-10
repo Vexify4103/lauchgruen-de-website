@@ -17,6 +17,11 @@ declare module "@auth/core/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Trust the Host header — required when running behind a reverse proxy
+  // (Pterodactyl, nginx, Cloudflare, etc.). Without this, Auth.js v5 throws
+  // UntrustedHost in production for every /api/auth/* request.
+  // Safe because the proxy is the one terminating TLS and setting Host.
+  trustHost: true,
   providers: [
     Twitch({
       clientId: process.env.TWITCH_CLIENT_ID,
