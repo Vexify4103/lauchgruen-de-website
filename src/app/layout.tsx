@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "QuizDuell",
-  description: "Real-time multi-streamer Jeopardy-style gameshow",
+  description: "Echtzeit-Gameshow im Jeopardy-Stil für mehrere Streamer",
+  icons: { icon: "/bear-logo.png", apple: "/bear-logo.png" },
 };
 
 export default function RootLayout({
@@ -25,10 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="de"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-full">
         <SocketProvider>{children}</SocketProvider>
       </body>
     </html>

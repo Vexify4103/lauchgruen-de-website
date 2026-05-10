@@ -1,0 +1,18 @@
+category: zahlen_fakten
+displayName: Zahlen & Fakten
+questions:
+  - points: 100
+    prompt: "Wie groß ist der Kolossale Titan in Metern?"
+    answer: "60 Meter"
+  - points: 200
+    prompt: "Wie alt ist Eren Jäger zu Beginn der Serie (Folge 1)?"
+    answer: "10 Jahre alt"
+  - points: 300
+    prompt: "Wie viele der neun Titanenmächte besitzt Eren auf dem Höhepunkt seiner Macht?"
+    answer: "Drei (Angriffstitan, Gründungstitan, Kriegshammer-Titan)"
+  - points: 400
+    prompt: "Wie viele Kilometer Durchmesser hat ungefähr jede der drei Ringmauern laut Manga?"
+    answer: "Etwa 100 Kilometer Durchmesser"
+  - points: 500
+    prompt: "Wie viele Jahre liegen zwischen dem Fall von Mauer Maria und Erens Angriff auf Marley in Staffel 4?"
+    answer: "4 Jahre (Eren ist am Anfang 10, beim Marley-Angriff 19)"

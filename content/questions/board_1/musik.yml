@@ -1,0 +1,18 @@
+category: musik
+displayName: Openings & Musik
+questions:
+  - points: 100
+    prompt: "Wie heißt das Opening von Staffel 1 ('Crimson Bow and Arrow')?"
+    answer: Guren no Yumiya
+  - points: 200
+    prompt: "Welche Band performt die meisten Attack-on-Titan-Openings?"
+    answer: Linked Horizon
+  - points: 300
+    prompt: "Wie heißt das Opening von Staffel 2 ('Devote Your Hearts')?"
+    answer: Shinzō wo Sasageyo
+  - points: 400
+    prompt: "Wer ist der maskierte Sänger und Songwriter hinter Linked Horizon?"
+    answer: Revo
+  - points: 500
+    prompt: "Welche japanische Band performt das Opening von Staffel 4 Teil 1 ('My War' / 'Boku no Sensō')?"
+    answer: Shinsei Kamattechan

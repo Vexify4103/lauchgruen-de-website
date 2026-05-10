@@ -1,7 +1,6 @@
 import type {
   ActiveQuestion,
-  BoardCell,
-  CategoryMeta,
+  BoardData,
   ClientGameState,
   GameId,
   GameState,
@@ -9,6 +8,7 @@ import type {
   PlayerId,
   Question,
   QuestionForClient,
+  ReviewQuestion,
 } from "./types";
 import { STARTING_HEARTS } from "./types";
 import { generateGameId } from "../lib/stream-id";
@@ -46,11 +46,12 @@ export function getGame(id: GameId): GameState | undefined {
 
 export function createGame(args: {
   hostId: PlayerId;
-  categories: CategoryMeta[];
-  board: BoardCell[];
+  boards: BoardData[];
 }): GameState {
   let id = generateGameId();
   while (games.has(id)) id = generateGameId();
+
+  const firstBoard = args.boards[0] ?? { categories: [], board: [] };
 
   const state: GameState = {
     id,
@@ -59,11 +60,16 @@ export function createGame(args: {
     players: {},
     playerOrder: [],
     currentTurn: null,
-    categories: args.categories,
-    board: args.board,
+    categories: firstBoard.categories,
+    board: firstBoard.board,
+    boards: args.boards,
+    currentBoardIndex: 0,
     activeQuestion: null,
+    reviewQuestion: null,
+    isBonusRound: false,
     winnerId: null,
     createdAt: Date.now(),
+    roundAnswered: [],
   };
   games.set(id, state);
   return state;
@@ -119,15 +125,36 @@ export function setActiveQuestion(
   game.activeQuestion = active;
 }
 
+export function setReviewQuestion(
+  game: GameState,
+  review: ReviewQuestion | null,
+): void {
+  game.reviewQuestion = review;
+}
+
 export function markCellUsed(
   game: GameState,
   category: string,
   points: number,
 ): void {
+  // game.board is a reference to boards[currentBoardIndex].board, so mutating it
+  // also mutates the boards array entry.
   const cell = game.board.find(
     (c) => c.category === category && c.points === points,
   );
   if (cell) cell.used = true;
+}
+
+/**
+ * Switch the active board.  Updates the `categories` and `board` shortcuts.
+ * Returns false if the index is out of range.
+ */
+export function switchBoard(game: GameState, index: number): boolean {
+  if (index < 0 || index >= game.boards.length) return false;
+  game.currentBoardIndex = index;
+  game.categories = game.boards[index].categories;
+  game.board = game.boards[index].board;
+  return true;
 }
 
 export function nextTurn(game: GameState): PlayerId | null {
@@ -151,7 +178,10 @@ export function getNonHostPlayers(game: GameState): Player[] {
 export function checkGameOver(game: GameState): PlayerId | null {
   const contestants = getNonHostPlayers(game);
   const alive = contestants.filter((p) => !p.eliminated);
-  const allCellsUsed = game.board.length > 0 && game.board.every((c) => c.used);
+  // Game ends when ALL boards are exhausted.
+  const allBoardsUsed =
+    game.boards.length > 0 &&
+    game.boards.every((b) => b.board.every((c) => c.used));
 
   if (contestants.length > 1 && alive.length === 1) {
     return alive[0].id;
@@ -159,7 +189,7 @@ export function checkGameOver(game: GameState): PlayerId | null {
   if (contestants.length > 0 && alive.length === 0) {
     return null;
   }
-  if (allCellsUsed) {
+  if (allBoardsUsed) {
     const winner = [...contestants].sort((a, b) => b.score - a.score)[0];
     return winner?.id ?? null;
   }
@@ -198,6 +228,7 @@ export function serializeFor(
 ): ClientGameState {
   const isHost = viewerId !== null && viewerId === game.hostId;
 
+  // --- activeQuestion ---
   let activeForClient: ClientGameState["activeQuestion"] = null;
   if (game.activeQuestion) {
     const q = questionPool.get(game.activeQuestion.questionId);
@@ -208,7 +239,8 @@ export function serializeFor(
           points: q.points,
           prompt: q.prompt,
           imageUrl: q.imageUrl,
-          ...(isHost ? { answer: q.answer } : {}),
+          audioUrl: q.audioUrl,
+          ...(isHost || game.activeQuestion.answerRevealed ? { answer: q.answer } : {}),
         }
       : {
           id: game.activeQuestion.questionId,
@@ -222,8 +254,51 @@ export function serializeFor(
     };
   }
 
+  // --- reviewQuestion (answer always visible — question already played) ---
+  let reviewForClient: ClientGameState["reviewQuestion"] = null;
+  if (game.reviewQuestion) {
+    const q = questionPool.get(game.reviewQuestion.questionId);
+    if (q) {
+      reviewForClient = {
+        ...game.reviewQuestion,
+        question: {
+          id: q.id,
+          category: q.category,
+          points: q.points,
+          prompt: q.prompt,
+          imageUrl: q.imageUrl,
+          audioUrl: q.audioUrl,
+          answer: q.answer, // always reveal for reviewed questions
+        },
+      };
+    }
+  }
+
+  // --- usedQuestionData (full data for all answered cells, visible to everyone) ---
+  const usedQuestionData: Record<string, import("./types").QuestionForClient> = {};
+  for (const boardData of game.boards) {
+    for (const cell of boardData.board) {
+      if (cell.used) {
+        const q = questionPool.get(cell.questionId);
+        if (q) {
+          usedQuestionData[cell.questionId] = {
+            id: q.id,
+            category: q.category,
+            points: q.points,
+            prompt: q.prompt,
+            imageUrl: q.imageUrl,
+            audioUrl: q.audioUrl,
+            answer: q.answer, // always include for used questions
+          };
+        }
+      }
+    }
+  }
+
   return {
     ...game,
     activeQuestion: activeForClient,
+    reviewQuestion: reviewForClient,
+    usedQuestionData,
   };
 }

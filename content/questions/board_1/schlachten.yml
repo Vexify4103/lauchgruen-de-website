@@ -1,0 +1,18 @@
+category: schlachten
+displayName: Schlachten
+questions:
+  - points: 100
+    prompt: "In welcher Stadt stopft Eren als Titan das Mauerloch mit einem Felsen?"
+    answer: Trost
+  - points: 200
+    prompt: "In welchem Bezirk der Hauptstadt stellt sich Annie Leonhart in ihrer Titanenform?"
+    answer: Stohess
+  - points: 300
+    prompt: "Wie heißt die Aufklärungs-Operation, bei der man Annie als Weiblichen Titan fangen will?"
+    answer: 57. Expedition außerhalb der Mauern
+  - points: 400
+    prompt: "In welcher Schlacht opfert sich Erwin Smith bei der Wiedereroberung von Erens Heimatstadt?"
+    answer: Die Schlacht von Shiganshina
+  - points: 500
+    prompt: "Wie heißt Erens weltumspannender Vernichtungsangriff am Ende der Serie?"
+    answer: Das Rumbling (Der Donnerschlag)

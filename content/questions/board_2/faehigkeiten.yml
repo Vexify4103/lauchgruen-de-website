@@ -1,0 +1,18 @@
+category: faehigkeiten
+displayName: Fähigkeiten
+questions:
+  - points: 100
+    prompt: "Wie heißt das Ausrüstungs-System, mit dem Soldaten durch die Lüfte gleiten?"
+    answer: Dreidimensionales Manöver-Equipment (3DM-Equipment)
+  - points: 200
+    prompt: "Welche besondere Fähigkeit besitzt der Gründungstitan, die alle anderen Titanen kontrolliert?"
+    answer: Koordination (Kontrolle über alle Titanen)
+  - points: 300
+    prompt: "Wie nennt man die Fähigkeit von Ackermans, in Extremsituationen plötzlich extrem kampfstark zu werden?"
+    answer: Ackerman-Kraft / Ackerman-Fähigkeit
+  - points: 400
+    prompt: "Was passiert mit einem normalen Menschen, der von einem intelligenten Titan gefressen wird und einen der neun Titanen in sich trägt?"
+    answer: Er erbt die Macht des Titans (und wird zum neuen Titanenträger)
+  - points: 500
+    prompt: "Wie heißt die Fähigkeit, mit der Eren die Vergangenheit seines Vaters Grisha durch Berührung erlebt?"
+    answer: Angriffstitan-Gedächtnis / Zukunftsgedächtnis des Angriffstitans

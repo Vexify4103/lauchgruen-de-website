@@ -1,0 +1,18 @@
+category: zitate
+displayName: Zitate
+questions:
+  - points: 100
+    prompt: "Vervollständige Erens bekanntestes Zitat: 'Ich werde sie alle vernichten… jeden letzten…'"
+    answer: "…Titan auf dieser Welt!"
+  - points: 200
+    prompt: "Wer sagt: 'Wenn du kein Risiko eingehst, kannst du nichts schaffen'?"
+    answer: Erwin Smith
+  - points: 300
+    prompt: "Wer sagt das Zitat: 'Diese Welt ist grausam. Aber auch wunderschön.'?"
+    answer: Mikasa Ackerman
+  - points: 400
+    prompt: "Vervollständige Levis Aussage über Entscheidungen: 'Niemand weiß, wie es ausgeht. Also wähle die Entscheidung, mit deren Bedauern…'"
+    answer: "…du leben kannst."
+  - points: 500
+    prompt: "Wer sagt: 'Ich bin frei!' – und was ist der Kontext dieser Szene?"
+    answer: Ymir Fritz (nach tausenden Jahren Knechtschaft, als sie durch Mikasas Handlung befreit wird)

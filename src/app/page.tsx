@@ -3,6 +3,8 @@ import { auth, signIn, signOut } from "@/lib/auth";
 import { CreateGameButton } from "@/components/CreateGameButton";
 import { JoinGameForm } from "@/components/JoinGameForm";
 
+const ALLOWED_HOSTS = ["lauchgruen", "vexi_fy"];
+
 export default async function Home({
   searchParams,
 }: {
@@ -10,19 +12,30 @@ export default async function Home({
 }) {
   const session = await auth();
   const sp = await searchParams;
+  const canHost = ALLOWED_HOSTS.includes(session?.user?.twitchLogin ?? "");
   const errorMessage =
     sp.error === "game_not_found"
-      ? `Game ${sp.code ? `"${sp.code}"` : ""} doesn't exist or has ended.`
+      ? `Spiel ${sp.code ? `"${sp.code}"` : ""} existiert nicht oder wurde beendet.`
       : null;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 px-6">
       <main className="flex w-full max-w-xl flex-col items-center gap-8 py-16">
-        <h1 className="text-5xl font-extrabold tracking-tight text-amber-300 drop-shadow-lg">
-          🐻 QUIZ<span className="text-emerald-200">DUELL</span> 🍯
-        </h1>
+        <div className="flex flex-col items-center gap-3">
+          <Image
+            src="/bear-logo.png"
+            alt="QuizDuell Bear"
+            width={140}
+            height={140}
+            className="drop-shadow-2xl"
+            priority
+          />
+          <h1 className="text-5xl font-extrabold tracking-tight text-amber-300 drop-shadow-lg">
+            QUIZ<span className="text-emerald-200">DUELL</span> 🍯
+          </h1>
+        </div>
         <p className="text-emerald-200/80 text-center">
-          A real-time, multi-streamer Jeopardy-style gameshow.
+          Eine Echtzeit-Gameshow im Jeopardy-Stil für mehrere Streamer.
         </p>
 
         {errorMessage ? (
@@ -54,7 +67,7 @@ export default async function Home({
             </div>
 
             <div className="flex flex-col gap-3 w-full">
-              <CreateGameButton />
+              {canHost ? <CreateGameButton /> : null}
               <JoinGameForm />
             </div>
 
@@ -68,7 +81,7 @@ export default async function Home({
                 type="submit"
                 className="text-sm text-emerald-400/70 hover:text-amber-300 underline transition-colors"
               >
-                Sign out
+                Abmelden
               </button>
             </form>
           </div>
@@ -83,7 +96,7 @@ export default async function Home({
               type="submit"
               className="rounded-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 transition-all px-8 py-4 font-extrabold text-emerald-950 text-lg shadow-lg shadow-amber-400/30"
             >
-              Sign in with Twitch
+              Mit Twitch anmelden
             </button>
           </form>
         )}

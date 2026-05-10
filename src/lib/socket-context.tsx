@@ -25,6 +25,9 @@ interface SocketContextValue {
   emit: (event: string, payload?: unknown) => void;
   lastBuzzWinner: { playerId: string; reactionMs: number } | null;
   buzzersOpenedAt: number | null;
+  /** Fires whenever the host judges an answer. The `seq` counter increments each
+   *  time so React effects re-fire even for consecutive identical outcomes. */
+  lastJudgeResult: { correct: boolean; seq: number } | null;
 }
 
 const SocketContext = createContext<SocketContextValue | null>(null);
@@ -39,6 +42,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     { playerId: string; reactionMs: number } | null
   >(null);
   const [buzzersOpenedAt, setBuzzersOpenedAt] = useState<number | null>(null);
+  const [lastJudgeResult, setLastJudgeResult] = useState<{
+    correct: boolean;
+    seq: number;
+  } | null>(null);
+  const judgeSeqRef = useRef(0);
 
   const ensureSocket = useCallback((role: Role) => {
     const existing = socketRef.current;
@@ -67,6 +75,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         setLastBuzzWinner(payload);
       },
     );
+    socket.on("judge_result", (payload: { correct: boolean }) => {
+      setLastJudgeResult({ correct: payload.correct, seq: ++judgeSeqRef.current });
+    });
     socket.on(
       "error",
       (payload: { code: string; message: string }) => {
@@ -142,6 +153,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         emit,
         lastBuzzWinner,
         buzzersOpenedAt,
+        lastJudgeResult,
       }}
     >
       {children}

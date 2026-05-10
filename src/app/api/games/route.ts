@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createGame, registerQuestionPool } from "@/server/game-state";
-import { loadQuestionPool, pickCategoriesAndBoard } from "@/lib/questions";
+import { loadQuestionPool, pickAllBoards } from "@/lib/questions";
 
 let questionPoolRegistered = false;
 function ensureQuestionPool(): void {
@@ -10,18 +10,22 @@ function ensureQuestionPool(): void {
   questionPoolRegistered = true;
 }
 
+const ALLOWED_HOSTS = ["lauchgruen", "vexi_fy"];
+
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
+  if (!ALLOWED_HOSTS.includes(session.user.twitchLogin ?? "")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   ensureQuestionPool();
-  const { categories, board } = pickCategoriesAndBoard(6);
+  const boards = pickAllBoards(3);
   const game = createGame({
     hostId: session.user.id,
-    categories,
-    board,
+    boards,
   });
   return NextResponse.json({ gameId: game.id });
 }

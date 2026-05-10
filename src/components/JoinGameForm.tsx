@@ -19,7 +19,7 @@ export function JoinGameForm() {
       <input
         value={gameId}
         onChange={(e) => setGameId(e.target.value.toUpperCase())}
-        placeholder="GAME CODE"
+        placeholder="SPIEL-CODE"
         className="flex-1 rounded-md bg-emerald-950/60 border border-emerald-700 px-3 py-2 placeholder:text-emerald-700 text-amber-100 font-mono uppercase tracking-widest focus:border-amber-400 focus:outline-none"
         maxLength={8}
       />
@@ -27,7 +27,7 @@ export function JoinGameForm() {
         type="submit"
         className="rounded-md bg-emerald-700 hover:bg-emerald-600 transition-colors px-4 py-2 font-bold text-emerald-50"
       >
-        Join
+        Beitreten
       </button>
     </form>
   );
