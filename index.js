@@ -1,15 +1,56 @@
 /**
  * Production entry point — called by the hosting panel as `node index.js`.
- * Spawns the TypeScript server via tsx (which is a real dependency, not dev-only).
+ *
+ * 1. If `.next/` doesn't exist (or has no BUILD_ID), runs `next build` first.
+ *    Pterodactyl's Node.js egg only does `npm install` + `node index.js`, so
+ *    without this auto-build the production server crashes with
+ *    "Could not find a production build in the '.next' directory".
+ *
+ * 2. Then spawns the TypeScript server via tsx (a real dep, not dev-only).
+ *
+ * To skip the auto-build (e.g. you already built locally and rsync'd .next/),
+ * set SKIP_BUILD=1 in the environment.
  */
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
+const { existsSync } = require("fs");
 const path = require("path");
 
-const tsx = path.join(__dirname, "node_modules", ".bin", "tsx");
+const ROOT      = __dirname;
+const TSX       = path.join(ROOT, "node_modules", ".bin", "tsx");
+const NEXT_BIN  = path.join(ROOT, "node_modules", ".bin", "next");
+const BUILD_ID  = path.join(ROOT, ".next", "BUILD_ID");
 
-const proc = spawn(tsx, [path.join(__dirname, "server.ts")], {
+const isWindows = process.platform === "win32";
+const tsxCmd  = isWindows ? `${TSX}.cmd`  : TSX;
+const nextCmd = isWindows ? `${NEXT_BIN}.cmd` : NEXT_BIN;
+
+function ensureBuild() {
+  if (process.env.SKIP_BUILD === "1") {
+    console.log("[index] SKIP_BUILD=1 — skipping next build");
+    return;
+  }
+  if (existsSync(BUILD_ID)) {
+    console.log("[index] Found .next/BUILD_ID — using existing build");
+    return;
+  }
+  console.log("[index] No .next build found — running `next build`…");
+  const r = spawnSync(nextCmd, ["build"], {
+    stdio: "inherit",
+    cwd: ROOT,
+    env: { ...process.env, NODE_ENV: "production" },
+  });
+  if (r.status !== 0) {
+    console.error(`[index] next build failed (exit ${r.status}) — aborting`);
+    process.exit(r.status ?? 1);
+  }
+}
+
+ensureBuild();
+
+console.log("[index] Starting server…");
+const proc = spawn(tsxCmd, [path.join(ROOT, "server.ts")], {
   stdio: "inherit",
-  cwd: __dirname,
+  cwd: ROOT,
   env: {
     ...process.env,
     NODE_ENV: "production",
