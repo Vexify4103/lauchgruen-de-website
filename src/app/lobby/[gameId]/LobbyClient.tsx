@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ interface Props {
 export function LobbyClient({ gameId, userId }: Props) {
   const router = useRouter();
   const { game, joinGame, vdoStreamId, connected, emit } = useSocket();
+  const [pushUrlRevealed, setPushUrlRevealed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,9 +97,23 @@ export function LobbyClient({ gameId, userId }: Props) {
               >
                 🎥 Open my camera (VDO.Ninja) ↗
               </a>
-              <code className="block text-xs text-emerald-500/60 break-all">
-                {pushUrl}
-              </code>
+              {pushUrlRevealed ? (
+                <code className="block text-xs text-emerald-500/70 break-all bg-emerald-950/40 border border-emerald-800 rounded px-3 py-2 font-mono select-all">
+                  {pushUrl}
+                </code>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPushUrlRevealed(true)}
+                  aria-label="Reveal camera URL (contains your stream ID)"
+                  className="relative block w-full text-left text-xs break-all font-mono px-3 py-2 rounded bg-emerald-950 hover:bg-emerald-900 cursor-pointer select-none border border-amber-400/20 transition-colors text-transparent"
+                >
+                  {pushUrl}
+                  <span className="absolute inset-0 flex items-center justify-center text-emerald-300 font-sans text-[11px] uppercase tracking-wider pointer-events-none">
+                    🔒 click to reveal camera URL
+                  </span>
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-emerald-400/70">
