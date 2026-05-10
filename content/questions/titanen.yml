@@ -1,0 +1,18 @@
+category: titanen
+displayName: Die 9 Titanen
+questions:
+  - points: 100
+    prompt: "Welcher Titan ist der größte und tritt direkt im ersten Kapitel auf?"
+    answer: Der Kolossale Titan
+  - points: 200
+    prompt: "Welchen der neun Titanen erbt Reiner Braun?"
+    answer: Der Gepanzerte Titan
+  - points: 300
+    prompt: "Wer ist die Urmutter aller Titanen, die als erste die Macht der Titanen erhielt?"
+    answer: Ymir Fritz
+  - points: 400
+    prompt: "Welchen Titan erbt Eren neben dem Angriffstitan und dem Gründungstitan?"
+    answer: Der Kriegshammer-Titan
+  - points: 500
+    prompt: "Wie viele Jahre lebt der Inhaber eines der neun Titanen nach Ymirs Fluch maximal?"
+    answer: 13 Jahre
