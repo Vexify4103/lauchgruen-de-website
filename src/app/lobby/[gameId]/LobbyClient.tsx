@@ -20,14 +20,15 @@ export function LobbyClient({ gameId, userId }: Props) {
   useEffect(() => {
     let cancelled = false;
     void joinGame(gameId).then((resp) => {
-      if (!resp.ok && !cancelled) {
-        console.warn("join_game failed");
+      if (cancelled) return;
+      if (!resp.ok) {
+        router.replace(`/?error=game_not_found&code=${encodeURIComponent(gameId)}`);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [gameId, joinGame]);
+  }, [gameId, joinGame, router]);
 
   // Auto-redirect to play/host once game is started
   useEffect(() => {

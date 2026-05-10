@@ -3,8 +3,17 @@ import { auth, signIn, signOut } from "@/lib/auth";
 import { CreateGameButton } from "@/components/CreateGameButton";
 import { JoinGameForm } from "@/components/JoinGameForm";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; code?: string }>;
+}) {
   const session = await auth();
+  const sp = await searchParams;
+  const errorMessage =
+    sp.error === "game_not_found"
+      ? `Game ${sp.code ? `"${sp.code}"` : ""} doesn't exist or has ended.`
+      : null;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 px-6">
@@ -15,6 +24,12 @@ export default async function Home() {
         <p className="text-emerald-200/80 text-center">
           A real-time, multi-streamer Jeopardy-style gameshow.
         </p>
+
+        {errorMessage ? (
+          <div className="w-full bg-red-950/60 border border-red-700 text-red-200 rounded-lg px-4 py-3 text-sm">
+            ⚠ {errorMessage}
+          </div>
+        ) : null}
 
         {session?.user ? (
           <div className="flex flex-col items-center gap-6 w-full">
