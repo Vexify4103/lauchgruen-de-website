@@ -1,5 +1,6 @@
 /**
- * Host-based subdomain routing.
+ * Host-based subdomain routing (Next.js 16 "proxy" file convention —
+ * formerly known as middleware).
  *
  * Two hostnames, one app:
  *   - lauchgruen.de             → streamer landing page
@@ -18,7 +19,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const APEX_HOSTS = new Set(["lauchgruen.de", "www.lauchgruen.de"]);
 const QUIZ_HOST  = "jeopardy.lauchgruen.de";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   // `host` includes the port locally (e.g. "localhost:3000"), strip it.
   const rawHost = req.headers.get("host") ?? "";
   const host = rawHost.split(":")[0].toLowerCase();
@@ -54,7 +55,7 @@ export function middleware(req: NextRequest) {
 }
 
 // Skip Next internals and static asset paths — they're host-independent and
-// running middleware on them wastes cycles + risks breaking image loading.
+// running the proxy on them wastes cycles + risks breaking image loading.
 export const config = {
   matcher: [
     "/((?!_next/|_vercel/|favicon\\.ico|bear-logo\\.png|questions/|api/health).*)",
