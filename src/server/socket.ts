@@ -509,16 +509,31 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       revealCloseTimers.set(gameId, timer);
     });
 
+    socket.on("host:open_bonus_buzzers", () => {
+      const gameId = socket.data.gameId;
+      if (!gameId) return;
+      const game = getGame(gameId);
+      if (!game || !isHost(socket, game)) return;
+      if (game.phase !== "bonus_pending") return;
+
+      console.log(`[buzz] host:open_bonus_buzzers — phase: bonus_pending → bonus_buzzing`);
+      game.phase = "bonus_buzzing";
+      io.to(`game:${gameId}`).emit("buzzers_opened");
+      io.to(`spectator:${gameId}`).emit("buzzers_opened");
+      broadcastAll(io, game);
+    });
+
     socket.on("host:cancel_bonus_buzz", () => {
       const gameId = socket.data.gameId;
       if (!gameId) return;
       const game = getGame(gameId);
       if (!game || !isHost(socket, game)) return;
-      // Allow cancel during the buzz window AND the post-buzz pick window
-      // (phase = "playing" + isBonusRound = true).
-      const inBuzzPhase  = game.phase === "bonus_buzzing";
-      const inPickWindow = game.phase === "playing" && game.isBonusRound && !game.activeQuestion;
-      if (!inBuzzPhase && !inPickWindow) return;
+      // Allow cancel during the pre-open pending phase, the buzz window itself,
+      // AND the post-buzz pick window (phase = "playing" + isBonusRound = true).
+      const inPendingPhase = game.phase === "bonus_pending";
+      const inBuzzPhase    = game.phase === "bonus_buzzing";
+      const inPickWindow   = game.phase === "playing" && game.isBonusRound && !game.activeQuestion;
+      if (!inPendingPhase && !inBuzzPhase && !inPickWindow) return;
 
       // Cancel pending buzz collection
       const collector = buzzCollectors.get(gameId);
@@ -702,10 +717,11 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         game.phase    = "finished";
         game.winnerId = winner;
       } else if (startBonusBuzz) {
-        // Start the bonus buzz round (opens buzzers for all players).
-        game.phase = "bonus_buzzing";
-        io.to(`game:${gameId}`).emit("buzzers_opened");
-        io.to(`spectator:${gameId}`).emit("buzzers_opened");
+        // Round ended — bonus buzz is queued but NOT auto-started, so the host
+        // can talk through the previous question before opening buzzers.
+        // The host clicks "Bonus-Buzzer öffnen" → host:open_bonus_buzzers,
+        // which flips phase to "bonus_buzzing" and emits buzzers_opened.
+        game.phase = "bonus_pending";
       }
 
       broadcastAll(io, game);

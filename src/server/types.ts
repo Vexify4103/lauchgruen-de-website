@@ -7,6 +7,7 @@ export type GamePhase =
   | "playing"
   | "answering"
   | "buzzing"
+  | "bonus_pending"   // round ended; host hasn't opened bonus buzzers yet (talk window)
   | "bonus_buzzing"   // post-round bonus buzz: all buzzers open, winner picks a question
   | "finished";
 

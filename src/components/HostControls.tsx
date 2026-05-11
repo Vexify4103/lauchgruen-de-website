@@ -11,7 +11,8 @@ export function HostControls({ game }: Props) {
   const { emit, lastBuzzWinner } = useSocket();
   const aq = game.activeQuestion;
   const phase = game.phase;
-  const isBonusBuzz = phase === "bonus_buzzing";
+  const isBonusPending = phase === "bonus_pending";
+  const isBonusBuzz    = phase === "bonus_buzzing";
   // After a bonus buzz resolves, phase returns to "playing" with isBonusRound=true
   // and currentTurn = buzz winner. Show a clear banner so the host knows who
   // just won and that the next cell-pick belongs to them.
@@ -38,6 +39,33 @@ export function HostControls({ game }: Props) {
           <span className="ml-2 text-amber-400 font-bold">(Bonus)</span>
         )}
       </div>
+
+      {/* Bonus pending — round ended, host can chat then open buzzers */}
+      {isBonusPending && (
+        <div className="flex flex-col gap-2 border-2 border-amber-400/60 rounded-lg p-3 bg-amber-500/10">
+          <div className="text-center text-amber-300 font-extrabold text-sm">
+            🎯 Bonusrunde bereit
+          </div>
+          <div className="text-emerald-100/85 text-xs text-center">
+            Quatsch in Ruhe über die letzte Frage —
+            wenn ihr soweit seid, öffne die Buzzer.
+          </div>
+          <button
+            type="button"
+            onClick={() => emit("host:open_bonus_buzzers")}
+            className="w-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-emerald-950 font-extrabold rounded-lg px-3 py-2.5 text-sm transition-colors shadow-lg shadow-amber-400/30"
+          >
+            ⚡ Bonus-Buzzer öffnen
+          </button>
+          <button
+            type="button"
+            onClick={() => emit("host:cancel_bonus_buzz")}
+            className="w-full bg-red-900/70 hover:bg-red-800 border border-red-700 text-red-200 font-bold rounded-md px-2 py-1.5 text-xs transition-colors"
+          >
+            ✕ Bonus überspringen
+          </button>
+        </div>
+      )}
 
       {/* Bonus buzz indicator + cancel + force-resolve */}
       {isBonusBuzz && (
