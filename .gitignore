@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# deployment archives (created locally for upload to the server)
+*.zip
+*.tar.gz
