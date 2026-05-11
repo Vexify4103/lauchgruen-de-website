@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSocket } from "@/lib/socket-context";
+import { GameNotFound } from "@/components/GameNotFound";
 
 interface Props {
   gameId: string;
@@ -18,6 +19,7 @@ export function LobbyClient({ gameId, userId }: Props) {
   const [pushUrlRevealed, setPushUrlRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [obsCopied, setObsCopied] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const copyText = (text: string, setCopied: (v: boolean) => void) => {
     void navigator.clipboard.writeText(text).then(() => {
@@ -28,16 +30,15 @@ export function LobbyClient({ gameId, userId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setNotFound(false);
     void joinGame(gameId).then((resp) => {
       if (cancelled) return;
-      if (!resp.ok) {
-        router.replace(`/?error=game_not_found&code=${encodeURIComponent(gameId)}`);
-      }
+      if (!resp.ok) setNotFound(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [gameId, joinGame, router]);
+  }, [gameId, joinGame]);
 
   // Auto-redirect to play/host once game is started
   useEffect(() => {
@@ -68,6 +69,10 @@ export function LobbyClient({ gameId, userId }: Props) {
   const pushUrl = vdoStreamId
     ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&cleanoutput&meshcast${labelParam}`
     : null;
+
+  if (notFound) {
+    return <GameNotFound code={gameId} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 px-6 py-10">

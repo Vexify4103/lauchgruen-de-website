@@ -10,6 +10,7 @@ import { ReviewQuestionModal } from "@/components/ReviewQuestionModal";
 import { BuzzButton } from "@/components/BuzzButton";
 import { HostControls } from "@/components/HostControls";
 import { TurnIndicator } from "@/components/TurnIndicator";
+import { GameNotFound } from "@/components/GameNotFound";
 import Image from "next/image";
 import { playCorrect, playWrong } from "@/lib/sounds";
 
@@ -25,9 +26,19 @@ export function GameClient({ gameId, userId, mode }: Props) {
   const [wrongFlash,   setWrongFlash]   = useState(false);
   /** Non-host local review: the questionId currently being viewed, or null. */
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
+  /** True when join_game came back with ok:false — game doesn't exist. */
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    void joinGame(gameId);
+    let cancelled = false;
+    setNotFound(false);
+    void joinGame(gameId).then((resp) => {
+      if (cancelled) return;
+      if (!resp.ok) setNotFound(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [gameId, joinGame]);
 
   // Sound + screen flash on judge result
@@ -45,6 +56,10 @@ export function GameClient({ gameId, userId, mode }: Props) {
       return () => clearTimeout(t);
     }
   }, [lastJudgeResult]);
+
+  if (notFound) {
+    return <GameNotFound code={gameId} />;
+  }
 
   if (!game || !connected) {
     return (

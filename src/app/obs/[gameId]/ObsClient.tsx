@@ -8,6 +8,7 @@ import { ParticipantTile } from "@/components/ParticipantTile";
 import { TurnIndicator } from "@/components/TurnIndicator";
 import { ChatOverlay } from "@/components/ChatOverlay";
 import { StartingSoon } from "@/components/StartingSoon";
+import { GameNotFound } from "@/components/GameNotFound";
 
 interface Props {
   gameId: string;
@@ -19,9 +20,18 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
   const { game, spectateGame, connected, lastJudgeResult } = useSocket();
   const [correctFlash, setCorrectFlash] = useState(false);
   const [wrongFlash,   setWrongFlash]   = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    void spectateGame(gameId);
+    let cancelled = false;
+    setNotFound(false);
+    void spectateGame(gameId).then((resp) => {
+      if (cancelled) return;
+      if (!resp.ok) setNotFound(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [gameId, spectateGame]);
 
   // Ensure body/html don't add their own background on top of ours
@@ -51,6 +61,10 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
       return () => clearTimeout(t);
     }
   }, [lastJudgeResult]);
+
+  if (notFound) {
+    return <GameNotFound code={gameId} />;
+  }
 
   if (!game || !connected) {
     return (
