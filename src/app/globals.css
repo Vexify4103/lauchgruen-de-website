@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/*
+ * Tailwind v4 dropped the default `cursor: pointer` on <button>, leaving every
+ * interactive button feeling dead under the mouse. Restore the v3-era behavior
+ * here so we don't have to sprinkle `cursor-pointer` across every component.
+ * Disabled buttons still show the not-allowed cursor.
+ */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
