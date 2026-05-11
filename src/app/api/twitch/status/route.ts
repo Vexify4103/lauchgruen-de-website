@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 import { getStream, getUser } from "@/lib/twitch";
 
-const DEFAULT_LOGIN = "lauchgruentv";
+const DEFAULT_LOGIN = "lauchgruen";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);

@@ -56,7 +56,7 @@ function formatUptime(startedAtIso: string): string {
 }
 
 export function LiveStatus({
-  login = "lauchgruentv",
+  login = "lauchgruen",
   pollIntervalMs = 60_000,
 }: Props) {
   const [data, setData]       = useState<ApiResponse | null>(null);

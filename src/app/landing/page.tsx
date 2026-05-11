@@ -14,7 +14,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { LiveStatus } from "./LiveStatus";
 
-const TWITCH_LOGIN = "lauchgruentv";
+const TWITCH_LOGIN = "lauchgruen";
 const TWITCH_URL   = `https://twitch.tv/${TWITCH_LOGIN}`;
 const JEOPARDY_URL = "https://jeopardy.lauchgruen.de";
 
@@ -75,7 +75,7 @@ export default function LandingPage() {
         <section className="flex flex-col items-center gap-6 text-center pt-4">
           <Image
             src="/bear-logo.png"
-            alt="lauchgruentv Bär"
+            alt="lauchgruen Bär"
             width={160}
             height={160}
             className="drop-shadow-2xl"
@@ -85,7 +85,7 @@ export default function LandingPage() {
           <div>
             <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-amber-300 drop-shadow-lg">
               lauchgruen
-              <span className="text-emerald-200">tv</span>
+              <span className="text-emerald-200">.de</span>
             </h1>
             <p className="text-emerald-200/70 text-xs md:text-sm uppercase tracking-[0.4em] mt-3 font-bold">
               🍯 Gaming · Community · Gameshows
@@ -177,7 +177,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-emerald-100/85 text-sm md:text-base">
               Echtzeit-Gameshow, 6 Kategorien, drei Boards, Buzzer und Bonusrunden.
-              Spielst du auf <span className="font-mono text-amber-300">lauchgruentv</span> mit?
+              Spielst du auf <span className="font-mono text-amber-300">lauchgruen</span> mit?
             </p>
           </div>
 
@@ -219,7 +219,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="relative px-6 py-8 text-center text-emerald-500/50 text-xs">
-        © {new Date().getFullYear()} lauchgruentv · gebaut mit 🍯
+        © {new Date().getFullYear()} lauchgruen · gebaut mit 🍯
       </footer>
     </div>
   );
