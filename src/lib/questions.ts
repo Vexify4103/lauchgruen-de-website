@@ -4,6 +4,7 @@ import yaml from "js-yaml";
 import type {
   BoardCell,
   BoardData,
+  BonusBuzzerRound,
   CategoryMeta,
   Question,
 } from "@/server/types";
@@ -113,6 +114,50 @@ export function pickAllBoards(maxBoards = 3): BoardData[] {
   }
 
   return result;
+}
+
+/**
+ * Load bonus-buzzer image rounds from `content/questions/buzzer/buzzer.yml`.
+ *
+ * Expected shape:
+ *   default_points: 500
+ *   rounds:
+ *     - image: buzzer_1.png
+ *       answer: "Eren Yeager"
+ *     - image: buzzer_2.jpg
+ *       answer: "Mikasa"
+ *       points: 800   # optional per-round override
+ *
+ * Image files themselves live next to the YAML at content/questions/buzzer/<file>
+ * and are served by the /questions/[...path] route handler.
+ *
+ * Returns an empty array if the file is missing — bonus buzz then simply
+ * never fires (regular play continues uninterrupted).
+ */
+interface YamlBuzzerFile {
+  default_points?: number;
+  rounds?: Array<{ image: string; answer: string; points?: number }>;
+}
+
+export function loadBonusBuzzerRounds(): BonusBuzzerRound[] {
+  const file = join(process.cwd(), "content", "questions", "buzzer", "buzzer.yml");
+  if (!existsSync(file)) {
+    console.log("[questions] no buzzer.yml — bonus buzz rounds disabled");
+    return [];
+  }
+  const raw = readFileSync(file, "utf-8");
+  const parsed = yaml.load(raw) as YamlBuzzerFile | null;
+  if (!parsed?.rounds) {
+    console.warn("[questions] buzzer.yml has no `rounds` — skipping");
+    return [];
+  }
+  const defaultPoints = parsed.default_points ?? 500;
+  return parsed.rounds.map((r, i) => ({
+    id:       `_bonus_buzzer_${i + 1}`,
+    imageUrl: `/questions/buzzer/${r.image}`,
+    answer:   r.answer,
+    points:   r.points ?? defaultPoints,
+  }));
 }
 
 /**

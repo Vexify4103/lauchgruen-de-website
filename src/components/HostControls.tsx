@@ -177,13 +177,11 @@ export function HostControls({ game }: Props) {
                 key={p.id}
                 type="button"
                 onClick={() => emit("host:set_turn", { playerId: p.id })}
-                disabled={p.eliminated}
                 className={[
                   "rounded-md px-2 py-1 text-xs font-semibold transition-colors",
                   active
                     ? "bg-amber-500 text-emerald-950"
                     : "bg-emerald-800 hover:bg-emerald-700 text-emerald-100",
-                  p.eliminated ? "opacity-30 line-through" : "",
                 ].join(" ")}
               >
                 {p.displayName}

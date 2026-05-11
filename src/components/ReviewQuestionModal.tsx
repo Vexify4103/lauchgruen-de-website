@@ -125,14 +125,12 @@ export function ReviewQuestionModal({
                   <button
                     key={p.id}
                     type="button"
-                    disabled={p.eliminated}
                     onClick={() => setSelectedPlayer(selectedPlayer === p.id ? null : p.id)}
                     className={[
                       "rounded-lg px-3 py-1.5 text-sm font-bold border transition-colors",
                       selectedPlayer === p.id
                         ? "bg-amber-500 text-emerald-950 border-amber-300"
                         : "bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border-emerald-700",
-                      p.eliminated ? "opacity-30 line-through cursor-not-allowed" : "",
                     ].join(" ")}
                   >
                     {p.displayName}

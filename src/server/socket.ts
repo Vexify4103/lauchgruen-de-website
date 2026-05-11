@@ -7,10 +7,11 @@ import {
   getGame,
   getNonHostPlayers,
   getQuestion,
-  loseHeart,
   makePlayer,
   markCellUsed,
   nextTurn,
+  pickNextBonusBuzzerRound,
+  registerBonusBuzzerRounds,
   registerQuestionPool,
   removePlayer,
   serializeFor,
@@ -21,7 +22,7 @@ import {
   switchBoard,
 } from "./game-state";
 import { generateStreamId } from "../lib/stream-id";
-import { loadQuestionPool } from "../lib/questions";
+import { loadBonusBuzzerRounds, loadQuestionPool } from "../lib/questions";
 import { decodeSessionFromCookie } from "./socket-auth";
 import { BUZZ_COLLECTION_WINDOW_MS, type GameState, type PlayerId } from "./types";
 
@@ -39,6 +40,7 @@ let questionPoolReady = false;
 function ensureQuestionPool() {
   if (questionPoolReady) return;
   registerQuestionPool(loadQuestionPool());
+  registerBonusBuzzerRounds(loadBonusBuzzerRounds());
   questionPoolReady = true;
 }
 
@@ -141,20 +143,26 @@ function resolveBuzzes(io: SocketIOServer, gameId: string) {
 
   if (isBonusBuzz) {
     if (!winner) {
-      console.log(`[buzz] bonus: no winner → cancel, nextTurn, phase=playing`);
+      // Nobody buzzed during the bonus image — drop the image, advance turn.
+      console.log(`[buzz] bonus: no winner → discard image, nextTurn, phase=playing`);
       game.isBonusRound = false;
+      setActiveQuestion(game, null);
       nextTurn(game);
       game.phase = "playing";
       broadcastAll(io, game);
       return;
     }
     console.log(
-      `[buzz] bonus winner: ${winner.playerId} (${winner.clientReactionMs}ms) → phase=playing, currentTurn=${winner.playerId}`,
+      `[buzz] bonus winner: ${winner.playerId} (${winner.clientReactionMs}ms) → answering the image`,
     );
-    // Bonus-buzz winner gets to pick a question (host picks cell for them).
-    game.currentTurn = winner.playerId;
-    game.isBonusRound = true;
-    game.phase = "playing"; // host can now pick_cell
+    // The winner now answers the bonus image (just like a regular buzz-winner
+    // answers a regular question). The host judges via host:judge as usual;
+    // wasBonus=true tells the judge handler to advance turn normally.
+    if (game.activeQuestion) {
+      game.activeQuestion.buzzersOpen     = false;
+      game.activeQuestion.currentAnswerer = winner.playerId;
+    }
+    game.phase = "answering";
     io.to(`game:${gameId}`).emit("buzz_winner", {
       playerId: winner.playerId,
       reactionMs: winner.clientReactionMs,
@@ -549,21 +557,18 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         nextTurn(g);
         g.phase = "playing";
 
-        // Round tracking — same logic as host:judge
+        // Round tracking — same logic as host:judge, but reveal-and-close
+        // doesn't trigger bonus buzz (host explicitly skipped the question).
         if (pickedBy !== g.hostId && !wasBonus) {
           if (!g.roundAnswered.includes(pickedBy)) {
             g.roundAnswered.push(pickedBy);
           }
-          const aliveContestants = getNonHostPlayers(g).filter((p) => !p.eliminated);
+          const contestants = getNonHostPlayers(g);
           const roundComplete =
-            aliveContestants.length > 0 &&
-            aliveContestants.every((p) => g.roundAnswered.includes(p.id));
+            contestants.length > 0 &&
+            contestants.every((p) => g.roundAnswered.includes(p.id));
 
           if (roundComplete) {
-            const loser = aliveContestants.reduce((min, p) =>
-              p.score < min.score ? p : min,
-            );
-            loseHeart(g, loser.id);
             g.roundAnswered = [];
           }
         }
@@ -589,6 +594,12 @@ export function registerSocketHandlers(io: SocketIOServer): void {
 
       console.log(`[buzz] host:open_bonus_buzzers — phase: bonus_pending → bonus_buzzing`);
       game.phase = "bonus_buzzing";
+      // Also flip the buzz flag on the staged image-question so QuestionModal
+      // shows the BUZZ button (its buzzersOpen check reads aq.buzzersOpen).
+      if (game.activeQuestion) {
+        game.activeQuestion.buzzersOpen     = true;
+        game.activeQuestion.buzzersOpenedAt = Date.now();
+      }
       io.to(`game:${gameId}`).emit("buzzers_opened");
       io.to(`spectator:${gameId}`).emit("buzzers_opened");
       broadcastAll(io, game);
@@ -613,6 +624,8 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         buzzCollectors.delete(gameId);
       }
 
+      // Drop the staged bonus image so it doesn't linger on screen.
+      setActiveQuestion(game, null);
       game.isBonusRound = false;
       nextTurn(game);
       game.phase = "playing";
@@ -659,7 +672,9 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       }
 
       const player = game.players[socket.data.userId];
-      if (!player || player.eliminated) return;
+      if (!player) return;
+      // Host can't buzz, hosts only judge.
+      if (socket.data.userId === game.hostId) return;
 
       // During regular buzz, check alreadyTried.
       if (!isBonusBuzz && game.activeQuestion!.alreadyTried.includes(socket.data.userId)) return;
@@ -706,75 +721,113 @@ export function registerSocketHandlers(io: SocketIOServer): void {
 
       let questionResolved = false;
 
+      // Rule #1: the original picker's *first* attempt at their own cell is
+      // penalty-free. They had to pick a number — no risk on wrong. Buzz
+      // attempts (alreadyTried.length > 0) AND bonus-image answers DO get
+      // the half-point deduction, since those are voluntary risks.
+      const isPickerFirstAttempt =
+        !wasBonus &&
+        answerer === game.activeQuestion.pickedBy &&
+        game.activeQuestion.alreadyTried.length === 0;
+
       if (parsed.data.correct) {
         awardPoints(game, answerer, points);
-        markCellUsed(game, aqCategory, aqPoints);
-
-        if (wasBonus) {
-          // Bonus round: winner does NOT get next pick — advance turn normally.
-          game.isBonusRound = false;
-          nextTurn(game);
+        // Bonus image is not on the board, so no cell to mark used.
+        if (!wasBonus) {
+          markCellUsed(game, aqCategory, aqPoints);
         } else {
-          game.currentTurn = answerer; // winner picks next
+          // Track this bonus-buzzer round as used so it never repeats.
+          if (!game.usedBonusBuzzerIds.includes(game.activeQuestion.questionId)) {
+            game.usedBonusBuzzerIds.push(game.activeQuestion.questionId);
+          }
         }
+
+        // Rule #2: correct → ALWAYS advance to the next contestant
+        // (round-robin), regardless of who answered. No "winner picks next".
+        game.isBonusRound = false;
+        nextTurn(game);
 
         setActiveQuestion(game, null);
         game.phase = "playing";
         questionResolved = true;
       } else {
-        // Wrong answer: deduct half-points, try remaining players.
-        awardPoints(game, answerer, -Math.floor(points / 2));
+        // Wrong answer.
+        if (!isPickerFirstAttempt) {
+          // Buzz attempt or bonus answer — apply half-point penalty.
+          awardPoints(game, answerer, -Math.floor(points / 2));
+        }
         game.activeQuestion.alreadyTried.push(answerer);
         game.activeQuestion.currentAnswerer = null;
 
-        const remainingEligible = Object.values(game.players).filter(
-          (p) => !p.eliminated && !game.activeQuestion!.alreadyTried.includes(p.id),
-        );
-
-        if (remainingEligible.length === 0) {
-          // Nobody left to try — burn the cell, advance turn.
-          markCellUsed(game, aqCategory, aqPoints);
+        // For bonus rounds: only one shot. If the buzz winner gets it wrong,
+        // burn the image and advance — don't reopen for someone else.
+        if (wasBonus) {
+          if (!game.usedBonusBuzzerIds.includes(game.activeQuestion.questionId)) {
+            game.usedBonusBuzzerIds.push(game.activeQuestion.questionId);
+          }
           setActiveQuestion(game, null);
           game.isBonusRound = false;
           nextTurn(game);
           game.phase = "playing";
           questionResolved = true;
         } else {
-          // Auto-open buzzers for remaining eligible players.
-          game.activeQuestion.buzzersOpen     = true;
-          game.activeQuestion.buzzersOpenedAt = Date.now();
-          game.phase = "buzzing";
-          io.to(`game:${gameId}`).emit("buzzers_opened");
-          io.to(`spectator:${gameId}`).emit("buzzers_opened");
+          const remainingEligible = Object.values(game.players).filter(
+            (p) => p.id !== game.hostId && !game.activeQuestion!.alreadyTried.includes(p.id),
+          );
+
+          if (remainingEligible.length === 0) {
+            // Nobody left to try — burn the cell, advance turn.
+            markCellUsed(game, aqCategory, aqPoints);
+            setActiveQuestion(game, null);
+            game.isBonusRound = false;
+            nextTurn(game);
+            game.phase = "playing";
+            questionResolved = true;
+          } else {
+            // Auto-open buzzers for remaining eligible players.
+            game.activeQuestion.buzzersOpen     = true;
+            game.activeQuestion.buzzersOpenedAt = Date.now();
+            game.phase = "buzzing";
+            io.to(`game:${gameId}`).emit("buzzers_opened");
+            io.to(`spectator:${gameId}`).emit("buzzers_opened");
+          }
         }
       }
 
-      // ── Round-end heart loss + bonus buzz ────────────────────────────────
-      // Track only non-bonus questions and only when the question was fully resolved.
+      // ── Round-end bonus-buzz trigger ────────────────────────────────────
+      // Once every contestant has played one question this round, fire a
+      // bonus-image buzz race. No hearts, no eliminations — everyone stays.
       let startBonusBuzz = false;
 
       if (questionResolved && pickedBy !== game.hostId && !wasBonus) {
         if (!game.roundAnswered.includes(pickedBy)) {
           game.roundAnswered.push(pickedBy);
         }
-        const aliveContestants = getNonHostPlayers(game).filter((p) => !p.eliminated);
+        const contestants = getNonHostPlayers(game);
         const roundComplete =
-          aliveContestants.length > 0 &&
-          aliveContestants.every((p) => game.roundAnswered.includes(p.id));
+          contestants.length > 0 &&
+          contestants.every((p) => game.roundAnswered.includes(p.id));
 
         if (roundComplete) {
-          const loser = aliveContestants.reduce((min, p) =>
-            p.score < min.score ? p : min,
-          );
-          loseHeart(game, loser.id);
           game.roundAnswered = [];
-
-          // Check if any unused cells remain on the current board for bonus buzz.
-          const stillAlive = getNonHostPlayers(game).filter((p) => !p.eliminated);
-          const hasUnused = game.board.some((c) => !c.used);
-          if (stillAlive.length > 0 && hasUnused) {
+          const next = pickNextBonusBuzzerRound(game);
+          if (next) {
+            // Stage the synthetic image-question now so the pre-buzz UI can
+            // already show the image during bonus_pending (host's talk window).
+            setActiveQuestion(game, {
+              questionId:      next.id,
+              category:        "_bonus_buzzer",
+              points:          next.points,
+              pickedBy:        game.hostId,    // synthetic — picker is host
+              buzzersOpen:     false,
+              buzzersOpenedAt: null,
+              currentAnswerer: null,
+              alreadyTried:    [],
+              answerRevealed:  false,
+            });
             startBonusBuzz = true;
           }
+          // If no image rounds remain → no bonus, regular play continues.
         }
       }
 
@@ -788,11 +841,11 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         game.phase    = "finished";
         game.winnerId = winner;
       } else if (startBonusBuzz) {
-        // Round ended — bonus buzz is queued but NOT auto-started, so the host
-        // can talk through the previous question before opening buzzers.
-        // The host clicks "Bonus-Buzzer öffnen" → host:open_bonus_buzzers,
-        // which flips phase to "bonus_buzzing" and emits buzzers_opened.
-        game.phase = "bonus_pending";
+        // Image is already in activeQuestion — visible to everyone now.
+        // Host clicks "Bonus-Buzzer öffnen" → phase becomes bonus_buzzing +
+        // buzzers_opened emitted. Gives host a talk window first.
+        game.isBonusRound = true;
+        game.phase        = "bonus_pending";
       }
 
       broadcastAll(io, game);
@@ -826,15 +879,9 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       const remaining = untrackUserSocket(gameId, socket.data.userId, socket.id);
       const player = game.players[socket.data.userId];
 
-      // Eliminated players are removed entirely on disconnect (mid-game cleanup).
-      if (player?.eliminated && remaining === 0) {
-        game.playerOrder = game.playerOrder.filter((id) => id !== socket.data.userId);
-        delete game.players[socket.data.userId];
-        broadcastAll(io, game);
-        return;
-      }
-
-      // Otherwise: keep their slot, just mark offline so the lobby greys them out.
+      // No more elimination — everyone stays in the game. On true disconnect,
+      // just flip the connected flag so the lobby greys them out / camera
+      // tile shows "offline".
       if (player && remaining === 0 && player.connected) {
         setPlayerConnected(game, socket.data.userId, false);
         broadcastAll(io, game);

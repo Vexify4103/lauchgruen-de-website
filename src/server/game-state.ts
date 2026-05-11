@@ -1,6 +1,7 @@
 import type {
   ActiveQuestion,
   BoardData,
+  BonusBuzzerRound,
   ClientGameState,
   GameId,
   GameState,
@@ -10,7 +11,7 @@ import type {
   QuestionForClient,
   ReviewQuestion,
 } from "./types";
-import { STARTING_HEARTS } from "./types";
+import { BONUS_BUZZER_CATEGORY } from "./types";
 import { generateGameId } from "../lib/stream-id";
 
 // Custom Next.js server + App Router loads this module twice (once via tsx for
@@ -19,6 +20,7 @@ import { generateGameId } from "../lib/stream-id";
 const globalForStore = globalThis as unknown as {
   __qd_games?: Map<GameId, GameState>;
   __qd_questions?: Map<string, Question>;
+  __qd_bonus_buzzer?: BonusBuzzerRound[];
 };
 const games: Map<GameId, GameState> =
   globalForStore.__qd_games ?? new Map<GameId, GameState>();
@@ -26,10 +28,44 @@ const questionPool: Map<string, Question> =
   globalForStore.__qd_questions ?? new Map<string, Question>();
 globalForStore.__qd_games = games;
 globalForStore.__qd_questions = questionPool;
+globalForStore.__qd_bonus_buzzer ??= [];
 
 export function registerQuestionPool(questions: Question[]): void {
   questionPool.clear();
   for (const q of questions) questionPool.set(q.id, q);
+}
+
+/** Replace the bonus-buzzer image-round pool (loaded once at server boot). */
+export function registerBonusBuzzerRounds(rounds: BonusBuzzerRound[]): void {
+  globalForStore.__qd_bonus_buzzer = rounds.slice();
+  // Also expose each round as a synthetic Question so the existing
+  // serializeFor / getQuestion paths can hand them out to clients without
+  // any special casing.
+  for (const r of rounds) {
+    questionPool.set(r.id, {
+      id: r.id,
+      category: BONUS_BUZZER_CATEGORY,
+      points: r.points as 100 | 200 | 300 | 400 | 500, // any number — cast for the union; UI doesn't care
+      prompt: "",
+      imageUrl: r.imageUrl,
+      answer: r.answer,
+    });
+  }
+}
+
+export function listBonusBuzzerRounds(): BonusBuzzerRound[] {
+  return globalForStore.__qd_bonus_buzzer ?? [];
+}
+
+/** Pick the first bonus-buzzer round that hasn't been used in this game yet. */
+export function pickNextBonusBuzzerRound(game: GameState): BonusBuzzerRound | null {
+  const pool = listBonusBuzzerRounds();
+  if (pool.length === 0) return null;
+  const used = new Set(game.usedBonusBuzzerIds);
+  const remaining = pool.filter((r) => !used.has(r.id));
+  if (remaining.length === 0) return null;
+  // Random order — keeps replays interesting if the same lobby plays twice.
+  return remaining[Math.floor(Math.random() * remaining.length)];
 }
 
 export function getQuestion(id: string): Question | undefined {
@@ -67,6 +103,7 @@ export function createGame(args: {
     activeQuestion: null,
     reviewQuestion: null,
     isBonusRound: false,
+    usedBonusBuzzerIds: [],
     winnerId: null,
     createdAt: Date.now(),
     roundAnswered: [],
@@ -128,13 +165,6 @@ export function awardPoints(
   if (player) player.score += delta;
 }
 
-export function loseHeart(game: GameState, playerId: PlayerId): void {
-  const player = game.players[playerId];
-  if (!player) return;
-  player.hearts = Math.max(0, player.hearts - 1);
-  if (player.hearts === 0) player.eliminated = true;
-}
-
 export function setActiveQuestion(
   game: GameState,
   active: ActiveQuestion | null,
@@ -175,9 +205,7 @@ export function switchBoard(game: GameState, index: number): boolean {
 }
 
 export function nextTurn(game: GameState): PlayerId | null {
-  const eligible = game.playerOrder.filter(
-    (pid) => pid !== game.hostId && !game.players[pid]?.eliminated,
-  );
+  const eligible = game.playerOrder.filter((pid) => pid !== game.hostId);
   if (eligible.length === 0) return null;
   const currentIdx = game.currentTurn ? eligible.indexOf(game.currentTurn) : -1;
   const nextIdx = (currentIdx + 1) % eligible.length;
@@ -194,19 +222,14 @@ export function getNonHostPlayers(game: GameState): Player[] {
 
 export function checkGameOver(game: GameState): PlayerId | null {
   const contestants = getNonHostPlayers(game);
-  const alive = contestants.filter((p) => !p.eliminated);
-  // Game ends when ALL boards are exhausted.
+  // Game ends only when ALL boards are exhausted. Everyone stays in the game
+  // for the full duration (no hearts / elimination); the player with the
+  // highest score at the end wins.
   const allBoardsUsed =
     game.boards.length > 0 &&
     game.boards.every((b) => b.board.every((c) => c.used));
 
-  if (contestants.length > 1 && alive.length === 1) {
-    return alive[0].id;
-  }
-  if (contestants.length > 0 && alive.length === 0) {
-    return null;
-  }
-  if (allBoardsUsed) {
+  if (allBoardsUsed && contestants.length > 0) {
     const winner = [...contestants].sort((a, b) => b.score - a.score)[0];
     return winner?.id ?? null;
   }
@@ -215,11 +238,9 @@ export function checkGameOver(game: GameState): PlayerId | null {
 
 const STARTING_PLAYER_DEFAULTS: Pick<
   Player,
-  "score" | "hearts" | "eliminated" | "ready" | "connected"
+  "score" | "ready" | "connected"
 > = {
   score: 0,
-  hearts: STARTING_HEARTS,
-  eliminated: false,
   ready: false,
   connected: true,
 };

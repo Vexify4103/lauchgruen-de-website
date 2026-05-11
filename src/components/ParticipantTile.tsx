@@ -28,8 +28,18 @@ export function ParticipantTile({
   // so we view by streamId directly. Including &room= here causes VDO.Ninja
   // to fall into "join room as participant" mode and prompt for a camera
   // instead of just viewing the publisher's stream.
-  // &autorecover: auto-reconnect if the P2P link drops mid-game.
-  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&cover&cleanoutput&noaudio&transparent&autorecover`;
+  //
+  // Params we use:
+  //   &cover        — fill the iframe with video, cropping aspect if needed
+  //   &cleanoutput  — strip VDO.Ninja's UI chrome
+  //   &noaudio      — mute audio (voice is on Discord; only video is needed here)
+  //   &transparent  — transparent background while no stream is connected,
+  //                   so the avatar/name fallback shows through
+  //   &autorecover  — auto-reconnect if the P2P link drops
+  //   &buffer=0     — minimal jitter buffer for low-latency game-show feel
+  //   &order=1      — connection priority (helps the SFU prefer this stream
+  //                   when bandwidth is tight, e.g. 5 simultaneous cams)
+  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&cover&cleanoutput&noaudio&transparent&autorecover&buffer=0`;
 
   const ringClasses = isCurrentTurn
     ? "ring-4 ring-amber-300 shadow-[0_0_24px_rgba(252,211,77,0.55)]"
@@ -37,22 +47,43 @@ export function ParticipantTile({
       ? "ring-2 ring-emerald-500/60"
       : "ring-1 ring-emerald-900/60";
 
+  // Offline streamers get dimmed so the audience sees who's actually present.
+  const offlineClasses = player.connected === false ? "opacity-50 grayscale" : "";
+
   return (
     // Parent controls sizing — tile fills 100% of whatever container it's placed in
     <div
       className={[
         "relative w-full h-full bg-emerald-950 rounded-xl overflow-hidden transition-all",
         ringClasses,
-        player.eliminated ? "opacity-40 grayscale" : "",
+        offlineClasses,
       ].join(" ")}
     >
-      {/* Cam iframe fills entire tile */}
-      {!hideVideo ? (
+      {/* Avatar fallback — visible THROUGH the transparent iframe while no
+          stream is connected, so an empty tile shows the player's identity
+          instead of just a black square. */}
+      {player.avatarUrl ? (
+        <Image
+          src={player.avatarUrl}
+          alt=""
+          width={120}
+          height={120}
+          className="absolute inset-0 m-auto rounded-full border-2 border-emerald-800/80 opacity-40 pointer-events-none"
+          unoptimized
+        />
+      ) : null}
+
+      {/* Cam iframe fills entire tile. Stable key on streamId+gameId keeps
+          React from remounting it on unrelated re-renders (avoids flicker /
+          reconnect storms). */}
+      {!hideVideo && player.vdoStreamId ? (
         <iframe
+          key={player.vdoStreamId}
           src={viewUrl}
           allow="autoplay; camera; microphone; fullscreen; display-capture"
           className="absolute inset-0 w-full h-full border-0"
           title={`${player.displayName} cam`}
+          loading="eager"
         />
       ) : null}
 
@@ -100,21 +131,7 @@ export function ParticipantTile({
         >
           {player.displayName}
         </span>
-        {showStats ? (
-          <div className="flex gap-0.5 shrink-0 ml-1">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <span
-                key={i}
-                className={[
-                  "text-xs leading-none",
-                  i < player.hearts ? "text-red-400" : "text-emerald-800",
-                ].join(" ")}
-              >
-                ♥
-              </span>
-            ))}
-          </div>
-        ) : null}
+        {/* Hearts removed — no elimination in the current ruleset. */}
       </div>
     </div>
   );

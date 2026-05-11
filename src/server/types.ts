@@ -18,8 +18,6 @@ export interface Player {
   avatarUrl: string;
   vdoStreamId: string;
   score: number;
-  hearts: number;
-  eliminated: boolean;
   ready: boolean;
   /** True while the player has at least one active socket. Updated by socket
    *  connect/disconnect; used in the lobby to grey out offline players. */
@@ -92,11 +90,13 @@ export interface GameState {
   activeQuestion: ActiveQuestion | null;
   /** When set, shows a used-question review modal on all clients. */
   reviewQuestion: ReviewQuestion | null;
-  /** True while the bonus-buzz question (picked by the round-end buzz winner) is active. */
+  /** True while a bonus-buzzer image round is active (image shown, buzz race in progress). */
   isBonusRound: boolean;
+  /** IDs of bonus-buzzer rounds already used in this game (so we don't repeat). */
+  usedBonusBuzzerIds: string[];
   winnerId: PlayerId | null;
   createdAt: number;
-  /** Players who have had their turn resolved in the current round (for end-of-round heart loss). */
+  /** Players who have had their turn resolved in the current round (for end-of-round bonus-buzz trigger). */
   roundAnswered: PlayerId[];
 }
 
@@ -125,5 +125,22 @@ export interface ClientGameState extends Omit<GameState, "activeQuestion" | "rev
   usedQuestionData: Record<string, QuestionForClient>;
 }
 
-export const STARTING_HEARTS = 3;
 export const BUZZ_COLLECTION_WINDOW_MS = 300;
+
+/** Magic category used for synthetic bonus-buzzer image questions. */
+export const BONUS_BUZZER_CATEGORY = "_bonus_buzzer";
+
+/**
+ * Pre-drawn image rounds for the post-round bonus buzz. Each entry corresponds
+ * to a file in content/questions/buzzer/. Loaded once at server startup.
+ */
+export interface BonusBuzzerRound {
+  /** Synthetic question id, e.g. "_bonus_buzzer_3" — never on the board. */
+  id: string;
+  /** Public URL of the image (served via /questions/buzzer/<file>). */
+  imageUrl: string;
+  /** The single accepted answer (host judges with leeway). */
+  answer: string;
+  /** Points awarded for a correct answer / deducted on wrong (per rule #1). */
+  points: number;
+}

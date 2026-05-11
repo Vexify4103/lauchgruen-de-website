@@ -23,14 +23,19 @@ export function QuestionModal({ game, isHost, myPlayerId }: Props) {
   const aq = game.activeQuestion;
   const q = aq?.question;
   const answerer = aq?.currentAnswerer ? game.players[aq.currentAnswerer] : null;
-  const categoryName = aq ? game.categories.find((c) => c.id === aq.category)?.displayName : "";
+  const isBonusBuzzerQ = aq?.category === "_bonus_buzzer";
+  const categoryName = isBonusBuzzerQ
+    ? "🎯 Bonusrunde"
+    : aq
+      ? game.categories.find((c) => c.id === aq.category)?.displayName
+      : "";
   const buzzersOpen = aq?.buzzersOpen ?? false;
   const answerRevealed = aq?.answerRevealed ?? false;
   const alreadyTried = myPlayerId ? (aq?.alreadyTried.includes(myPlayerId) ?? false) : true;
   const isAnswerer = aq?.currentAnswerer === myPlayerId;
   const me = myPlayerId ? game.players[myPlayerId] : null;
   const eligible =
-    !isHost && !!me && !me.eliminated && buzzersOpen && !alreadyTried && !isAnswerer;
+    !isHost && !!me && buzzersOpen && !alreadyTried && !isAnswerer;
 
   // Reset answer reveal + buzz state when question changes
   const questionId = aq?.questionId ?? null;
@@ -189,7 +194,25 @@ export function QuestionModal({ game, isHost, myPlayerId }: Props) {
 
           {/* ── Host buttons ────────────────────────────────────────────── */}
           {isHost && !answerRevealed ? (
-            answerer ? (
+            game.phase === "bonus_pending" ? (
+              /* Bonus image is staged, buzzers not open yet — host's talk window. */
+              <div className="flex gap-3 pt-2 border-t border-emerald-800">
+                <button
+                  type="button"
+                  onClick={() => emit("host:open_bonus_buzzers")}
+                  className="flex-1 bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-emerald-950 font-extrabold rounded-lg px-6 py-3 transition-colors text-lg shadow-lg shadow-amber-400/30"
+                >
+                  ⚡ Bonus-Buzzer öffnen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => emit("host:cancel_bonus_buzz")}
+                  className="bg-red-900/70 hover:bg-red-800 border border-red-700 text-red-200 font-bold rounded-lg px-4 py-3 text-sm transition-colors"
+                >
+                  ✕ Bonus überspringen
+                </button>
+              </div>
+            ) : answerer ? (
               /* Judge buttons */
               <div className="flex gap-3 pt-2 border-t border-emerald-800">
                 <button
@@ -204,19 +227,30 @@ export function QuestionModal({ game, isHost, myPlayerId }: Props) {
                   onClick={() => emit("host:judge", { correct: false })}
                   className="flex-1 bg-red-700 hover:bg-red-600 text-white font-extrabold rounded-lg px-6 py-3 transition-colors text-lg shadow-lg"
                 >
-                  ✗ Falsch → Buzzer
+                  {isBonusBuzzerQ ? "✗ Falsch" : "✗ Falsch → Buzzer"}
                 </button>
               </div>
             ) : buzzersOpen ? (
-              /* Buzzers-open phase — allow host to skip */
+              /* Buzzers-open phase — allow host to skip / force-resolve */
               <div className="flex gap-3 pt-2 border-t border-emerald-800">
-                <button
-                  type="button"
-                  onClick={() => emit("host:reveal_and_close")}
-                  className="flex-1 bg-emerald-900 hover:bg-emerald-800 border border-emerald-700 text-amber-300 hover:text-amber-200 font-extrabold rounded-lg px-6 py-3 transition-colors text-base"
-                >
-                  📖 Antwort zeigen &amp; Zug beenden
-                </button>
+                {isBonusBuzzerQ ? (
+                  <button
+                    type="button"
+                    onClick={() => emit("host:force_resolve_bonus")}
+                    className="flex-1 bg-amber-600 hover:bg-amber-500 text-emerald-950 font-extrabold rounded-lg px-6 py-3 transition-colors text-base"
+                    title="Falls ein Spieler gebuzzert hat, das System aber hängt — jetzt auswerten."
+                  >
+                    ⚡ Buzz jetzt auswerten
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => emit("host:reveal_and_close")}
+                    className="flex-1 bg-emerald-900 hover:bg-emerald-800 border border-emerald-700 text-amber-300 hover:text-amber-200 font-extrabold rounded-lg px-6 py-3 transition-colors text-base"
+                  >
+                    📖 Antwort zeigen &amp; Zug beenden
+                  </button>
+                )}
               </div>
             ) : null
           ) : null}

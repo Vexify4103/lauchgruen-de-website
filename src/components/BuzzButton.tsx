@@ -20,10 +20,8 @@ export function BuzzButton({ myPlayerId }: Props) {
   const isAnswerer    = game?.activeQuestion?.currentAnswerer === myPlayerId;
   const player        = game?.players[myPlayerId];
 
-  // During bonus buzz there's no alreadyTried / isAnswerer concept — just alive check.
   const eligible =
     !!player &&
-    !player.eliminated &&
     buzzersOpen &&
     (isBonusBuzz ? true : !alreadyTried && !isAnswerer);
 

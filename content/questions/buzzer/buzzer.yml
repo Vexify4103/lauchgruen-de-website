@@ -1,0 +1,53 @@
+# Bonus-buzzer image rounds.
+#
+# Each entry maps to an image file in this directory (content/questions/buzzer/).
+# When a normal round ends (all contestants played one question), one of these
+# is shown to everyone; the first player to buzz gets one shot at answering.
+#
+# Correct → +points · Wrong → -half points · Each round used at most once per game.
+# Once all 18 are consumed, bonus buzz simply stops firing (regular play
+# continues normally).
+#
+# To replace images: drop `buzzer_<n>.png` (or .jpg / .webp / etc.) next to
+# this file and update the matching `image:` field below. The /questions
+# route serves any file in this folder directly.
+
+default_points: 500
+
+rounds:
+  - image: buzzer_1.png
+    answer: "Antwort 1"
+  - image: buzzer_2.png
+    answer: "Antwort 2"
+  - image: buzzer_3.png
+    answer: "Antwort 3"
+  - image: buzzer_4.png
+    answer: "Antwort 4"
+  - image: buzzer_5.png
+    answer: "Antwort 5"
+  - image: buzzer_6.png
+    answer: "Antwort 6"
+  - image: buzzer_7.png
+    answer: "Antwort 7"
+  - image: buzzer_8.png
+    answer: "Antwort 8"
+  - image: buzzer_9.png
+    answer: "Antwort 9"
+  - image: buzzer_10.png
+    answer: "Antwort 10"
+  - image: buzzer_11.png
+    answer: "Antwort 11"
+  - image: buzzer_12.png
+    answer: "Antwort 12"
+  - image: buzzer_13.png
+    answer: "Antwort 13"
+  - image: buzzer_14.png
+    answer: "Antwort 14"
+  - image: buzzer_15.png
+    answer: "Antwort 15"
+  - image: buzzer_16.png
+    answer: "Antwort 16"
+  - image: buzzer_17.png
+    answer: "Antwort 17"
+  - image: buzzer_18.png
+    answer: "Antwort 18"
