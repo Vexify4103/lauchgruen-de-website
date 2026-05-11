@@ -15,7 +15,7 @@ interface Props {
 
 export function LobbyClient({ gameId, userId }: Props) {
   const router = useRouter();
-  const { game, joinGame, vdoStreamId, connected, emit } = useSocket();
+  const { game, joinGame, vdoStreamId, connected, emit, wasKicked } = useSocket();
   const [pushUrlRevealed, setPushUrlRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [obsCopied, setObsCopied] = useState(false);
@@ -70,6 +70,9 @@ export function LobbyClient({ gameId, userId }: Props) {
     ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&cleanoutput&meshcast${labelParam}`
     : null;
 
+  if (wasKicked) {
+    return <GameNotFound code={gameId} reason="kicked" />;
+  }
   if (notFound) {
     return <GameNotFound code={gameId} />;
   }
@@ -204,52 +207,86 @@ export function LobbyClient({ gameId, userId }: Props) {
 
         <section className="bg-emerald-950/60 border border-emerald-800 rounded-xl p-6 backdrop-blur-sm">
           <h2 className="text-xl font-extrabold mb-4 text-amber-300">
-            Spieler ({contestants.length}/6 Teilnehmer{game?.hostId ? " + 1 Host" : ""})
+            Spieler ({contestants.length}/5 Teilnehmer{game?.hostId ? " + 1 Host" : ""})
           </h2>
           {players.length === 0 ? (
             <p className="text-emerald-400/70">Warte auf Spieler…</p>
           ) : (
             <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {players.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center gap-3 bg-emerald-950 border border-emerald-800 rounded-md p-3"
-                >
-                  {p.avatarUrl ? (
-                    <Image
-                      src={p.avatarUrl}
-                      alt={p.displayName}
-                      width={40}
-                      height={40}
-                      className="rounded-full border border-amber-400/40"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-emerald-800" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold truncate text-amber-100">
-                      {p.displayName}
+              {players.map((p) => {
+                const isPlayerHost = p.id === game?.hostId;
+                const isOffline = !p.connected;
+                return (
+                  <li
+                    key={p.id}
+                    className={[
+                      "flex items-center gap-3 border rounded-md p-3 transition-opacity",
+                      isOffline
+                        ? "bg-emerald-950/40 border-emerald-900 opacity-60"
+                        : "bg-emerald-950 border-emerald-800",
+                    ].join(" ")}
+                  >
+                    {p.avatarUrl ? (
+                      <Image
+                        src={p.avatarUrl}
+                        alt={p.displayName}
+                        width={40}
+                        height={40}
+                        className={[
+                          "rounded-full border",
+                          isOffline ? "border-emerald-700/50 grayscale" : "border-amber-400/40",
+                        ].join(" ")}
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-emerald-800" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold truncate text-amber-100 flex items-center gap-1.5">
+                        {p.displayName}
+                        {isOffline ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-300 uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Offline
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-emerald-300/60 truncate">
+                        @{p.twitchLogin}
+                      </div>
                     </div>
-                    <div className="text-xs text-emerald-300/60 truncate">
-                      @{p.twitchLogin}
-                    </div>
-                  </div>
-                  {p.id === game?.hostId ? (
-                    <span className="text-xs font-extrabold bg-amber-500 text-emerald-950 px-2 py-0.5 rounded">
-                      🍯 HOST
-                    </span>
-                  ) : p.ready ? (
-                    <span className="text-xs font-extrabold bg-emerald-500 text-emerald-950 px-2 py-0.5 rounded">
-                      BEREIT
-                    </span>
-                  ) : (
-                    <span className="text-xs font-bold bg-emerald-800 text-emerald-300 px-2 py-0.5 rounded">
-                      …
-                    </span>
-                  )}
-                </li>
-              ))}
+                    {isPlayerHost ? (
+                      <span className="text-xs font-extrabold bg-amber-500 text-emerald-950 px-2 py-0.5 rounded">
+                        🍯 HOST
+                      </span>
+                    ) : p.ready ? (
+                      <span className="text-xs font-extrabold bg-emerald-500 text-emerald-950 px-2 py-0.5 rounded">
+                        BEREIT
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold bg-emerald-800 text-emerald-300 px-2 py-0.5 rounded">
+                        …
+                      </span>
+                    )}
+                    {/* Host-only: kick this player out of the lobby. */}
+                    {isHost && !isPlayerHost ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`${p.displayName} aus der Lobby entfernen?`)) {
+                            emit("host:kick_player", { playerId: p.id });
+                          }
+                        }}
+                        title="Spieler entfernen"
+                        aria-label={`${p.displayName} entfernen`}
+                        className="shrink-0 w-7 h-7 rounded-full bg-red-900/50 hover:bg-red-700 text-red-200 hover:text-white font-extrabold text-sm flex items-center justify-center transition-colors"
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

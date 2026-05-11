@@ -14,6 +14,8 @@ import Image from "next/image";
 interface Props {
   /** Optional code shown in monospace so the user knows which game it was. */
   code?: string;
+  /** Why we're showing this page — affects heading + body copy. */
+  reason?: "not_found" | "kicked";
 }
 
 /**
@@ -37,8 +39,14 @@ function apexHomeUrl(): string {
   return "/";
 }
 
-export function GameNotFound({ code }: Props) {
+export function GameNotFound({ code, reason = "not_found" }: Props) {
   const homeUrl = apexHomeUrl();
+  const isKick  = reason === "kicked";
+  const heading = isKick ? "Aus dem Spiel entfernt" : "Spiel nicht gefunden";
+  const body    = isKick
+    ? "Der Host hat dich aus dieser Lobby entfernt."
+    : "Dieses Spiel existiert nicht mehr — vermutlich ist die Runde vorbei oder der Code stimmt nicht.";
+  const bigCode = isKick ? "🚪" : "404";
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 flex flex-col items-center justify-center px-6 py-16 relative">
       {/* Decorative top glow */}
@@ -56,18 +64,17 @@ export function GameNotFound({ code }: Props) {
 
         <div className="space-y-3">
           <div className="text-amber-300 text-7xl font-extrabold tracking-tight drop-shadow-lg">
-            404
+            {bigCode}
           </div>
           <h1 className="text-3xl font-extrabold text-amber-100">
-            Spiel nicht gefunden
+            {heading}
           </h1>
           <p className="text-emerald-200/80 leading-relaxed">
-            Dieses Spiel existiert nicht mehr — vermutlich ist die Runde
-            vorbei oder der Code stimmt nicht.
+            {body}
           </p>
           {code ? (
             <p className="text-emerald-300/70 text-sm">
-              Gesuchter Code:{" "}
+              {isKick ? "Code:" : "Gesuchter Code:"}{" "}
               <span className="font-mono font-extrabold text-amber-300 tracking-widest">
                 {code}
               </span>

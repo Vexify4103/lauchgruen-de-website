@@ -15,37 +15,37 @@ import Link from "next/link";
 import { LiveStatus } from "./LiveStatus";
 
 const TWITCH_LOGIN = "lauchgruen";
-const TWITCH_URL   = `https://twitch.tv/${TWITCH_LOGIN}`;
+const TWITCH_URL = `https://twitch.tv/${TWITCH_LOGIN}`;
 const JEOPARDY_URL = "https://jeopardy.lauchgruen.de";
 
 // Fill in real URLs — empty strings are filtered out so unfinished
 // links don't render as dead buttons.
 const SOCIALS: Array<{ label: string; url: string; emoji: string }> = [
-  { label: "Twitch",   url: TWITCH_URL,  emoji: "🟣" },
-  { label: "YouTube",  url: "",          emoji: "▶️" },
-  { label: "Discord",  url: "",          emoji: "💬" },
-  { label: "TikTok",   url: "",          emoji: "🎵" },
-  { label: "Twitter",  url: "",          emoji: "🐦" },
-  { label: "Instagram",url: "",          emoji: "📸" },
+  { label: "Twitch", url: TWITCH_URL, emoji: "🟣" },
+  { label: "YouTube", url: "", emoji: "▶️" },
+  { label: "Discord", url: "", emoji: "💬" },
+  { label: "TikTok", url: "", emoji: "🎵" },
+  { label: "Twitter", url: "", emoji: "🐦" },
+  { label: "Instagram", url: "", emoji: "📸" },
 ].filter((s) => s.url);
 
 const GAMES = [
   {
-    name:   "League of Legends",
-    emoji:  "⚔️",
-    desc:   "Solo Q, Ranked Climbs und die ein oder andere Inting-Story.",
+    name: "League of Legends",
+    emoji: "⚔️",
+    desc: "Solo Q, Ranked Climbs und die ein oder andere Inting-Story.",
     accent: "from-blue-700 to-indigo-900",
   },
   {
-    name:   "Teamfight Tactics",
-    emoji:  "♟️",
-    desc:   "Auto-Battler-Tüfteln, Comp-Diskussionen und Set-Releases.",
+    name: "Teamfight Tactics",
+    emoji: "♟️",
+    desc: "Auto-Battler-Tüfteln, Comp-Diskussionen und Set-Releases.",
     accent: "from-amber-700 to-orange-900",
   },
   {
-    name:   "Chess",
-    emoji:  "♞",
-    desc:   "Schach mit Chat-Kommentaren — von Blitz bis Puzzle Rush.",
+    name: "Chess",
+    emoji: "♞",
+    desc: "Schach mit Chat-Kommentaren — von Blitz bis Puzzle Rush.",
     accent: "from-slate-700 to-emerald-900",
   },
 ];
@@ -54,12 +54,12 @@ const EVENTS = [
   {
     emoji: "🏆",
     title: "League-Turniere",
-    desc:  "Community-Cups, Showmatches und gelegentliche In-House-Ligen.",
+    desc: "Community-Cups, Showmatches und gelegentliche In-House-Ligen.",
   },
   {
     emoji: "🎯",
     title: "QuizDuell-Shows",
-    desc:  "Jeopardy-Gameshow für mehrere Streamer — live moderiert auf Twitch.",
+    desc: "Jeopardy-Gameshow für mehrere Streamer — live moderiert auf Twitch.",
   },
 ];
 
@@ -70,7 +70,6 @@ export default function LandingPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-gradient-to-b from-amber-400/10 to-transparent blur-3xl" />
 
       <main className="relative max-w-5xl mx-auto px-6 py-16 flex flex-col items-center gap-20">
-
         {/* ─── Hero ─────────────────────────────────────────────────── */}
         <section className="flex flex-col items-center gap-6 text-center pt-4">
           <Image
@@ -92,9 +91,9 @@ export default function LandingPage() {
             </p>
           </div>
           <p className="text-base md:text-lg text-emerald-100/90 leading-relaxed max-w-2xl mt-2">
-            Bär aus Versehen, Streamer mit Absicht. Live auf Twitch — überwiegend
-            League, TFT und Schach, dazwischen Community-Events und QuizDuell-Shows
-            mit anderen Streamern.
+            Bär aus Versehen, Streamer mit Absicht. Live auf Twitch —
+            überwiegend League, TFT und Schach, dazwischen Community-Events und
+            QuizDuell-Shows mit anderen Streamern.
           </p>
         </section>
 
@@ -113,7 +112,7 @@ export default function LandingPage() {
               Was läuft hier
             </div>
             <h2 className="text-3xl md:text-4xl font-extrabold text-amber-300">
-              Drei Spiele, ein Bär
+              Drei Spiele, ein Lauch
             </h2>
           </div>
 
@@ -176,8 +175,9 @@ export default function LandingPage() {
               QuizDuell — Jeopardy für Streamer
             </h2>
             <p className="text-emerald-100/85 text-sm md:text-base">
-              Echtzeit-Gameshow, 6 Kategorien, drei Boards, Buzzer und Bonusrunden.
-              Spielst du auf <span className="font-mono text-amber-300">lauchgruen</span> mit?
+              Echtzeit-Gameshow, 6 Kategorien, drei Boards, Buzzer und
+              Bonusrunden. Spielst du auf{" "}
+              <span className="font-mono text-amber-300">lauchgruen</span> mit?
             </p>
           </div>
 
@@ -187,10 +187,15 @@ export default function LandingPage() {
           >
             <span className="text-2xl md:text-3xl">🎯</span>
             <span>QuizDuell spielen</span>
-            <span className="text-xl md:text-2xl transition-transform group-hover:translate-x-1">→</span>
+            <span className="text-xl md:text-2xl transition-transform group-hover:translate-x-1">
+              →
+            </span>
           </Link>
           <p className="text-emerald-300/60 text-xs">
-            auf <span className="font-mono text-amber-300/80">jeopardy.lauchgruen.de</span>
+            auf{" "}
+            <span className="font-mono text-amber-300/80">
+              jeopardy.lauchgruen.de
+            </span>
           </p>
         </section>
 

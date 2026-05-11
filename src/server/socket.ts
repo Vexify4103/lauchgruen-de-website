@@ -12,8 +12,10 @@ import {
   markCellUsed,
   nextTurn,
   registerQuestionPool,
+  removePlayer,
   serializeFor,
   setActiveQuestion,
+  setPlayerConnected,
   setReady,
   setReviewQuestion,
   switchBoard,
@@ -53,6 +55,30 @@ const buzzCollectors = new Map<
 
 /** Pending auto-close timers after host:reveal_and_close. */
 const revealCloseTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Tracks active socket IDs per (gameId, userId). Lets us tell when a user has
+ * truly disconnected (no remaining sockets) vs. just closed one tab while
+ * another is still open. Key format: `${gameId}:${userId}`.
+ */
+const userSocketsByGame = new Map<string, Set<string>>();
+function trackUserSocket(gameId: string, userId: string, socketId: string): void {
+  const key = `${gameId}:${userId}`;
+  const set = userSocketsByGame.get(key) ?? new Set<string>();
+  set.add(socketId);
+  userSocketsByGame.set(key, set);
+}
+function untrackUserSocket(gameId: string, userId: string, socketId: string): number {
+  const key = `${gameId}:${userId}`;
+  const set = userSocketsByGame.get(key);
+  if (!set) return 0;
+  set.delete(socketId);
+  if (set.size === 0) {
+    userSocketsByGame.delete(key);
+    return 0;
+  }
+  return set.size;
+}
 
 function broadcastState(io: SocketIOServer, game: GameState) {
   for (const [, sock] of io.sockets.sockets) {
@@ -214,10 +240,24 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       const game = getGame(parsed.data.gameId);
       if (!game) { emitError(socket, "GAME_NOT_FOUND", "Game does not exist"); ack?.({ ok: false }); return; }
 
+      const existing = game.players[socket.data.userId];
+
+      // Enforce the 5-contestant cap (host is separate). New contestants who
+      // arrive after the lobby is full get bounced. Re-joiners (existing
+      // players) are always allowed — they're already accounted for.
+      if (!existing && socket.data.userId !== game.hostId) {
+        const contestantCount = game.playerOrder.filter((pid) => pid !== game.hostId).length;
+        if (contestantCount >= 5) {
+          emitError(socket, "LOBBY_FULL", "Lobby ist voll (5 Teilnehmer)");
+          ack?.({ ok: false });
+          return;
+        }
+      }
+
       socket.data.gameId = game.id;
       void socket.join(`game:${game.id}`);
+      trackUserSocket(game.id, socket.data.userId, socket.id);
 
-      const existing = game.players[socket.data.userId];
       const player = existing ?? makePlayer({
         id:           socket.data.userId,
         twitchLogin:  socket.data.twitchLogin,
@@ -226,6 +266,7 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         vdoStreamId:  generateStreamId(),
       });
       addPlayer(game, player);
+      // addPlayer flips connected→true for rejoiners; new players default true.
 
       ack?.({ ok: true, vdoStreamId: player.vdoStreamId });
       broadcastAll(io, game);
@@ -261,6 +302,36 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       const game = getGame(gameId);
       if (!game || game.phase !== "lobby") return;
       setReady(game, socket.data.userId, parsed.data.ready);
+      broadcastAll(io, game);
+    });
+
+    socket.on("host:kick_player", (payload: unknown) => {
+      const parsed = z.object({ playerId: z.string() }).safeParse(payload);
+      if (!parsed.success) return;
+      const gameId = socket.data.gameId;
+      if (!gameId) return;
+      const game = getGame(gameId);
+      if (!game || !isHost(socket, game)) return;
+      // Only allow kicks during lobby — once gameplay starts, removing players
+      // mid-round would break turn rotation, round-tracking, etc.
+      if (game.phase !== "lobby") return;
+      // Hosts can't kick themselves.
+      if (parsed.data.playerId === game.hostId) return;
+      if (!game.players[parsed.data.playerId]) return;
+
+      removePlayer(game, parsed.data.playerId);
+
+      // Detach the kicked user's sockets from the game and tell them.
+      for (const [, sock] of io.sockets.sockets) {
+        const s = sock as AuthedSocket;
+        if (s.data.gameId === gameId && s.data.userId === parsed.data.playerId) {
+          s.emit("kicked");
+          s.data.gameId = undefined;
+          void s.leave(`game:${gameId}`);
+          untrackUserSocket(gameId, parsed.data.playerId, s.id);
+        }
+      }
+
       broadcastAll(io, game);
     });
 
@@ -750,10 +821,22 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       if (!gameId || !socket.data.userId) return;
       const game = getGame(gameId);
       if (!game) return;
+
+      // Was this the user's last open socket? If so they're truly offline.
+      const remaining = untrackUserSocket(gameId, socket.data.userId, socket.id);
       const player = game.players[socket.data.userId];
-      if (player?.eliminated) {
+
+      // Eliminated players are removed entirely on disconnect (mid-game cleanup).
+      if (player?.eliminated && remaining === 0) {
         game.playerOrder = game.playerOrder.filter((id) => id !== socket.data.userId);
         delete game.players[socket.data.userId];
+        broadcastAll(io, game);
+        return;
+      }
+
+      // Otherwise: keep their slot, just mark offline so the lobby greys them out.
+      if (player && remaining === 0 && player.connected) {
+        setPlayerConnected(game, socket.data.userId, false);
         broadcastAll(io, game);
       }
     });

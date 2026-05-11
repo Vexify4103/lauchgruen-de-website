@@ -81,13 +81,14 @@ export function deleteGame(id: GameId): void {
 
 export function addPlayer(game: GameState, player: Player): void {
   if (game.players[player.id]) {
-    // Update existing player (rejoin) — preserve score/hearts
+    // Update existing player (rejoin) — preserve score/hearts, restore connected.
     const existing = game.players[player.id];
     game.players[player.id] = {
       ...existing,
       twitchLogin: player.twitchLogin,
       displayName: player.displayName,
       avatarUrl: player.avatarUrl,
+      connected: true,
     };
     return;
   }
@@ -95,6 +96,22 @@ export function addPlayer(game: GameState, player: Player): void {
   if (!game.playerOrder.includes(player.id)) {
     game.playerOrder.push(player.id);
   }
+}
+
+/** Remove a player from the game entirely (host kick during lobby). */
+export function removePlayer(game: GameState, playerId: PlayerId): void {
+  delete game.players[playerId];
+  game.playerOrder = game.playerOrder.filter((id) => id !== playerId);
+}
+
+/** Toggle a player's connected flag — driven by socket connect/disconnect. */
+export function setPlayerConnected(
+  game: GameState,
+  playerId: PlayerId,
+  connected: boolean,
+): void {
+  const player = game.players[playerId];
+  if (player) player.connected = connected;
 }
 
 export function setReady(game: GameState, playerId: PlayerId, ready: boolean): void {
@@ -198,12 +215,13 @@ export function checkGameOver(game: GameState): PlayerId | null {
 
 const STARTING_PLAYER_DEFAULTS: Pick<
   Player,
-  "score" | "hearts" | "eliminated" | "ready"
+  "score" | "hearts" | "eliminated" | "ready" | "connected"
 > = {
   score: 0,
   hearts: STARTING_HEARTS,
   eliminated: false,
   ready: false,
+  connected: true,
 };
 
 export function makePlayer(args: {

@@ -21,6 +21,9 @@ export interface Player {
   hearts: number;
   eliminated: boolean;
   ready: boolean;
+  /** True while the player has at least one active socket. Updated by socket
+   *  connect/disconnect; used in the lobby to grey out offline players. */
+  connected: boolean;
 }
 
 export interface Question {

@@ -28,8 +28,10 @@ export function StartingSoon({ game }: Props) {
     .map((id) => game.players[id])
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
-  // Show up to 6 contestant slots; fill with real players first, pad with placeholders.
-  const SLOT_COUNT = Math.max(contestants.length, 4);
+  // Max 5 contestants + host. Always render 5 slots so the layout previews
+  // exactly what the live game will look like at full capacity (and "freie
+  // Plätze" placeholders fill in for whichever spots haven't been claimed yet).
+  const SLOT_COUNT = 5;
   const slots = Array.from({ length: SLOT_COUNT }, (_, i) => contestants[i] ?? null);
 
   // Use the first board's categories as a preview (or empty placeholders).

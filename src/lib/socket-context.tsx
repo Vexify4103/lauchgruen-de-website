@@ -28,6 +28,10 @@ interface SocketContextValue {
   /** Fires whenever the host judges an answer. The `seq` counter increments each
    *  time so React effects re-fire even for consecutive identical outcomes. */
   lastJudgeResult: { correct: boolean; seq: number } | null;
+  /** True after the server emits "kicked" — i.e. the host removed us from the lobby. */
+  wasKicked: boolean;
+  /** Reset the kicked flag (e.g. after the user navigates away). */
+  clearKicked: () => void;
 }
 
 const SocketContext = createContext<SocketContextValue | null>(null);
@@ -46,6 +50,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     correct: boolean;
     seq: number;
   } | null>(null);
+  const [wasKicked, setWasKicked] = useState(false);
   const judgeSeqRef = useRef(0);
 
   const ensureSocket = useCallback((role: Role) => {
@@ -77,6 +82,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     );
     socket.on("judge_result", (payload: { correct: boolean }) => {
       setLastJudgeResult({ correct: payload.correct, seq: ++judgeSeqRef.current });
+    });
+    socket.on("kicked", () => {
+      // Host removed us from the lobby; clear local game state and surface to UI.
+      setGame(null);
+      setVdoStreamId(null);
+      setWasKicked(true);
     });
     socket.on(
       "error",
@@ -136,6 +147,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     setVdoStreamId(null);
   }, []);
 
+  const clearKicked = useCallback(() => setWasKicked(false), []);
+
   const emit = useCallback((event: string, payload?: unknown) => {
     socketRef.current?.emit(event, payload);
   }, []);
@@ -154,6 +167,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         lastBuzzWinner,
         buzzersOpenedAt,
         lastJudgeResult,
+        wasKicked,
+        clearKicked,
       }}
     >
       {children}
