@@ -742,10 +742,17 @@ export function registerSocketHandlers(io: SocketIOServer): void {
           }
         }
 
-        // Rule #2: correct → ALWAYS advance to the next contestant
-        // (round-robin), regardless of who answered. No "winner picks next".
+        // Turn advancement rule:
+        //   - Picker answers their own pick correctly → next contestant (round-robin)
+        //   - Buzz winner (steal) answers correctly → THEY take the turn (Jeopardy steal)
+        //   - Bonus image correct → next contestant (round-robin, no steal mechanic)
+        if (wasBonus || isPickerFirstAttempt) {
+          nextTurn(game);
+        } else {
+          // Buzz winner stole the answer — they get the next pick.
+          game.currentTurn = answerer;
+        }
         game.isBonusRound = false;
-        nextTurn(game);
 
         setActiveQuestion(game, null);
         game.phase = "playing";

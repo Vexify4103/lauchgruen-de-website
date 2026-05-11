@@ -12,7 +12,7 @@
 # this file and update the matching `image:` field below. The /questions
 # route serves any file in this folder directly.
 
-default_points: 500
+default_points: 250
 
 rounds:
   - image: buzzer_1.png

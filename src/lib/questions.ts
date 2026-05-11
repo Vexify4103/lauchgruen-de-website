@@ -151,7 +151,7 @@ export function loadBonusBuzzerRounds(): BonusBuzzerRound[] {
     console.warn("[questions] buzzer.yml has no `rounds` — skipping");
     return [];
   }
-  const defaultPoints = parsed.default_points ?? 500;
+  const defaultPoints = parsed.default_points ?? 250;
   return parsed.rounds.map((r, i) => ({
     id:       `_bonus_buzzer_${i + 1}`,
     imageUrl: `/questions/buzzer/${r.image}`,
