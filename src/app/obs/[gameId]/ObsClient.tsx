@@ -18,7 +18,7 @@ interface Props {
 
 const PHASE_LABELS: Record<string, string> = {
   lobby: "Warteraum",
-  playing: "Spiel laeuft",
+  playing: "Spiel läuft",
   bonus_pending: "Bonus bereit",
   bonus_buzzing: "Bonus-Buzzer offen",
   finished: "Spiel beendet",
@@ -109,7 +109,16 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
     : game.phase === "finished"
       ? "Ergebnis"
       : "Nächster Pick";
-  const contestantRowHeight = compact ? 166 : 208;
+  const contestantTileHeight = compact
+    ? contestants.length >= 5
+      ? 146
+      : 166
+    : contestants.length >= 5
+      ? 190
+      : contestants.length === 4
+        ? 198
+        : 208;
+  const contestantRowHeight = contestantTileHeight + 16;
 
   const flashOn = correctFlash || wrongFlash;
   const flashColor = correctFlash
@@ -130,7 +139,7 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
       style={{ padding: compact ? "8px" : "10px", gap: compact ? "6px" : "8px" }}
     >
       <div
-        className="grid min-h-0 flex-1"
+        className="grid min-h-0 flex-1 overflow-hidden"
         style={{
           gridTemplateColumns: compact ? "340px 1fr 210px" : "380px 1fr 230px",
           gap: compact ? "6px" : "8px",
@@ -170,13 +179,13 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
           ) : null}
         </aside>
 
-        <section className="flex min-h-0 flex-col gap-2">
-          <div className="surface-panel min-h-0 flex-1 rounded-[1.7rem] p-3">
+        <section className="flex min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="surface-panel min-h-0 flex-1 overflow-hidden rounded-[1.7rem] p-3">
             <Board game={game} />
           </div>
 
           {game.activeQuestion ? (
-            <div className="surface-panel-strong shrink-0 rounded-[1.6rem] px-5 py-4">
+            <div className="surface-panel-strong shrink-0 overflow-hidden rounded-[1.6rem] px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="section-kicker">
@@ -257,10 +266,10 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
       </div>
 
       <div
-        className="surface-panel shrink-0 rounded-[1.6rem] p-2"
-        style={{ minHeight: `${contestantRowHeight}px` }}
+        className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2"
+        style={{ height: `${contestantRowHeight}px` }}
       >
-        <div className="flex h-full justify-center gap-2">
+        <div className="flex h-full min-h-0 justify-center gap-2 overflow-hidden">
           {contestants.map((player) => (
             <div key={player.id} className="h-full aspect-video shrink-0">
               <ParticipantTile

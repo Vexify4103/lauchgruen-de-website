@@ -1,19 +1,39 @@
-# Bonus-buzzer image rounds.
-#
-# Each entry maps to an image file in this directory (content/questions/buzzer/).
-# When a normal round ends (all contestants played one question), one of these
-# is shown to everyone; the first player to buzz gets one shot at answering.
-#
-# Correct → +points · Wrong → -half points · Each round used at most once per game.
-# Once all rounds are consumed, bonus buzz simply stops firing (regular play
-# continues normally).
-#
-# To add more rounds: drop the image file next to this yml and add an entry below.
-
 default_points: 250
 
 rounds:
   - image: buzzer_1.png
-    answer: "Antwort 1"
+    answer: "Hier wirft der Tiertitan die Felsen auf Erwin."
   - image: buzzer_2.png
-    answer: "Antwort 2"
+    answer: "Der Aufklärungstrupp setzt den Female Titan fest im Wald."
+  - image: buzzer_3.png
+    answer: "Eren bekommt von seinem Vater die Spritze."
+  - image: buzzer_4.png
+    answer: "Erens Mutter wird vor seinen Augen aufgegessen."
+  - image: buzzer_5.png
+    answer: "Eren, Armin und Mikasa sehen zum ersten mal das Meer."
+  - image: buzzer_6.png
+    answer: "Eren verwandelt sich im Keller von Marley und Reiner versucht den Jungen zu schützen."
+  - image: buzzer_7.png
+    answer: "Eren trägt den Felsen zur Mauer um diese zu stopfen."
+  - image: buzzer_8.png
+    answer: "Aus der Mauer schaut ein Titan auf einmal raus."
+  - image: buzzer_9.png
+    answer: "Hier redet Eren mit Ymir in der Wüstenparallelwelt."
+  - image: buzzer_10.png
+    answer: "Der Kollassale Titan schaut das erste Mal über die Mauer."
+  - image: buzzer_11.png
+    answer: "Armin liegt verbrannt als halbe Mumie auf dem Dach."
+  - image: buzzer_12.png
+    answer: "Bertholdt und Reiner verwandeln sich das erste Mal vor Eren."
+  - image: buzzer_13.png
+    answer: "Levi ist in der Bar gefangen und schießt rückwärts aus der Bar hinaus."
+  - image: buzzer_14.png
+    answer: "Reiner landet beim Angriff auf Paradies mit seinem Fallschirm."
+  - image: buzzer_15.png
+    answer: "Levi besiegt Zeke und steckt sein Schwert in sein Mund."
+  - image: buzzer_16.png
+    answer: "Das Rumbling kommt am Hafen von Marley an."
+  - image: buzzer_17.png
+    answer: "Krista und Ymir führen Deep-Talk und springen gleich die Klippe hinunter."
+  - image: buzzer_18.png
+    answer: "Eren macht einen Salto im Trainingslager weil sein Gurt manipuliert wurde."

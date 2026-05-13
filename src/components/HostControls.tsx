@@ -9,7 +9,7 @@ interface Props {
 
 const PHASE_LABELS: Record<string, string> = {
   lobby: "Warteraum",
-  playing: "Spiel laeuft",
+  playing: "Spiel läuft",
   bonus_pending: "Bonus bereit",
   bonus_buzzing: "Bonus-Buzzer offen",
   finished: "Spiel beendet",

@@ -22,7 +22,7 @@ interface Props {
 
 const PHASE_LABELS: Record<string, string> = {
   lobby: "Warteraum",
-  playing: "Spiel laeuft",
+  playing: "Spiel läuft",
   bonus_pending: "Bonus bereit",
   bonus_buzzing: "Bonus-Buzzer offen",
   finished: "Spiel beendet",
@@ -111,7 +111,9 @@ export function GameClient({ gameId, userId, mode }: Props) {
       ? (index: number) => emit("host:switch_board", { index })
       : undefined;
 
-  const contestantRowHeight = 228;
+  const contestantTileHeight =
+    contestants.length >= 5 ? 204 : contestants.length === 4 ? 214 : 228;
+  const contestantRowHeight = contestantTileHeight + 16;
   const flashOn = correctFlash || wrongFlash;
   const flashColor = correctFlash
     ? {
@@ -194,7 +196,7 @@ export function GameClient({ gameId, userId, mode }: Props) {
       ) : null}
 
       <div
-        className="grid min-h-0 flex-1"
+        className="grid min-h-0 flex-1 overflow-hidden"
         style={{ gridTemplateColumns: "380px 1fr 240px", gap: "8px" }}
       >
         <aside className="flex min-h-0 flex-col gap-2">
@@ -259,8 +261,8 @@ export function GameClient({ gameId, userId, mode }: Props) {
           </div>
         </aside>
 
-        <section className="surface-panel min-h-0 rounded-[1.6rem] p-3">
-          <div className="flex h-full min-h-0 flex-col gap-3">
+        <section className="surface-panel min-h-0 overflow-hidden rounded-[1.6rem] p-3">
+          <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
             <Board
               game={game}
               onPickCell={handlePickCell}
@@ -268,7 +270,7 @@ export function GameClient({ gameId, userId, mode }: Props) {
               onSwitchBoard={handleSwitchBoard}
             />
             {game.activeQuestion ? (
-              <div className="surface-panel-strong shrink-0 rounded-[1.4rem] px-4 py-3">
+              <div className="surface-panel-strong shrink-0 overflow-hidden rounded-[1.4rem] px-4 py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="section-kicker">
@@ -315,10 +317,10 @@ export function GameClient({ gameId, userId, mode }: Props) {
       </div>
 
       <div
-        className="surface-panel shrink-0 rounded-[1.6rem] p-2"
-        style={{ minHeight: `${contestantRowHeight}px` }}
+        className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2"
+        style={{ height: `${contestantRowHeight}px` }}
       >
-        <div className="flex h-full justify-center gap-2">
+        <div className="flex h-full min-h-0 justify-center gap-2 overflow-hidden">
           {contestants.map((player) => (
             <div key={player.id} className="h-full aspect-video shrink-0">
               <ParticipantTile
