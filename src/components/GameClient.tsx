@@ -289,11 +289,11 @@ export function GameClient({ gameId, userId, mode }: Props) {
           </div>
         </section>
 
-        <aside className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+        <aside className="min-h-0 overflow-hidden">
           {isHost ? <HostControls game={game} /> : null}
 
           {!isHost ? (
-            <div className="surface-panel rounded-[1.6rem] p-4">
+            <div className="surface-panel h-full rounded-[1.6rem] p-4">
               <div className="section-kicker">Spieler</div>
               <div className="mt-3 text-xl font-black text-amber-100">
                 Deine Aktion

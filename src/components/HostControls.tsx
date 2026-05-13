@@ -34,7 +34,7 @@ export function HostControls({ game }: Props) {
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
   return (
-    <div className="surface-panel rounded-[1.6rem] p-4">
+    <div className="surface-panel themed-scrollbar h-full overflow-y-auto rounded-[1.6rem] p-4">
       <div className="section-kicker">Host-Steuerung</div>
       <div className="mt-3 text-xl font-black text-amber-100">Regie</div>
       <div className="mt-2 text-sm text-emerald-100/72">
