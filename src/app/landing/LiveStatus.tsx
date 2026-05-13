@@ -1,47 +1,37 @@
 "use client";
 
-/**
- * Live Twitch status card. Polls /api/twitch/status every 60 seconds and
- * renders one of two states:
- *
- *   • LIVE — pulsing red dot, stream thumbnail, title, game, viewer count,
- *            uptime, big "Live ansehen" CTA.
- *   • OFFLINE — calm offline-image / avatar fallback, "Folgen auf Twitch" CTA.
- *
- * Errors silently degrade to the offline view so the page never breaks.
- */
-
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
 interface ApiUser {
-  id:              string;
-  login:           string;
-  displayName:     string;
+  id: string;
+  login: string;
+  displayName: string;
   profileImageUrl: string;
   offlineImageUrl: string;
-  description:     string;
+  description: string;
 }
+
 interface ApiStream {
-  id:           string;
-  userName:     string;
-  gameName:     string;
-  title:        string;
-  viewerCount:  number;
-  startedAt:    string;
+  id: string;
+  userName: string;
+  gameName: string;
+  title: string;
+  viewerCount: number;
+  startedAt: string;
   thumbnailUrl: string;
-  language:     string;
+  language: string;
 }
+
 interface ApiResponse {
   login: string;
-  live:  boolean;
+  live: boolean;
   stream: ApiStream | null;
-  user:   ApiUser   | null;
+  user: ApiUser | null;
 }
 
 interface Props {
   login?: string;
-  /** ms between polls. Default 60s. */
   pollIntervalMs?: number;
 }
 
@@ -49,29 +39,35 @@ function formatUptime(startedAtIso: string): string {
   const started = new Date(startedAtIso).getTime();
   const elapsed = Math.max(0, Date.now() - started);
   const totalMin = Math.floor(elapsed / 60_000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}min`;
-  return `${m}min`;
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+  }
+
+  return `${minutes}m`;
 }
 
 export function LiveStatus({
   login = "lauchgruen",
   pollIntervalMs = 60_000,
 }: Props) {
-  const [data, setData]       = useState<ApiResponse | null>(null);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Poll
   useEffect(() => {
     let cancelled = false;
+
     const fetchStatus = async () => {
       try {
-        const r = await fetch(`/api/twitch/status?login=${encodeURIComponent(login)}`, {
-          cache: "no-store",
-        });
-        if (!r.ok) throw new Error(`${r.status}`);
-        const json = (await r.json()) as ApiResponse;
+        const response = await fetch(
+          `/api/twitch/status?login=${encodeURIComponent(login)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error(`${response.status}`);
+
+        const json = (await response.json()) as ApiResponse;
         if (!cancelled) {
           setData(json);
           setLoading(false);
@@ -80,137 +76,142 @@ export function LiveStatus({
         if (!cancelled) setLoading(false);
       }
     };
+
     void fetchStatus();
-    const t = setInterval(fetchStatus, pollIntervalMs);
+    const timer = setInterval(fetchStatus, pollIntervalMs);
+
     return () => {
       cancelled = true;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, [login, pollIntervalMs]);
 
-  // Re-render every minute so the uptime counter ticks even between polls.
   const [, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setTick((value) => value + 1), 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const twitchUrl = `https://twitch.tv/${login}`;
 
-  // ─── Loading skeleton ─────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="w-full max-w-2xl bg-emerald-950/60 border border-emerald-800 rounded-2xl p-6 flex items-center gap-4 animate-pulse">
-        <div className="w-16 h-16 rounded-full bg-emerald-900" />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 bg-emerald-900 rounded w-1/3" />
-          <div className="h-3 bg-emerald-900/70 rounded w-1/2" />
+      <div className="surface-panel rounded-[1.7rem] p-5">
+        <div className="animate-pulse">
+          <div className="aspect-video rounded-[1.35rem] bg-emerald-900/75" />
+          <div className="mt-4 flex items-center gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-emerald-900/75" />
+            <div className="flex-1 space-y-3">
+              <div className="h-4 w-2/3 rounded-full bg-emerald-900/75" />
+              <div className="h-3 w-1/3 rounded-full bg-emerald-900/55" />
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ─── LIVE ─────────────────────────────────────────────────────────────
   if (data?.live && data.stream) {
-    const s = data.stream;
+    const stream = data.stream;
+
     return (
       <a
         href={twitchUrl}
         target="_blank"
         rel="noreferrer"
-        className="group relative block w-full max-w-2xl rounded-2xl overflow-hidden border-2 border-red-500 shadow-2xl shadow-red-500/30 hover:shadow-red-500/50 transition-shadow"
+        className="group block overflow-hidden rounded-[1.7rem] border border-red-400/45 bg-[#041b14] shadow-2xl shadow-black/20 transition-transform hover:-translate-y-0.5"
       >
-        {/* Thumbnail */}
         <div className="relative aspect-video bg-emerald-950">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={s.thumbnailUrl}
-            alt={s.title}
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+            src={stream.thumbnailUrl}
+            alt={stream.title}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
-          {/* Live badge */}
-          <div className="absolute top-3 left-3 bg-red-600 text-white text-xs font-extrabold px-3 py-1.5 rounded flex items-center gap-2 shadow-lg uppercase tracking-wider">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-            </span>
-            LIVE
+          <div className="absolute inset-0 bg-gradient-to-t from-[#04120d] via-transparent to-transparent" />
+
+          <div className="absolute left-3 top-3 rounded-full bg-red-500 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-white shadow-lg shadow-red-900/30">
+            Live
           </div>
-          {/* Viewer count */}
-          <div className="absolute top-3 right-3 bg-black/70 text-white text-xs font-bold px-2.5 py-1.5 rounded flex items-center gap-1.5 backdrop-blur-sm">
-            👁 {s.viewerCount.toLocaleString("de-DE")}
+          <div className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
+            {stream.viewerCount.toLocaleString("de-DE")} Zuschauer
           </div>
-          {/* Uptime */}
-          <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs font-mono px-2.5 py-1.5 rounded backdrop-blur-sm">
-            ⏱ {formatUptime(s.startedAt)}
+          <div className="absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
+            Seit {formatUptime(stream.startedAt)}
           </div>
         </div>
 
-        {/* Title + game */}
-        <div className="bg-gradient-to-r from-emerald-950 to-emerald-900 px-5 py-4 flex items-center gap-4">
-          {data.user?.profileImageUrl ? (
-            <Image
-              src={data.user.profileImageUrl}
-              alt={data.user.displayName}
-              width={48}
-              height={48}
-              className="rounded-full border-2 border-red-500 shrink-0"
-              unoptimized
-            />
-          ) : null}
-          <div className="flex-1 min-w-0">
-            <div className="text-amber-300 font-extrabold text-lg truncate">
-              {s.title}
+        <div className="bg-gradient-to-r from-emerald-950 to-emerald-900/95 p-5">
+          <div className="flex items-start gap-4">
+            {data.user?.profileImageUrl ? (
+              <Image
+                src={data.user.profileImageUrl}
+                alt={data.user.displayName}
+                width={54}
+                height={54}
+                className="rounded-2xl border border-red-300/50 object-cover"
+                unoptimized
+              />
+            ) : (
+              <div className="h-[54px] w-[54px] rounded-2xl bg-emerald-900/75" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="section-kicker text-red-200/78">Jetzt live</div>
+              <div className="mt-2 truncate text-xl font-black text-amber-100">
+                {stream.title}
+              </div>
+              <div className="mt-2 text-sm text-emerald-100/72">
+                spielt{" "}
+                <span className="font-bold text-amber-200">{stream.gameName}</span>
+              </div>
             </div>
-            <div className="text-emerald-200/80 text-sm">
-              spielt <span className="text-amber-200 font-bold">{s.gameName}</span>
+            <div className="rounded-2xl bg-red-500 px-4 py-3 text-sm font-black text-white transition-colors group-hover:bg-red-400">
+              Reinschauen
             </div>
-          </div>
-          <div className="bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-lg px-4 py-2 text-sm shrink-0 transition-colors">
-            Live ansehen →
           </div>
         </div>
       </a>
     );
   }
 
-  // ─── OFFLINE ──────────────────────────────────────────────────────────
   const user = data?.user;
+
   return (
-    <div className="w-full max-w-2xl bg-emerald-950/60 border border-emerald-800 rounded-2xl p-6 flex items-center gap-5 backdrop-blur-sm">
-      <div className="relative shrink-0">
-        {user?.profileImageUrl ? (
-          <Image
-            src={user.profileImageUrl}
-            alt={user.displayName}
-            width={72}
-            height={72}
-            className="rounded-full border-2 border-emerald-700 grayscale"
-            unoptimized
-          />
-        ) : (
-          <div className="w-[72px] h-[72px] rounded-full bg-emerald-900" />
-        )}
-        <div className="absolute bottom-0 right-0 bg-emerald-800 text-emerald-300 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border border-emerald-700">
-          Offline
+    <div className="surface-panel rounded-[1.7rem] p-5">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          {user?.profileImageUrl ? (
+            <Image
+              src={user.profileImageUrl}
+              alt={user.displayName}
+              width={64}
+              height={64}
+              className="rounded-2xl border border-emerald-300/18 object-cover grayscale"
+              unoptimized
+            />
+          ) : (
+            <div className="h-16 w-16 rounded-2xl bg-emerald-900/70" />
+          )}
+          <div>
+            <div className="section-kicker">Aktuell offline</div>
+            <div className="mt-2 text-2xl font-black text-amber-100">
+              Gerade nicht auf Sendung
+            </div>
+            <p className="mt-2 max-w-md text-sm leading-6 text-emerald-100/72">
+              Folge auf Twitch, damit der nachste Stream nicht nur zufallig in
+              deiner Timeline vorbeifliegt.
+            </p>
+          </div>
         </div>
+        <a
+          href={twitchUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-emerald-300 px-5 text-sm font-black uppercase tracking-[0.14em] text-emerald-950 transition-colors hover:bg-amber-300 sm:ml-auto"
+        >
+          Twitch folgen
+        </a>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-emerald-100 font-extrabold text-lg">
-          Aktuell nicht live
-        </div>
-        <div className="text-emerald-300/70 text-sm">
-          Folge auf Twitch, um beim nächsten Stream nichts zu verpassen.
-        </div>
-      </div>
-      <a
-        href={twitchUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg px-4 py-2.5 text-sm shrink-0 transition-colors shadow-lg"
-      >
-        Twitch ↗
-      </a>
     </div>
   );
 }

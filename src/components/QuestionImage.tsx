@@ -20,6 +20,7 @@ interface Props {
 
 export function QuestionImage({ src, alt = "" }: Props) {
   const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   if (failed) {
@@ -40,12 +41,22 @@ export function QuestionImage({ src, alt = "" }: Props) {
         className="group relative w-full aspect-video rounded-xl overflow-hidden border-2 border-emerald-700/60 hover:border-amber-400/80 transition-all cursor-zoom-in shadow-lg block bg-emerald-950"
         aria-label="Bild vergrößern"
       >
+        {/* Skeleton shown until the image loads */}
+        {!loaded && (
+          <div className="absolute inset-0 bg-emerald-900/40 animate-pulse flex items-center justify-center">
+            <div className="text-emerald-700 text-sm">⏳</div>
+          </div>
+        )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={alt}
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]"
+          className={[
+            "absolute inset-0 w-full h-full object-cover transition-all group-hover:scale-[1.02]",
+            loaded ? "opacity-100" : "opacity-0",
+          ].join(" ")}
           draggable={false}
         />
         {/* Subtle hover hint */}

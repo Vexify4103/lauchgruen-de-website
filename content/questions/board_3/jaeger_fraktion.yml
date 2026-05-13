@@ -1,17 +1,17 @@
-category: jaeger_fraktion
+category: jäger_fraktion
 displayName: Jäger-Fraktion
 questions:
   - points: 100
     prompt: "Wie nennt sich die radikale Splittergruppe rund um Eren, die das Rumbling durchsetzen will?"
-    answer: Jaegeristen (Jäger-Fraktion)
+    answer: Jägeristen (Jäger-Fraktion)
   - points: 200
-    prompt: "Welches Mitglied der Aufklärungstruppe schließt sich als erstes prominent den Jaegeristen an?"
+    prompt: "Welches Mitglied der Aufklärungstruppe schließt sich als erstes prominent den Jägeristen an?"
     answer: Floch Forster
   - points: 300
     prompt: "Mit wessen Spinalflüssigkeit versetzt Yelena heimlich den Wein, der an Paradis-Soldaten verteilt wird?"
     answer: Zeke Jägers Spinalflüssigkeit
   - points: 400
-    prompt: "Welchen hochrangigen Paradis-Politiker töten die Jaegeristen durch eine Bombenexplosion in seinem Büro?"
+    prompt: "Welchen hochrangigen Paradis-Politiker töten die Jägeristen durch eine Bombenexplosion in seinem Büro?"
     answer: Dhalis Zachary (Premier Zackley)
   - points: 500
     prompt: "Was ist Erens wahres Ziel hinter dem Rumbling laut seinem Geständnis an Armin im Jenseits?"

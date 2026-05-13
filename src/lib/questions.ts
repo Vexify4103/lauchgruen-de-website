@@ -152,12 +152,21 @@ export function loadBonusBuzzerRounds(): BonusBuzzerRound[] {
     return [];
   }
   const defaultPoints = parsed.default_points ?? 250;
-  return parsed.rounds.map((r, i) => ({
-    id:       `_bonus_buzzer_${i + 1}`,
-    imageUrl: `/questions/buzzer/${r.image}`,
-    answer:   r.answer,
-    points:   r.points ?? defaultPoints,
-  }));
+  // Images live in public/buzzer/ so they're served as static files (no route handler overhead).
+  const buzzerPublicDir = join(process.cwd(), "public", "buzzer");
+  return parsed.rounds
+    .map((r, i) => ({
+      id:       `_bonus_buzzer_${i + 1}`,
+      imageUrl: `/buzzer/${r.image}`,
+      answer:   r.answer,
+      points:   r.points ?? defaultPoints,
+    }))
+    .filter((round) => {
+      const imagePath = join(buzzerPublicDir, round.imageUrl.split("/").pop()!);
+      const exists = existsSync(imagePath);
+      if (!exists) console.warn(`[questions] buzzer image missing in public/buzzer/, skipping: ${imagePath}`);
+      return exists;
+    });
 }
 
 /**

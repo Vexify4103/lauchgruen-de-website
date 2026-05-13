@@ -1,15 +1,3 @@
-/**
- * lauchgruentv landing page — served at lauchgruen.de/ via the proxy rewrite.
- *
- * Sections:
- *   1. Hero (logo + name + tagline)
- *   2. Live status (polls Twitch every 60s; shows thumbnail when live)
- *   3. About + games (LoL / TFT / Chess)
- *   4. Events (occasional LoL tournaments + quiz shows)
- *   5. QuizDuell CTA → jeopardy.lauchgruen.de
- *   6. Socials + footer
- */
-
 import Image from "next/image";
 import Link from "next/link";
 import { LiveStatus } from "./LiveStatus";
@@ -17,214 +5,250 @@ import { LiveStatus } from "./LiveStatus";
 const TWITCH_LOGIN = "lauchgruen";
 const TWITCH_URL = `https://twitch.tv/${TWITCH_LOGIN}`;
 const JEOPARDY_URL = "https://jeopardy.lauchgruen.de";
+const VEXIFY_URL = "https://twitch.tv/vexi_fy";
 
-// Fill in real URLs — empty strings are filtered out so unfinished
-// links don't render as dead buttons.
 const SOCIALS: Array<{ label: string; url: string; emoji: string }> = [
-  { label: "Twitch", url: TWITCH_URL, emoji: "🟣" },
-  { label: "YouTube", url: "", emoji: "▶️" },
-  { label: "Discord", url: "", emoji: "💬" },
-  { label: "TikTok", url: "", emoji: "🎵" },
-  { label: "Twitter", url: "", emoji: "🐦" },
-  { label: "Instagram", url: "", emoji: "📸" },
-].filter((s) => s.url);
+  { label: "Twitch", url: TWITCH_URL, emoji: "Live" },
+  { label: "YouTube", url: "", emoji: "Video" },
+  { label: "Discord", url: "", emoji: "Chat" },
+  { label: "TikTok", url: "", emoji: "Clips" },
+  { label: "Twitter", url: "", emoji: "Feed" },
+  { label: "Instagram", url: "", emoji: "Fotos" },
+].filter((social) => social.url);
 
 const GAMES = [
   {
     name: "League of Legends",
-    emoji: "⚔️",
-    desc: "Solo Q, Ranked Climbs und die ein oder andere Inting-Story.",
-    accent: "from-blue-700 to-indigo-900",
+    desc: "Solo Q, Ranked Climbs und genug Storylines fur Chat und Flame-Historie.",
+    accent:
+      "from-sky-500/20 via-sky-400/10 to-emerald-500/10 border-sky-300/20",
   },
   {
     name: "Teamfight Tactics",
-    emoji: "♟️",
-    desc: "Auto-Battler-Tüfteln, Comp-Diskussionen und Set-Releases.",
-    accent: "from-amber-700 to-orange-900",
+    desc: "Set-Launches, Meta-Talk und genau die richtige Menge Comp-Kopfkino.",
+    accent:
+      "from-amber-400/20 via-orange-400/10 to-emerald-500/10 border-amber-300/20",
   },
   {
     name: "Chess",
-    emoji: "♞",
-    desc: "Schach mit Chat-Kommentaren — von Blitz bis Puzzle Rush.",
-    accent: "from-slate-700 to-emerald-900",
+    desc: "Blitz, Puzzle und Chat-Kommentare zwischen Tilt und Genialitat.",
+    accent:
+      "from-emerald-400/16 via-emerald-300/10 to-cyan-400/8 border-emerald-300/20",
   },
 ];
 
 const EVENTS = [
   {
-    emoji: "🏆",
     title: "League-Turniere",
     desc: "Community-Cups, Showmatches und gelegentliche In-House-Ligen.",
   },
   {
-    emoji: "🎯",
     title: "QuizDuell-Shows",
-    desc: "Jeopardy-Gameshow für mehrere Streamer — live moderiert auf Twitch.",
+    desc: "Live moderierte Gameshow-Runden mit mehreren Streamern und echtem Buzzer-Druck.",
   },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 relative overflow-hidden">
-      {/* Decorative top glow */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-gradient-to-b from-amber-400/10 to-transparent blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden text-emerald-50">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_64%)]" />
+      <div className="pointer-events-none absolute right-0 top-24 h-[24rem] w-[24rem] rounded-full bg-emerald-400/8 blur-3xl" />
 
-      <main className="relative max-w-5xl mx-auto px-6 py-16 flex flex-col items-center gap-20">
-        {/* ─── Hero ─────────────────────────────────────────────────── */}
-        <section className="flex flex-col items-center gap-6 text-center pt-4">
-          <Image
-            src="/bear-logo.png"
-            alt="lauchgruen Bär"
-            width={160}
-            height={160}
-            className="drop-shadow-2xl"
-            priority
-            fetchPriority="high"
-          />
-          <div>
-            <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-amber-300 drop-shadow-lg">
-              lauchgruen
-              <span className="text-emerald-200">.de</span>
-            </h1>
-            <p className="text-emerald-200/70 text-xs md:text-sm uppercase tracking-[0.4em] mt-3 font-bold">
-              🍯 Gaming · Community · Gameshows
-            </p>
-          </div>
-          <p className="text-base md:text-lg text-emerald-100/90 leading-relaxed max-w-2xl mt-2">
-            Bär aus Versehen, Streamer mit Absicht. Live auf Twitch —
-            überwiegend League, TFT und Schach, dazwischen Community-Events und
-            QuizDuell-Shows mit anderen Streamern.
-          </p>
-        </section>
-
-        {/* ─── Live status ──────────────────────────────────────────── */}
-        <section className="w-full flex flex-col items-center gap-3">
-          <div className="text-emerald-300/60 text-xs uppercase tracking-[0.3em] font-bold">
-            Live-Status
-          </div>
-          <LiveStatus login={TWITCH_LOGIN} />
-        </section>
-
-        {/* ─── About / Games ────────────────────────────────────────── */}
-        <section className="w-full flex flex-col gap-6">
-          <div className="text-center">
-            <div className="text-emerald-300/60 text-xs uppercase tracking-[0.3em] font-bold mb-2">
-              Was läuft hier
-            </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-amber-300">
-              Drei Spiele, ein Lauch
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {GAMES.map((g) => (
-              <div
-                key={g.name}
-                className={`bg-gradient-to-br ${g.accent} border border-emerald-700/40 rounded-2xl p-6 flex flex-col gap-3 shadow-lg hover:scale-[1.02] transition-transform`}
-              >
-                <div className="text-5xl">{g.emoji}</div>
-                <div className="text-xl font-extrabold text-amber-100">
-                  {g.name}
-                </div>
-                <div className="text-emerald-100/85 text-sm leading-relaxed">
-                  {g.desc}
+      <main className="relative mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 py-8 sm:py-10 lg:gap-18 lg:py-12">
+        <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div className="flex flex-col gap-7">
+            <div className="brand-chip w-fit">
+              <Image
+                src="/bear-logo.png"
+                alt="lauchgruen Bär"
+                width={112}
+                height={112}
+                className="brand-mark-hero rounded-3xl shadow-2xl shadow-amber-500/10"
+                priority
+                fetchPriority="high"
+              />
+              <div>
+                <div className="section-kicker">Streamer Hub</div>
+                <div className="mt-2 text-2xl font-black tracking-tight text-amber-300 sm:text-3xl">
+                  lauchgruen<span className="text-emerald-100">.de</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ─── Events ───────────────────────────────────────────────── */}
-        <section className="w-full flex flex-col gap-6">
-          <div className="text-center">
-            <div className="text-emerald-300/60 text-xs uppercase tracking-[0.3em] font-bold mb-2">
-              Ab und zu
             </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-amber-300">
-              Events &amp; Specials
-            </h2>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {EVENTS.map((e) => (
-              <div
-                key={e.title}
-                className="bg-emerald-950/60 border border-emerald-800 rounded-2xl p-6 flex gap-4 items-start backdrop-blur-sm"
-              >
-                <div className="text-4xl shrink-0">{e.emoji}</div>
-                <div>
-                  <div className="text-xl font-extrabold text-amber-100 mb-1">
-                    {e.title}
-                  </div>
-                  <div className="text-emerald-100/80 text-sm leading-relaxed">
-                    {e.desc}
-                  </div>
-                </div>
+            <div className="max-w-2xl">
+              <h1 className="text-4xl font-black leading-tight tracking-tight text-emerald-50 sm:text-5xl lg:text-6xl">
+                Streams, Community und Events an einem Ort.
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-emerald-100/78 sm:text-lg">
+                Live auf Twitch mit League, TFT, Chess und genau den Community-Events,
+                die plotzlich aus einem Stream einen Abend machen.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="surface-panel rounded-[1.8rem] p-5">
+                <div className="section-kicker">Was hier passiert</div>
+                <p className="mt-3 text-lg font-semibold leading-8 text-emerald-50">
+                  Bär aus Versehen, Streamer mit Absicht. Meistens kompetitiv,
+                  manchmal chaotisch, idealerweise beides gleichzeitig.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ─── QuizDuell CTA ────────────────────────────────────────── */}
-        <section className="w-full flex flex-col items-center gap-4 py-4">
-          <div className="text-center max-w-xl">
-            <div className="text-emerald-300/60 text-xs uppercase tracking-[0.3em] font-bold mb-2">
-              Mitspielen
-            </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-amber-300 mb-2">
-              QuizDuell — Jeopardy für Streamer
-            </h2>
-            <p className="text-emerald-100/85 text-sm md:text-base">
-              Echtzeit-Gameshow, 6 Kategorien, drei Boards, Buzzer und
-              Bonusrunden. Spielst du auf{" "}
-              <span className="font-mono text-amber-300">lauchgruen</span> mit?
-            </p>
-          </div>
-
-          <Link
-            href={JEOPARDY_URL}
-            className="group relative inline-flex items-center gap-3 bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-emerald-950 font-extrabold text-xl md:text-2xl px-8 md:px-10 py-4 md:py-5 rounded-2xl shadow-2xl shadow-amber-400/40 transition-all hover:scale-105 active:scale-95"
-          >
-            <span className="text-2xl md:text-3xl">🎯</span>
-            <span>QuizDuell spielen</span>
-            <span className="text-xl md:text-2xl transition-transform group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
-          <p className="text-emerald-300/60 text-xs">
-            auf{" "}
-            <span className="font-mono text-amber-300/80">
-              jeopardy.lauchgruen.de
-            </span>
-          </p>
-        </section>
-
-        {/* ─── Socials ──────────────────────────────────────────────── */}
-        {SOCIALS.length > 0 ? (
-          <section className="w-full flex flex-col items-center gap-4">
-            <div className="text-emerald-300/60 text-xs uppercase tracking-[0.3em] font-bold">
-              Folgen
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {SOCIALS.map((s) => (
-                <a
-                  key={s.label}
-                  href={s.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-700 hover:border-amber-400/60 text-emerald-100 hover:text-amber-300 rounded-lg px-4 py-2 text-sm font-bold transition-colors"
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={TWITCH_URL}
+                  className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-amber-500/20 transition-transform hover:-translate-y-0.5"
                 >
-                  <span>{s.emoji}</span>
-                  <span>{s.label}</span>
-                </a>
-              ))}
+                  Twitch ansehen
+                </Link>
+                <Link
+                  href={JEOPARDY_URL}
+                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-950/45 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition-colors hover:border-amber-300/30 hover:text-amber-200"
+                >
+                  QuizDuell
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="surface-panel-strong rounded-[2rem] p-4 sm:p-5 lg:p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="section-kicker">Live-Status</div>
+                <div className="mt-2 text-2xl font-black text-amber-100">
+                  Was lauft gerade?
+                </div>
+              </div>
+              <div className="rounded-full border border-emerald-300/18 bg-emerald-950/45 px-3 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-200/76">
+                Twitch
+              </div>
+            </div>
+            <div className="mt-5">
+              <LiveStatus login={TWITCH_LOGIN} />
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="surface-panel rounded-[2rem] p-6">
+            <div className="section-kicker">Im Stream</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-amber-100">
+              Drei Spiele, ein Rhythmus
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-7 text-emerald-100/72">
+              Von Ranked-Grind uber TFT-Setstarts bis zu Chess-Runden mit Chat:
+              hier dreht sich alles um kompetitive Spiele und gute Abende live
+              auf Twitch.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {GAMES.map((game) => (
+              <div
+                key={game.name}
+                className={`rounded-[1.8rem] border bg-gradient-to-br p-5 shadow-xl shadow-black/10 ${game.accent}`}
+              >
+                <div className="section-kicker">Game</div>
+                <div className="mt-3 text-xl font-black text-amber-100">
+                  {game.name}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-emerald-100/76">
+                  {game.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {EVENTS.map((event) => (
+              <div key={event.title} className="surface-panel rounded-[1.8rem] p-6">
+                <div className="section-kicker">Event</div>
+                <div className="mt-3 text-2xl font-black text-amber-100">
+                  {event.title}
+                </div>
+                <p className="mt-3 text-sm leading-7 text-emerald-100/74">
+                  {event.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="surface-panel-strong rounded-[2rem] p-6 sm:p-7">
+            <div className="section-kicker">Mitspielen</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-amber-100">
+              QuizDuell fur Streamer
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-emerald-100/74">
+              Kategorien, Buzzer, Punkte und eine Lobby fur schnelle
+              Showrunden mit mehreren Streamern. Wenn der Stream zur Gameshow
+              wird, geht es hier direkt rein.
+            </p>
+            <Link
+              href={JEOPARDY_URL}
+              className="mt-6 inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-6 py-4 text-base font-black text-emerald-950 shadow-xl shadow-amber-500/20 transition-transform hover:-translate-y-0.5"
+            >
+              QuizDuell starten
+            </Link>
+            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-emerald-200/54">
+              jeopardy.lauchgruen.de
+            </p>
+          </div>
+        </section>
+
+        {SOCIALS.length > 0 ? (
+          <section className="surface-panel rounded-[2rem] p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="section-kicker">Folgen</div>
+                <div className="mt-2 text-2xl font-black text-amber-100">
+                  Mehr als nur der Stream
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {SOCIALS.map((social) => (
+                  <a
+                    key={social.label}
+                    href={social.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/18 bg-emerald-950/40 px-4 py-3 text-sm font-bold text-emerald-100 transition-colors hover:border-amber-300/28 hover:text-amber-200"
+                  >
+                    <span className="text-xs uppercase tracking-[0.18em] text-emerald-300/64">
+                      {social.emoji}
+                    </span>
+                    <span>{social.label}</span>
+                  </a>
+                ))}
+              </div>
             </div>
           </section>
         ) : null}
       </main>
 
-      <footer className="relative px-6 py-8 text-center text-emerald-500/50 text-xs">
-        © {new Date().getFullYear()} lauchgruen · gebaut mit 🍯
+      <footer className="relative border-t border-emerald-300/12 px-6 pb-8 pt-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 text-sm text-emerald-200/58 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300/46">
+              lauchgruen.de
+            </div>
+            <p className="mt-2 max-w-md leading-6">
+              Twitch, Community-Events und QuizDuell in einem ruhigeren,
+              professionelleren Broadcast-Rahmen.
+            </p>
+          </div>
+          <div className="text-sm text-emerald-100/62 sm:text-right">
+            <div>© {new Date().getFullYear()} lauchgruen</div>
+            <a
+              href={VEXIFY_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-2 font-semibold text-amber-200 transition-colors hover:text-amber-100"
+            >
+              Crafted by vexify
+            </a>
+          </div>
+        </div>
       </footer>
     </div>
   );

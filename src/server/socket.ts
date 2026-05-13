@@ -143,11 +143,11 @@ function resolveBuzzes(io: SocketIOServer, gameId: string) {
 
   if (isBonusBuzz) {
     if (!winner) {
-      // Nobody buzzed during the bonus image — drop the image, advance turn.
-      console.log(`[buzz] bonus: no winner → discard image, nextTurn, phase=playing`);
+      // Nobody buzzed — drop the image, resume play. Turn was already advanced
+      // when the regular round question resolved, so don't advance again.
+      console.log(`[buzz] bonus: no winner → discard image, phase=playing`);
       game.isBonusRound = false;
       setActiveQuestion(game, null);
-      nextTurn(game);
       game.phase = "playing";
       broadcastAll(io, game);
       return;
@@ -181,7 +181,8 @@ function resolveBuzzes(io: SocketIOServer, gameId: string) {
   game.activeQuestion!.buzzersOpen = false;
   game.activeQuestion!.currentAnswerer = winner.playerId;
   game.phase = "answering";
-  game.currentTurn = winner.playerId;
+  // Do NOT change currentTurn here — it still reflects the original picker,
+  // which is what nextTurn() must advance *from* when the buzz winner answers.
 
   io.to(`game:${gameId}`).emit("buzz_winner", {
     playerId: winner.playerId,
@@ -402,6 +403,16 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         return;
       }
 
+      // Enforce progression: questions on board N are only pickable once all
+      // cells on boards 0..N-1 are used.
+      for (let i = 0; i < game.currentBoardIndex; i++) {
+        const prev = game.boards[i];
+        if (!prev || !prev.board.every((c) => c.used)) {
+          emitError(socket, "BOARD_LOCKED", "Vorherige Felder müssen erst abgeschlossen werden");
+          return;
+        }
+      }
+
       const cell = game.board.find(
         (c) => c.category === parsed.data.category && c.points === parsed.data.points,
       );
@@ -592,14 +603,29 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       if (!game || !isHost(socket, game)) return;
       if (game.phase !== "bonus_pending") return;
 
-      console.log(`[buzz] host:open_bonus_buzzers — phase: bonus_pending → bonus_buzzing`);
-      game.phase = "bonus_buzzing";
-      // Also flip the buzz flag on the staged image-question so QuestionModal
-      // shows the BUZZ button (its buzzersOpen check reads aq.buzzersOpen).
-      if (game.activeQuestion) {
-        game.activeQuestion.buzzersOpen     = true;
-        game.activeQuestion.buzzersOpenedAt = Date.now();
+      // Pick the round now (not earlier) so no popup appeared before this click.
+      const next = pickNextBonusBuzzerRound(game);
+      if (!next) {
+        // Pool exhausted between trigger and host click — just resume play.
+        game.isBonusRound = false;
+        game.phase = "playing";
+        broadcastAll(io, game);
+        return;
       }
+
+      console.log(`[buzz] host:open_bonus_buzzers — staging ${next.id}, phase: bonus_pending → bonus_buzzing`);
+      setActiveQuestion(game, {
+        questionId:      next.id,
+        category:        "_bonus_buzzer",
+        points:          next.points,
+        pickedBy:        game.hostId,
+        buzzersOpen:     true,
+        buzzersOpenedAt: Date.now(),
+        currentAnswerer: null,
+        alreadyTried:    [],
+        answerRevealed:  false,
+      });
+      game.phase = "bonus_buzzing";
       io.to(`game:${gameId}`).emit("buzzers_opened");
       io.to(`spectator:${gameId}`).emit("buzzers_opened");
       broadcastAll(io, game);
@@ -624,10 +650,9 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         buzzCollectors.delete(gameId);
       }
 
-      // Drop the staged bonus image so it doesn't linger on screen.
       setActiveQuestion(game, null);
       game.isBonusRound = false;
-      nextTurn(game);
+      // Don't call nextTurn — turn was already advanced when the regular question resolved.
       game.phase = "playing";
       broadcastAll(io, game);
     });
@@ -644,9 +669,10 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         clearTimeout(collector.timer);
         resolveBuzzes(io, gameId);
       } else {
-        // No buzzes at all — bail out of bonus, advance turn.
+        // No buzzes at all — bail out of bonus. Don't advance turn; it was
+        // already set when the regular question resolved.
         game.isBonusRound = false;
-        nextTurn(game);
+        setActiveQuestion(game, null);
         game.phase = "playing";
         broadcastAll(io, game);
       }
@@ -722,16 +748,18 @@ export function registerSocketHandlers(io: SocketIOServer): void {
       let questionResolved = false;
 
       // Rule #1: the original picker's *first* attempt at their own cell is
-      // penalty-free. They had to pick a number — no risk on wrong. Buzz
-      // attempts (alreadyTried.length > 0) AND bonus-image answers DO get
-      // the half-point deduction, since those are voluntary risks.
+      // penalty-free on regular boards. Buzz attempts AND bonus-image answers
+      // always incur a penalty. Board 3 overrides this — wrong is always -points.
       const isPickerFirstAttempt =
         !wasBonus &&
         answerer === game.activeQuestion.pickedBy &&
         game.activeQuestion.alreadyTried.length === 0;
 
+      // Board 3 (index 2) has special scoring: correct = x2 points, wrong = -points.
+      const isBoard3 = !wasBonus && game.currentBoardIndex === 2;
+
       if (parsed.data.correct) {
-        awardPoints(game, answerer, points);
+        awardPoints(game, answerer, isBoard3 ? points * 2 : points);
         // Bonus image is not on the board, so no cell to mark used.
         if (!wasBonus) {
           markCellUsed(game, aqCategory, aqPoints);
@@ -742,15 +770,11 @@ export function registerSocketHandlers(io: SocketIOServer): void {
           }
         }
 
-        // Turn advancement rule:
-        //   - Picker answers their own pick correctly → next contestant (round-robin)
-        //   - Buzz winner (steal) answers correctly → THEY take the turn (Jeopardy steal)
-        //   - Bonus image correct → next contestant (round-robin, no steal mechanic)
-        if (wasBonus || isPickerFirstAttempt) {
-          nextTurn(game);
-        } else {
-          // Buzz winner stole the answer — they get the next pick.
-          game.currentTurn = answerer;
+        // Advance only for regular questions — the turn was already advanced
+        // (from pickedBy) when the regular question resolved and triggered the
+        // bonus. Calling nextTurn again for a bonus answer would skip a player.
+        if (!wasBonus) {
+          nextTurn(game, pickedBy);
         }
         game.isBonusRound = false;
 
@@ -759,8 +783,11 @@ export function registerSocketHandlers(io: SocketIOServer): void {
         questionResolved = true;
       } else {
         // Wrong answer.
-        if (!isPickerFirstAttempt) {
-          // Buzz attempt or bonus answer — apply half-point penalty.
+        if (isBoard3) {
+          // Board 3: always deduct full point value regardless of who answered.
+          awardPoints(game, answerer, -points);
+        } else if (!isPickerFirstAttempt) {
+          // Regular boards: half-point penalty for buzz attempts and bonus answers.
           awardPoints(game, answerer, -Math.floor(points / 2));
         }
         game.activeQuestion.alreadyTried.push(answerer);
@@ -774,7 +801,7 @@ export function registerSocketHandlers(io: SocketIOServer): void {
           }
           setActiveQuestion(game, null);
           game.isBonusRound = false;
-          nextTurn(game);
+          // Don't call nextTurn — it was already advanced when the regular question resolved.
           game.phase = "playing";
           questionResolved = true;
         } else {
@@ -817,24 +844,12 @@ export function registerSocketHandlers(io: SocketIOServer): void {
 
         if (roundComplete) {
           game.roundAnswered = [];
-          const next = pickNextBonusBuzzerRound(game);
-          if (next) {
-            // Stage the synthetic image-question now so the pre-buzz UI can
-            // already show the image during bonus_pending (host's talk window).
-            setActiveQuestion(game, {
-              questionId:      next.id,
-              category:        "_bonus_buzzer",
-              points:          next.points,
-              pickedBy:        game.hostId,    // synthetic — picker is host
-              buzzersOpen:     false,
-              buzzersOpenedAt: null,
-              currentAnswerer: null,
-              alreadyTried:    [],
-              answerRevealed:  false,
-            });
+          // Check there's at least one unused round before entering bonus_pending.
+          // The question is staged later when the host clicks "open bonus buzzers"
+          // so no popup appears until the host explicitly triggers it.
+          if (pickNextBonusBuzzerRound(game)) {
             startBonusBuzz = true;
           }
-          // If no image rounds remain → no bonus, regular play continues.
         }
       }
 

@@ -4,11 +4,8 @@ import type { ClientGameState } from "@/server/types";
 
 interface Props {
   game: ClientGameState;
-  /** Host: pick an unused cell to start a question. */
   onPickCell?: (category: string, points: number) => void;
-  /** Host: click a used cell to open it for review. */
   onViewCell?: (category: string, points: number) => void;
-  /** Host: switch to a different board. */
   onSwitchBoard?: (index: number) => void;
 }
 
@@ -16,112 +13,133 @@ const POINT_VALUES = [100, 200, 300, 400, 500] as const;
 
 export function Board({ game, onPickCell, onViewCell, onSwitchBoard }: Props) {
   const hasMultipleBoards = game.boards.length > 1;
+  const isBoardLocked = game.boards
+    .slice(0, game.currentBoardIndex)
+    .some((board) => !board.board.every((cell) => cell.used));
 
   return (
-    <div className="flex flex-col gap-1.5 w-full h-full min-h-0">
-      {/* Board tabs — always show when there are multiple boards */}
-      {hasMultipleBoards && (
-        <div className="flex gap-1.5 shrink-0">
-          {game.boards.map((b, idx) => {
+    <div className="flex h-full min-h-0 w-full flex-col gap-2">
+      {hasMultipleBoards ? (
+        <div className="flex shrink-0 gap-2">
+          {game.boards.map((board, idx) => {
             const isCurrent = idx === game.currentBoardIndex;
-            const allUsed = b.board.length > 0 && b.board.every((c) => c.used);
+            const allUsed = board.board.length > 0 && board.board.every((cell) => cell.used);
+            const canSwitch = !!onSwitchBoard && !isCurrent;
+
             return (
               <button
                 key={idx}
                 type="button"
-                disabled={isCurrent || !onSwitchBoard}
-                onClick={() => onSwitchBoard?.(idx)}
+                disabled={!canSwitch}
+                onClick={() => canSwitch && onSwitchBoard?.(idx)}
                 className={[
-                  "flex-1 rounded-lg py-1 text-xs font-extrabold uppercase tracking-wider border transition-colors",
+                  "flex-1 rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.16em] transition-all",
                   isCurrent
-                    ? "bg-amber-500 text-emerald-950 border-amber-300"
+                    ? "border-amber-200 bg-gradient-to-r from-amber-300 to-orange-300 text-emerald-950 shadow-lg shadow-amber-500/15"
                     : allUsed
-                      ? "bg-emerald-950/40 text-emerald-700 border-emerald-900/30 line-through"
-                      : onSwitchBoard
-                        ? "bg-emerald-900 hover:bg-emerald-800 text-amber-300 border-emerald-700 cursor-pointer"
-                        : "bg-emerald-900/40 text-amber-300/50 border-emerald-800/40 cursor-default",
+                      ? "border-emerald-900/30 bg-emerald-950/30 text-emerald-700 line-through"
+                      : canSwitch
+                        ? "border-emerald-700 bg-emerald-900/85 text-amber-200 hover:border-amber-300/35 hover:bg-emerald-800"
+                        : "border-emerald-800/35 bg-emerald-900/40 text-amber-300/45",
                 ].join(" ")}
               >
                 Feld {idx + 1}
-                {b.categories[0] ? ` · ${b.categories[0].displayName.slice(0, 8)}…` : ""}
               </button>
             );
           })}
         </div>
-      )}
+      ) : null}
 
-      {/* Grid */}
+      {isBoardLocked ? (
+        <div className="shrink-0 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-center text-xs font-bold uppercase tracking-[0.14em] text-amber-200/82">
+          Feld {game.currentBoardIndex + 1} wird freigeschaltet, sobald das vorige Feld leer gespielt ist
+        </div>
+      ) : null}
+
       <div
-        className="grid gap-1.5 select-none w-full flex-1 min-h-0"
+        className="grid min-h-0 flex-1 gap-2 select-none rounded-[1.5rem] bg-[#031a12] p-2"
         style={{
           gridTemplateColumns: `repeat(${game.categories.length}, minmax(0, 1fr))`,
           gridTemplateRows: `auto repeat(${POINT_VALUES.length}, minmax(0, 1fr))`,
         }}
       >
-        {game.categories.map((cat) => (
+        {game.categories.map((category) => (
           <div
-            key={cat.id}
-            className="bg-red-700 text-white text-center font-extrabold uppercase tracking-wider py-2 rounded-lg text-xs border border-red-500/60 shadow-md flex items-center justify-center"
+            key={category.id}
+            className="flex items-center justify-center rounded-2xl border border-red-400/40 bg-gradient-to-b from-red-700 via-red-800 to-red-950 px-2 py-3 text-center text-[11px] font-black uppercase tracking-[0.16em] text-red-50 shadow-lg shadow-black/15"
           >
-            {cat.displayName}
+            {category.displayName}
           </div>
         ))}
 
         {POINT_VALUES.map((points) =>
-          game.categories.map((cat) => {
+          game.categories.map((category) => {
             const cell = game.board.find(
-              (c) => c.category === cat.id && c.points === points,
+              (boardCell) =>
+                boardCell.category === category.id && boardCell.points === points,
             );
+
             if (!cell) {
               return (
                 <div
-                  key={`${cat.id}-${points}`}
-                  className="bg-blue-950/60 rounded-lg"
+                  key={`${category.id}-${points}`}
+                  className="rounded-2xl bg-emerald-950/35"
                 />
               );
             }
 
-            const used = cell.used;
-
-            if (used) {
-              // Used cells: click to review (host only), read-only for others.
+            if (cell.used) {
               return (
                 <button
-                  key={`${cat.id}-${points}`}
+                  key={`${category.id}-${points}`}
                   type="button"
                   disabled={!onViewCell}
-                  onClick={() => onViewCell?.(cat.id, points)}
+                  onClick={() => onViewCell?.(category.id, points)}
                   className={[
-                    "rounded-lg font-extrabold italic transition-all border flex items-center justify-center",
-                    "bg-emerald-950/40 text-emerald-800 border-emerald-900/30 line-through",
+                    "relative flex items-center justify-center overflow-hidden rounded-2xl border text-center font-black transition-all",
+                    "border-emerald-900/25 bg-gradient-to-b from-emerald-950/50 to-emerald-950/75 text-emerald-700/82",
                     onViewCell
-                      ? "cursor-pointer hover:bg-emerald-900/60 hover:text-emerald-600"
+                      ? "hover:border-amber-400/18 hover:bg-emerald-900/70 hover:text-emerald-500"
                       : "cursor-not-allowed",
                   ].join(" ")}
-                  style={{ fontSize: "clamp(0.6rem, 1.4vw, 1.1rem)" }}
-                  title={onViewCell ? "Klicken, um diese Frage anzusehen" : undefined}
+                  style={{ fontSize: "clamp(0.8rem, 1.8vw, 1.4rem)" }}
+                  title={onViewCell ? "Frage zur Nachschau oeffnen" : undefined}
                 >
-                  {points}
+                  <span className="absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-emerald-700/45" />
+                  <span className="relative">{points}</span>
                 </button>
+              );
+            }
+
+            if (isBoardLocked) {
+              return (
+                <div
+                  key={`${category.id}-${points}`}
+                  className="flex items-center justify-center rounded-2xl border border-emerald-900/20 bg-emerald-950/30 text-xl text-emerald-700/45"
+                  title="Vorheriges Feld muss erst abgeschlossen werden"
+                >
+                  •
+                </div>
               );
             }
 
             return (
               <button
-                key={`${cat.id}-${points}`}
+                key={`${category.id}-${points}`}
                 type="button"
                 disabled={!onPickCell}
-                onClick={() => onPickCell?.(cat.id, points)}
+                onClick={() => onPickCell?.(category.id, points)}
                 className={[
-                  "rounded-lg font-extrabold italic transition-all border flex items-center justify-center",
-                  "bg-gradient-to-br from-emerald-800 to-emerald-900 text-amber-300 border-emerald-700 shadow-inner",
+                  "relative flex items-center justify-center overflow-hidden rounded-2xl border text-center font-black transition-all",
+                  "border-emerald-600/65 bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-950 text-amber-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
                   onPickCell
-                    ? "cursor-pointer hover:from-emerald-700 hover:to-emerald-800 hover:scale-[1.02] hover:shadow-lg hover:shadow-amber-400/20 active:scale-95"
+                    ? "hover:-translate-y-0.5 hover:border-amber-300/40 hover:from-emerald-600 hover:via-emerald-700 hover:to-emerald-900 hover:text-amber-100 hover:shadow-xl hover:shadow-amber-500/12 active:translate-y-0"
                     : "",
                 ].join(" ")}
-                style={{ fontSize: "clamp(0.6rem, 1.4vw, 1.1rem)" }}
+                style={{ fontSize: "clamp(0.85rem, 2vw, 1.55rem)" }}
               >
-                {points}
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white/6 to-transparent" />
+                <span className="relative tracking-[0.08em]">{points}</span>
               </button>
             );
           }),

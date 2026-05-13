@@ -14,18 +14,22 @@ export function JoinGameForm() {
         const trimmed = gameId.trim().toUpperCase();
         if (trimmed) router.push(`/lobby/${encodeURIComponent(trimmed)}`);
       }}
-      className="flex gap-2"
+      className="flex flex-col gap-3 sm:flex-row"
     >
+      <label className="sr-only" htmlFor="game-code">
+        Spielcode
+      </label>
       <input
+        id="game-code"
         value={gameId}
         onChange={(e) => setGameId(e.target.value.toUpperCase())}
-        placeholder="SPIEL-CODE"
-        className="flex-1 rounded-md bg-emerald-950/60 border border-emerald-700 px-3 py-2 placeholder:text-emerald-700 text-amber-100 font-mono uppercase tracking-widest focus:border-amber-400 focus:outline-none"
+        placeholder="SPIELCODE"
+        className="min-h-14 flex-1 rounded-2xl border border-emerald-600/60 bg-emerald-950/80 px-4 text-base text-amber-100 uppercase tracking-[0.32em] placeholder:text-emerald-400/40 focus:border-amber-300 focus:outline-none"
         maxLength={8}
       />
       <button
         type="submit"
-        className="rounded-md bg-emerald-700 hover:bg-emerald-600 transition-colors px-4 py-2 font-bold text-emerald-50"
+        className="min-h-14 rounded-2xl border border-emerald-400/20 bg-emerald-400 px-5 font-black text-emerald-950 transition-colors hover:bg-emerald-300 sm:px-6"
       >
         Beitreten
       </button>

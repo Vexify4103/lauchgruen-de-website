@@ -22,9 +22,9 @@ export function CreateGameButton() {
           router.push(`/lobby/${gameId}`);
         });
       }}
-      className="rounded-md bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 disabled:opacity-50 transition-all px-5 py-3 font-extrabold text-emerald-950 shadow-lg shadow-amber-400/20"
+      className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-5 py-4 text-base font-black text-emerald-950 shadow-xl shadow-amber-500/20 transition-all hover:-translate-y-0.5 hover:shadow-amber-400/30 disabled:translate-y-0 disabled:opacity-60"
     >
-      {pending ? "🐻 Erstelle…" : "🍯 Neues Spiel hosten"}
+      {pending ? "Spiel wird erstellt..." : "Neues Spiel hosten"}
     </button>
   );
 }

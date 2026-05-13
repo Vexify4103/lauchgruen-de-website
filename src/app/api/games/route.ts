@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createGame, registerQuestionPool } from "@/server/game-state";
-import { loadQuestionPool, pickAllBoards } from "@/lib/questions";
+import { createGame, registerQuestionPool, registerBonusBuzzerRounds } from "@/server/game-state";
+import { loadQuestionPool, pickAllBoards, loadBonusBuzzerRounds } from "@/lib/questions";
 
 let questionPoolRegistered = false;
 function ensureQuestionPool(): void {
   if (questionPoolRegistered) return;
   registerQuestionPool(loadQuestionPool());
+  registerBonusBuzzerRounds(loadBonusBuzzerRounds());
   questionPoolRegistered = true;
 }
 

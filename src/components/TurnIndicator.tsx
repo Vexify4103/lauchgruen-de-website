@@ -8,15 +8,18 @@ interface Props {
 
 export function TurnIndicator({ game }: Props) {
   const turnPlayer = game.currentTurn ? game.players[game.currentTurn] : null;
+
   return (
-    <div className="bg-gradient-to-r from-emerald-900 via-amber-900/40 to-emerald-900 border border-amber-400/40 rounded-full px-4 py-1.5 text-center shadow-lg flex items-center gap-2">
-      <span className="text-[10px] text-amber-300/60 font-bold uppercase tracking-widest shrink-0">Zug</span>
+    <div className="flex items-center gap-2 rounded-full border border-amber-400/20 bg-emerald-950/55 px-3 py-1.5 text-center shadow-lg">
+      <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-emerald-300/56">
+        Zug
+      </span>
       {turnPlayer ? (
-        <span className="text-amber-100 font-extrabold text-sm truncate max-w-[120px]">
-          🐻 {turnPlayer.displayName}
+        <span className="max-w-[150px] truncate text-sm font-extrabold text-amber-100">
+          {turnPlayer.displayName}
         </span>
       ) : (
-        <span className="text-emerald-600 italic text-sm">—</span>
+        <span className="text-sm italic text-emerald-600">-</span>
       )}
     </div>
   );

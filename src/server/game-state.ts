@@ -57,15 +57,12 @@ export function listBonusBuzzerRounds(): BonusBuzzerRound[] {
   return globalForStore.__qd_bonus_buzzer ?? [];
 }
 
-/** Pick the first bonus-buzzer round that hasn't been used in this game yet. */
+/** Pick the next bonus-buzzer round in order (buzzer_1 → buzzer_2 → …). */
 export function pickNextBonusBuzzerRound(game: GameState): BonusBuzzerRound | null {
   const pool = listBonusBuzzerRounds();
   if (pool.length === 0) return null;
   const used = new Set(game.usedBonusBuzzerIds);
-  const remaining = pool.filter((r) => !used.has(r.id));
-  if (remaining.length === 0) return null;
-  // Random order — keeps replays interesting if the same lobby plays twice.
-  return remaining[Math.floor(Math.random() * remaining.length)];
+  return pool.find((r) => !used.has(r.id)) ?? null;
 }
 
 export function getQuestion(id: string): Question | undefined {
@@ -204,10 +201,17 @@ export function switchBoard(game: GameState, index: number): boolean {
   return true;
 }
 
-export function nextTurn(game: GameState): PlayerId | null {
+/**
+ * Advance to the next contestant in round-robin order.
+ * If `fromPlayerId` is supplied the rotation starts from that player instead of
+ * `game.currentTurn` — used so a buzz-winner's correct answer advances the
+ * turn from the *original picker*, not from the buzz winner.
+ */
+export function nextTurn(game: GameState, fromPlayerId?: PlayerId): PlayerId | null {
   const eligible = game.playerOrder.filter((pid) => pid !== game.hostId);
   if (eligible.length === 0) return null;
-  const currentIdx = game.currentTurn ? eligible.indexOf(game.currentTurn) : -1;
+  const refId = fromPlayerId ?? game.currentTurn;
+  const currentIdx = refId ? eligible.indexOf(refId) : -1;
   const nextIdx = (currentIdx + 1) % eligible.length;
   game.currentTurn = eligible[nextIdx];
   return game.currentTurn;

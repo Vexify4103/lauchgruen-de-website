@@ -7,17 +7,23 @@ interface Props {
   game: ClientGameState;
 }
 
+const PHASE_LABELS: Record<string, string> = {
+  lobby: "Warteraum",
+  playing: "Spiel laeuft",
+  bonus_pending: "Bonus bereit",
+  bonus_buzzing: "Bonus-Buzzer offen",
+  finished: "Spiel beendet",
+};
+
 export function HostControls({ game }: Props) {
   const { emit, lastBuzzWinner } = useSocket();
-  const aq = game.activeQuestion;
+  const activeQuestion = game.activeQuestion;
   const phase = game.phase;
+  const phaseLabel = PHASE_LABELS[phase] ?? phase;
   const isBonusPending = phase === "bonus_pending";
-  const isBonusBuzz    = phase === "bonus_buzzing";
-  // After a bonus buzz resolves, phase returns to "playing" with isBonusRound=true
-  // and currentTurn = buzz winner. Show a clear banner so the host knows who
-  // just won and that the next cell-pick belongs to them.
+  const isBonusBuzz = phase === "bonus_buzzing";
   const bonusWinnerPending =
-    game.isBonusRound && !aq && phase === "playing" && game.currentTurn;
+    game.isBonusRound && !activeQuestion && phase === "playing" && game.currentTurn;
   const bonusWinnerName = bonusWinnerPending
     ? game.players[game.currentTurn!]?.displayName ?? "?"
     : null;
@@ -28,132 +34,118 @@ export function HostControls({ game }: Props) {
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
   return (
-    <div className="bg-emerald-950/60 border border-emerald-800 rounded-xl p-3 flex flex-col gap-3 backdrop-blur-sm">
-      <div className="text-xs uppercase font-bold text-amber-300/70 tracking-widest">
-        🍯 Host-Steuerung
+    <div className="surface-panel rounded-[1.6rem] p-4">
+      <div className="section-kicker">Host-Steuerung</div>
+      <div className="mt-3 text-xl font-black text-amber-100">Regie</div>
+      <div className="mt-2 text-sm text-emerald-100/72">
+        Phase: <span className="font-bold text-amber-300">{phaseLabel}</span>
+        {game.isBonusRound ? (
+          <span className="ml-2 rounded-full bg-amber-400/16 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-200">
+            Bonus
+          </span>
+        ) : null}
       </div>
 
-      <div className="text-xs text-emerald-400/70">
-        Phase: <span className="font-mono text-amber-300">{phase}</span>
-        {game.isBonusRound && (
-          <span className="ml-2 text-amber-400 font-bold">(Bonus)</span>
-        )}
-      </div>
-
-      {/* Bonus pending — round ended, host can chat then open buzzers */}
-      {isBonusPending && (
-        <div className="flex flex-col gap-2 border-2 border-amber-400/60 rounded-lg p-3 bg-amber-500/10">
-          <div className="text-center text-amber-300 font-extrabold text-sm">
-            🎯 Bonusrunde bereit
+      {isBonusPending ? (
+        <div className="mt-5 rounded-[1.4rem] border border-amber-400/35 bg-amber-400/10 p-4">
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">
+            Bonus bereit
           </div>
-          <div className="text-emerald-100/85 text-xs text-center">
-            Quatsch in Ruhe über die letzte Frage —
-            wenn ihr soweit seid, öffne die Buzzer.
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => emit("host:open_bonus_buzzers")}
+              className="rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-emerald-950"
+            >
+              Bonus-Buzzer öffnen
+            </button>
+            <button
+              type="button"
+              onClick={() => emit("host:cancel_bonus_buzz")}
+              className="rounded-2xl border border-red-500/35 bg-red-950/35 px-4 py-3 text-sm font-bold text-red-200 transition-colors hover:bg-red-900/45"
+            >
+              Bonus überspringen
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => emit("host:open_bonus_buzzers")}
-            className="w-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-emerald-950 font-extrabold rounded-lg px-3 py-2.5 text-sm transition-colors shadow-lg shadow-amber-400/30"
-          >
-            ⚡ Bonus-Buzzer öffnen
-          </button>
-          <button
-            type="button"
-            onClick={() => emit("host:cancel_bonus_buzz")}
-            className="w-full bg-red-900/70 hover:bg-red-800 border border-red-700 text-red-200 font-bold rounded-md px-2 py-1.5 text-xs transition-colors"
-          >
-            ✕ Bonus überspringen
-          </button>
-        </div>
-      )}
-
-      {/* Bonus buzz indicator + cancel + force-resolve */}
-      {isBonusBuzz && (
-        <div className="flex flex-col gap-2">
-          <div className="text-center text-amber-300 font-extrabold text-sm animate-pulse">
-            🎯 Bonusrunde — Buzzer offen!
-          </div>
-          <button
-            type="button"
-            onClick={() => emit("host:force_resolve_bonus")}
-            className="w-full bg-amber-600 hover:bg-amber-500 border border-amber-400 text-emerald-950 font-extrabold rounded-lg px-3 py-2 text-xs transition-colors"
-            title="Falls ein Spieler gebuzzert hat, das System aber hängt — jetzt auswerten."
-          >
-            ⚡ Buzz jetzt auswerten
-          </button>
-          <button
-            type="button"
-            onClick={() => emit("host:cancel_bonus_buzz")}
-            className="w-full bg-red-900 hover:bg-red-800 border border-red-700 text-red-200 font-bold rounded-lg px-3 py-2 text-xs transition-colors"
-          >
-            ✕ Bonus-Buzz abbrechen
-          </button>
-        </div>
-      )}
-
-      {/* Bonus winner — host needs to pick the cell they ask for */}
-      {bonusWinnerPending && bonusWinnerName && (
-        <div className="bg-gradient-to-br from-amber-500/30 to-orange-600/30 border-2 border-amber-400 rounded-lg p-3 flex flex-col gap-1 shadow-lg animate-pulse-slow">
-          <div className="text-[10px] uppercase tracking-widest text-amber-300 font-extrabold">
-            🎯 Bonus-Buzz Gewinner
-          </div>
-          <div className="text-amber-100 font-extrabold text-base leading-tight">
-            {bonusWinnerName}
-            {lastBuzzWinner && lastBuzzWinner.playerId === game.currentTurn ? (
-              <span className="text-amber-300/80 text-xs font-normal ml-1">
-                ({lastBuzzWinner.reactionMs}ms)
-              </span>
-            ) : null}
-          </div>
-          <div className="text-emerald-100 text-xs">
-            Wähle die gewünschte Frage →
-          </div>
-          <button
-            type="button"
-            onClick={() => emit("host:cancel_bonus_buzz")}
-            className="mt-1 bg-red-900/70 hover:bg-red-800 border border-red-700 text-red-200 font-bold rounded-md px-2 py-1 text-[11px] transition-colors"
-          >
-            ✕ Abbrechen — zurück zum normalen Zug
-          </button>
-        </div>
-      )}
-
-      {/* Active question status */}
-      {aq ? (
-        <div className="text-xs text-emerald-400/70 italic">
-          {aq.buzzersOpen && !aq.currentAnswerer
-            ? "⚡ Buzzer offen…"
-            : aq.currentAnswerer
-              ? `Antwortet: ${game.players[aq.currentAnswerer]?.displayName ?? "?"}`
-              : null}
         </div>
       ) : null}
 
-      {/* Board switcher */}
-      {game.boards.length > 1 && (
-        <div className="border-t border-emerald-800 pt-2">
-          <div className="text-xs uppercase font-bold text-amber-300/70 mb-2 tracking-widest">
-            Felder
+      {isBonusBuzz ? (
+        <div className="mt-5 rounded-[1.4rem] border border-amber-400/30 bg-amber-400/10 p-4">
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">
+            Bonus-Buzzer offen
           </div>
-          <div className="flex gap-1.5">
-            {game.boards.map((_, idx) => {
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => emit("host:force_resolve_bonus")}
+              className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-emerald-950"
+            >
+              Buzz auswerten
+            </button>
+            <button
+              type="button"
+              onClick={() => emit("host:cancel_bonus_buzz")}
+              className="rounded-2xl border border-red-500/35 bg-red-950/35 px-4 py-3 text-sm font-bold text-red-200 transition-colors hover:bg-red-900/45"
+            >
+              Bonus abbrechen
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {bonusWinnerPending && bonusWinnerName ? (
+        <div className="mt-5 rounded-[1.4rem] border border-amber-400/30 bg-amber-400/10 p-4">
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">
+            Bonus-Gewinner
+          </div>
+          <div className="mt-2 text-lg font-black text-amber-100">
+            {bonusWinnerName}
+            {lastBuzzWinner && lastBuzzWinner.playerId === game.currentTurn ? (
+              <span className="ml-2 text-xs font-medium text-amber-200/76">
+                {lastBuzzWinner.reactionMs}ms
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm leading-6 text-emerald-100/74">
+            Wähle jetzt auf dem Board die gewünschte Frage für den nächsten Zug.
+          </p>
+        </div>
+      ) : null}
+
+      {activeQuestion ? (
+        <div className="mt-5 rounded-[1.4rem] border border-emerald-300/10 bg-emerald-950/35 p-4 text-sm text-emerald-100/72">
+          {activeQuestion.buzzersOpen && !activeQuestion.currentAnswerer
+            ? "Buzzer sind offen."
+            : activeQuestion.currentAnswerer
+              ? `Antwortet: ${game.players[activeQuestion.currentAnswerer]?.displayName ?? "?"}`
+              : "Frage aktiv."}
+        </div>
+      ) : null}
+
+      {game.boards.length > 1 ? (
+        <div className="mt-5 border-t border-emerald-300/10 pt-4">
+          <div className="section-kicker">Felder</div>
+          <div className="mt-3 flex gap-2">
+            {game.boards.map((board, idx) => {
               const isCurrent = idx === game.currentBoardIndex;
-              const allUsed = game.boards[idx].board.every((c) => c.used);
+              const allUsed = board.board.every((cell) => cell.used);
+              const canSwitch = !isCurrent && phase === "playing";
               return (
                 <button
                   key={idx}
                   type="button"
-                  disabled={isCurrent || phase !== "playing"}
-                  onClick={() => emit("host:switch_board", { index: idx })}
+                  disabled={!canSwitch}
+                  onClick={() => canSwitch && emit("host:switch_board", { index: idx })}
                   className={[
-                    "flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-colors border",
+                    "flex-1 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] transition-colors",
                     isCurrent
-                      ? "bg-amber-500 text-emerald-950 border-amber-300"
+                      ? "bg-amber-400 text-emerald-950"
                       : allUsed
-                        ? "bg-emerald-950/40 text-emerald-700 border-emerald-900/30 line-through cursor-not-allowed"
-                        : phase === "playing"
-                          ? "bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border-emerald-700"
-                          : "bg-emerald-950/40 text-emerald-700 border-emerald-900/30 cursor-not-allowed",
+                        ? "bg-emerald-950/40 text-emerald-700 line-through"
+                        : canSwitch
+                          ? "bg-emerald-800 text-emerald-100 hover:bg-emerald-700"
+                          : "bg-emerald-950/40 text-emerald-700",
                   ].join(" ")}
                 >
                   Feld {idx + 1}
@@ -162,29 +154,26 @@ export function HostControls({ game }: Props) {
             })}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Set turn */}
-      <div className="border-t border-emerald-800 pt-2">
-        <div className="text-xs uppercase font-bold text-amber-300/70 mb-2 tracking-widest">
-          Zug setzen
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {contestants.map((p) => {
-            const active = game.currentTurn === p.id;
+      <div className="mt-5 border-t border-emerald-300/10 pt-4">
+        <div className="section-kicker">Zug setzen</div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {contestants.map((player) => {
+            const active = game.currentTurn === player.id;
             return (
               <button
-                key={p.id}
+                key={player.id}
                 type="button"
-                onClick={() => emit("host:set_turn", { playerId: p.id })}
+                onClick={() => emit("host:set_turn", { playerId: player.id })}
                 className={[
-                  "rounded-md px-2 py-1 text-xs font-semibold transition-colors",
+                  "rounded-xl px-3 py-2 text-xs font-bold transition-colors",
                   active
-                    ? "bg-amber-500 text-emerald-950"
-                    : "bg-emerald-800 hover:bg-emerald-700 text-emerald-100",
+                    ? "bg-amber-400 text-emerald-950"
+                    : "bg-emerald-800 text-emerald-100 hover:bg-emerald-700",
                 ].join(" ")}
               >
-                {p.displayName}
+                {player.displayName}
               </button>
             );
           })}

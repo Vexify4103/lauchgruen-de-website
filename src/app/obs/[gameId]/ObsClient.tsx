@@ -16,25 +16,31 @@ interface Props {
   compact: boolean;
 }
 
+const PHASE_LABELS: Record<string, string> = {
+  lobby: "Warteraum",
+  playing: "Spiel laeuft",
+  bonus_pending: "Bonus bereit",
+  bonus_buzzing: "Bonus-Buzzer offen",
+  finished: "Spiel beendet",
+};
+
 export function ObsClient({ gameId, hideSelf, compact }: Props) {
   const { game, spectateGame, connected, lastJudgeResult } = useSocket();
   const [correctFlash, setCorrectFlash] = useState(false);
-  const [wrongFlash,   setWrongFlash]   = useState(false);
+  const [wrongFlash, setWrongFlash] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setNotFound(false);
     void spectateGame(gameId).then((resp) => {
       if (cancelled) return;
-      if (!resp.ok) setNotFound(true);
+      setNotFound(!resp.ok);
     });
     return () => {
       cancelled = true;
     };
   }, [gameId, spectateGame]);
 
-  // Ensure body/html don't add their own background on top of ours
   useEffect(() => {
     const body = document.body;
     const html = document.documentElement;
@@ -48,18 +54,23 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
     };
   }, []);
 
-  // Flash on judge result
   useEffect(() => {
     if (!lastJudgeResult) return;
     if (lastJudgeResult.correct) {
-      setCorrectFlash(true);
-      const t = setTimeout(() => setCorrectFlash(false), 1600);
-      return () => clearTimeout(t);
-    } else {
-      setWrongFlash(true);
-      const t = setTimeout(() => setWrongFlash(false), 1200);
-      return () => clearTimeout(t);
+      const enableTimer = setTimeout(() => setCorrectFlash(true), 0);
+      const disableTimer = setTimeout(() => setCorrectFlash(false), 1600);
+      return () => {
+        clearTimeout(enableTimer);
+        clearTimeout(disableTimer);
+      };
     }
+
+    const enableTimer = setTimeout(() => setWrongFlash(true), 0);
+    const disableTimer = setTimeout(() => setWrongFlash(false), 1200);
+    return () => {
+      clearTimeout(enableTimer);
+      clearTimeout(disableTimer);
+    };
   }, [lastJudgeResult]);
 
   if (notFound) {
@@ -68,13 +79,12 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
 
   if (!game || !connected) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center text-emerald-700">
-        🐻 Warte auf Spiel…
+      <div className="flex h-screen w-screen items-center justify-center text-emerald-700">
+        Warte auf Spiel...
       </div>
     );
   }
 
-  // Pre-show: game exists but hasn't started yet → "Starting Soon" preview.
   if (game.phase === "lobby") {
     return <StartingSoon game={game} />;
   }
@@ -83,128 +93,194 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
   const contestants = game.playerOrder
     .filter((id) => id !== game.hostId)
     .map((id) => game.players[id])
-    .filter((p): p is NonNullable<typeof p> => Boolean(p))
-    .filter((p) => !hideSelf || p.twitchLogin !== hideSelf);
+    .filter((player): player is NonNullable<typeof player> => Boolean(player))
+    .filter((player) => !hideSelf || player.twitchLogin !== hideSelf);
+  const chatChannel = hideSelf || hostPlayer?.twitchLogin;
+  const activeCategory = game.activeQuestion
+    ? game.categories.find((category) => category.id === game.activeQuestion?.category)
+    : null;
+  const phaseLabel = PHASE_LABELS[game.phase] ?? game.phase;
+  const boardStateLabel = game.activeQuestion
+    ? game.activeQuestion.buzzersOpen
+      ? "Buzzer offen"
+      : game.activeQuestion.currentAnswerer
+        ? `${game.players[game.activeQuestion.currentAnswerer]?.displayName ?? "?"} antwortet`
+        : "Frage aktiv"
+    : game.phase === "finished"
+      ? "Ergebnis"
+      : "Nächster Pick";
+  const contestantRowHeight = compact ? 166 : 208;
 
-  const CONTESTANT_ROW_H = 175;
-
-  const flashOn    = correctFlash || wrongFlash;
+  const flashOn = correctFlash || wrongFlash;
   const flashColor = correctFlash
-    ? { shadow: "inset 0 0 140px 50px rgba(34,197,94,0.55)", border: "rgba(34,197,94,0.85)", bg: "rgba(34,197,94,0.04)" }
-    : { shadow: "inset 0 0 100px 30px rgba(220,38,38,0.5)",  border: "rgba(220,38,38,0.8)",  bg: "rgba(220,38,38,0.04)" };
+    ? {
+        shadow: "inset 0 0 140px 50px rgba(34,197,94,0.55)",
+        border: "rgba(34,197,94,0.85)",
+        bg: "rgba(34,197,94,0.04)",
+      }
+    : {
+        shadow: "inset 0 0 100px 30px rgba(220,38,38,0.5)",
+        border: "rgba(220,38,38,0.8)",
+        bg: "rgba(220,38,38,0.04)",
+      };
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50 flex flex-col"
-      style={{ padding: "10px", gap: "8px" }}
+      className="flex h-screen w-screen flex-col overflow-hidden bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50"
+      style={{ padding: compact ? "8px" : "10px", gap: compact ? "6px" : "8px" }}
     >
-      {/* Top 3-col: host cam | board | logo + turn indicator */}
       <div
-        className="grid flex-1 min-h-0"
-        style={{ gridTemplateColumns: "380px 1fr 240px", gap: "8px" }}
+        className="grid min-h-0 flex-1"
+        style={{
+          gridTemplateColumns: compact ? "340px 1fr 210px" : "380px 1fr 230px",
+          gap: compact ? "6px" : "8px",
+        }}
       >
-        {/* Host cam — 16:9 wrapper, plus this streamer's Twitch chat below */}
-        <div className="flex flex-col gap-2 min-h-0">
-          <div className="aspect-video w-full shrink-0">
-            {hostPlayer ? (
-              <ParticipantTile
-                player={hostPlayer}
-                gameId={gameId}
-                isCurrentTurn={false}
-                isHost
-                variant="host"
-                showStats={false}
-              />
-            ) : (
-              <div className="w-full h-full" />
-            )}
+        <aside className="flex min-h-0 flex-col gap-2">
+          <div className="surface-panel rounded-[1.6rem] p-3">
+            <div className="section-kicker">Host</div>
+            <div className="mt-3 aspect-video w-full shrink-0">
+              {hostPlayer ? (
+                <ParticipantTile
+                  player={hostPlayer}
+                  gameId={gameId}
+                  isCurrentTurn={false}
+                  isHost
+                  variant="host"
+                  showStats={false}
+                />
+              ) : (
+                <div className="h-full w-full rounded-xl bg-emerald-950/45" />
+              )}
+            </div>
           </div>
 
-          {/* Twitch chat — streamer's own if hideself=, else host's.
-              Custom widget: 7TV + BTTV + FFZ + Twitch native emotes, read-only,
-              no cookies, no input box, no third-party account needed. */}
-          {(() => {
-            const chatChannel = hideSelf || hostPlayer?.twitchLogin;
-            if (!chatChannel) return null;
-            return (
-              <div className="flex-1 min-h-0 rounded-xl overflow-hidden border-2 border-emerald-800 bg-emerald-950/70 shadow-lg backdrop-blur-sm">
+          {chatChannel ? (
+            <div className="surface-panel min-h-0 flex-1 rounded-[1.6rem] p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="section-kicker">Chat</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/48">
+                  {chatChannel}
+                </div>
+              </div>
+              <div className="min-h-0 overflow-hidden rounded-[1.2rem] bg-emerald-950/45">
                 <ChatOverlay channel={chatChannel} />
               </div>
-            );
-          })()}
-        </div>
-
-        {/* Board — read-only (no callbacks) */}
-        <Board game={game} />
-
-        <div className="flex flex-col gap-2 items-center justify-start pt-2">
-          <Image
-            src="/bear-logo.png"
-            alt="QuizDuell Bear"
-            width={72}
-            height={72}
-            className="drop-shadow-2xl"
-            priority
-          />
-          <div className="text-xl font-extrabold text-amber-300 tracking-tight drop-shadow text-center">
-            QUIZ<span className="text-emerald-200">DUELL</span> 🍯
-          </div>
-          <TurnIndicator game={game} />
-        </div>
-      </div>
-
-      {/* Contestants row — flex + fixed height → always 16:9 */}
-      <div
-        className="flex gap-2 justify-center shrink-0"
-        style={{ height: `${CONTESTANT_ROW_H}px` }}
-      >
-        {contestants.map((p) => (
-          <div key={p.id} className="h-full aspect-video">
-            <ParticipantTile
-              player={p}
-              gameId={gameId}
-              isCurrentTurn={game.currentTurn === p.id}
-              isHost={false}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Active question banner */}
-      {game.activeQuestion ? (
-        <div className="shrink-0 bg-emerald-950/85 border-2 border-amber-400/60 rounded-xl p-4 text-center backdrop-blur-sm shadow-2xl">
-          <div className="text-amber-300 text-xs font-extrabold uppercase tracking-widest mb-1">
-            {game.categories.find((c) => c.id === game.activeQuestion?.category)
-              ?.displayName}{" "}
-            · {game.activeQuestion.points}
-          </div>
-          <div className="text-2xl font-bold text-amber-50">
-            {game.activeQuestion.question.prompt}
-          </div>
-          {game.activeQuestion.buzzersOpen ? (
-            <div className="text-emerald-300 font-extrabold animate-pulse mt-2 text-lg">
-              ⚡ BUZZER OFFEN
             </div>
           ) : null}
-        </div>
-      ) : null}
+        </aside>
 
-      {game.phase === "finished" && game.winnerId ? (
-        <div className="shrink-0 text-center bg-amber-500/20 border-2 border-amber-400 rounded-xl p-4">
-          <div className="text-3xl font-extrabold text-amber-300">
-            🏆 {game.players[game.winnerId]?.displayName} gewinnt!
+        <section className="flex min-h-0 flex-col gap-2">
+          <div className="surface-panel min-h-0 flex-1 rounded-[1.7rem] p-3">
+            <Board game={game} />
           </div>
-        </div>
-      ) : null}
 
-      {/* ── Correct / wrong flash overlay ── */}
+          {game.activeQuestion ? (
+            <div className="surface-panel-strong shrink-0 rounded-[1.6rem] px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="section-kicker">
+                    {activeCategory?.displayName ?? "Frage"} · {game.activeQuestion.points}
+                  </div>
+                  <div className="mt-2 text-2xl font-black leading-tight text-amber-50">
+                    {game.activeQuestion.question.prompt}
+                  </div>
+                </div>
+                <div className="shrink-0 rounded-full border border-emerald-300/16 bg-emerald-950/45 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-emerald-100/76">
+                  {boardStateLabel}
+                </div>
+              </div>
+            </div>
+          ) : game.phase === "finished" && game.winnerId ? (
+            <div className="surface-panel-strong shrink-0 rounded-[1.6rem] px-5 py-4 text-center">
+              <div className="section-kicker">Sieger</div>
+              <div className="mt-2 text-3xl font-black text-amber-200">
+                {game.players[game.winnerId]?.displayName} gewinnt
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="flex min-h-0 flex-col gap-2">
+          <div className="surface-panel-strong rounded-[1.6rem] p-4">
+            <div className="flex items-center gap-3">
+              <Image
+                src="/bear-logo.png"
+                alt="QuizDuell Bear"
+                width={compact ? 56 : 64}
+                height={compact ? 56 : 64}
+                className="rounded-2xl shadow-lg shadow-amber-500/10"
+                priority
+              />
+              <div>
+                <div className="section-kicker">Broadcast</div>
+                <div className="mt-1 text-xl font-black tracking-tight text-amber-300">
+                  QUIZ<span className="text-emerald-100">DUELL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="surface-panel rounded-[1.6rem] p-4">
+            <div className="section-kicker">Spielstand</div>
+            <div className="mt-3">
+              <TurnIndicator game={game} />
+            </div>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/52">
+                  Phase
+                </div>
+                <div className="mt-1 text-sm font-black text-amber-100">
+                  {phaseLabel}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/52">
+                  Board
+                </div>
+                <div className="mt-1 text-sm font-black text-amber-100">
+                  Feld {game.currentBoardIndex + 1}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/52">
+                  Status
+                </div>
+                <div className="mt-1 text-sm font-black text-amber-100">
+                  {boardStateLabel}
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
       <div
-        className="fixed inset-0 z-[70] pointer-events-none rounded transition-opacity duration-300"
+        className="surface-panel shrink-0 rounded-[1.6rem] p-2"
+        style={{ minHeight: `${contestantRowHeight}px` }}
+      >
+        <div className="flex h-full justify-center gap-2">
+          {contestants.map((player) => (
+            <div key={player.id} className="h-full aspect-video shrink-0">
+              <ParticipantTile
+                player={player}
+                gameId={gameId}
+                isCurrentTurn={game.currentTurn === player.id}
+                isHost={false}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="pointer-events-none fixed inset-0 z-[70] rounded transition-opacity duration-300"
         style={{
-          opacity:         flashOn ? 1 : 0,
-          boxShadow:       flashOn ? flashColor.shadow : "none",
-          border:          `10px solid ${flashOn ? flashColor.border : "transparent"}`,
-          backgroundColor: flashOn ? flashColor.bg    : "transparent",
+          opacity: flashOn ? 1 : 0,
+          boxShadow: flashOn ? flashColor.shadow : "none",
+          border: `10px solid ${flashOn ? flashColor.border : "transparent"}`,
+          backgroundColor: flashOn ? flashColor.bg : "transparent",
         }}
       />
     </div>
