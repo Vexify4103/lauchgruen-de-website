@@ -1,0 +1,23 @@
+category: emoji_3
+displayName: Emoji III
+questions:
+  - points: 100
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Reiner Braun
+  - points: 200
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Grisha Jaeger
+  - points: 300
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Levi Ackerman
+  - points: 400
+    prompt: "Welcher Charakter wird hier gesucht?"
+    imageUrl: ""
+    answer: Rod Reiss
+  - points: 500
+    prompt: "Welcher Charakter wird hier gesucht?"
+    imageUrl: ""
+    answer: Niccolo

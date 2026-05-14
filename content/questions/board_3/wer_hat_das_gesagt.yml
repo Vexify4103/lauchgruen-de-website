@@ -1,0 +1,18 @@
+category: wer_hat_das_gesagt_3
+displayName: Wer hat das gesagt III
+questions:
+  - points: 100
+    prompt: "Wer hat das gesagt? - Sasha Braus hat gerade eine Kartoffel aus der Küche geklaut!"
+    answer: Connie Springer.
+  - points: 200
+    prompt: "Wer hat das gesagt? - Menschen, die nichts opfern können, können auch nichts verändern."
+    answer: Armin Arlert.
+  - points: 300
+    prompt: "Wer hat das gesagt? - Ein Held ist jemand, der sein Leben für eine Sache gibt, an die er glaubt."
+    answer: Dot Pixis.
+  - points: 400
+    prompt: "Wer hat das gesagt? - Ein guter Soldat ist jemand, der Befehle befolgt, ohne Fragen zu stellen."
+    answer: Theo Magath.
+  - points: 500
+    prompt: "Wer hat das gesagt? - Wir sind alle nur Schachfiguren in einem Spiel, das wir nicht verstehen."
+    answer: Flegel Reeves.

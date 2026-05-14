@@ -1,0 +1,18 @@
+category: random_wissen_3
+displayName: Random Wissen III
+questions:
+  - points: 100
+    prompt: "Nenne alle vier Militärdivisionen."
+    answer: Aufklärungstrupp, Militärpolizei, Garnison (Mauertrupp) und Ausbildungskorps.
+  - points: 200
+    prompt: "Wie heißt das gasbetriebene Gerät der Soldaten?"
+    answer: 3D-Manöver-Apparat oder ODM-Gear.
+  - points: 300
+    prompt: "Wer erfand die Donnerspeere?"
+    answer: Hange Zoë und der Techniktrupp.
+  - points: 400
+    prompt: "Welches Getränk war Nile Doks Lieblingsgetränk?"
+    answer: Wein.
+  - points: 500
+    prompt: "Wie heißt das Pferd, das Jean Kirstein während der 57. Aufklärungsmission gegen den Weiblichen Titanen benutzt?"
+    answer: Buchwald.

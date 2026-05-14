@@ -1,0 +1,23 @@
+category: emoji_2
+displayName: Emoji II
+questions:
+  - points: 100
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Annie Leonhart
+  - points: 200
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Armin Arlert
+  - points: 300
+    prompt: "Welcher Charakter ist hier gesucht?"
+    imageUrl: ""
+    answer: Dot Pixis
+  - points: 400
+    prompt: "Welcher Charakter wird hier gesucht?"
+    imageUrl: ""
+    answer: Pieck Finger
+  - points: 500
+    prompt: "Welcher Charakter wird hier gesucht?"
+    imageUrl: ""
+    answer: Dhalis Zachary

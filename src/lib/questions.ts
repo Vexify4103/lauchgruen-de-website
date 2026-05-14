@@ -13,6 +13,7 @@ interface YamlQuestion {
   points: number;
   prompt: string;
   imageUrl?: string;
+  answerImageUrl?: string;
   audioUrl?: string;
   answer: string;
 }
@@ -60,6 +61,7 @@ function loadYamlFilesFromDir(dir: string): {
         points: q.points as 100 | 200 | 300 | 400 | 500,
         prompt: q.prompt,
         imageUrl: q.imageUrl,
+        answerImageUrl: q.answerImageUrl,
         audioUrl: q.audioUrl,
         answer: q.answer,
       }));

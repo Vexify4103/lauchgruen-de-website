@@ -30,6 +30,7 @@ export interface Question {
   points: 100 | 200 | 300 | 400 | 500;
   prompt: string;
   imageUrl?: string;
+  answerImageUrl?: string;
   audioUrl?: string;
   answer: string;
 }
@@ -106,6 +107,7 @@ export interface QuestionForClient {
   points: number;
   prompt: string;
   imageUrl?: string;
+  answerImageUrl?: string;
   audioUrl?: string;
   answer?: string;
 }

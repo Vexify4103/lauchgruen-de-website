@@ -1,0 +1,18 @@
+category: wer_hat_das_gesagt
+displayName: Wer hat das gesagt I
+questions:
+  - points: 100
+    prompt: "Wer hat das gesagt? - Ich werde sie alle vernichten! Jeden einzelnen von ihnen, der auf dieser Erde existiert!"
+    answer: Eren Jaeger.
+  - points: 200
+    prompt: "Wer hat das gesagt? - Ich bin froh, dass ich dich getroffen habe."
+    answer: Ymir.
+  - points: 300
+    prompt: "Wer hat das gesagt? - Jeder von uns ist ein Sklave von etwas."
+    answer: Kenny Ackerman.
+  - points: 400
+    prompt: "Wer hat das gesagt? - Es ist Zeit für mich, die Bühne zu verlassen."
+    answer: Keith Shadis.
+  - points: 500
+    prompt: "Wer hat das gesagt? - Ich hasse es, wenn Leute sagen, dass wir keine Wahl haben."
+    answer: Hitch Dreyse.

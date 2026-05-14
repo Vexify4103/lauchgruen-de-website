@@ -1,0 +1,18 @@
+category: random_wissen
+displayName: Random Wissen I
+questions:
+  - points: 100
+    prompt: "Wie lange lebt ein Titanenwandler maximal, nachdem er die Titanenkraft geerbt hat?"
+    answer: 13 Jahre.
+  - points: 200
+    prompt: "Was befindet sich in der Spritze, mit der man Titanen erschaffen kann?"
+    answer: Rückenmarksflüssigkeit eines Titanen.
+  - points: 300
+    prompt: "Wie lautet der erste Satz im ersten Anime-Opening?"
+    answer: Sind sie das Essen? Nein, wir sind die Jäger!
+  - points: 400
+    prompt: "Nenne alle neun Titanen."
+    answer: Urtitan, Angriffstitan, Kolossaler Titan, Gepanzerter Titan, Weiblicher Titan, Tiertitan, Kiefertitan, Karrentitan und Kriegshammer-Titan.
+  - points: 500
+    prompt: "Wer war die erste Person aus der Aufklärungstruppe, die im Anime gestorben ist?"
+    answer: Moses Braun.

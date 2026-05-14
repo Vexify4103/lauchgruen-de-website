@@ -283,7 +283,9 @@ export function serializeFor(
           prompt: q.prompt,
           imageUrl: q.imageUrl,
           audioUrl: q.audioUrl,
-          ...(isHost || game.activeQuestion.answerRevealed ? { answer: q.answer } : {}),
+          ...(isHost || game.activeQuestion.answerRevealed
+            ? { answer: q.answer, answerImageUrl: q.answerImageUrl }
+            : {}),
         }
       : {
           id: game.activeQuestion.questionId,
@@ -310,6 +312,7 @@ export function serializeFor(
           points: q.points,
           prompt: q.prompt,
           imageUrl: q.imageUrl,
+          answerImageUrl: q.answerImageUrl,
           audioUrl: q.audioUrl,
           answer: q.answer, // always reveal for reviewed questions
         },
@@ -330,6 +333,7 @@ export function serializeFor(
             points: q.points,
             prompt: q.prompt,
             imageUrl: q.imageUrl,
+            answerImageUrl: q.answerImageUrl,
             audioUrl: q.audioUrl,
             answer: q.answer, // always include for used questions
           };

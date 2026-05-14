@@ -1,0 +1,23 @@
+category: traurige_tode
+displayName: Traurige Tode I
+questions:
+  - points: 100
+    prompt: "Wer ist hier gestorben?"
+    imageUrl: "/questions/board_1/images/tode_1.png"
+    answer: Eren Jaeger.
+  - points: 200
+    prompt: "Wer ist hier gestorben?"
+    imageUrl: "/questions/board_1/images/tode_2.png"
+    answer: Jean Kirstein und Connie Springer.
+  - points: 300
+    prompt: "Wer ist hier gestorben?"
+    imageUrl: "/questions/board_1/images/tode_3.png"
+    answer: Marco Bodt.
+  - points: 400
+    prompt: "Wer ist hier gestorben?"
+    imageUrl: "/questions/board_1/images/tode_4.png"
+    answer: Fay Jaeger.
+  - points: 500
+    prompt: "Wer ist hier gestorben?"
+    imageUrl: "/questions/board_1/images/tode_5.png"
+    answer: Colt Grice.

@@ -112,6 +112,11 @@ export function ReviewQuestionModal({
               🍯 Antwort
             </div>
             <div className="text-xl font-bold text-amber-100">{q.answer}</div>
+            {q.answerImageUrl ? (
+              <div className="mt-4">
+                <QuestionImage src={q.answerImageUrl} />
+              </div>
+            ) : null}
           </div>
 
           {/* Host judge section — only when it's a broadcast review (not local) */}

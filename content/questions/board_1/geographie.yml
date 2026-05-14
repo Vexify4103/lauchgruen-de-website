@@ -1,0 +1,23 @@
+category: geographie
+displayName: Geographie I
+questions:
+  - points: 100
+    prompt: "Wo sind wir hier?"
+    imageUrl: "/questions/board_1/images/geo_1.png"
+    answer: Das ist die Eiskristallhöhle.
+  - points: 200
+    prompt: "Wo sind wir hier?"
+    imageUrl: "/questions/board_1/images/geo_2.png"
+    answer: Das ist Grisha Jaegers Keller.
+  - points: 300
+    prompt: "Wo sind wir hier?"
+    imageUrl: "/questions/board_1/images/geo_3.png"
+    answer: Shiganshina am Bootsanleger.
+  - points: 400
+    prompt: "Wo sind wir hier?"
+    imageUrl: "/questions/board_1/images/geo_4.png"
+    answer: Das ist das Gerichtsgebäude.
+  - points: 500
+    prompt: "Wo sind wir hier?"
+    imageUrl: "/questions/board_1/images/geo_5.png"
+    answer: Das ist der Raum, in dem Kuchel Ackerman stirbt.
