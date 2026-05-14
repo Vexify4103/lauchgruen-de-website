@@ -139,6 +139,8 @@ export const BONUS_BUZZER_CATEGORY = "_bonus_buzzer";
 export interface BonusBuzzerRound {
   /** Synthetic question id, e.g. "_bonus_buzzer_3" — never on the board. */
   id: string;
+  /** Prompt shown above the bonus-buzzer image. */
+  prompt: string;
   /** Public URL of the image (served via /questions/buzzer/<file>). */
   imageUrl: string;
   /** The single accepted answer (host judges with leeway). */

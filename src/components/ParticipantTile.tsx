@@ -11,7 +11,19 @@ interface Props {
   hideVideo?: boolean;
   variant?: "host" | "contestant";
   showStats?: boolean;
+  isLeader?: boolean;
 }
+
+const VDO_VIEW_PARAMS = [
+  "cover",
+  "cleanoutput",
+  "noaudio",
+  "transparent",
+  "autorecover",
+  "scale=100",
+  "videobitrate=3200",
+  "buffer=200",
+].join("&");
 
 export function ParticipantTile({
   player,
@@ -20,16 +32,17 @@ export function ParticipantTile({
   hideVideo,
   variant = "contestant",
   showStats = true,
+  isLeader = false,
 }: Props) {
-  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&cover&cleanoutput&noaudio&transparent&autorecover&buffer=0`;
+  const viewUrl = `https://vdo.ninja/?view=${encodeURIComponent(player.vdoStreamId)}&${VDO_VIEW_PARAMS}`;
 
   const frameClasses = isCurrentTurn
-    ? "ring-4 ring-amber-300 shadow-[0_0_26px_rgba(252,211,77,0.45)]"
+    ? "border-4 border-amber-300 shadow-[0_0_26px_rgba(252,211,77,0.45)]"
     : isHost
-      ? "ring-2 ring-emerald-400/45"
-      : "ring-1 ring-emerald-900/60";
+      ? "border-2 border-emerald-400/45"
+      : "border border-emerald-900/60";
   const offlineClasses = player.connected === false ? "opacity-55 grayscale" : "";
-  const avatarSize = variant === "host" ? 42 : 30;
+  const avatarSize = variant === "host" ? 46 : 38;
 
   return (
     <div
@@ -79,38 +92,37 @@ export function ParticipantTile({
         </div>
       ) : null}
 
-      <div
-        className={[
-          "absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-2.5 py-2",
-          isCurrentTurn
-            ? "bg-gradient-to-r from-amber-300 via-amber-400 to-orange-300"
-            : "bg-gradient-to-r from-emerald-950/96 via-emerald-900/94 to-emerald-800/92",
-        ].join(" ")}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          {player.avatarUrl ? (
-            <Image
-              src={player.avatarUrl}
-              alt={player.displayName}
-              width={avatarSize}
-              height={avatarSize}
-              className="rounded-full border-2 border-emerald-950 object-cover"
-              unoptimized
-            />
-          ) : null}
-          <div className="min-w-0">
-            <div
-              className={[
-                "truncate font-black uppercase tracking-[0.12em]",
-                variant === "host" ? "text-sm" : "text-xs",
-                isCurrentTurn ? "text-emerald-950" : "text-amber-50",
-              ].join(" ")}
-            >
-              {player.displayName}
+      {player.avatarUrl ? (
+        <div
+          className={[
+            "absolute bottom-2 left-2 z-10 rounded-full p-0.5 shadow-lg",
+            isCurrentTurn
+              ? "bg-amber-300 shadow-amber-300/35"
+              : "bg-emerald-950/88 shadow-black/30",
+          ].join(" ")}
+        >
+          <Image
+            src={player.avatarUrl}
+            alt={player.displayName}
+            width={avatarSize}
+            height={avatarSize}
+            className="rounded-full border-2 border-emerald-950 object-cover"
+            unoptimized
+          />
+          {isLeader ? (
+            <div className="absolute -right-1.5 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-amber-100/75 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-400 shadow-lg shadow-amber-400/30">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5 fill-emerald-950"
+              >
+                <path d="M5.2 18.4h13.6l1.1-9.6-4.5 3.2-3.4-6.4L8.6 12 4.1 8.8l1.1 9.6Zm.4 2.4h12.8v-1.6H5.6v1.6Z" />
+              </svg>
+              <span className="sr-only">Fuehrend</span>
             </div>
-          </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

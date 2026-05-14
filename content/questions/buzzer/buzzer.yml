@@ -1,4 +1,5 @@
 default_points: 250
+default_prompt: "Welches Ereignis wird hier dargestellt?"
 
 rounds:
   - image: buzzer_1.png

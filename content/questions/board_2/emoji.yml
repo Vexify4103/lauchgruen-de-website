@@ -2,22 +2,17 @@ category: emoji_2
 displayName: Emoji II
 questions:
   - points: 100
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - 💎👱‍♀️🤼‍♀️🏃‍♀️"
     answer: Annie Leonhart
   - points: 200
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - ⬆️👦💀👱‍♀️"
     answer: Armin Arlert
   - points: 300
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - ⛏️👴⬆️🌹"
     answer: Dot Pixis
   - points: 400
-    prompt: "Welcher Charakter wird hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter wird hier gesucht? - 🫩🎒🪲👮"
     answer: Pieck Finger
   - points: 500
-    prompt: "Welcher Charakter wird hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter wird hier gesucht? - 🪑🔒😑🎖️"
     answer: Dhalis Zachary

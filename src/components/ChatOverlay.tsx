@@ -86,6 +86,23 @@ function parseIrcLine(line: string): IrcLine | null {
 
 async function fetchAllEmotes(roomId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
+  const add7tvEmotes = (
+    emotes: Array<{
+      name: string;
+      data?: { host?: { url?: string; files?: Array<{ name: string }> } };
+    }>,
+  ) => {
+    for (const e of emotes) {
+      const host = e.data?.host;
+      if (!host?.url) continue;
+      const file =
+        host.files?.find((f) => f.name === "1x.webp")?.name ??
+        host.files?.[0]?.name ??
+        "1x.webp";
+      const baseUrl = host.url.startsWith("//") ? `https:${host.url}` : host.url;
+      map.set(e.name, `${baseUrl}/${file}`);
+    }
+  };
 
   // ── 7TV ────────────────────────────────────────────────────────────────
   try {
@@ -99,20 +116,26 @@ async function fetchAllEmotes(roomId: string): Promise<Map<string, string>> {
           }>;
         };
       };
-      for (const e of data.emote_set?.emotes ?? []) {
-        const host = e.data?.host;
-        if (!host?.url) continue;
-        // Prefer 1x.webp; fall back to first file name.
-        const file =
-          host.files?.find((f) => f.name === "1x.webp")?.name ??
-          host.files?.[0]?.name ??
-          "1x.webp";
-        const baseUrl = host.url.startsWith("//") ? `https:${host.url}` : host.url;
-        map.set(e.name, `${baseUrl}/${file}`);
-      }
+      add7tvEmotes(data.emote_set?.emotes ?? []);
     }
   } catch {
     /* network errors are non-fatal — chat still works without emotes */
+  }
+
+  // ── 7TV global ────────────────────────────────────────────────────────
+  try {
+    const r = await fetch("https://7tv.io/v3/emote-sets/global");
+    if (r.ok) {
+      const data = (await r.json()) as {
+        emotes?: Array<{
+          name: string;
+          data?: { host?: { url?: string; files?: Array<{ name: string }> } };
+        }>;
+      };
+      add7tvEmotes(data.emotes ?? []);
+    }
+  } catch {
+    /* ignore */
   }
 
   // ── BTTV channel ───────────────────────────────────────────────────────
@@ -364,7 +387,7 @@ export function ChatOverlay({ channel, maxMessages = 80 }: Props) {
   return (
     <div
       ref={scrollRef}
-      className="w-full h-full overflow-y-auto px-3 py-2 text-sm leading-snug font-medium"
+      className="qd-chat-scroll h-full w-full overflow-y-auto px-3 py-2 text-sm font-medium leading-snug"
       style={{
         scrollbarWidth: "none",
         msOverflowStyle: "none",

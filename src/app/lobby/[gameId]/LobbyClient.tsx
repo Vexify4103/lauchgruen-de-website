@@ -13,6 +13,16 @@ interface Props {
   isHost: boolean;
 }
 
+const VDO_PUSH_PARAMS = [
+  "webcam",
+  "cleanoutput",
+  "meshcast",
+  "width=1280",
+  "height=720",
+  "maxframerate=30",
+  "meshcastbitrate=3200",
+].join("&");
+
 export function LobbyClient({ gameId, userId }: Props) {
   const router = useRouter();
   const { game, joinGame, vdoStreamId, connected, emit, wasKicked } = useSocket();
@@ -57,7 +67,7 @@ export function LobbyClient({ gameId, userId }: Props) {
     ? `&label=${encodeURIComponent(me.displayName)}`
     : "";
   const pushUrl = vdoStreamId
-    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&webcam&cleanoutput&meshcast${labelParam}`
+    ? `https://vdo.ninja/?push=${encodeURIComponent(vdoStreamId)}&${VDO_PUSH_PARAMS}${labelParam}`
     : null;
 
   if (wasKicked) {

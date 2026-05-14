@@ -46,7 +46,7 @@ export function registerBonusBuzzerRounds(rounds: BonusBuzzerRound[]): void {
       id: r.id,
       category: BONUS_BUZZER_CATEGORY,
       points: r.points as 100 | 200 | 300 | 400 | 500, // any number — cast for the union; UI doesn't care
-      prompt: "",
+      prompt: r.prompt,
       imageUrl: r.imageUrl,
       answer: r.answer,
     });

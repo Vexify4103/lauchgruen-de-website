@@ -8,6 +8,7 @@ import { ParticipantTile } from "@/components/ParticipantTile";
 import { QuestionModal } from "@/components/QuestionModal";
 import { ReviewQuestionModal } from "@/components/ReviewQuestionModal";
 import { BuzzButton } from "@/components/BuzzButton";
+import { ChatOverlay } from "@/components/ChatOverlay";
 import { HostControls } from "@/components/HostControls";
 import { TurnIndicator } from "@/components/TurnIndicator";
 import { GameNotFound } from "@/components/GameNotFound";
@@ -20,15 +21,7 @@ interface Props {
   mode: "host" | "play";
 }
 
-const PHASE_LABELS: Record<string, string> = {
-  lobby: "Warteraum",
-  playing: "Spiel läuft",
-  bonus_pending: "Bonus bereit",
-  bonus_buzzing: "Bonus-Buzzer offen",
-  finished: "Spiel beendet",
-};
-
-export function GameClient({ gameId, userId, mode }: Props) {
+export function GameClient({ gameId, userId }: Props) {
   const { game, joinGame, connected, emit, lastJudgeResult } = useSocket();
   const [correctFlash, setCorrectFlash] = useState(false);
   const [wrongFlash, setWrongFlash] = useState(false);
@@ -85,6 +78,11 @@ export function GameClient({ gameId, userId, mode }: Props) {
     .filter((id) => id !== game.hostId)
     .map((id) => game.players[id])
     .filter((player): player is NonNullable<typeof player> => Boolean(player));
+  const highScore = Math.max(0, ...contestants.map((player) => player.score));
+  const leaderId =
+    highScore > 0
+      ? contestants.find((player) => player.score === highScore)?.id
+      : null;
 
   const handlePickCell =
     isHost && game.phase === "playing"
@@ -111,9 +109,12 @@ export function GameClient({ gameId, userId, mode }: Props) {
       ? (index: number) => emit("host:switch_board", { index })
       : undefined;
 
-  const contestantTileHeight =
-    contestants.length >= 5 ? 204 : contestants.length === 4 ? 214 : 228;
-  const contestantRowHeight = contestantTileHeight + 16;
+  const contestantCount = Math.max(contestants.length, 1);
+  const contestantGap = 8;
+  const maxContestantCameraHeight = 256;
+  const contestantCameraWidth = `min(${
+    (maxContestantCameraHeight * 16) / 9
+  }px, calc((100vw - 36px - ${(contestantCount - 1) * contestantGap}px) / ${contestantCount}))`;
   const flashOn = correctFlash || wrongFlash;
   const flashColor = correctFlash
     ? {
@@ -133,7 +134,6 @@ export function GameClient({ gameId, userId, mode }: Props) {
   const activeCategory = game.activeQuestion
     ? game.categories.find((category) => category.id === game.activeQuestion?.category)
     : null;
-  const phaseLabel = PHASE_LABELS[game.phase] ?? game.phase;
   const boardStateLabel = game.activeQuestion
     ? game.activeQuestion.buzzersOpen
       ? "Buzzer offen"
@@ -143,6 +143,8 @@ export function GameClient({ gameId, userId, mode }: Props) {
     : game.phase === "finished"
       ? "Spiel beendet"
       : "Board bereit";
+  const currentViewer = game.players[userId];
+  const chatChannel = currentViewer?.twitchLogin ?? null;
   return (
     <div
       className="flex h-screen w-screen flex-col overflow-hidden bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-900 text-emerald-50"
@@ -197,7 +199,11 @@ export function GameClient({ gameId, userId, mode }: Props) {
 
       <div
         className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateColumns: "380px 1fr 240px", gap: "8px" }}
+        style={{
+          gridTemplateColumns:
+            "clamp(280px, 20vw, 380px) minmax(0, 1fr) clamp(220px, 13vw, 240px)",
+          gap: "8px",
+        }}
       >
         <aside className="flex min-h-0 flex-col gap-2">
           <div className="surface-panel rounded-[1.6rem] p-3">
@@ -220,43 +226,26 @@ export function GameClient({ gameId, userId, mode }: Props) {
             </div>
           </div>
 
-          <div className="surface-panel min-h-0 flex-1 rounded-[1.6rem] p-4">
-            <div className="section-kicker">Match-Status</div>
-            <div className="mt-3 text-xl font-black text-amber-100">
-              {boardStateLabel}
+          <div className="surface-panel min-h-0 flex-1 overflow-hidden rounded-[1.6rem] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="section-kicker">Stream-Chat</div>
+                <div className="mt-1 truncate text-sm font-black text-amber-100">
+                  {chatChannel ? `@${chatChannel}` : "Kein Twitch-Login"}
+                </div>
+              </div>
+              <div className="shrink-0 rounded-full border border-emerald-300/15 bg-emerald-950/45 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200/72">
+                7TV
+              </div>
             </div>
-            <div className="mt-2 text-sm leading-6 text-emerald-100/72">
-              {game.activeQuestion
-                ? "Die aktuelle Frage ist aktiv. Antworten und Buzz-Zustand laufen in Echtzeit."
-                : game.phase === "finished"
-                  ? "Das Match ist beendet. Das Board bleibt zur Nachschau sichtbar."
-                  : "Warte auf den nächsten Pick oder den Start der nächsten Frage."}
-            </div>
-            <div className="mt-5 grid gap-3">
-              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/54">
-                  Rolle
+            <div className="mt-3 h-[calc(100%-3.25rem)] min-h-0 overflow-hidden rounded-2xl border border-emerald-300/10 bg-emerald-950/35">
+              {chatChannel ? (
+                <ChatOverlay channel={chatChannel} maxMessages={45} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-4 text-center text-sm text-emerald-100/56">
+                  Chat wird angezeigt, sobald ein Twitch-Login verfügbar ist.
                 </div>
-                <div className="mt-1 text-sm font-bold text-amber-100">
-                  {mode === "host" ? "Host-Ansicht" : "Spieler-Ansicht"}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/54">
-                  Phase
-                </div>
-                <div className="mt-1 text-sm font-bold text-amber-100">
-                  {phaseLabel}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-950/35 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/54">
-                  Board
-                </div>
-                <div className="mt-1 text-sm font-bold text-amber-100">
-                  Feld {game.currentBoardIndex + 1}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </aside>
@@ -316,18 +305,20 @@ export function GameClient({ gameId, userId, mode }: Props) {
         </aside>
       </div>
 
-      <div
-        className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2"
-        style={{ height: `${contestantRowHeight}px` }}
-      >
-        <div className="flex h-full min-h-0 justify-center gap-2 overflow-hidden">
+      <div className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2">
+        <div className="flex min-h-0 justify-center gap-2 overflow-hidden">
           {contestants.map((player) => (
-            <div key={player.id} className="h-full aspect-video shrink-0">
+            <div
+              key={player.id}
+              className="aspect-video shrink-0"
+              style={{ width: contestantCameraWidth }}
+            >
               <ParticipantTile
                 player={player}
                 gameId={gameId}
                 isCurrentTurn={game.currentTurn === player.id}
                 isHost={false}
+                isLeader={player.id === leaderId}
               />
             </div>
           ))}

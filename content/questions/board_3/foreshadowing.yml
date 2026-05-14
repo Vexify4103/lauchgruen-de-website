@@ -3,21 +3,22 @@ displayName: Foreshadowing III
 questions:
   - points: 100
     prompt: "Was wird hier geteasert?"
-    imageUrl: ""
+    imageUrl: "/questions/board_3/images/fs_1.png"
     answer: Zeke Jaegers Affengestalt als Titan.
+    answerImageUrl: "/questions/board_3/images/fs_1_a.png"
   - points: 200
     prompt: "Was wird hier geteasert?"
-    imageUrl: ""
+    imageUrl: "/questions/board_3/images/fs_2.png"
     answer: Die Existenz anderer Länder und Schiffe.
   - points: 300
     prompt: "Was wird hier geteasert?"
-    imageUrl: ""
+    imageUrl: "/questions/board_3/images/fs_3.png"
     answer: Hier redet Zeke Jaeger über Bowling, obwohl Bowling auf Paradis nicht bekannt ist.
   - points: 400
     prompt: "Was wird hier geteasert?"
-    imageUrl: ""
+    imageUrl: "/questions/board_3/images/fs_4.png"
     answer: Im Opening stehen alle, die ein Geheimnis verbergen, auf der anderen Seite der Mauer.
   - points: 500
     prompt: "Was wird hier geteasert?"
-    imageUrl: ""
+    imageUrl: "/questions/board_3/images/fs_5.png"
     answer: Hier sagt der Titan "Ymir" und verbeugt sich vor Hange Zoë; hier wird der Name zum ersten Mal genannt.

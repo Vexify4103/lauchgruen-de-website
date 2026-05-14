@@ -95,6 +95,11 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
     .map((id) => game.players[id])
     .filter((player): player is NonNullable<typeof player> => Boolean(player))
     .filter((player) => !hideSelf || player.twitchLogin !== hideSelf);
+  const highScore = Math.max(0, ...contestants.map((player) => player.score));
+  const leaderId =
+    highScore > 0
+      ? contestants.find((player) => player.score === highScore)?.id
+      : null;
   const chatChannel = hideSelf || hostPlayer?.twitchLogin;
   const activeCategory = game.activeQuestion
     ? game.categories.find((category) => category.id === game.activeQuestion?.category)
@@ -109,16 +114,14 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
     : game.phase === "finished"
       ? "Ergebnis"
       : "Nächster Pick";
-  const contestantTileHeight = compact
-    ? contestants.length >= 5
-      ? 146
-      : 166
-    : contestants.length >= 5
-      ? 190
-      : contestants.length === 4
-        ? 198
-        : 208;
-  const contestantRowHeight = contestantTileHeight + 16;
+  const contestantCount = Math.max(contestants.length, 1);
+  const contestantGap = compact ? 6 : 8;
+  const maxContestantCameraHeight = compact ? 220 : 256;
+  const contestantCameraWidth = `min(${
+    (maxContestantCameraHeight * 16) / 9
+  }px, calc((100vw - ${compact ? 28 : 36}px - ${
+    (contestantCount - 1) * contestantGap
+  }px) / ${contestantCount}))`;
 
   const flashOn = correctFlash || wrongFlash;
   const flashColor = correctFlash
@@ -265,18 +268,23 @@ export function ObsClient({ gameId, hideSelf, compact }: Props) {
         </aside>
       </div>
 
-      <div
-        className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2"
-        style={{ height: `${contestantRowHeight}px` }}
-      >
-        <div className="flex h-full min-h-0 justify-center gap-2 overflow-hidden">
+      <div className="surface-panel shrink-0 overflow-hidden rounded-[1.6rem] p-2">
+        <div
+          className="flex min-h-0 justify-center overflow-hidden"
+          style={{ gap: `${contestantGap}px` }}
+        >
           {contestants.map((player) => (
-            <div key={player.id} className="h-full aspect-video shrink-0">
+            <div
+              key={player.id}
+              className="aspect-video shrink-0"
+              style={{ width: contestantCameraWidth }}
+            >
               <ParticipantTile
                 player={player}
                 gameId={gameId}
                 isCurrentTurn={game.currentTurn === player.id}
                 isHost={false}
+                isLeader={player.id === leaderId}
               />
             </div>
           ))}

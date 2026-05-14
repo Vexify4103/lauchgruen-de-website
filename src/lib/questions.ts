@@ -123,8 +123,10 @@ export function pickAllBoards(maxBoards = 3): BoardData[] {
  *
  * Expected shape:
  *   default_points: 500
+ *   default_prompt: "Welches Ereignis wird hier dargestellt?"
  *   rounds:
  *     - image: buzzer_1.png
+ *       prompt: "Was passiert in dieser Szene?" # optional per-round override
  *       answer: "Eren Yeager"
  *     - image: buzzer_2.jpg
  *       answer: "Mikasa"
@@ -138,7 +140,8 @@ export function pickAllBoards(maxBoards = 3): BoardData[] {
  */
 interface YamlBuzzerFile {
   default_points?: number;
-  rounds?: Array<{ image: string; answer: string; points?: number }>;
+  default_prompt?: string;
+  rounds?: Array<{ image: string; prompt?: string; answer: string; points?: number }>;
 }
 
 export function loadBonusBuzzerRounds(): BonusBuzzerRound[] {
@@ -154,11 +157,13 @@ export function loadBonusBuzzerRounds(): BonusBuzzerRound[] {
     return [];
   }
   const defaultPoints = parsed.default_points ?? 250;
+  const defaultPrompt = parsed.default_prompt ?? "Welches Ereignis wird hier dargestellt?";
   // Images live in public/buzzer/ so they're served as static files (no route handler overhead).
   const buzzerPublicDir = join(process.cwd(), "public", "buzzer");
   return parsed.rounds
     .map((r, i) => ({
       id:       `_bonus_buzzer_${i + 1}`,
+      prompt:   r.prompt ?? defaultPrompt,
       imageUrl: `/buzzer/${r.image}`,
       answer:   r.answer,
       points:   r.points ?? defaultPoints,

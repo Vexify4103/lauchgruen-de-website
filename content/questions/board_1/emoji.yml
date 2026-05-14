@@ -2,22 +2,17 @@ category: emoji
 displayName: Emoji I
 questions:
   - points: 100
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - 🧣👱‍♀️⚫🕊️"
     answer: Mikasa Ackerman
   - points: 200
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - 👑👱‍♀️😇🥷"
     answer: Historia Reiss (Christa Lenz)
   - points: 300
-    prompt: "Welcher Charakter ist hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter ist hier gesucht? - 👑🩶🧔‍♂️🪆"
     answer: König Fritz (Galionsfigur)
   - points: 400
-    prompt: "Welcher Charakter wird hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter wird hier gesucht? - 🗣️🪖🧠📖"
     answer: Willy Tybur
   - points: 500
-    prompt: "Welcher Charakter wird hier gesucht?"
-    imageUrl: ""
+    prompt: "Welcher Charakter wird hier gesucht? - 🌍👱‍♀️🧎‍♂️🛳️"
     answer: Yelena
