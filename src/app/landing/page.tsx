@@ -1,251 +1,345 @@
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
+import { getSiteUrls } from "@/lib/site-urls";
 import { LiveStatus } from "./LiveStatus";
+import { RecentClips } from "./RecentClips";
 
 const TWITCH_LOGIN = "lauchgruen";
 const TWITCH_URL = `https://twitch.tv/${TWITCH_LOGIN}`;
-const JEOPARDY_URL = "https://jeopardy.lauchgruen.de";
 const VEXIFY_URL = "https://twitch.tv/vexi_fy";
+const QUIZ_ENABLED = process.env.QUIZ_ENABLED !== "false";
 
-const SOCIALS: Array<{ label: string; url: string; emoji: string }> = [
-  { label: "Twitch", url: TWITCH_URL, emoji: "Live" },
-  { label: "YouTube", url: "", emoji: "Video" },
-  { label: "Discord", url: "", emoji: "Chat" },
-  { label: "TikTok", url: "", emoji: "Clips" },
-  { label: "Twitter", url: "", emoji: "Feed" },
-  { label: "Instagram", url: "", emoji: "Fotos" },
-].filter((social) => social.url);
+const HIGHLIGHTS = [
+  { kicker: "Live", title: "Twitch", text: "League, TFT, Chess. Ruhige Moderation, klares Timing." },
+  { kicker: "Cup", title: "Turniere", text: "Bewerbung, Teams, Bracket — sauber durchgespielt." },
+  { kicker: "Show", title: "Quizshow", text: "Buzzer, Punkte, Ablauf. Sofort sendebereit." },
+];
 
 const GAMES = [
   {
     name: "League of Legends",
-    desc: "Solo Q, Ranked Climbs und genug Storylines fur Chat und Flame-Historie.",
-    accent:
-      "from-sky-500/20 via-sky-400/10 to-emerald-500/10 border-sky-300/20",
+    text: "Solo Queue, Ranked-Climb, Late-Night-Analysen.",
+    accent: "from-sky-300/22 via-cyan-400/12 to-emerald-400/10",
   },
   {
     name: "Teamfight Tactics",
-    desc: "Set-Launches, Meta-Talk und genau die richtige Menge Comp-Kopfkino.",
-    accent:
-      "from-amber-400/20 via-orange-400/10 to-emerald-500/10 border-amber-300/20",
+    text: "Set-Starts, Meta-Talk, lange Setrunden.",
+    accent: "from-amber-300/22 via-orange-400/12 to-emerald-400/10",
   },
   {
     name: "Chess",
-    desc: "Blitz, Puzzle und Chat-Kommentare zwischen Tilt und Genialitat.",
-    accent:
-      "from-emerald-400/16 via-emerald-300/10 to-cyan-400/8 border-emerald-300/20",
+    text: "Blitz, Puzzle, scharfe Partien mit Chat.",
+    accent: "from-emerald-300/22 via-emerald-400/12 to-cyan-400/10",
   },
 ];
 
 const EVENTS = [
-  {
-    title: "League-Turniere",
-    desc: "Community-Cups, Showmatches und gelegentliche In-House-Ligen.",
-  },
-  {
-    title: "QuizDuell-Shows",
-    desc: "Live moderierte Gameshow-Runden mit mehreren Streamern und echtem Buzzer-Druck.",
-  },
+  { title: "Community-Abende", text: "Showmatches und Spezialformate." },
+  { title: "Sonderstreams", text: "Wenn ein Abend einen eigenen Rahmen braucht." },
 ];
 
-export default function LandingPage() {
-  return (
-    <div className="relative min-h-screen overflow-hidden text-emerald-50">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_64%)]" />
-      <div className="pointer-events-none absolute right-0 top-24 h-[24rem] w-[24rem] rounded-full bg-emerald-400/8 blur-3xl" />
+export const metadata: Metadata = {
+  title: "lauchgruen",
+  description: "Streams, Turniere und Quizshow-Abende auf lauchgruen.de.",
+};
 
-      <main className="relative mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 py-8 sm:py-10 lg:gap-18 lg:py-12">
-        <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          <div className="flex flex-col gap-7">
-            <div className="brand-chip w-fit">
+export default async function LandingPage() {
+  const siteUrls = getSiteUrls((await headers()).get("host"));
+
+  return (
+    <div className="relative min-h-screen text-emerald-50">
+      {/* Viewport-anchored ambient glows — fixed so they never reveal a "band end" as you scroll. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed left-[-10rem] top-[8rem] -z-10 h-[28rem] w-[28rem] rounded-full bg-emerald-400/8 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed right-[-9rem] top-[4rem] -z-10 h-[26rem] w-[26rem] rounded-full bg-lime-300/8 blur-3xl"
+      />
+
+      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 py-6 sm:px-6 sm:py-10 lg:gap-8 lg:px-8">
+        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="overflow-hidden rounded-[2.4rem] border border-lime-200/14 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-2xl shadow-black/30 sm:p-8 lg:p-10">
+            <div className="flex items-center gap-4">
               <Image
                 src="/bear-logo.png"
-                alt="lauchgruen Bär"
-                width={112}
-                height={112}
-                className="brand-mark-hero rounded-3xl shadow-2xl shadow-amber-500/10"
+                alt="lauchgrün Bär"
+                width={88}
+                height={88}
+                className="rounded-3xl shadow-2xl shadow-emerald-500/14"
                 priority
                 fetchPriority="high"
               />
               <div>
-                <div className="section-kicker">Streamer Hub</div>
-                <div className="mt-2 text-2xl font-black tracking-tight text-amber-300 sm:text-3xl">
-                  lauchgruen<span className="text-emerald-100">.de</span>
+                <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+                  Streamer Hub
+                </div>
+                <div className="mt-2 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
+                  lauchgruen<span className="text-lime-200">.de</span>
                 </div>
               </div>
             </div>
 
-            <div className="max-w-2xl">
-              <h1 className="text-4xl font-black leading-tight tracking-tight text-emerald-50 sm:text-5xl lg:text-6xl">
-                Streams, Community und Events an einem Ort.
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-emerald-100/78 sm:text-lg">
-                Live auf Twitch mit League, TFT, Chess und genau den Community-Events,
-                die plotzlich aus einem Stream einen Abend machen.
-              </p>
+            <h1 className="mt-8 max-w-[14ch] text-5xl font-black leading-[0.92] tracking-tight text-emerald-50 sm:text-6xl lg:text-7xl">
+              Stream, Cup, Show — eine Adresse.
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-emerald-100/72 sm:text-lg">
+              Live auf Twitch mit League, TFT und Chess. Daneben eigene Turniere
+              und Quizshow-Abende mit Buzzer, Bracket und Broadcast-Polish.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href={TWITCH_URL}
+                className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
+              >
+                Twitch ansehen
+              </Link>
+              <Link
+                href={siteUrls.tournament}
+                className="rounded-2xl border border-white/14 bg-white/[0.04] px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+              >
+                Zum Turnier
+              </Link>
+              {QUIZ_ENABLED ? (
+                <Link
+                  href={siteUrls.quiz}
+                  className="rounded-2xl border border-white/14 bg-white/[0.04] px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+                >
+                  Quizshow
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title="Quizshow ist aktuell deaktiviert"
+                  className="cursor-not-allowed rounded-2xl border border-white/8 bg-white/[0.025] px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100/32"
+                >
+                  Quizshow
+                </span>
+              )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="surface-panel rounded-[1.8rem] p-5">
-                <div className="section-kicker">Was hier passiert</div>
-                <p className="mt-3 text-lg font-semibold leading-8 text-emerald-50">
-                  Bär aus Versehen, Streamer mit Absicht. Meistens kompetitiv,
-                  manchmal chaotisch, idealerweise beides gleichzeitig.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href={TWITCH_URL}
-                  className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-amber-500/20 transition-transform hover:-translate-y-0.5"
+            <div className="mt-10 grid gap-3 sm:grid-cols-3">
+              {HIGHLIGHTS.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-3xl border border-white/10 bg-black/18 p-5"
                 >
-                  Twitch ansehen
-                </Link>
-                <Link
-                  href={JEOPARDY_URL}
-                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-950/45 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition-colors hover:border-amber-300/30 hover:text-amber-200"
-                >
-                  QuizDuell
-                </Link>
-              </div>
+                  <div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/58">
+                    {item.kicker}
+                  </div>
+                  <div className="mt-3 text-lg font-black text-emerald-50">
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-emerald-100/68">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="surface-panel-strong rounded-[2rem] p-4 sm:p-5 lg:p-6">
-            <div className="flex items-center justify-between gap-4">
+          <aside className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="section-kicker">Live-Status</div>
-                <div className="mt-2 text-2xl font-black text-amber-100">
-                  Was lauft gerade?
+                <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+                  Live-Status
                 </div>
+                <h2 className="mt-3 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
+                  Was läuft gerade?
+                </h2>
               </div>
-              <div className="rounded-full border border-emerald-300/18 bg-emerald-950/45 px-3 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-200/76">
+              <div className="rounded-full border border-white/10 bg-black/24 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">
                 Twitch
               </div>
             </div>
+
             <div className="mt-5">
               <LiveStatus login={TWITCH_LOGIN} />
             </div>
-          </div>
+          </aside>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="surface-panel rounded-[2rem] p-6">
-            <div className="section-kicker">Im Stream</div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-amber-100">
-              Drei Spiele, ein Rhythmus
-            </h2>
-            <p className="mt-3 max-w-lg text-sm leading-7 text-emerald-100/72">
-              Von Ranked-Grind uber TFT-Setstarts bis zu Chess-Runden mit Chat:
-              hier dreht sich alles um kompetitive Spiele und gute Abende live
-              auf Twitch.
+        <section>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+                Im Stream
+              </div>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-emerald-50 sm:text-4xl">
+                Drei Spiele, ein Rhythmus
+              </h2>
+            </div>
+            <p className="max-w-lg text-sm leading-6 text-emerald-100/64">
+              Kompetitiv, dynamisch, mit Platz für Chat zwischen Ranked-Grind
+              und ruhigen Spätabenden.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
             {GAMES.map((game) => (
-              <div
+              <article
                 key={game.name}
-                className={`rounded-[1.8rem] border bg-gradient-to-br p-5 shadow-xl shadow-black/10 ${game.accent}`}
+                className={`h-full rounded-[1.8rem] border border-white/10 bg-gradient-to-br p-5 shadow-xl shadow-black/20 ${game.accent}`}
               >
-                <div className="section-kicker">Game</div>
-                <div className="mt-3 text-xl font-black text-amber-100">
+                <div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/58">
+                  Game
+                </div>
+                <div className="mt-3 text-xl font-black text-emerald-50">
                   {game.name}
                 </div>
-                <p className="mt-3 text-sm leading-6 text-emerald-100/76">
-                  {game.desc}
+                <p className="mt-3 text-sm leading-6 text-emerald-100/72">
+                  {game.text}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {EVENTS.map((event) => (
-              <div key={event.title} className="surface-panel rounded-[1.8rem] p-6">
-                <div className="section-kicker">Event</div>
-                <div className="mt-3 text-2xl font-black text-amber-100">
-                  {event.title}
-                </div>
-                <p className="mt-3 text-sm leading-7 text-emerald-100/74">
-                  {event.desc}
-                </p>
+        <section>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+                Clips
               </div>
-            ))}
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-emerald-50 sm:text-4xl">
+                Frisch aus dem Chat
+              </h2>
+            </div>
+            <a
+              href={`https://www.twitch.tv/${TWITCH_LOGIN}/clips`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+            >
+              Alle Clips
+            </a>
           </div>
 
-          <div className="surface-panel-strong rounded-[2rem] p-6 sm:p-7">
-            <div className="section-kicker">Mitspielen</div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-amber-100">
-              QuizDuell fur Streamer
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-emerald-100/74">
-              Kategorien, Buzzer, Punkte und eine Lobby fur schnelle
-              Showrunden mit mehreren Streamern. Wenn der Stream zur Gameshow
-              wird, geht es hier direkt rein.
+          <div className="mt-6">
+            <RecentClips login={TWITCH_LOGIN} count={6} />
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-3">
+          {EVENTS.map((event) => (
+            <article
+              key={event.title}
+              className="h-full rounded-[1.9rem] border border-white/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20"
+            >
+              <div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/58">
+                Event
+              </div>
+              <div className="mt-3 text-xl font-black text-emerald-50">
+                {event.title}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-emerald-100/68">
+                {event.text}
+              </p>
+            </article>
+          ))}
+
+          <article className="h-full rounded-[1.9rem] border border-lime-200/20 bg-gradient-to-br from-lime-200/14 via-emerald-400/8 to-cyan-400/8 p-6 shadow-xl shadow-black/24">
+            <div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/72">
+              Mitspielen
+            </div>
+            <div className="mt-3 text-xl font-black text-emerald-50">
+              League Turniere
+            </div>
+            <p className="mt-3 text-sm leading-6 text-emerald-100/72">
+              Bewerbung, Gruppen, Playoffs — der ganze Cup auf einer Seite.
             </p>
             <Link
-              href={JEOPARDY_URL}
-              className="mt-6 inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 px-6 py-4 text-base font-black text-emerald-950 shadow-xl shadow-amber-500/20 transition-transform hover:-translate-y-0.5"
+              href={siteUrls.tournament}
+              className="mt-5 inline-flex rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20"
             >
-              QuizDuell starten
+              tournament.lauchgruen.de
             </Link>
-            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-emerald-200/54">
-              jeopardy.lauchgruen.de
-            </p>
-          </div>
+          </article>
         </section>
 
-        {SOCIALS.length > 0 ? (
-          <section className="surface-panel rounded-[2rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="section-kicker">Folgen</div>
-                <div className="mt-2 text-2xl font-black text-amber-100">
-                  Mehr als nur der Stream
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {SOCIALS.map((social) => (
-                  <a
-                    key={social.label}
-                    href={social.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/18 bg-emerald-950/40 px-4 py-3 text-sm font-bold text-emerald-100 transition-colors hover:border-amber-300/28 hover:text-amber-200"
-                  >
-                    <span className="text-xs uppercase tracking-[0.18em] text-emerald-300/64">
-                      {social.emoji}
-                    </span>
-                    <span>{social.label}</span>
-                  </a>
-                ))}
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[2rem] border border-amber-200/20 bg-amber-200/[0.06] p-6 shadow-xl shadow-black/20 sm:p-7">
+            <div className="text-xs font-black uppercase tracking-[0.3em] text-amber-100/70">
+              Quizshow
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-amber-50">
+              Die Quizshow für Streamer
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-100/72">
+              Buzzer, Punkte, sauberer Ablauf. Funktioniert live, ohne Setup-Stress.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {QUIZ_ENABLED ? (
+                <Link
+                  href={siteUrls.quiz}
+                  className="rounded-2xl bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-amber-950 shadow-xl shadow-amber-500/20 transition hover:-translate-y-0.5"
+                >
+                  Quizshow starten
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title="Quizshow ist aktuell deaktiviert"
+                  className="cursor-not-allowed rounded-2xl border border-white/8 bg-white/[0.025] px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-amber-100/35"
+                >
+                  Quizshow pausiert
+                </span>
+              )}
+              <div className={`inline-flex items-center rounded-2xl border border-white/10 bg-black/24 px-4 py-4 text-xs font-bold uppercase tracking-[0.22em] ${QUIZ_ENABLED ? "text-emerald-100/58" : "text-emerald-100/30"}`}>
+                quiz.lauchgruen.de
               </div>
             </div>
-          </section>
-        ) : null}
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20">
+            <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+              Folgen
+            </div>
+            <h2 className="mt-3 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
+              Mehr als nur der Stream
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-emerald-100/68">
+              Twitch bleibt die Homebase — für Live-Abende, spontane Sessions
+              und die nächste große Show.
+            </p>
+            <a
+              href={TWITCH_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+            >
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-lime-200/64">
+                Live
+              </span>
+              Twitch
+            </a>
+          </div>
+        </section>
       </main>
 
-      <footer className="relative border-t border-emerald-300/12 px-6 pb-8 pt-6">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 text-sm text-emerald-200/58 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="relative mt-6 border-t border-white/8 px-6 pb-8 pt-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 text-sm text-emerald-200/58 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300/46">
+            <div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/48">
               lauchgruen.de
             </div>
-            <p className="mt-2 max-w-md leading-6">
-              Twitch, Community-Events und QuizDuell in einem ruhigeren,
-              professionelleren Broadcast-Rahmen.
+            <p className="mt-2 max-w-md leading-6 text-emerald-100/56">
+              Twitch, Turniere und Quizshow im selben Broadcast-Rahmen.
             </p>
           </div>
           <div className="text-sm text-emerald-100/62 sm:text-right">
-            <div>© {new Date().getFullYear()} lauchgruen</div>
+            <div>&copy; {new Date().getFullYear()} lauchgruen</div>
             <a
               href={VEXIFY_URL}
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-2 font-semibold text-amber-200 transition-colors hover:text-amber-100"
+              className="mt-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-lime-200/72 transition hover:text-lime-100"
             >
-              Crafted by vexify
+              crafted by vexify
             </a>
           </div>
         </div>

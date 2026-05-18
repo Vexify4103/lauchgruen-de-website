@@ -13,9 +13,11 @@
 const TOKEN_URL    = "https://id.twitch.tv/oauth2/token";
 const STREAMS_URL  = "https://api.twitch.tv/helix/streams";
 const USERS_URL    = "https://api.twitch.tv/helix/users";
+const CLIPS_URL    = "https://api.twitch.tv/helix/clips";
 
 const STREAM_CACHE_MS = 30_000;   // poll Twitch at most once per 30s
 const USER_CACHE_MS   = 60 * 60_000; // user info changes rarely — 1h
+const CLIPS_CACHE_MS  = 10 * 60_000; // clips list refreshes every ~10 min
 
 interface AppToken {
   accessToken: string;
@@ -32,11 +34,14 @@ const g = globalThis as unknown as {
   __qd_twitch_token?:  AppToken;
   __qd_twitch_stream?: Map<string, CachedStream<TwitchStream | null>>;
   __qd_twitch_user?:   Map<string, CachedStream<TwitchUser | null>>;
+  __qd_twitch_clips?:  Map<string, CachedStream<TwitchClip[]>>;
 };
 g.__qd_twitch_stream ??= new Map();
 g.__qd_twitch_user   ??= new Map();
+g.__qd_twitch_clips  ??= new Map();
 const streamCache = g.__qd_twitch_stream!;
 const userCache   = g.__qd_twitch_user!;
+const clipsCache  = g.__qd_twitch_clips!;
 
 export interface TwitchStream {
   id:           string;
@@ -47,6 +52,19 @@ export interface TwitchStream {
   startedAt:    string;
   thumbnailUrl: string; // 320x180 (placeholders pre-filled)
   language:     string;
+}
+
+export interface TwitchClip {
+  id:            string;
+  url:           string;
+  embedUrl:      string;
+  title:         string;
+  thumbnailUrl:  string;
+  viewCount:     number;
+  durationSec:   number;
+  createdAt:     string;
+  creatorName:   string;
+  gameId:        string;
 }
 
 export interface TwitchUser {
@@ -190,5 +208,47 @@ export async function getUser(login: string): Promise<TwitchUser | null> {
   }
 
   userCache.set(key, { data, expiresAt: Date.now() + USER_CACHE_MS });
+  return data;
+}
+
+/**
+ * Returns the most-viewed clips for `login` from roughly the last 30 days.
+ * Result is cached for 10 minutes.
+ */
+export async function getClips(login: string, count = 6): Promise<TwitchClip[]> {
+  const key = `${login.toLowerCase()}|${count}`;
+  const cached = clipsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  const user = await getUser(login);
+  if (!user) {
+    clipsCache.set(key, { data: [], expiresAt: Date.now() + CLIPS_CACHE_MS });
+    return [];
+  }
+
+  const startedAt = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
+  const url = `${CLIPS_URL}?broadcaster_id=${encodeURIComponent(user.id)}&first=${count}&started_at=${encodeURIComponent(startedAt)}`;
+  const json = (await helix(url)) as
+    | { data: Array<{
+        id: string; url: string; embed_url: string; title: string;
+        thumbnail_url: string; view_count: number; duration: number;
+        created_at: string; creator_name: string; game_id: string;
+      }> }
+    | null;
+
+  const data: TwitchClip[] = (json?.data ?? []).map((c) => ({
+    id:           c.id,
+    url:          c.url,
+    embedUrl:     c.embed_url,
+    title:        c.title,
+    thumbnailUrl: c.thumbnail_url,
+    viewCount:    c.view_count,
+    durationSec:  c.duration,
+    createdAt:    c.created_at,
+    creatorName:  c.creator_name,
+    gameId:       c.game_id,
+  }));
+
+  clipsCache.set(key, { data, expiresAt: Date.now() + CLIPS_CACHE_MS });
   return data;
 }

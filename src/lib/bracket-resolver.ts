@@ -1,0 +1,271 @@
+import {
+  playoffMatches,
+  type GroupMatch,
+  type PlayoffMatch,
+  type TeamSlot,
+  type TournamentTeam,
+} from "@/lib/tournament-data";
+import type { StoredTournamentMatch } from "@/lib/tournament-storage";
+
+export type { TeamSlot };
+
+export type TeamStanding = {
+  team: TournamentTeam;
+  played: number;
+  wins: number;
+  losses: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDiff: number;
+  rank: number;
+};
+
+export type GroupStandings = {
+  A: TeamStanding[];
+  B: TeamStanding[];
+};
+
+export type ResolvedPlayoffMatch = PlayoffMatch & {
+  teamAName: string | null;
+  teamBName: string | null;
+  teamALabel: string;
+  teamBLabel: string;
+  winner: string | null;
+};
+
+export function slotLabel(slot: TeamSlot): string {
+  switch (slot.kind) {
+    case "team":
+      return slot.name;
+    case "groupSeed":
+      return `Seed #${slot.seed}`;
+    case "matchWinner":
+      return `Winner ${slot.matchId.toUpperCase()}`;
+    case "matchLoser":
+      return `Loser ${slot.matchId.toUpperCase()}`;
+  }
+}
+
+type StoredMap = Record<string, StoredTournamentMatch>;
+
+export function computeGroupStandings(
+  state: StoredMap,
+  teams: TournamentTeam[],
+  groupMatches: GroupMatch[],
+): GroupStandings {
+  const byGroup: GroupStandings = { A: [], B: [] };
+
+  for (const group of ["A", "B"] as const) {
+    const groupTeams = teams.filter((team) => team.group === group);
+    const standings: TeamStanding[] = groupTeams.map((team) => ({
+      team,
+      played: 0,
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      pointDiff: 0,
+      rank: 0,
+    }));
+    const byName = new Map(standings.map((s) => [s.team.name, s]));
+
+    const matches: GroupMatch[] = groupMatches.filter((m) => m.group === group);
+    const h2h = new Map<string, Map<string, number>>(); // winnerName → loserName → wins
+
+    for (const match of matches) {
+      const stored = state[match.id];
+      if (
+        !stored ||
+        stored.scoreA === undefined ||
+        stored.scoreB === undefined
+      ) {
+        continue;
+      }
+
+      const a = byName.get(match.teamA);
+      const b = byName.get(match.teamB);
+      if (!a || !b) continue;
+
+      a.played += 1;
+      b.played += 1;
+      a.pointsFor += stored.scoreA;
+      a.pointsAgainst += stored.scoreB;
+      b.pointsFor += stored.scoreB;
+      b.pointsAgainst += stored.scoreA;
+
+      if (stored.scoreA > stored.scoreB) {
+        a.wins += 1;
+        b.losses += 1;
+        addH2H(h2h, match.teamA, match.teamB);
+      } else if (stored.scoreB > stored.scoreA) {
+        b.wins += 1;
+        a.losses += 1;
+        addH2H(h2h, match.teamB, match.teamA);
+      }
+    }
+
+    for (const s of standings) s.pointDiff = s.pointsFor - s.pointsAgainst;
+
+    standings.sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      // 2-way head-to-head
+      const aBeatB = h2h.get(a.team.name)?.get(b.team.name) ?? 0;
+      const bBeatA = h2h.get(b.team.name)?.get(a.team.name) ?? 0;
+      if (aBeatB !== bBeatA) return bBeatA - aBeatB;
+      if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+      if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
+      return a.team.name.localeCompare(b.team.name);
+    });
+    standings.forEach((s, i) => (s.rank = i + 1));
+
+    byGroup[group] = standings;
+  }
+
+  return byGroup;
+}
+
+function addH2H(
+  table: Map<string, Map<string, number>>,
+  winner: string,
+  loser: string,
+) {
+  let row = table.get(winner);
+  if (!row) {
+    row = new Map();
+    table.set(winner, row);
+  }
+  row.set(loser, (row.get(loser) ?? 0) + 1);
+}
+
+/**
+ * Maps seeds #1..#6 to team names, OR null when the underlying group
+ * standings aren't determined yet (group still in progress).
+ */
+export function computeSeeds(
+  standings: GroupStandings,
+): Record<number, string | null> {
+  const allGroupMatchesFinished = (group: "A" | "B") =>
+    standings[group].every((s) => s.played === 3); // 3 matches per team in a 4-team round-robin
+
+  const a1 = allGroupMatchesFinished("A") ? standings.A[0]?.team.name ?? null : null;
+  const a2 = allGroupMatchesFinished("A") ? standings.A[1]?.team.name ?? null : null;
+  const a3 = allGroupMatchesFinished("A") ? standings.A[2]?.team.name ?? null : null;
+  const b1 = allGroupMatchesFinished("B") ? standings.B[0]?.team.name ?? null : null;
+  const b2 = allGroupMatchesFinished("B") ? standings.B[1]?.team.name ?? null : null;
+  const b3 = allGroupMatchesFinished("B") ? standings.B[2]?.team.name ?? null : null;
+
+  return {
+    1: a1,
+    2: b1,
+    3: a2,
+    4: b2,
+    5: a3,
+    6: b3,
+  };
+}
+
+export function resolvePlayoffMatches(
+  state: StoredMap,
+  teams: TournamentTeam[],
+  groupMatches: GroupMatch[],
+): ResolvedPlayoffMatch[] {
+  const standings = computeGroupStandings(state, teams, groupMatches);
+  const seeds = computeSeeds(standings);
+
+  // Memoized resolver — playoff slots can reference each other transitively.
+  const resolved = new Map<string, ResolvedPlayoffMatch>();
+
+  function resolveSlot(slot: TeamSlot): string | null {
+    switch (slot.kind) {
+      case "team":
+        return slot.name;
+      case "groupSeed":
+        return seeds[slot.seed] ?? null;
+      case "matchWinner": {
+        const m = resolveMatch(slot.matchId);
+        return m?.winner ?? null;
+      }
+      case "matchLoser": {
+        const m = resolveMatch(slot.matchId);
+        if (!m) return null;
+        if (!m.winner) return null;
+        // The loser is whichever of teamAName / teamBName isn't the winner.
+        if (m.teamAName && m.teamAName !== m.winner) return m.teamAName;
+        if (m.teamBName && m.teamBName !== m.winner) return m.teamBName;
+        return null;
+      }
+    }
+  }
+
+  function resolveMatch(id: string): ResolvedPlayoffMatch | undefined {
+    if (resolved.has(id)) return resolved.get(id);
+    const base = playoffMatches.find((m) => m.id === id);
+    if (!base) return undefined;
+    const stored = state[id];
+    const teamAName = resolveSlot(base.teamA);
+    const teamBName = resolveSlot(base.teamB);
+
+    let winner: string | null = null;
+    if (
+      stored?.scoreA !== undefined &&
+      stored?.scoreB !== undefined &&
+      stored.scoreA !== stored.scoreB &&
+      teamAName &&
+      teamBName
+    ) {
+      winner = stored.scoreA > stored.scoreB ? teamAName : teamBName;
+    }
+
+    const out: ResolvedPlayoffMatch = {
+      ...base,
+      teamAName,
+      teamBName,
+      teamALabel: teamAName ?? slotLabel(base.teamA),
+      teamBLabel: teamBName ?? slotLabel(base.teamB),
+      scoreA: stored?.scoreA,
+      scoreB: stored?.scoreB,
+      status: (stored?.status as PlayoffMatch["status"]) ?? base.status,
+      winner,
+    };
+    resolved.set(id, out);
+    return out;
+  }
+
+  for (const m of playoffMatches) resolveMatch(m.id);
+  return playoffMatches.map((m) => resolved.get(m.id)!);
+}
+
+/**
+ * Computes the canonical winner of any match (group OR playoff) for use by
+ * the API on save — so admins never type winner names.
+ */
+export function deriveWinner(
+  matchId: string,
+  scoreA: number | undefined,
+  scoreB: number | undefined,
+  state: StoredMap,
+  teams: TournamentTeam[],
+  groupMatches: GroupMatch[],
+): string | null {
+  if (scoreA === undefined || scoreB === undefined) return null;
+  if (scoreA === scoreB) return null;
+
+  const group = groupMatches.find((m) => m.id === matchId);
+  if (group) {
+    return scoreA > scoreB ? group.teamA : group.teamB;
+  }
+
+  // Playoff — resolve teamA / teamB names at this point in time.
+  const playoff = playoffMatches.find((m) => m.id === matchId);
+  if (!playoff) return null;
+
+  const trial: StoredMap = {
+    ...state,
+    [matchId]: { ...(state[matchId] ?? { id: matchId }), scoreA, scoreB },
+  };
+  const resolved = resolvePlayoffMatches(trial, teams, groupMatches);
+  const r = resolved.find((m) => m.id === matchId);
+  if (!r || !r.teamAName || !r.teamBName) return null;
+  return scoreA > scoreB ? r.teamAName : r.teamBName;
+}
+

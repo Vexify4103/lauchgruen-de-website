@@ -7,6 +7,8 @@
   --surface-soft: rgba(6, 78, 59, 0.2);
   --border-strong: rgba(251, 191, 36, 0.22);
   --border-soft: rgba(52, 211, 153, 0.22);
+  --font-geist-sans: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-geist-mono: "Cascadia Code", "Consolas", monospace;
 }
 
 @theme inline {
@@ -25,8 +27,9 @@
 
 body {
   background:
-    radial-gradient(circle at top, rgba(251, 191, 36, 0.12), transparent 28rem),
-    linear-gradient(180deg, #064e3b 0%, #052e1a 48%, #022c22 100%);
+    radial-gradient(ellipse 80rem 50rem at 50% -10rem, rgba(190, 242, 100, 0.10), transparent 70%),
+    linear-gradient(180deg, #064e3b 0%, #052e1a 50%, #022c22 100%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }

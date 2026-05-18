@@ -23,15 +23,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# We use tsx in production because the custom server.ts is a TS entry point.
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
-COPY --from=build /app/content ./content
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY server.ts ./
-COPY src ./src
-COPY tsconfig.json next.config.ts next-env.d.ts ./
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

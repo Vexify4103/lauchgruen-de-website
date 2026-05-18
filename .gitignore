@@ -26,6 +26,8 @@
 # misc
 .DS_Store
 *.pem
+/.codex-home
+/.corepack
 
 # debug
 npm-debug.log*
@@ -46,3 +48,7 @@ next-env.d.ts
 # deployment archives (created locally for upload to the server)
 *.zip
 *.tar.gz
+
+# local tournament submissions
+/data/tournament-applications.json
+/data/tournament-state.json
