@@ -12,10 +12,13 @@ export function LivePlayoffs({
   initialMatches: ResolvedPlayoffMatch[];
 }) {
   const [matches, setMatches] = useState(initialMatches);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const markUpdated = () => setLastUpdated(new Date().toLocaleTimeString("de-DE"));
+
+    markUpdated();
 
     const fetchOnce = async () => {
       try {
@@ -26,7 +29,7 @@ export function LivePlayoffs({
         const json = (await response.json()) as { matches: ResolvedPlayoffMatch[] };
         if (cancelled || !Array.isArray(json.matches)) return;
         setMatches(json.matches);
-        setLastUpdated(new Date());
+        markUpdated();
       } catch {
         // Quiet failure — next tick will retry.
       }
@@ -68,7 +71,7 @@ export function LivePlayoffs({
     <div>
       <BracketTree matches={matches} />
       <div className="mt-3 px-2 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-100/40">
-        Live-Aktualisierung · zuletzt {lastUpdated.toLocaleTimeString("de-DE")}
+        Live-Aktualisierung{lastUpdated ? ` · zuletzt ${lastUpdated}` : ""}
       </div>
     </div>
   );

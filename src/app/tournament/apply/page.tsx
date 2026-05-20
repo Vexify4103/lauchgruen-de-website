@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { auth, signIn, signOut } from "@/lib/auth";
+import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { getVerifiedAccount } from "@/lib/tournament-storage";
 import { ApplicationForm } from "./ApplicationForm";
 
@@ -27,7 +28,7 @@ export default async function ApplyPage() {
           </h1>
           <p className="mt-4 text-sm leading-7 text-emerald-100/72">
             Der Turnierhub bleibt für Teams, Gruppen, Playoffs und Match-Updates
-            online. Staff öffnet die Bewerbungen wieder, sobald das nächste
+            online. Das Orga-Team öffnet die Bewerbungen wieder, sobald das nächste
             Anmeldefenster startet.
           </p>
           <Link
@@ -53,6 +54,11 @@ export default async function ApplyPage() {
           handle: session.user.discordHandle,
         }
       : null;
+  const liveGuildMember = discordIdentity
+    ? await isDiscordGuildMember(discordIdentity.id)
+    : null;
+  const isGuildMember =
+    liveGuildMember ?? (session?.user.discordInGuild ?? !process.env.DISCORD_GUILD_ID);
   const verifiedAccount = discordIdentity
     ? await getVerifiedAccount(discordIdentity.id)
     : null;
@@ -77,7 +83,7 @@ export default async function ApplyPage() {
               Beim nächsten League-Turnier mitmachen.
             </h1>
             <p className="mt-4 text-sm leading-7 text-emerald-100/70">
-              Deine Bewerbung wird serverseitig gespeichert, damit das Staff
+              Deine Bewerbung wird serverseitig gespeichert, damit das Orga-Team
               Spieler prüfen, Teams bauen und die Rosters später sperren kann.
             </p>
           </div>
@@ -157,6 +163,8 @@ export default async function ApplyPage() {
         <div className="rounded-[2.2rem] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/25 sm:p-7">
           <ApplicationForm
             discordIdentity={discordIdentity}
+            isGuildMember={isGuildMember}
+            discordInviteUrl={DISCORD_INVITE_URL}
             initialVerified={initialVerified}
           />
         </div>

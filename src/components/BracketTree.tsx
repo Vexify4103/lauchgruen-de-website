@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 
 /** Per-section grid positions. Each sub-grid has its own row/col coordinates. */
@@ -25,14 +25,16 @@ const GF_POSITIONS_NO_RESET: Record<string, CSSProperties> = {
   "gf":       { gridRow: "1 / span 1", gridColumn: 1 },
 };
 
-type ConnectorKind = "advance" | "loserDrop" | "conditional";
+type ConnectorKind = "advance" | "conditional";
 
 type Connection = {
   from: string;
   to: string;
-  port: "top" | "bottom";
+  port: "top" | "middle" | "bottom";
   kind: ConnectorKind;
 };
+
+type ConnectorPath = { d: string; kind: ConnectorKind };
 
 const CONNECTIONS: Connection[] = [
   { from: "ub-qf-1", to: "ub-f",     port: "top",    kind: "advance" },
@@ -41,8 +43,7 @@ const CONNECTIONS: Connection[] = [
   { from: "lb-r1-1", to: "lb-sf",    port: "top",    kind: "advance" },
   { from: "lb-r1-2", to: "lb-sf",    port: "bottom", kind: "advance" },
 
-  { from: "lb-sf",   to: "lb-f",     port: "top",    kind: "advance" },
-  { from: "ub-f",    to: "lb-f",     port: "bottom", kind: "loserDrop" },
+  { from: "lb-sf",   to: "lb-f",     port: "middle", kind: "advance" },
 
   { from: "ub-f",    to: "gf",       port: "top",    kind: "advance" },
   { from: "lb-f",    to: "gf",       port: "bottom", kind: "advance" },
@@ -56,24 +57,32 @@ const LB_COLUMN_LABELS = ["Runde 1", "Lower-Halbfinale", "Lower Final"];
 export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const [paths, setPaths] = useState<Array<{ d: string; kind: ConnectorKind }>>([]);
+  const [paths, setPaths] = useState<ConnectorPath[]>([]);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const matchById = useMemo(
+    () => new Map(matches.map((match) => [match.id, match])),
+    [matches],
+  );
 
   // Bracket reset only happens if the lower-bracket side wins the first Grand Final.
-  const gf = matches.find((m) => m.id === "gf");
+  const gf = matchById.get("gf");
   const showReset = !!gf && !!gf.winner && gf.winner === gf.teamBName;
   const gfPositions = showReset ? GF_POSITIONS_WITH_RESET : GF_POSITIONS_NO_RESET;
-  const activeConnections = showReset
-    ? CONNECTIONS
-    : CONNECTIONS.filter((c) => c.to !== "gf-reset");
+  const activeConnections = useMemo(
+    () => (showReset ? CONNECTIONS : CONNECTIONS.filter((c) => c.to !== "gf-reset")),
+    [showReset],
+  );
 
   const compute = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
-    setSize({ w: containerRect.width, h: containerRect.height });
+    const nextSize = { w: containerRect.width, h: containerRect.height };
+    setSize((prev) =>
+      prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize,
+    );
 
-    const next: Array<{ d: string; kind: ConnectorKind }> = [];
+    const next: ConnectorPath[] = [];
     for (const conn of activeConnections) {
       const from = cardRefs.current.get(conn.from);
       const to = cardRefs.current.get(conn.to);
@@ -81,7 +90,7 @@ export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
       const fr = from.getBoundingClientRect();
       const tr = to.getBoundingClientRect();
 
-      // Same-column stack (GF → GF Reset): straight vertical line.
+      // Same-column drops/stacks are clearer as a straight vertical line.
       if (fr.right >= tr.left - 4) {
         const x =
           (Math.min(fr.right, tr.right) + Math.max(fr.left, tr.left)) / 2 -
@@ -100,14 +109,21 @@ export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
       const x2 = tr.left - containerRect.left;
       const yPortOffset = tr.height * 0.22;
       const y2 =
-        tr.top + tr.height / 2 + (conn.port === "top" ? -yPortOffset : yPortOffset) -
+        tr.top +
+        tr.height / 2 +
+        (conn.port === "top" ? -yPortOffset : conn.port === "bottom" ? yPortOffset : 0) -
         containerRect.top;
 
       const midX = (x1 + x2) / 2;
       const d = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${midX.toFixed(1)} ${y1.toFixed(1)} L ${midX.toFixed(1)} ${y2.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
       next.push({ d, kind: conn.kind });
     }
-    setPaths(next);
+    setPaths((prev) =>
+      prev.length === next.length &&
+      prev.every((path, index) => path.d === next[index]?.d && path.kind === next[index]?.kind)
+        ? prev
+        : next,
+    );
   }, [activeConnections]);
 
   useEffect(() => {
@@ -151,11 +167,9 @@ export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
               strokeWidth={p.kind === "conditional" ? 1.5 : 2}
               strokeDasharray={p.kind === "conditional" ? "5 5" : undefined}
               stroke={
-                p.kind === "loserDrop"
-                  ? "rgb(244 114 182 / 0.55)"
-                  : p.kind === "conditional"
-                    ? "rgb(252 211 77 / 0.55)"
-                    : "rgb(190 242 100 / 0.55)"
+                p.kind === "conditional"
+                  ? "rgb(252 211 77 / 0.55)"
+                  : "rgb(190 242 100 / 0.55)"
               }
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -176,8 +190,6 @@ export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
             registerCard={registerCard}
             lookup={lookup}
           />
-
-          <SectionDivider />
 
           <BracketSection
             label="Lower-Bracket"
@@ -216,19 +228,11 @@ export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
 
       <div className="mt-4 flex flex-wrap gap-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100/52">
         <LegendDot color="rgb(190 242 100 / 0.7)" label="Sieger zieht weiter" />
-        <LegendDot color="rgb(244 114 182 / 0.7)" label="Verlierer fällt ins LB" />
-        <LegendDot color="rgb(252 211 77 / 0.7)" label="Nur bei Bracket Reset" dashed />
+        {showReset ? (
+          <LegendDot color="rgb(252 211 77 / 0.7)" label="Nur bei Bracket Reset" dashed />
+        ) : null}
       </div>
     </div>
-  );
-}
-
-function SectionDivider() {
-  return (
-    <div
-      aria-hidden
-      className="relative h-px w-full bg-gradient-to-r from-transparent via-white/14 to-transparent"
-    />
   );
 }
 

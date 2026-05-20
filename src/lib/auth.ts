@@ -8,6 +8,7 @@ declare module "next-auth" {
       discordId?: string;
       discordHandle?: string;
       discordUsername?: string;
+      discordInGuild?: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -23,6 +24,7 @@ type DiscordToken = {
   discordId?: string;
   discordHandle?: string;
   discordUsername?: string;
+  discordInGuild?: boolean;
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -44,23 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       return url.startsWith(baseUrl) ? url : baseUrl;
     },
-    async signIn({ account }) {
-      const requiredGuildId = process.env.DISCORD_GUILD_ID;
-
-      if (!requiredGuildId || !account?.access_token) {
-        return true;
-      }
-
-      const response = await fetch("https://discord.com/api/users/@me/guilds", {
-        headers: { authorization: `Bearer ${account.access_token}` },
-      });
-
-      if (!response.ok) return false;
-
-      const guilds = (await response.json()) as Array<{ id?: string }>;
-      return guilds.some((guild) => guild.id === requiredGuildId);
-    },
-    async jwt({ token, profile }) {
+    async jwt({ token, profile, account }) {
       const appToken = token as typeof token & DiscordToken;
 
       if (profile) {
@@ -75,6 +61,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         appToken.discordId = dp.id;
         appToken.discordUsername = username;
         appToken.discordHandle = `${dp.global_name ?? username}${discriminator}`;
+      }
+
+      if (account?.access_token) {
+        const requiredGuildId = process.env.DISCORD_GUILD_ID;
+        appToken.discordInGuild = true;
+        if (requiredGuildId) {
+          const response = await fetch("https://discord.com/api/users/@me/guilds", {
+            headers: { authorization: `Bearer ${account.access_token}` },
+          });
+          if (response.ok) {
+            const guilds = (await response.json()) as Array<{ id?: string }>;
+            appToken.discordInGuild = guilds.some((guild) => guild.id === requiredGuildId);
+          } else {
+            appToken.discordInGuild = false;
+          }
+        }
       }
 
       return appToken;
@@ -92,6 +94,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.discordHandle =
         typeof appToken.discordHandle === "string"
           ? appToken.discordHandle
+          : undefined;
+      session.user.discordInGuild =
+        typeof appToken.discordInGuild === "boolean"
+          ? appToken.discordInGuild
           : undefined;
       return session;
     },

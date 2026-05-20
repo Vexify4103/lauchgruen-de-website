@@ -15,22 +15,30 @@ function CrownIcon() {
   );
 }
 
+function opggMultiSearchUrl(riotIds: string[]) {
+  const uniqueIds = [...new Set(riotIds.filter(Boolean))];
+  const params = new URLSearchParams({
+    summoners: uniqueIds.length > 0 ? `${uniqueIds.join(", ")},` : "",
+  });
+  return `https://op.gg/lol/multisearch/euw?${params.toString()}`;
+}
+
 export default async function TeamsPage() {
   const { teams } = await getTournamentContext();
   return (
     <div className="px-5 py-10 sm:py-14">
       <section className="mx-auto w-full max-w-7xl">
         <div className="max-w-3xl">
-          <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
-            Teams und Rosters
-          </div>
-          <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-            Aktuelle Teams, klickbare Spieler.
-          </h1>
-          <p className="mt-4 text-sm leading-7 text-emerald-100/68">
-            Die Rosters werden gesperrt, sobald Staff die Bewerbungen bestätigt
-            hat. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
-          </p>
+            <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
+              Teams und Rosters
+            </div>
+            <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
+              Aktuelle Teams, klickbare Spieler.
+            </h1>
+            <p className="mt-4 text-sm leading-7 text-emerald-100/68">
+              Die Rosters werden gesperrt, sobald das Orga-Team die Bewerbungen bestätigt
+              hat. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
+            </p>
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
@@ -54,6 +62,14 @@ export default async function TeamsPage() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={opggMultiSearchUrl(team.players.map((player) => player.riotId))}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-2xl border border-white/12 bg-white/[0.045] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
+                  >
+                    Team OP.GG
+                  </a>
                   <div className="rounded-2xl border border-white/12 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">
                     {team.record}
                   </div>

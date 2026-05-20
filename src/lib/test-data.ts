@@ -169,7 +169,6 @@ export async function seedTestApplicants(count: number): Promise<number> {
 		discordHandle: d.discordHandle,
 		discordUsername: d.discordUsername,
 		preferredRoles: d.preferredRoles,
-		lastSeasonRank: d.currentRank.split(" ")[0] ?? "Gold",
 		availableAllDates: true as const,
 		notes: "(test data)",
 		acceptedRules: true as const,

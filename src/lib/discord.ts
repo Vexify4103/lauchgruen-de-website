@@ -1,0 +1,70 @@
+const DISCORD_API = "https://discord.com/api/v10";
+
+export const DISCORD_INVITE_URL = "https://discord.gg/GFYv7K3SKb";
+
+function discordBotToken() {
+  return process.env.DISCORD_TOKEN ?? process.env.DISCORD_BOT_TOKEN ?? "";
+}
+
+function discordGuildId() {
+  return process.env.DISCORD_GUILD_ID ?? "";
+}
+
+export function formatTournamentNickname(displayName: string, riotId: string) {
+  const name = displayName.trim() || riotId.split("#")[0] || "Player";
+  const separator = " | ";
+  const availableNameLength = Math.max(1, 32 - separator.length - riotId.length);
+  return `${name.slice(0, availableNameLength)}${separator}${riotId}`.slice(0, 32);
+}
+
+export async function isDiscordGuildMember(discordId: string): Promise<boolean | null> {
+  const token = discordBotToken();
+  const guildId = discordGuildId();
+  if (!token || !guildId) return null;
+
+  const response = await fetch(
+    `${DISCORD_API}/guilds/${guildId}/members/${discordId}`,
+    {
+      headers: { authorization: `Bot ${token}` },
+      cache: "no-store",
+    },
+  );
+
+  if (response.status === 404) return false;
+  if (!response.ok) return null;
+  return true;
+}
+
+export async function setDiscordNickname(input: {
+  discordId: string;
+  displayName: string;
+  riotId: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const token = discordBotToken();
+  const guildId = discordGuildId();
+  if (!token || !guildId) {
+    return { ok: false, message: "Discord nickname sync skipped: bot token or guild ID missing." };
+  }
+
+  const nickname = formatTournamentNickname(input.displayName, input.riotId);
+  const response = await fetch(
+    `${DISCORD_API}/guilds/${guildId}/members/${input.discordId}`,
+    {
+      method: "PATCH",
+      headers: {
+        authorization: `Bot ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ nick: nickname }),
+    },
+  );
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: "Discord nickname could not be changed. Check Manage Nicknames and role hierarchy.",
+    };
+  }
+
+  return { ok: true };
+}

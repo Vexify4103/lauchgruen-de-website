@@ -2,9 +2,8 @@
 
 import Image from "next/image";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { announcedDates, rankOptions } from "@/lib/tournament-data";
+import { announcedDates } from "@/lib/tournament-data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ThemedSelect } from "@/components/ThemedSelect";
 
 type SubmitState =
   | { status: "idle"; message: "" }
@@ -31,16 +30,38 @@ type Challenge = {
   expiresAt: string;
 };
 
+function linkedRiotId(riotId: string) {
+  return encodeURIComponent(riotId.replace("#", "-"));
+}
+
+function opggUrl(riotId: string) {
+  return `https://www.op.gg/summoners/euw/${linkedRiotId(riotId)}`;
+}
+
+function dpmUrl(riotId: string) {
+  return `https://dpm.lol/${linkedRiotId(riotId)}`;
+}
+
 export function ApplicationForm({
   discordIdentity,
+  isGuildMember,
+  discordInviteUrl,
   initialVerified,
 }: {
   discordIdentity: DiscordIdentity;
+  isGuildMember: boolean;
+  discordInviteUrl: string;
   initialVerified: VerifiedAccount;
 }) {
   const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
   const [state, setState] = useState<SubmitState>(initialState);
-  const [lastSeasonRank, setLastSeasonRank] = useState("");
+  const [guildMember, setGuildMember] = useState(isGuildMember);
+  const [membershipStatus, setMembershipStatus] = useState<
+    | { kind: "idle"; message: "" }
+    | { kind: "loading"; message: string }
+    | { kind: "error"; message: string }
+    | { kind: "success"; message: string }
+  >({ kind: "idle", message: "" });
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +81,6 @@ export function ApplicationForm({
     const payload = {
       displayName: String(formData.get("displayName") ?? ""),
       preferredRoles: formData.getAll("preferredRoles").map(String),
-      lastSeasonRank: String(formData.get("lastSeasonRank") ?? ""),
       availableAllDates: formData.get("availableAllDates") === "on",
       notes: String(formData.get("notes") ?? ""),
       acceptedRules: formData.get("acceptedRules") === "on",
@@ -95,7 +115,85 @@ export function ApplicationForm({
     return (
       <div className="rounded-2xl border border-amber-200/24 bg-amber-200/10 px-4 py-3 text-sm leading-6 text-amber-50">
         Bitte zuerst mit Discord anmelden, bevor du dich bewirbst. So weiß das
-        Staff sicher, welcher Discord-Account zur Bewerbung gehört.
+        Orga-Team sicher, welcher Discord-Account zur Bewerbung gehört.
+      </div>
+    );
+  }
+
+  async function recheckMembership() {
+    setMembershipStatus({
+      kind: "loading",
+      message: "Discord-Mitgliedschaft wird geprueft...",
+    });
+    const response = await fetch("/api/tournament/membership", {
+      cache: "no-store",
+    });
+    const result = (await response.json().catch(() => null)) as
+      | { member?: boolean; message?: string }
+      | null;
+
+    if (response.ok && result?.member) {
+      setGuildMember(true);
+      setMembershipStatus({
+        kind: "success",
+        message: result.message ?? "Discord-Mitgliedschaft bestaetigt.",
+      });
+      return;
+    }
+
+    setMembershipStatus({
+      kind: "error",
+      message:
+        result?.message ??
+        "Noch nicht gefunden. Falls du gerade beigetreten bist, warte kurz und versuche es erneut.",
+    });
+  }
+
+  if (!guildMember) {
+    return (
+      <div className="rounded-[1.7rem] border border-indigo-200/24 bg-indigo-300/[0.08] p-5">
+        <div className="text-xs font-black uppercase tracking-[0.24em] text-indigo-100/72">
+          Discord erforderlich
+        </div>
+        <h2 className="mt-3 text-2xl font-black text-indigo-50">
+          Tritt dem Lauchgruen Discord bei, um fortzufahren.
+        </h2>
+        <p className="mt-3 text-sm leading-7 text-emerald-100/72">
+          Turnierbewerbungen sind nur für Mitglieder des Discord-Servers
+          möglich. Tritt zuerst bei und klicke danach auf den Prüfbutton.
+          Du musst dich dafür nicht aus- und wieder einloggen.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <a
+            href={discordInviteUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex rounded-2xl bg-indigo-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-indigo-950 transition hover:-translate-y-0.5"
+          >
+            Discord beitreten
+          </a>
+          <button
+            type="button"
+            onClick={recheckMembership}
+            disabled={membershipStatus.kind === "loading"}
+            className="inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-indigo-200/40 hover:text-indigo-50 disabled:opacity-60"
+          >
+            {membershipStatus.kind === "loading" ? "Prüfe..." : "Ich bin beigetreten, erneut prüfen"}
+          </button>
+        </div>
+        {membershipStatus.message ? (
+          <div
+            className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+              membershipStatus.kind === "success"
+                ? "border-lime-200/24 bg-lime-200/10 text-lime-50"
+                : membershipStatus.kind === "error"
+                  ? "border-red-300/30 bg-red-500/10 text-red-100"
+                  : "border-indigo-200/24 bg-indigo-200/10 text-indigo-50"
+            }`}
+          >
+            {membershipStatus.message}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -131,18 +229,12 @@ export function ApplicationForm({
         </Consent>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Anzeigename" name="displayName" placeholder="Wie soll das Staff dich nennen?" />
+          <Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?" />
           <ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
           <ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
           <ReadOnlyField
             label="Aktueller Rang (von Riot)"
             value={verified?.currentRankAuto ?? "Unranked"}
-          />
-          <RankSelect
-            label="Last-Season-Rang"
-            name="lastSeasonRank"
-            value={lastSeasonRank}
-            onChange={setLastSeasonRank}
           />
         </div>
 
@@ -264,6 +356,24 @@ function RiotVerifyPanel({
               <div className="text-xs text-lime-100/52">
                 Verifiziert {new Date(verified.verifiedAt).toLocaleString("de-DE")}
               </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                href={opggUrl(verified.riotId)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80 hover:text-lime-50"
+              >
+                OP.GG
+              </a>
+              <a
+                href={dpmUrl(verified.riotId)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80 hover:text-lime-50"
+              >
+                DPM
+              </a>
             </div>
           </div>
           <button
@@ -443,34 +553,6 @@ function RiotVerifyPanel({
           {status.message}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function RankSelect({
-  label,
-  value,
-  onChange,
-  name,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  name: string;
-}) {
-  return (
-    <div className="grid gap-2">
-      <span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
-        {label}
-      </span>
-      <ThemedSelect
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder="Rang wählen"
-        required
-        options={rankOptions.map((rank) => ({ value: rank, label: rank }))}
-      />
     </div>
   );
 }

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { isDiscordGuildMember } from "@/lib/discord";
 import {
+  TOURNAMENT_OWNER_DISCORD_IDS,
+  clearRiotLink,
   findApplication,
   getVerifiedAccount,
   listApplications,
@@ -14,7 +17,6 @@ export const runtime = "nodejs";
 const applicationSchema = z.object({
   displayName: z.string().trim().min(2).max(60),
   preferredRoles: z.array(z.string().trim().min(1)).min(1).max(6),
-  lastSeasonRank: z.string().trim().min(2).max(40),
   availableAllDates: z.literal(true),
   notes: z.string().trim().max(1500).optional().default(""),
   acceptedRules: z.literal(true),
@@ -41,6 +43,16 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { message: "Bitte zuerst mit Discord anmelden, bevor du dich bewirbst." },
       { status: 401 },
+    );
+  }
+
+  const liveGuildMember = await isDiscordGuildMember(discordId);
+  const isGuildMember =
+    liveGuildMember ?? (session.user.discordInGuild ?? !process.env.DISCORD_GUILD_ID);
+  if (!isGuildMember) {
+    return NextResponse.json(
+      { message: "Bitte tritt zuerst dem Lauchgruen Discord bei, bevor du dich bewirbst." },
+      { status: 403 },
     );
   }
 
@@ -84,7 +96,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     message: existing
-      ? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell hältst."
+      ? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell haeltst."
       : "Bewerbung gespeichert. Willkommen in der Warteliste.",
   });
 }
@@ -99,4 +111,30 @@ export async function GET(request: Request) {
 
   const applications = await listApplications();
   return NextResponse.json({ applications });
+}
+
+/**
+ * Admin-only: deletes an applicant entirely. Wipes their application,
+ * verified Riot account, and any pending verification challenge. They'd have
+ * to re-verify if they wanted to re-apply.
+ */
+export async function DELETE(request: Request) {
+  const session = await auth();
+  const discordId = session?.user?.discordId;
+  if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) {
+    return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
+  }
+
+  const targetDiscordId = new URL(request.url).searchParams
+    .get("discordId")
+    ?.trim();
+  if (!targetDiscordId) {
+    return NextResponse.json(
+      { message: "Query-Parameter 'discordId' erforderlich." },
+      { status: 400 },
+    );
+  }
+
+  await clearRiotLink(targetDiscordId);
+  return NextResponse.json({ ok: true });
 }

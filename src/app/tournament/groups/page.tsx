@@ -95,14 +95,14 @@ export default async function GroupsPage() {
                           {match.status}
                         </div>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3 text-lg font-black text-emerald-50">
-                        <span>{match.teamA}</span>
-                        <span className="text-lime-100">
+                      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-lg font-black text-emerald-50">
+                        <span className="truncate text-right">{match.teamA}</span>
+                        <span className="text-center text-lime-100">
                           {match.scoreA !== undefined && match.scoreB !== undefined
                             ? `${match.scoreA}:${match.scoreB}`
                             : "vs."}
                         </span>
-                        <span className="text-right">{match.teamB}</span>
+                        <span className="truncate">{match.teamB}</span>
                       </div>
                       {match.winner ? (
                         <div className="mt-3 text-sm font-bold text-lime-100">

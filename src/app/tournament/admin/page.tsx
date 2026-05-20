@@ -8,6 +8,7 @@ import {
 } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
+import { NicknameSyncButton } from "./NicknameSyncButton";
 
 export default async function TournamentAdminPage() {
   const host = (await headers()).get("host")?.toLowerCase() ?? "";
@@ -55,12 +56,21 @@ export default async function TournamentAdminPage() {
             </p>
           </div>
           {isOwner ? (
-            <Link
-              href="/tournament/admin/roster"
-              className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
-            >
-              Roster-Builder →
-            </Link>
+            <div className="flex flex-wrap items-start gap-2">
+              <Link
+                href="/tournament/admin/applicants"
+                className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+              >
+                Bewerbungen →
+              </Link>
+              <Link
+                href="/tournament/admin/roster"
+                className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
+              >
+                Roster-Builder →
+              </Link>
+              <NicknameSyncButton />
+            </div>
           ) : null}
         </div>
 

@@ -326,7 +326,7 @@ export const playoffMatches: PlayoffMatch[] = [
 export const applicationSteps = [
   "Lies die Regeln und akzeptiere den Verhaltenskodex.",
   "Verbinde oder gib deine Riot-ID und deinen Discord-Handle an.",
-  "Bestätige die angekündigten Termine und gib aktuellen sowie Last-Season-Rang an.",
+  "Bestätige die angekündigten Termine; dein aktueller Rang kommt aus der Riot-Verifizierung.",
   "Warte auf die Admin-Bestätigung und Teamzuweisung.",
 ];
 

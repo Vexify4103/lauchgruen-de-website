@@ -88,6 +88,14 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamGroup, setNewTeamGroup] = useState<"A" | "B" | "">("");
   const [newTeamSeed, setNewTeamSeed] = useState<number | "">("");
+  const [newTeamCreateDiscord, setNewTeamCreateDiscord] = useState(false);
+  const [editTeamTarget, setEditTeamTarget] = useState<RosterTeam | null>(null);
+  const [editingTeam, setEditingTeam] = useState(false);
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamGroup, setEditTeamGroup] = useState<"A" | "B" | "">("");
+  const [editTeamSeed, setEditTeamSeed] = useState<number | "">("");
+  const [deleteTeamTarget, setDeleteTeamTarget] = useState<RosterTeam | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState(false);
 
   // Auto-dismiss "ok" toasts so they don't sit stuck after the next router
   // refresh. Errors stay until manually replaced.
@@ -234,7 +242,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
 
   async function createTeam() {
     const name = newTeamName.trim();
-    if (!name) return;
+    if (!name || !newTeamGroup) return;
     setCreating(true);
     setMessage(null);
     const response = await fetch("/api/tournament/teams", {
@@ -242,8 +250,9 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
-        group: newTeamGroup || undefined,
+        group: newTeamGroup,
         seed: newTeamSeed === "" ? undefined : newTeamSeed,
+        createDiscordSetup: newTeamCreateDiscord,
       }),
     });
     setCreating(false);
@@ -258,10 +267,93 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setNewTeamName("");
     setNewTeamGroup("");
     setNewTeamSeed("");
+    setNewTeamCreateDiscord(false);
     setCreateOpen(false);
+    const warnings = (json?.warnings as string[] | undefined) ?? [];
     setMessage({
-      tone: "ok",
-      text: `Team „${json.name}" erstellt.`,
+      tone: warnings.length > 0 ? "error" : "ok",
+      text: [`Team "${json.name}" erstellt.`, ...warnings].join(" "),
+    });
+    router.refresh();
+  }
+
+  function openEditTeam(team: RosterTeam) {
+    setEditTeamTarget(team);
+    setEditTeamName(team.name);
+    setEditTeamGroup(team.group ?? "");
+    setEditTeamSeed(team.seed ?? "");
+  }
+
+  async function updateTeam() {
+    if (!editTeamTarget) return;
+    const name = editTeamName.trim();
+    if (!name || !editTeamGroup) return;
+    setEditingTeam(true);
+    setMessage(null);
+    const response = await fetch("/api/tournament/teams", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key: editTeamTarget.key,
+        name,
+        group: editTeamGroup,
+        seed: editTeamSeed === "" ? undefined : editTeamSeed,
+      }),
+    });
+    setEditingTeam(false);
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      setMessage({
+        tone: "error",
+        text: json?.message ?? "Team konnte nicht aktualisiert werden.",
+      });
+      return;
+    }
+    setEditTeamTarget(null);
+    const updateWarnings = (json?.warnings as string[] | undefined) ?? [];
+    setMessage({
+      tone: updateWarnings.length > 0 ? "error" : "ok",
+      text: [`Team "${json.name}" aktualisiert.`, ...updateWarnings].join(" "),
+    });
+    router.refresh();
+  }
+
+  async function performDeleteTeam() {
+    if (!deleteTeamTarget) return;
+    const team = deleteTeamTarget;
+    setDeleteTeamTarget(null);
+    setDeletingTeam(true);
+    setMessage(null);
+    const response = await fetch(
+      `/api/tournament/teams?key=${encodeURIComponent(team.key)}`,
+      { method: "DELETE" },
+    );
+    setDeletingTeam(false);
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      setMessage({
+        tone: "error",
+        text: json?.message ?? "Team konnte nicht gelöscht werden.",
+      });
+      return;
+    }
+    // Locally drop any assignments / captain that referenced this team — otherwise
+    // they'd silently linger in component state until the next manual refresh.
+    setState((prev) => {
+      const nextAssignments = new Map(prev.assignments);
+      for (const [discordId, assignment] of prev.assignments) {
+        if (assignment.teamKey === team.key) {
+          nextAssignments.set(discordId, { teamKey: "", role: null });
+        }
+      }
+      const nextCaptains = new Map(prev.captains);
+      nextCaptains.delete(team.key);
+      return { assignments: nextAssignments, captains: nextCaptains };
+    });
+    const warnings = (json?.warnings as string[] | undefined) ?? [];
+    setMessage({
+      tone: warnings.length > 0 ? "error" : "ok",
+      text: [`Team "${team.name}" gelöscht.`, ...warnings].join(" "),
     });
     router.refresh();
   }
@@ -485,10 +577,13 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               applicantById={applicantById}
               captainId={state.captains.get(team.key) ?? null}
               pulsingId={pulseId}
+              deletingThisTeam={deletingTeam && deleteTeamTarget?.key === team.key}
               onAssignClick={(role) => setPicker({ teamKey: team.key, role })}
               onUnassign={unassignPlayer}
               onSetRole={setRole}
               onToggleCaptain={(discordId) => toggleCaptain(team.key, discordId)}
+              onEditTeam={() => openEditTeam(team)}
+              onDeleteTeam={() => setDeleteTeamTarget(team)}
             />
           ))}
         </div>
@@ -506,6 +601,25 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={!!deleteTeamTarget}
+        title="Team wirklich löschen?"
+        description={
+          <>
+            <strong className="text-emerald-50">{deleteTeamTarget?.name}</strong>{" "}
+            wird aus dem Bot entfernt. Alle Spieler dieses Teams fallen zurück
+            in „Nicht zugewiesen“. Gespeicherte Match-Scores bleiben — sie
+            referenzieren das Team aber ggf. ins Leere. Diese Aktion lässt sich
+            nicht rückgängig machen.
+          </>
+        }
+        confirmLabel="Ja, löschen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onConfirm={performDeleteTeam}
+        onCancel={() => setDeleteTeamTarget(null)}
+      />
 
       <ConfirmDialog
         open={autoConfirm}
@@ -562,7 +676,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               <div className="grid grid-cols-2 gap-3">
                 <label className="grid gap-1">
                   <span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">
-                    Gruppe (optional)
+                    Gruppe
                   </span>
                   <select
                     value={newTeamGroup}
@@ -591,6 +705,15 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
                   </select>
                 </label>
               </div>
+              <label className="flex gap-3 rounded-xl border border-white/10 bg-black/18 px-3 py-3 text-xs leading-5 text-emerald-100/70">
+                <input
+                  type="checkbox"
+                  checked={newTeamCreateDiscord}
+                  onChange={(e) => setNewTeamCreateDiscord(e.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 accent-lime-300"
+                />
+                Discord-Rolle und privaten Voice-Channel wie bei /createteam anlegen.
+              </label>
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -604,10 +727,102 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               <button
                 type="button"
                 onClick={createTeam}
-                disabled={creating || !newTeamName.trim()}
+                disabled={creating || !newTeamName.trim() || !newTeamGroup}
                 className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
               >
                 {creating ? "Wird erstellt…" : "Team erstellen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editTeamTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center px-5"
+        >
+          <button
+            type="button"
+            aria-label="SchlieÃŸen"
+            onClick={() => setEditTeamTarget(null)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">
+              Team bearbeiten
+            </div>
+            <h2 className="mt-2 text-lg font-black text-emerald-50">
+              {editTeamTarget.name}
+            </h2>
+            <p className="mt-1 text-xs text-emerald-100/52">
+              Name, Gruppe und Seed werden direkt in bot_state.teams aktualisiert.
+              Falls Rolle oder Voice-Channel existieren, versucht die Website
+              sie ebenfalls umzubenennen.
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">
+                  Teamname
+                </span>
+                <input
+                  value={editTeamName}
+                  onChange={(e) => setEditTeamName(e.target.value)}
+                  className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">
+                    Gruppe
+                  </span>
+                  <select
+                    value={editTeamGroup}
+                    onChange={(e) => setEditTeamGroup(e.target.value as "A" | "B" | "")}
+                    className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
+                  >
+                    <option value="">-</option>
+                    <option value="A">Gruppe A</option>
+                    <option value="B">Gruppe B</option>
+                  </select>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">
+                    Seed (optional)
+                  </span>
+                  <select
+                    value={editTeamSeed}
+                    onChange={(e) => setEditTeamSeed(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
+                  >
+                    <option value="">-</option>
+                    <option value="1">Seed 1</option>
+                    <option value="2">Seed 2</option>
+                    <option value="3">Seed 3</option>
+                    <option value="4">Seed 4</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditTeamTarget(null)}
+                className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-100"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={updateTeam}
+                disabled={editingTeam || !editTeamName.trim() || !editTeamGroup}
+                className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
+              >
+                {editingTeam ? "Speichertâ€¦" : "Team speichern"}
               </button>
             </div>
           </div>
@@ -634,20 +849,26 @@ function TeamCard({
   applicantById,
   captainId,
   pulsingId,
+  deletingThisTeam,
   onAssignClick,
   onUnassign,
   onSetRole,
   onToggleCaptain,
+  onEditTeam,
+  onDeleteTeam,
 }: {
   team: RosterTeam;
   playersByRole: Map<PlayerRole, string[]>;
   applicantById: Map<string, RosterApplicant>;
   captainId: string | null;
   pulsingId: string | null;
+  deletingThisTeam: boolean;
   onAssignClick: (role: PlayerRole) => void;
   onUnassign: (discordId: string) => void;
   onSetRole: (discordId: string, role: PlayerRole) => void;
   onToggleCaptain: (discordId: string) => void;
+  onEditTeam: () => void;
+  onDeleteTeam: () => void;
 }) {
   return (
     <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/20">
@@ -658,6 +879,27 @@ function TeamCard({
             {team.group ? `Gruppe ${team.group}` : "Keine Gruppe"}
             {team.seed ? ` · Seed ${team.seed}` : ""}
           </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onEditTeam}
+            title="Team bearbeiten"
+            aria-label="Team bearbeiten"
+            className="inline-flex size-6 items-center justify-center rounded-md border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-lime-200/40 hover:text-lime-100"
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            onClick={onDeleteTeam}
+            disabled={deletingThisTeam}
+            title="Team löschen"
+            aria-label="Team löschen"
+            className="inline-flex size-6 items-center justify-center rounded-md border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-rose-300/40 hover:text-rose-200 disabled:opacity-50"
+          >
+            ✕
+          </button>
         </div>
       </header>
 
@@ -696,6 +938,17 @@ function TeamCard({
             );
           });
         })}
+
+        <button
+          type="button"
+          onClick={() => onAssignClick("Sub")}
+          className="flex w-full items-center justify-between rounded-xl border border-dashed border-amber-200/20 bg-amber-200/[0.05] px-3 py-2 text-left text-xs font-bold text-amber-100/68 transition hover:border-amber-200/44 hover:text-amber-50"
+        >
+          <span className="font-black uppercase tracking-[0.22em] text-amber-100/58">
+            Substitute
+          </span>
+          <span>+ Hinzufügen</span>
+        </button>
 
         {/* Fill / Sub buckets (shown only if used) */}
         {(["Fill", "Sub"] as PlayerRole[]).map((role) => {
