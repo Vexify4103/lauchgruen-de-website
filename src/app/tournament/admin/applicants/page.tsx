@@ -205,6 +205,9 @@ function ApplicantCard({
         <Row label="Aktueller Rang">
           {app.currentRankAuto ?? <span className="italic text-emerald-100/40">Unranked</span>}
         </Row>
+        <Row label="Main Rolle">
+          {app.mainRole ?? <span className="italic text-emerald-100/40">nicht angegeben</span>}
+        </Row>
       </div>
 
       <div>

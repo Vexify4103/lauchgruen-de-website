@@ -7,6 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
+import { setDiscordMemberRole } from "@/lib/discord";
 import {
   listApplications,
   type TournamentApplication,
@@ -61,6 +62,7 @@ export type RosterApplicant = {
   riotId: string;
   puuid: string;
   currentRank: string | null;
+  mainRole?: string;
   preferredRoles: string[];
 };
 
@@ -120,6 +122,7 @@ function toApplicant(app: TournamentApplication): RosterApplicant {
     riotId: app.riotId,
     puuid: app.riotPuuid,
     currentRank: app.currentRankAuto,
+    mainRole: app.mainRole,
     preferredRoles: app.preferredRoles,
   };
 }
@@ -149,12 +152,18 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
   applied: number;
   teamsUpdated: number;
   errors: string[];
+  warnings: string[];
 }> {
   const db = await getDb();
   const doc = await db
     .collection<BotStateDoc>("bot_state")
     .findOne({ _id: "default" });
   const teamsObj = doc?.teams ?? {};
+  const previousCaptainIds = new Set(
+    Object.values(teamsObj)
+      .map((team) => team.meta?.captain?.discordId)
+      .filter((discordId): discordId is string => !!discordId),
+  );
 
   const errors: string[] = [];
   const seen = new Map<string, string>(); // discordId → teamKey
@@ -176,7 +185,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
   }
 
   if (errors.length > 0) {
-    return { applied: 0, teamsUpdated: 0, errors };
+    return { applied: 0, teamsUpdated: 0, errors, warnings: [] };
   }
 
   // Resolve all referenced discordIds → verified Riot accounts in one query.
@@ -195,7 +204,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
     }
   }
   if (errors.length > 0) {
-    return { applied: 0, teamsUpdated: 0, errors };
+    return { applied: 0, teamsUpdated: 0, errors, warnings: [] };
   }
 
   // Pull applications once for role-default fallbacks.
@@ -204,7 +213,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 
   let applied = 0;
   let teamsUpdated = 0;
-  const setOps: Record<string, BotStoredPlayer[] | string | null> = {};
+  const setOps: Record<string, unknown> = {};
 
   for (const [teamKey, slots] of Object.entries(payload.teamPlayers)) {
     const players: BotStoredPlayer[] = slots.map((slot) => {
@@ -239,11 +248,11 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
         riotId: v.riotId,
         puuid: v.puuid,
         assignedAt: new Date().toISOString(),
-      } as unknown as string;
+      };
     }
   }
   if (errors.length > 0) {
-    return { applied: 0, teamsUpdated: 0, errors };
+    return { applied: 0, teamsUpdated: 0, errors, warnings: [] };
   }
 
   const unsetOps: Record<string, ""> = {};
@@ -265,5 +274,37 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
       .updateOne({ _id: "default" }, update, { upsert: true });
   }
 
-  return { applied, teamsUpdated, errors: [] };
+  const warnings = payload.captains
+    ? await syncDiscordCaptainRole(previousCaptainIds, payload.captains)
+    : [];
+
+  return { applied, teamsUpdated, errors: [], warnings };
+}
+
+async function syncDiscordCaptainRole(
+  previousCaptainIds: Set<string>,
+  captains: Record<string, string | null>,
+): Promise<string[]> {
+  const roleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim();
+  if (!roleId) {
+    return ["Captain-Rolle nicht synchronisiert: DISCORD_CAPTAINS_ROLE_ID fehlt."];
+  }
+
+  const nextCaptainIds = new Set(
+    Object.values(captains).filter((discordId): discordId is string => !!discordId),
+  );
+  const warnings: string[] = [];
+
+  for (const discordId of nextCaptainIds) {
+    const result = await setDiscordMemberRole({ discordId, roleId, enabled: true });
+    if (!result.ok) warnings.push(result.message);
+  }
+
+  for (const discordId of previousCaptainIds) {
+    if (nextCaptainIds.has(discordId)) continue;
+    const result = await setDiscordMemberRole({ discordId, roleId, enabled: false });
+    if (!result.ok) warnings.push(result.message);
+  }
+
+  return warnings;
 }

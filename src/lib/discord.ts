@@ -68,3 +68,32 @@ export async function setDiscordNickname(input: {
 
   return { ok: true };
 }
+
+export async function setDiscordMemberRole(input: {
+  discordId: string;
+  roleId: string;
+  enabled: boolean;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const token = discordBotToken();
+  const guildId = discordGuildId();
+  if (!token || !guildId) {
+    return { ok: false, message: "Discord role sync skipped: bot token or guild ID missing." };
+  }
+
+  const response = await fetch(
+    `${DISCORD_API}/guilds/${guildId}/members/${input.discordId}/roles/${input.roleId}`,
+    {
+      method: input.enabled ? "PUT" : "DELETE",
+      headers: { authorization: `Bot ${token}` },
+    },
+  );
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: `Discord captain role could not be ${input.enabled ? "added" : "removed"} for ${input.discordId}. Check Manage Roles and role hierarchy.`,
+    };
+  }
+
+  return { ok: true };
+}

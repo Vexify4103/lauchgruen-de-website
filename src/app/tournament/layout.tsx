@@ -9,6 +9,7 @@ const navItems = [
   { href: "/tournament", label: "Übersicht" },
   { href: "/tournament/apply", label: "Bewerben" },
   { href: "/tournament/teams", label: "Teams" },
+  { href: "/tournament/pools", label: "Pools" },
   { href: "/tournament/groups", label: "Gruppen" },
   { href: "/tournament/playoffs", label: "Playoffs" },
   { href: "/tournament/admin", label: "Admin" },
@@ -20,7 +21,7 @@ const APPLICATIONS_ENABLED =
 export const metadata: Metadata = {
   title: `${tournament.name} | lauchgruen`,
   description:
-    "League-of-Legends-Turnierhub für Bewerbungen, Teams, Gruppenphase, Playoffs und Finals.",
+    "Kunterbuntes A-Z League-of-Legends-Turnier mit Bewerbung, Teams, Gruppenphase und Endbracket.",
 };
 
 export default async function TournamentLayout({ children }: { children: ReactNode }) {
@@ -80,7 +81,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 
       <footer className="relative z-10 border-t border-lime-200/10 px-5 py-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 text-sm text-emerald-100/54 sm:flex-row sm:items-center sm:justify-between">
-          <p>{tournament.name} ist der Community-Turnierhub für lauchgruen-Events.</p>
+          <p>{tournament.name} ist Lucas Community-Turnier am 19.06. und 20.06.2026.</p>
           <a href={siteUrls.apex} className="font-bold text-lime-200/80 hover:text-lime-100">
             Zurück zu lauchgruen.de
           </a>

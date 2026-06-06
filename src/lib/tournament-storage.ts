@@ -16,6 +16,7 @@ export type TournamentApplication = {
   discordId: string;
   discordHandle: string;
   discordUsername?: string;
+  mainRole: string;
   preferredRoles: string[];
   availableAllDates: true;
   notes: string;

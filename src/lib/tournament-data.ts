@@ -26,6 +26,7 @@ export type TournamentTeam = {
   captainRef?: TeamCaptainRef;
   accent: string;
   players: TournamentPlayer[];
+  playedChampions?: string[];
 };
 
 export type GroupMatch = {
@@ -76,15 +77,39 @@ export type PlayoffMatch = {
 };
 
 export const tournament = {
-  name: "Lauchgruen League Cup",
-  season: "Community Split 2026",
+  name: "Kunterbuntes A-Z Turnier",
+  season: "A-Z Turnier 2026",
   game: "League of Legends",
   region: "EUW",
-  startDate: "Wird bekanntgegeben",
-  format: "8 Teams · 2 Gruppen · Double-Elim-Playoffs",
-  discordUrl: "https://discord.gg/lauchgruen",
+  startDate: "19.06. und 20.06.2026 abends",
+  format: "Gruppenphase + Endbracket · A-Z Champion-Pools",
+  discordUrl: "https://discord.gg/GFYv7K3SKb",
   rulesUrl: "/tournament/apply#rules",
 };
+
+export const tournamentHighlights = [
+  "Freitag, 19.06. und Samstag, 20.06. jeweils am Abend.",
+  "Gruppenphase plus Endbracket: du musst mindestens zweimal verlieren, bevor du raus bist.",
+  "Pro Runde wird ein Buchstaben-Pool gelost. Gespielt werden nur Champions aus diesem Pool.",
+  "Gespielte Buchstaben-Pools verlassen das Glücksrad. Ab Top 3 wird der Pool wieder refreshed.",
+  "Platz 1 bekommt für Tag 2 einen vierten Ban als Bonus.",
+  "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
+];
+
+export const azLetterPools = [
+  "A",
+  "B-D",
+  "E-G",
+  "H-J",
+  "K",
+  "L-M",
+  "N-P",
+  "Q, R und U",
+  "S",
+  "V und X",
+  "T und W",
+  "Y und Z",
+];
 
 const linkName = (name: string) => encodeURIComponent(name.replace("#", "-"));
 
@@ -324,13 +349,14 @@ export const playoffMatches: PlayoffMatch[] = [
 
 
 export const applicationSteps = [
-  "Lies die Regeln und akzeptiere den Verhaltenskodex.",
-  "Verbinde oder gib deine Riot-ID und deinen Discord-Handle an.",
-  "Bestätige die angekündigten Termine; dein aktueller Rang kommt aus der Riot-Verifizierung.",
-  "Warte auf die Admin-Bestätigung und Teamzuweisung.",
+  "Melde dich mit Discord an und tritt dem Lauchgruen Discord bei.",
+  "Verifiziere deine Riot-ID ueber das Profilicon im League-Client.",
+  "Gib Anzeigename, Main Rolle und Wunschrollen an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
+  "Bestätige, dass du am 19.06. und 20.06. abends verbindlich Zeit hast.",
+  "Warte auf Teamzuteilung und weitere Infos im Discord.",
 ];
 
-export const announcedDates = "Termine werden vor dem Roster-Lock bekanntgegeben.";
+export const announcedDates = "Freitag, 19.06.2026 abends + Samstag, 20.06.2026 abends";
 
 export const rankOptions = [
   "Unranked",

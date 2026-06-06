@@ -12,6 +12,7 @@ type SubmitState =
   | { status: "error"; message: string };
 
 const initialState: SubmitState = { status: "idle", message: "" };
+const roleOptions = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill"];
 
 type DiscordIdentity = { id: string; handle: string } | null;
 
@@ -80,6 +81,7 @@ export function ApplicationForm({
 
     const payload = {
       displayName: String(formData.get("displayName") ?? ""),
+      mainRole: String(formData.get("mainRole") ?? ""),
       preferredRoles: formData.getAll("preferredRoles").map(String),
       availableAllDates: formData.get("availableAllDates") === "on",
       notes: String(formData.get("notes") ?? ""),
@@ -225,11 +227,12 @@ export function ApplicationForm({
         </label>
 
         <Consent name="availableAllDates">
-          Ich kann an allen angekündigten Turnierterminen teilnehmen.
+          Ich kann am 19.06. und 20.06. abends verbindlich teilnehmen. Wenn ich unsicher bin, schreibe ich es in die Notizen.
         </Consent>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?" />
+          <SelectField label="Main Rolle" name="mainRole" options={roleOptions} />
           <ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
           <ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
           <ReadOnlyField
@@ -243,7 +246,7 @@ export function ApplicationForm({
             Wunschrollen
           </label>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {["Top", "Jungle", "Mid", "Bot", "Support", "Fill"].map((role) => (
+            {roleOptions.map((role) => (
               <label
                 key={role}
                 className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/16 px-4 py-3 text-sm font-bold text-emerald-100/76"
@@ -267,15 +270,15 @@ export function ApplicationForm({
           <textarea
             name="notes"
             rows={3}
-            placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen usw."
+            placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder wenn du an einem der beiden Tage unsicher bist."
             className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
           />
         </label>
 
         <div className="grid gap-3">
           <Consent name="acceptedRules">
-            Ich habe die Regeln gelesen und verstehe, dass Admins toxische oder
-            unvollständige Bewerbungen ablehnen dürfen.
+            Ich habe die A-Z Regeln gelesen und verstehe, dass toxisches Verhalten
+            oder absichtliches Stören zum Ausschluss führen kann.
           </Consent>
           <Consent name="acceptedDataStorage">
             Ich bin damit einverstanden, dass meine Turnierbewerbung zur
@@ -577,6 +580,39 @@ function Field({
         placeholder={placeholder}
         className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
       />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  options,
+}: {
+  label: string;
+  name: string;
+  options: string[];
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+        {label}
+      </span>
+      <select
+        name={name}
+        required
+        defaultValue=""
+        className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition focus:border-lime-200/40"
+      >
+        <option value="" disabled>
+          Bitte auswählen
+        </option>
+        {options.map((option) => (
+          <option key={option} value={option} className="bg-emerald-950">
+            {option}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

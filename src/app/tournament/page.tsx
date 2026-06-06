@@ -1,8 +1,10 @@
 import Link from "next/link";
 import {
   applicationSteps,
+  azLetterPools,
   playoffMatches,
   tournament,
+  tournamentHighlights,
 } from "@/lib/tournament-data";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 
@@ -25,12 +27,13 @@ export default async function TournamentHomePage() {
             {tournament.season}
           </div>
           <h1 className="mt-7 max-w-4xl text-5xl font-black leading-[0.92] tracking-tight text-emerald-50 sm:text-6xl lg:text-7xl">
-            League-Abende mit Bracket, Einsatz und Regeln, die man wirklich liest.
+            Kunterbuntes A-Z Chaos, aber fair ausgelost.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-emerald-100/72 sm:text-lg">
-            Der Turnierhub sammelt Bewerbungen, veröffentlicht Teams und Rosters,
-            trackt die Gruppenphase und macht die Playoffs zu einer sauberen
-            Broadcast-Seite für Spieler, Mods und Zuschauer.
+            Luca aka Lauchgruen hostet sein erstes Turnier mit diesem Hub:
+            Gruppenphase, Endbracket, zufällige Champion-Buchstaben und genug
+            Raum für kleine Upsis. Du meldest dich verbindlich für beide Abende
+            an, wir bauen daraus faire Teams.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -73,6 +76,19 @@ export default async function TournamentHomePage() {
         </div>
 
         <aside className="grid gap-4">
+          <div className="rounded-[2rem] border border-lime-200/14 bg-white/[0.045] p-6 shadow-xl shadow-black/20">
+            <div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
+              Was passiert?
+            </div>
+            <div className="mt-4 grid gap-2">
+              {tournamentHighlights.map((item) => (
+                <p key={item} className="rounded-2xl border border-white/8 bg-black/16 p-3 text-sm leading-6 text-emerald-100/72">
+                  {item}
+                </p>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20">
             <div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
               Bewerbungsablauf
@@ -106,6 +122,30 @@ export default async function TournamentHomePage() {
       </section>
 
       <section className="mx-auto mt-6 grid w-full max-w-7xl gap-4 lg:grid-cols-3">
+        <div className="rounded-[2rem] border border-lime-200/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20 lg:col-span-3">
+          <div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/60">
+            Buchstaben-Pools
+          </div>
+          <h2 className="mt-3 text-2xl font-black text-emerald-50">
+            Das Glücksrad entscheidet, welche Champions erlaubt sind.
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-emerald-100/68">
+            Nach jedem Spiel fliegt der gespielte Pool aus dem Rad. Keine Sorge:
+            eine Championliste kommt in den Discord und wird nach den Spielen
+            gepflegt.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {azLetterPools.map((pool, index) => (
+              <span
+                key={pool}
+                className="rounded-2xl border border-lime-200/16 bg-lime-200/8 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-lime-50/84"
+              >
+                {index + 1}. {pool}
+              </span>
+            ))}
+          </div>
+        </div>
+
         <DashboardCard
           href="/tournament/teams"
           label="Teams"
@@ -122,7 +162,7 @@ export default async function TournamentHomePage() {
           href="/tournament/playoffs"
           label="Finals"
           title={`${playoffMatches.length} Bracket-Slots`}
-          text="Sechs Teams im Double-Elim mit Bracket Reset — Upper, Lower und Grand Final auf einer Seite."
+          text="Endgames am zweiten Tag: Platzierungsspiele, Halbfinale, Finale und Bracket-Story auf einer Seite."
         />
       </section>
     </div>

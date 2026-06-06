@@ -122,6 +122,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 		riotId: string;
 		puuid: string;
 		preferredRoles: string[];
+		mainRole: string;
 		currentRank: string;
 	}> = [];
 
@@ -138,6 +139,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 			riotId: `${baseName}${slot}#${tag}`,
 			puuid: `test-puuid-${randomUUID()}`,
 			preferredRoles: randomPreferredRoles(),
+			mainRole: ROLES[i % ROLES.length],
 			currentRank: randomRank(),
 		});
 	}
@@ -168,6 +170,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 		discordId: d.discordId,
 		discordHandle: d.discordHandle,
 		discordUsername: d.discordUsername,
+		mainRole: d.mainRole,
 		preferredRoles: d.preferredRoles,
 		availableAllDates: true as const,
 		notes: "(test data)",

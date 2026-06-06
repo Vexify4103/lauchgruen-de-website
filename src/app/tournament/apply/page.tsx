@@ -6,10 +6,11 @@ import { getVerifiedAccount } from "@/lib/tournament-storage";
 import { ApplicationForm } from "./ApplicationForm";
 
 const rules = [
-  "Spieler nutzen ihren eigenen EUW-Riot-Account und geben einen erreichbaren Discord-Handle an.",
-  "Teams halten Match-Zeiten, Check-in-Fenster, Admin-Calls und Stream-Delay-Vorgaben ein.",
-  "Kein Harassment, kein absichtliches Feeden, kein Account-Sharing, kein Scripting, kein Wettbewerbsbetrug.",
-  "Admins dürfen vor dem Bracket-Lock Teams neu ausbalancieren, wenn die Rosters ungleich werden.",
+  "Du meldest dich verbindlich für beide Abende an: Freitag, 19.06. und Samstag, 20.06. jeweils abends.",
+  "Gespielt wird mit gelosten A-Z Champion-Pools. Pro Runde sind nur Champions aus dem aktuellen Pool erlaubt.",
+  "Deine Riot-Verifizierung, Main Rolle und Wunschrollen werden fürs faire Team-Balancing genutzt.",
+  "Kein toxisches Verhalten, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
+  "Wenn du nur teilweise Zeit hast oder unsicher bist, schreib es bitte direkt in die Notizen.",
 ];
 
 const APPLICATIONS_ENABLED =
@@ -24,12 +25,12 @@ export default async function ApplyPage() {
             Bewerbungen geschlossen
           </div>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-amber-50">
-            Anmeldungen sind aktuell pausiert.
+            Bewerbungen öffnen in Kürze wieder.
           </h1>
           <p className="mt-4 text-sm leading-7 text-emerald-100/72">
-            Der Turnierhub bleibt für Teams, Gruppen, Playoffs und Match-Updates
-            online. Das Orga-Team öffnet die Bewerbungen wieder, sobald das nächste
-            Anmeldefenster startet.
+            Das A-Z Turnier findet am 19.06. und 20.06. abends statt. Wenn du
+            grundsätzlich Interesse und Zeit hast, melde dich im Discord bei
+            Luca oder dem Orga-Team, bis das Formular wieder offen ist.
           </p>
           <Link
             href="/tournament"
@@ -80,11 +81,12 @@ export default async function ApplyPage() {
               Bewerbung
             </div>
             <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">
-              Beim nächsten League-Turnier mitmachen.
+              Beim A-Z Turnier verbindlich mitspielen.
             </h1>
             <p className="mt-4 text-sm leading-7 text-emerald-100/70">
-              Deine Bewerbung wird serverseitig gespeichert, damit das Orga-Team
-              Spieler prüfen, Teams bauen und die Rosters später sperren kann.
+              Wir brauchen deine Angaben, um faire Teams zu bauen und das Bracket
+              zu planen. Bitte trag direkt ein, wenn du an einem der beiden Abende
+              unsicher bist.
             </p>
           </div>
 

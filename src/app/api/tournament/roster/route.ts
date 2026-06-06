@@ -48,5 +48,6 @@ export async function POST(request: Request) {
     ok: true,
     applied: result.applied,
     teamsUpdated: result.teamsUpdated,
+    warnings: result.warnings,
   });
 }

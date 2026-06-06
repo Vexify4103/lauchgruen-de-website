@@ -441,9 +441,12 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       setMessage({ tone: "error", text: errs.join(" · ") });
       return;
     }
+    const warnings = (json?.warnings as string[] | undefined) ?? [];
     setMessage({
-      tone: "ok",
-      text: `Saved · ${json.applied} players across ${json.teamsUpdated} team(s).`,
+      tone: warnings.length > 0 ? "error" : "ok",
+      text:
+        `Saved · ${json.applied} players across ${json.teamsUpdated} team(s).` +
+        (warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
     });
   }
 
@@ -1062,6 +1065,11 @@ function ApplicantCard({ applicant }: { applicant: RosterApplicant; compact?: bo
         {applicant.currentRank ? (
           <span className="rounded-full border border-lime-200/24 bg-lime-200/10 px-2 py-0.5 text-[10px] font-bold text-lime-50">
             {applicant.currentRank}
+          </span>
+        ) : null}
+        {applicant.mainRole ? (
+          <span className="rounded-full border border-cyan-200/24 bg-cyan-200/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-50">
+            Main {applicant.mainRole}
           </span>
         ) : null}
         {applicant.preferredRoles.slice(0, 3).map((r) => (

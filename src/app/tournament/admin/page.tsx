@@ -7,8 +7,10 @@ import {
   readTournamentState,
 } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentWheelState } from "@/lib/tournament-wheel";
 import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
 import { NicknameSyncButton } from "./NicknameSyncButton";
+import { WheelAdminClient } from "./WheelAdminClient";
 
 export default async function TournamentAdminPage() {
   const host = (await headers()).get("host")?.toLowerCase() ?? "";
@@ -19,6 +21,7 @@ export default async function TournamentAdminPage() {
   const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
   const ctx = isOwner ? await getTournamentContext() : null;
   const state = isOwner && ctx ? await readTournamentState(ctx.groupMatches) : null;
+  const wheel = isOwner ? await getTournamentWheelState() : null;
 
   let adminMatches: AdminMatch[] = [];
   if (state && ctx) {
@@ -73,6 +76,15 @@ export default async function TournamentAdminPage() {
             </div>
           ) : null}
         </div>
+
+        {isOwner && wheel ? (
+          <div className="mt-8">
+            <WheelAdminClient
+              initialState={wheel}
+              matches={adminMatches}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
           {isOwner && state ? (

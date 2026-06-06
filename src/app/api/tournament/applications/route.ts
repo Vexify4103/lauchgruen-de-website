@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 
 const applicationSchema = z.object({
   displayName: z.string().trim().min(2).max(60),
+  mainRole: z.string().trim().min(1).max(20),
   preferredRoles: z.array(z.string().trim().min(1)).min(1).max(6),
   availableAllDates: z.literal(true),
   notes: z.string().trim().max(1500).optional().default(""),
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
     discordId,
     discordHandle,
     discordUsername: session.user.discordUsername,
+    mainRole: parsed.data.mainRole,
     riotId: verified.riotId,
     riotPuuid: verified.puuid,
     riotVerifiedAt: verified.verifiedAt,

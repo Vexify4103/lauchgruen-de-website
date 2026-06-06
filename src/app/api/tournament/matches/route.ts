@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { deriveWinner } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   readTournamentState,
@@ -68,6 +69,9 @@ export async function PATCH(request: Request) {
     winner: winner ?? undefined,
     updatedAt,
   });
+  if (parsed.data.status === "Finished") {
+    await commitWheelAssignmentForMatch(parsed.data.id);
+  }
 
   return NextResponse.json({ match });
 }
