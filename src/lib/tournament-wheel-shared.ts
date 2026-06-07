@@ -1,7 +1,9 @@
 import { azLetterPools } from "@/lib/tournament-data";
+import type { PoolHistoryScope } from "@/lib/tournament-rules";
 
 export type WheelMatchAssignment = {
   matchId: string;
+  scope?: PoolHistoryScope;
   teamAName: string;
   teamBName: string;
   teamAPool: string;
@@ -14,6 +16,7 @@ export type TournamentWheelState = {
   id: string;
   currentAssignment: WheelMatchAssignment | null;
   usedPoolsByTeam: Record<string, string[]>;
+  playoffUsedPoolsByTeam: Record<string, string[]>;
   completedMatchIds: string[];
   history: WheelMatchAssignment[];
   updatedAt: string;
@@ -22,8 +25,10 @@ export type TournamentWheelState = {
 export function remainingPoolsForTeam(
   state: TournamentWheelState,
   teamName: string,
+  scope: PoolHistoryScope = "groups",
 ): string[] {
-  const used = new Set(state.usedPoolsByTeam[teamName] ?? []);
+  const source = scope === "playoffs" ? state.playoffUsedPoolsByTeam : state.usedPoolsByTeam;
+  const used = new Set(source[teamName] ?? []);
   return azLetterPools.filter((pool) => !used.has(pool));
 }
 

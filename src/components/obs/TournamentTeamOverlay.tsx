@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ObsTeamResponse, OverlayMatch } from "@/app/api/tournament/obs/route";
+import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -143,6 +144,20 @@ function FocusRow({ match, live }: { match: OverlayMatch; live: boolean }) {
         <div className="mt-1.5 truncate text-sm font-black text-emerald-50">
           vs. {match.opponent}
         </div>
+        {match.poolSelf || match.poolOpponent ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {match.poolSelf ? (
+              <span className="rounded-md border border-lime-200/20 bg-lime-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-lime-100/86">
+                Wir: {compactPoolLabel(match.poolSelf)}
+              </span>
+            ) : null}
+            {match.poolOpponent ? (
+              <span className="rounded-md border border-emerald-100/14 bg-white/[0.045] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/68">
+                Gegner: {compactPoolLabel(match.poolOpponent)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {hasScore ? (
@@ -185,7 +200,7 @@ function signature(data: ObsTeamResponse): string {
     w: data.standing.wins,
     l: data.standing.losses,
     c: data.currentMatch
-      ? `${data.currentMatch.id}-${data.currentMatch.scoreSelf}-${data.currentMatch.scoreOpponent}-${data.currentMatch.status}`
+      ? `${data.currentMatch.id}-${data.currentMatch.scoreSelf}-${data.currentMatch.scoreOpponent}-${data.currentMatch.status}-${data.currentMatch.poolSelf}-${data.currentMatch.poolOpponent}`
       : null,
     n: data.nextMatch?.id ?? null,
   });

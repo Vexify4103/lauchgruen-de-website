@@ -193,6 +193,7 @@ function makeTeam(
     group,
     captain: captainText,
     captainRef,
+    discordRoleId: stored.roleId,
     accent: stored.meta?.accent ?? DEFAULT_ACCENTS[accentIndex],
     players: sortPlayersByRole(stored.players).map(buildPlayer),
     playedChampions: stored.playedChampions ?? [],

@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
+import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 
 /** Per-section grid positions. Each sub-grid has its own row/col coordinates. */
 const UB_POSITIONS: Record<string, CSSProperties> = {
@@ -35,6 +37,9 @@ type Connection = {
 };
 
 type ConnectorPath = { d: string; kind: ConnectorKind };
+type BracketMatch = ResolvedPlayoffMatch & {
+  poolAssignment?: WheelMatchAssignment | null;
+};
 
 const CONNECTIONS: Connection[] = [
   { from: "ub-qf-1", to: "ub-f",     port: "top",    kind: "advance" },
@@ -54,7 +59,7 @@ const CONNECTIONS: Connection[] = [
 const UB_COLUMN_LABELS = ["Runde 1 · QF", "Upper Final"];
 const LB_COLUMN_LABELS = ["Runde 1", "Lower-Halbfinale", "Lower Final"];
 
-export function BracketTree({ matches }: { matches: ResolvedPlayoffMatch[] }) {
+export function BracketTree({ matches }: { matches: BracketMatch[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [paths, setPaths] = useState<ConnectorPath[]>([]);
@@ -269,9 +274,9 @@ function BracketSection({
   columns: number;
   rows: number;
   positions: Record<string, CSSProperties>;
-  matches: ResolvedPlayoffMatch[];
+  matches: BracketMatch[];
   registerCard: (id: string) => (el: HTMLDivElement | null) => void;
-  lookup: (id: string) => ResolvedPlayoffMatch | undefined;
+  lookup: (id: string) => BracketMatch | undefined;
 }) {
   const tone = accentClasses[accent];
   const gridCols = `repeat(${columns}, minmax(11rem, 1fr))`;
@@ -354,7 +359,7 @@ function LegendDot({
   );
 }
 
-function BracketCard({ match }: { match: ResolvedPlayoffMatch }) {
+function BracketCard({ match }: { match: BracketMatch }) {
   const winnerIsA = !!match.winner && match.winner === match.teamAName;
   const winnerIsB = !!match.winner && match.winner === match.teamBName;
   const scoreA = match.scoreA;
@@ -367,11 +372,13 @@ function BracketCard({ match }: { match: ResolvedPlayoffMatch }) {
   return (
     <article
       className={`flex w-full flex-col overflow-hidden rounded-2xl border shadow-xl shadow-black/24 ${
-        isFinalTier
-          ? "border-amber-200/30 bg-amber-200/[0.07]"
-          : match.bracket === "Lower"
-            ? "border-sky-200/14 bg-sky-300/[0.05]"
-            : "border-lime-200/14 bg-lime-200/[0.05]"
+        match.status === "Live"
+          ? "border-red-300/34 bg-red-500/12 shadow-red-950/25"
+          : isFinalTier
+            ? "border-amber-200/30 bg-amber-200/[0.07]"
+            : match.bracket === "Lower"
+              ? "border-sky-200/14 bg-sky-300/[0.05]"
+              : "border-lime-200/14 bg-lime-200/[0.05]"
       }`}
     >
       <header className="flex items-center justify-between gap-2 border-b border-white/8 bg-black/24 px-3 py-1.5">
@@ -391,6 +398,7 @@ function BracketCard({ match }: { match: ResolvedPlayoffMatch }) {
         score={scoreA}
         isWinner={winnerIsA}
         hasScore={hasScore}
+        pool={match.poolAssignment?.teamAPool ?? null}
       />
       <TeamLine
         label={match.teamBLabel}
@@ -398,8 +406,28 @@ function BracketCard({ match }: { match: ResolvedPlayoffMatch }) {
         score={scoreB}
         isWinner={winnerIsB}
         hasScore={hasScore}
+        pool={match.poolAssignment?.teamBPool ?? null}
         bottom
       />
+      <footer className="flex flex-wrap items-center gap-2 border-t border-white/6 bg-black/18 px-3 py-1.5">
+        {match.status === "Live" ? (
+          <span className="rounded-full border border-red-300/30 bg-red-500/16 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-red-100">
+            Current
+          </span>
+        ) : null}
+        {match.poolAssignment ? (
+          <Link
+            href={`/tournament/champ-select/${match.id}/spectate`}
+            className="rounded-full border border-sky-200/20 bg-sky-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-sky-50/82"
+          >
+            Draft bereit
+          </Link>
+        ) : (
+          <span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/34">
+            Keine Pools
+          </span>
+        )}
+      </footer>
     </article>
   );
 }
@@ -410,6 +438,7 @@ function TeamLine({
   score,
   isWinner,
   hasScore,
+  pool,
   bottom,
 }: {
   label: string;
@@ -417,6 +446,7 @@ function TeamLine({
   score: number | undefined;
   isWinner: boolean;
   hasScore: boolean;
+  pool: string | null;
   bottom?: boolean;
 }) {
   return (
@@ -437,6 +467,11 @@ function TeamLine({
       >
         {label}
       </span>
+      {pool ? (
+        <span className="shrink-0 rounded-md border border-lime-200/16 bg-lime-200/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-lime-50/78">
+          {compactPoolLabel(pool)}
+        </span>
+      ) : null}
       <span
         className={`shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-xs font-black ${
           hasScore

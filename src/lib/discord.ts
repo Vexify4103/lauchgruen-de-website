@@ -10,6 +10,17 @@ function discordGuildId() {
   return process.env.DISCORD_GUILD_ID ?? "";
 }
 
+type DiscordMember = {
+  roles?: string[];
+};
+
+export type DiscordRoleCheck =
+  | { status: "missing-config"; message: string }
+  | { status: "missing-member"; message: string }
+  | { status: "missing-role"; message: string }
+  | { status: "synced"; message: string }
+  | { status: "error"; message: string };
+
 export function formatTournamentNickname(displayName: string, riotId: string) {
   const name = displayName.trim() || riotId.split("#")[0] || "Player";
   const separator = " | ";
@@ -33,6 +44,67 @@ export async function isDiscordGuildMember(discordId: string): Promise<boolean |
   if (response.status === 404) return false;
   if (!response.ok) return null;
   return true;
+}
+
+async function getDiscordGuildMember(discordId: string): Promise<DiscordMember | null | "missing-config" | "missing-member" | "error"> {
+  const token = discordBotToken();
+  const guildId = discordGuildId();
+  if (!token || !guildId) return "missing-config";
+
+  const response = await fetch(
+    `${DISCORD_API}/guilds/${guildId}/members/${discordId}`,
+    {
+      headers: { authorization: `Bot ${token}` },
+      cache: "no-store",
+    },
+  );
+
+  if (response.status === 404) return "missing-member";
+  if (!response.ok) return "error";
+  return (await response.json().catch(() => null)) as DiscordMember | null;
+}
+
+export async function checkDiscordMemberRole(input: {
+  discordId: string;
+  roleId?: string;
+}): Promise<DiscordRoleCheck> {
+  const roleId = input.roleId?.trim();
+  if (!roleId) {
+    return {
+      status: "missing-config",
+      message: "DISCORD_CAPTAINS_ROLE_ID fehlt.",
+    };
+  }
+
+  const member = await getDiscordGuildMember(input.discordId);
+  if (member === "missing-config") {
+    return {
+      status: "missing-config",
+      message: "Discord Bot Token oder Guild ID fehlt.",
+    };
+  }
+  if (member === "missing-member") {
+    return {
+      status: "missing-member",
+      message: "User ist nicht auf dem Discord.",
+    };
+  }
+  if (member === "error" || !member) {
+    return {
+      status: "error",
+      message: "Discord Member konnte nicht gelesen werden.",
+    };
+  }
+  if (!member.roles?.includes(roleId)) {
+    return {
+      status: "missing-role",
+      message: "Captain-Rolle fehlt.",
+    };
+  }
+  return {
+    status: "synced",
+    message: "Captain-Rolle synchronisiert.",
+  };
 }
 
 export async function setDiscordNickname(input: {

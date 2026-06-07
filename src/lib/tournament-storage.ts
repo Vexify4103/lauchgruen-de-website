@@ -48,10 +48,22 @@ export type RiotVerificationChallenge = {
   expiresAt: Date;
 };
 
+export type TournamentBlacklistEntry = {
+  id: string;
+  discordId?: string;
+  riotId?: string;
+  reason: string;
+  createdAt: string;
+  createdBy?: string;
+};
+
 export type StoredTournamentMatch = {
   id: string;
   scoreA?: number;
   scoreB?: number;
+  teamAChampions?: string[];
+  teamBChampions?: string[];
+  blueSide?: "teamA" | "teamB";
   status?: "Scheduled" | "Live" | "Finished" | "Locked" | "Pending";
   winner?: string;
   updatedAt?: string;
@@ -66,6 +78,7 @@ const APPLICATIONS = "tournament_applications";
 const MATCHES = "tournament_matches";
 const VERIFIED_RIOT = "verified_riot_accounts";
 const RIOT_CHALLENGES = "riot_verifications";
+const BLACKLIST = "tournament_blacklist";
 
 const VERIFICATION_TTL_MIN = 15;
 
@@ -93,6 +106,7 @@ function seededMatches(
 
 type AppDoc = TournamentApplication & { _id: string };
 type MatchDoc = StoredTournamentMatch & { _id: string };
+type BlacklistDoc = TournamentBlacklistEntry & { _id: string };
 
 async function applicationsCollection() {
   return (await getDb()).collection<AppDoc>(APPLICATIONS);
@@ -100,6 +114,10 @@ async function applicationsCollection() {
 
 async function matchesCollection() {
   return (await getDb()).collection<MatchDoc>(MATCHES);
+}
+
+async function blacklistCollection() {
+  return (await getDb()).collection<BlacklistDoc>(BLACKLIST);
 }
 
 function stripMongoId<T extends Record<string, unknown>>(doc: T): Omit<T, "_id"> {
@@ -256,4 +274,54 @@ export async function upsertMatch(
   return doc
     ? (stripMongoId(doc) as StoredTournamentMatch)
     : ({ ...patch, id } as StoredTournamentMatch);
+}
+
+function blacklistId(input: { discordId?: string; riotId?: string }) {
+  const discordPart = input.discordId?.trim() || "-";
+  const riotPart = input.riotId?.trim().toLowerCase() || "-";
+  return `${discordPart}|${riotPart}`;
+}
+
+export async function listBlacklistEntries(): Promise<TournamentBlacklistEntry[]> {
+  const col = await blacklistCollection();
+  const docs = await col.find({}, { sort: { createdAt: -1 } }).toArray();
+  return docs.map((raw) => stripMongoId(raw) as TournamentBlacklistEntry);
+}
+
+export async function addBlacklistEntry(input: {
+  discordId?: string;
+  riotId?: string;
+  reason: string;
+  createdBy?: string;
+}): Promise<TournamentBlacklistEntry> {
+  const entry: TournamentBlacklistEntry = {
+    id: blacklistId(input),
+    ...(input.discordId ? { discordId: input.discordId.trim() } : {}),
+    ...(input.riotId ? { riotId: input.riotId.trim().toLowerCase() } : {}),
+    reason: input.reason.trim(),
+    createdAt: new Date().toISOString(),
+    createdBy: input.createdBy,
+  };
+  const col = await blacklistCollection();
+  await col.replaceOne({ _id: entry.id }, { ...entry }, { upsert: true });
+  return entry;
+}
+
+export async function deleteBlacklistEntry(id: string): Promise<void> {
+  const col = await blacklistCollection();
+  await col.deleteOne({ _id: id });
+}
+
+export async function findBlacklistMatch(input: {
+  discordId?: string;
+  riotId?: string;
+}): Promise<TournamentBlacklistEntry | null> {
+  const clauses: Array<Record<string, string>> = [];
+  if (input.discordId) clauses.push({ discordId: input.discordId });
+  if (input.riotId) clauses.push({ riotId: input.riotId.trim().toLowerCase() });
+  if (clauses.length === 0) return null;
+
+  const col = await blacklistCollection();
+  const doc = await col.findOne({ $or: clauses });
+  return doc ? (stripMongoId(doc) as TournamentBlacklistEntry) : null;
 }

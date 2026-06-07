@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
@@ -18,6 +19,7 @@ const statusToneClass: Record<(typeof statuses)[number], string> = {
 
 export type AdminMatch = {
   id: string;
+  phase: "groups" | "playoffs";
   teamA: string;        // resolved display name OR placeholder ("Seed #1")
   teamB: string;
   status: (typeof statuses)[number];
@@ -124,7 +126,7 @@ function MatchRow({
         </span>
       </header>
 
-      <div className="grid gap-3 md:grid-cols-[5rem_5rem_minmax(0,11rem)_minmax(0,1fr)_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[5rem_5rem_minmax(0,11rem)_minmax(0,1fr)_auto_auto] md:items-end">
         <NumberField short="A" name="scoreA" team={base.teamA} value={stored.scoreA} />
         <NumberField short="B" name="scoreB" team={base.teamB} value={stored.scoreB} />
 
@@ -162,6 +164,12 @@ function MatchRow({
         >
           Speichern
         </button>
+        <Link
+          href={`/tournament/admin/matches/${base.id}`}
+          className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
+        >
+          Control Room
+        </Link>
       </div>
     </form>
   );

@@ -4,6 +4,7 @@ import {
 } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 import { TournamentTeamOverlay } from "@/components/obs/TournamentTeamOverlay";
 import type { ObsTeamResponse, OverlayMatch } from "@/app/api/tournament/obs/route";
 
@@ -35,7 +36,14 @@ async function buildInitial(
 ): Promise<ObsTeamResponse | null> {
   const team = ctx.teams.find((t) => t.id === teamId);
   if (!team) return null;
-  const state = await readTournamentState(ctx.groupMatches);
+  const [state, wheel] = await Promise.all([
+    readTournamentState(ctx.groupMatches),
+    getTournamentWheelState(),
+  ]);
+  const poolFor = (matchId: string) =>
+    wheel.currentAssignment?.matchId === matchId
+      ? wheel.currentAssignment
+      : wheel.history.find((entry) => entry.matchId === matchId) ?? null;
   const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
   const standing = standings[team.group].find((s) => s.team.id === team.id);
   const resolved = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
@@ -59,7 +67,7 @@ async function buildInitial(
     (m) => (m.teamAName === team.name || m.teamBName === team.name) && m.status === "Live",
   );
   const currentMatch: OverlayMatch | null = live
-    ? toOverlay(live, team.name)
+    ? toOverlay(live, team.name, poolFor(live.id))
     : null;
 
   return {
@@ -89,6 +97,7 @@ async function buildInitial(
 function toOverlay(
   m: ReturnType<typeof resolvePlayoffMatches>[number],
   teamName: string,
+  poolAssignment: WheelMatchAssignment | null,
 ): OverlayMatch {
   const selfIsA = m.teamAName === teamName;
   return {
@@ -100,6 +109,8 @@ function toOverlay(
     bracket: m.bracket,
     round: m.round,
     time: m.time,
+    poolSelf: selfIsA ? poolAssignment?.teamAPool : poolAssignment?.teamBPool,
+    poolOpponent: selfIsA ? poolAssignment?.teamBPool : poolAssignment?.teamAPool,
   };
 }
 

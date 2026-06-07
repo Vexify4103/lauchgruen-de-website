@@ -29,6 +29,34 @@ export default async function TournamentPoolsPage() {
           </div>
         </div>
 
+        <div className="mt-8 grid gap-4 rounded-[2rem] border border-lime-200/14 bg-lime-200/[0.055] p-5 shadow-xl shadow-black/20 md:grid-cols-4">
+          {[
+            {
+              title: "1. Pro Match",
+              text: "Das Wheel wird für ein konkretes Match gedreht. Team A und Team B bekommen jeweils einen eigenen Pool.",
+            },
+            {
+              title: "2. Nur dieser Pool",
+              text: "In diesem Match darf das Team nur Champions aus dem gezogenen Pool spielen.",
+            },
+            {
+              title: "3. Danach raus",
+              text: "Wenn das Match als Finished gespeichert wird, gilt der Pool als gespielt und verlässt das Team-Wheel.",
+            },
+            {
+              title: "4. Top 3 Reset",
+              text: "Ab Top 3 kann die Orga die Pools wieder refreshen, wenn das Format es verlangt.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-lime-200/70">
+                {item.title}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-emerald-100/64">{item.text}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="mt-8 grid gap-5">
           {pools.map((pool, index) => (
             <article

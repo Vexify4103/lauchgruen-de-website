@@ -2,22 +2,21 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { auth, signIn, signOut } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getVerifiedAccount } from "@/lib/tournament-storage";
 import { ApplicationForm } from "./ApplicationForm";
 
 const rules = [
-  "Du meldest dich verbindlich für beide Abende an: Freitag, 19.06. und Samstag, 20.06. jeweils abends.",
+  "Du meldest dich verbindlich für beide Abende an: Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 Uhr.",
   "Gespielt wird mit gelosten A-Z Champion-Pools. Pro Runde sind nur Champions aus dem aktuellen Pool erlaubt.",
   "Deine Riot-Verifizierung, Main Rolle und Wunschrollen werden fürs faire Team-Balancing genutzt.",
   "Kein toxisches Verhalten, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
   "Wenn du nur teilweise Zeit hast oder unsicher bist, schreib es bitte direkt in die Notizen.",
 ];
 
-const APPLICATIONS_ENABLED =
-  process.env.TOURNAMENT_APPLICATIONS_ENABLED !== "false";
-
 export default async function ApplyPage() {
-  if (!APPLICATIONS_ENABLED) {
+  const settings = await getTournamentSettings();
+  if (!settings.applicationsOpen) {
     return (
       <div className="px-5 py-10 sm:py-14">
         <section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-amber-200/16 bg-amber-200/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">

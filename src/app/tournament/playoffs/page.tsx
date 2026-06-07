@@ -1,12 +1,22 @@
 import { readTournamentState } from "@/lib/tournament-storage";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentWheelState } from "@/lib/tournament-wheel";
 import { LivePlayoffs } from "@/components/LivePlayoffs";
 
 export default async function PlayoffsPage() {
   const ctx = await getTournamentContext();
-  const state = await readTournamentState(ctx.groupMatches);
-  const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
+  const [state, wheel] = await Promise.all([
+    readTournamentState(ctx.groupMatches),
+    getTournamentWheelState(),
+  ]);
+  const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches).map((match) => ({
+    ...match,
+    poolAssignment:
+      wheel.currentAssignment?.matchId === match.id
+        ? wheel.currentAssignment
+        : wheel.history.find((entry) => entry.matchId === match.id) ?? null,
+  }));
 
   return (
     <div className="px-5 py-10 sm:py-14">

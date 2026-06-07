@@ -24,6 +24,7 @@ export type TournamentTeam = {
   captain: string;
   /** Structured reference to a verified captain (Discord + Riot). Optional. */
   captainRef?: TeamCaptainRef;
+  discordRoleId?: string;
   accent: string;
   players: TournamentPlayer[];
   playedChampions?: string[];
@@ -81,14 +82,14 @@ export const tournament = {
   season: "A-Z Turnier 2026",
   game: "League of Legends",
   region: "EUW",
-  startDate: "19.06. und 20.06.2026 abends",
+  startDate: "19.06. und 20.06.2026 ab 18:00 Uhr CEST",
   format: "Gruppenphase + Endbracket · A-Z Champion-Pools",
   discordUrl: "https://discord.gg/GFYv7K3SKb",
   rulesUrl: "/tournament/apply#rules",
 };
 
 export const tournamentHighlights = [
-  "Freitag, 19.06. und Samstag, 20.06. jeweils am Abend.",
+  "Freitag, 19.06. und Samstag, 20.06. um 18:00 CEST.",
   "Gruppenphase plus Endbracket: du musst mindestens zweimal verlieren, bevor du raus bist.",
   "Pro Runde wird ein Buchstaben-Pool gelost. Gespielt werden nur Champions aus diesem Pool.",
   "Gespielte Buchstaben-Pools verlassen das Glücksrad. Ab Top 3 wird der Pool wieder refreshed.",
@@ -352,11 +353,11 @@ export const applicationSteps = [
   "Melde dich mit Discord an und tritt dem Lauchgruen Discord bei.",
   "Verifiziere deine Riot-ID ueber das Profilicon im League-Client.",
   "Gib Anzeigename, Main Rolle und Wunschrollen an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
-  "Bestätige, dass du am 19.06. und 20.06. abends verbindlich Zeit hast.",
+  "Bestätige, dass du am 19.06. und 20.06. ab 18:00 Uhr CEST verbindlich Zeit hast.",
   "Warte auf Teamzuteilung und weitere Infos im Discord.",
 ];
 
-export const announcedDates = "Freitag, 19.06.2026 abends + Samstag, 20.06.2026 abends";
+export const announcedDates = "Freitag, 19.06.2026 ab 18:00 Uhr CEST + Samstag, 20.06.2026 ab 18:00 Uhr CEST";
 
 export const rankOptions = [
   "Unranked",

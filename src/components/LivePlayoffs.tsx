@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from "react";
 import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
+import type { WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { BracketTree } from "@/components/BracketTree";
 
 const POLL_INTERVAL_MS = 15_000;
 
+export type LivePlayoffMatch = ResolvedPlayoffMatch & {
+  poolAssignment?: WheelMatchAssignment | null;
+};
+
 export function LivePlayoffs({
   initialMatches,
 }: {
-  initialMatches: ResolvedPlayoffMatch[];
+  initialMatches: LivePlayoffMatch[];
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -26,7 +31,7 @@ export function LivePlayoffs({
           cache: "no-store",
         });
         if (!response.ok) return;
-        const json = (await response.json()) as { matches: ResolvedPlayoffMatch[] };
+        const json = (await response.json()) as { matches: LivePlayoffMatch[] };
         if (cancelled || !Array.isArray(json.matches)) return;
         setMatches(json.matches);
         markUpdated();

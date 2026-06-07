@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
+import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import {
   compactPoolLabel,
@@ -29,9 +32,35 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function TeamsPage() {
-  const { teams } = await getTournamentContext();
-  const wheel = await getTournamentWheelState();
+  const ctx = await getTournamentContext();
+  const { teams } = ctx;
+  const [wheel, state] = await Promise.all([
+    getTournamentWheelState(),
+    readTournamentState(ctx.groupMatches),
+  ]);
   const currentAssignment = wheel.currentAssignment;
+  const poolFor = (matchId: string) =>
+    wheel.currentAssignment?.matchId === matchId
+      ? wheel.currentAssignment
+      : wheel.history.find((entry) => entry.matchId === matchId) ?? null;
+  const liveMatches = [
+    ...ctx.groupMatches.map((match) => ({
+      id: match.id,
+      teamA: match.teamA,
+      teamB: match.teamB,
+      round: match.round,
+      status: state.matches[match.id]?.status ?? match.status,
+      poolAssignment: poolFor(match.id),
+    })),
+    ...resolvePlayoffMatches(state.matches, teams, ctx.groupMatches).map((match) => ({
+      id: match.id,
+      teamA: match.teamALabel,
+      teamB: match.teamBLabel,
+      round: match.round,
+      status: state.matches[match.id]?.status ?? match.status,
+      poolAssignment: poolFor(match.id),
+    })),
+  ].filter((match) => match.status === "Live");
   return (
     <div className="px-5 py-10 sm:py-14">
       <section className="mx-auto w-full max-w-7xl">
@@ -47,6 +76,49 @@ export default async function TeamsPage() {
               hat. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
             </p>
         </div>
+
+        {liveMatches.length > 0 ? (
+          <div className="mt-8 rounded-[2rem] border border-red-300/24 bg-red-500/10 p-5 shadow-xl shadow-red-950/20">
+            <div className="text-xs font-black uppercase tracking-[0.28em] text-red-100/72">
+              Current Match
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {liveMatches.map((match) => (
+                <Link
+                  key={match.id}
+                  href={match.poolAssignment ? `/tournament/champ-select/${match.id}/spectate` : "/tournament/teams"}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-red-200/36"
+                >
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100/72">
+                    {match.round} · {match.id}
+                  </div>
+                  <div className="mt-2 text-lg font-black text-emerald-50">
+                    {match.teamA} vs {match.teamB}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {match.poolAssignment ? (
+                      <>
+                        <span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
+                          {compactPoolLabel(match.poolAssignment.teamAPool)}
+                        </span>
+                        <span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
+                          {compactPoolLabel(match.poolAssignment.teamBPool)}
+                        </span>
+                        <span className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50/82">
+                          Draft bereit
+                        </span>
+                      </>
+                    ) : (
+                      <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/38">
+                        Wartet auf Pools
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-8 rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -66,7 +138,10 @@ export default async function TeamsPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-lime-100">
-              {Object.keys(wheel.usedPoolsByTeam).length} Teams mit Pool-Historie
+              {new Set([
+                ...Object.keys(wheel.usedPoolsByTeam),
+                ...Object.keys(wheel.playoffUsedPoolsByTeam),
+              ]).size} Teams mit Pool-Historie
             </div>
           </div>
 
@@ -194,8 +269,17 @@ export default async function TeamsPage() {
 
               <TeamPoolHistory
                 teamName={team.name}
-                usedPools={wheel.usedPoolsByTeam[team.name] ?? []}
-                remaining={remainingPoolsForTeam(wheel, team.name).length}
+                groupPools={wheel.usedPoolsByTeam[team.name] ?? []}
+                playoffPools={wheel.playoffUsedPoolsByTeam[team.name] ?? []}
+                matchPools={wheel.history
+                  .filter((entry) => entry.teamAName === team.name || entry.teamBName === team.name)
+                  .map((entry) => ({
+                    matchId: entry.matchId,
+                    opponent: entry.teamAName === team.name ? entry.teamBName : entry.teamAName,
+                    pool: entry.teamAName === team.name ? entry.teamAPool : entry.teamBPool,
+                  }))}
+                groupRemaining={remainingPoolsForTeam(wheel, team.name, "groups").length}
+                playoffRemaining={remainingPoolsForTeam(wheel, team.name, "playoffs").length}
               />
             </article>
           ))}
@@ -207,12 +291,22 @@ export default async function TeamsPage() {
 
 function TeamPoolHistory({
   teamName,
-  usedPools,
-  remaining,
+  groupPools,
+  playoffPools,
+  matchPools,
+  groupRemaining,
+  playoffRemaining,
 }: {
   teamName: string;
-  usedPools: string[];
-  remaining: number;
+  groupPools: string[];
+  playoffPools: string[];
+  matchPools: Array<{
+    matchId: string;
+    opponent: string;
+    pool: string;
+  }>;
+  groupRemaining: number;
+  playoffRemaining: number;
 }) {
   return (
     <div className="mt-5 rounded-2xl border border-lime-200/12 bg-lime-200/[0.045] p-4">
@@ -221,17 +315,49 @@ function TeamPoolHistory({
           Gespielte A-Z Pools von {teamName}
         </div>
         <div className="text-xs font-black text-emerald-100/46">
-          {remaining} übrig
+          Reset ab Playoffs
         </div>
       </div>
 
-      {usedPools.length === 0 ? (
-        <p className="mt-3 text-sm italic text-emerald-100/40">
-          Dieses Team hat noch keinen Pool abgeschlossen.
+      <PoolHistoryRow label={`Gruppenphase · ${groupRemaining} übrig`} pools={groupPools} />
+      <PoolHistoryRow label={`Playoffs · ${playoffRemaining} übrig`} pools={playoffPools} />
+      {matchPools.length > 0 ? (
+        <div className="mt-4 grid gap-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/42">
+            Match-Historie
+          </div>
+          {matchPools.slice(0, 5).map((entry) => (
+            <div
+              key={`${entry.matchId}-${entry.pool}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-xs font-bold text-emerald-100/62"
+            >
+              <span className="min-w-0 truncate">
+                {entry.matchId} vs {entry.opponent}
+              </span>
+              <span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50">
+                {compactPoolLabel(entry.pool)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PoolHistoryRow({ label, pools }: { label: string; pools: string[] }) {
+  return (
+    <div className="mt-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/42">
+        {label}
+      </div>
+      {pools.length === 0 ? (
+        <p className="mt-2 text-sm italic text-emerald-100/40">
+          Noch kein Pool abgeschlossen.
         </p>
       ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {usedPools.map((pool) => (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {pools.map((pool) => (
             <span
               key={pool}
               className="rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80"

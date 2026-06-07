@@ -13,6 +13,7 @@ import {
 } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,8 @@ export type OverlayMatch = {
   bracket: "Group" | "Upper" | "Lower" | "Grand";
   round: string;
   time: string;
+  poolSelf?: string;
+  poolOpponent?: string;
 };
 
 export async function GET(request: Request) {
@@ -63,7 +66,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: `Unbekanntes Team: ${teamId}` }, { status: 404 });
   }
 
-  const state = await readTournamentState(ctx.groupMatches);
+  const [state, wheel] = await Promise.all([
+    readTournamentState(ctx.groupMatches),
+    getTournamentWheelState(),
+  ]);
+  const poolFor = (matchId: string) =>
+    wheel.currentAssignment?.matchId === matchId
+      ? wheel.currentAssignment
+      : wheel.history.find((entry) => entry.matchId === matchId) ?? null;
   const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
   const standing = standings[team.group].find((s) => s.team.id === team.id);
   const groupSize = standings[team.group].length;
@@ -82,6 +92,7 @@ export async function GET(request: Request) {
     scoreB?: number;
     teamAName: string | null;
     teamBName: string | null;
+    poolAssignment: WheelMatchAssignment | null;
   }> = [];
 
   for (const match of teamGroupMatches) {
@@ -93,6 +104,7 @@ export async function GET(request: Request) {
       scoreB: stored?.scoreB,
       teamAName: match.teamA,
       teamBName: match.teamB,
+      poolAssignment: poolFor(match.id),
     });
   }
 
@@ -115,6 +127,7 @@ export async function GET(request: Request) {
       scoreB: r.scoreB,
       teamAName: r.teamAName,
       teamBName: r.teamBName,
+      poolAssignment: poolFor(r.id),
     });
   }
 
@@ -138,6 +151,8 @@ export async function GET(request: Request) {
       bracket,
       round,
       time,
+      poolSelf: selfIsA ? entry.poolAssignment?.teamAPool : entry.poolAssignment?.teamBPool,
+      poolOpponent: selfIsA ? entry.poolAssignment?.teamBPool : entry.poolAssignment?.teamAPool,
     };
   }
 

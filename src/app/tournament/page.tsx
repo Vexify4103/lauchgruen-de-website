@@ -7,6 +7,7 @@ import {
   tournamentHighlights,
 } from "@/lib/tournament-data";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 const stats = [
   { label: "Format", value: tournament.format },
@@ -14,11 +15,11 @@ const stats = [
   { label: "Start", value: tournament.startDate },
 ];
 
-const APPLICATIONS_ENABLED =
-  process.env.TOURNAMENT_APPLICATIONS_ENABLED !== "false";
-
 export default async function TournamentHomePage() {
-  const { teams, groupMatches } = await getTournamentContext();
+  const [{ teams, groupMatches }, settings] = await Promise.all([
+    getTournamentContext(),
+    getTournamentSettings(),
+  ]);
   return (
     <div className="px-5 py-10 sm:py-14">
       <section className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -37,7 +38,7 @@ export default async function TournamentHomePage() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            {APPLICATIONS_ENABLED ? (
+            {settings.applicationsOpen ? (
               <Link
                 href="/tournament/apply"
                 className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"

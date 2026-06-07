@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { writeAuditLog } from "@/lib/tournament-audit";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   readTournamentState,
 } from "@/lib/tournament-storage";
+import { poolHistoryScopeForMatchId } from "@/lib/tournament-rules";
 import {
   getTournamentWheelState,
   resetTournamentWheel,
@@ -54,6 +56,20 @@ export async function POST(request: Request) {
           teamBName: parsed.data.teamBName,
           spunBy: session.user.discordHandle ?? discordId,
         });
+    await writeAuditLog({
+      action: parsed.data.action === "reset" ? "wheel.reset" : "wheel.spin",
+      targetType: "wheel",
+      targetId: parsed.data.action === "reset" ? "az-2026" : parsed.data.matchId,
+      summary: parsed.data.action === "reset"
+        ? "A-Z wheel reset."
+        : `Pools drawn for ${parsed.data.matchId}.`,
+      actorDiscordId: discordId,
+      actorLabel: session.user.discordHandle ?? discordId,
+      metadata: parsed.data.action === "reset" ? undefined : {
+        teamAName: parsed.data.teamAName,
+        teamBName: parsed.data.teamBName,
+      },
+    });
 
     return NextResponse.json(state);
   } catch (error) {
@@ -76,5 +92,8 @@ async function spinAfterMatchGuard(input: {
     throw new Error("Dieses Match ist bereits abgeschlossen.");
   }
 
-  return spinTournamentWheelForMatch(input);
+  return spinTournamentWheelForMatch({
+    ...input,
+    scope: poolHistoryScopeForMatchId(input.matchId),
+  });
 }

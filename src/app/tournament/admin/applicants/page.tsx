@@ -3,10 +3,12 @@ import { auth, signIn } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
+  listBlacklistEntries,
   listApplications,
   type TournamentApplication,
 } from "@/lib/tournament-storage";
 import { DeleteApplicantButton } from "./DeleteApplicantButton";
+import { BlacklistManager } from "./BlacklistManager";
 
 export const dynamic = "force-dynamic";
 
@@ -73,9 +75,10 @@ export default async function ApplicantsPage() {
     );
   }
 
-  const [applications, assignedByDiscordId] = await Promise.all([
+  const [applications, assignedByDiscordId, blacklistEntries] = await Promise.all([
     listApplications(),
     loadAssignmentMap(),
+    listBlacklistEntries(),
   ]);
 
   // Newest-first
@@ -119,6 +122,8 @@ export default async function ApplicantsPage() {
           <StatPill label="Zugewiesen" value={assignedCount.toString()} tone="ok" />
           <StatPill label="Offen" value={unassignedCount.toString()} tone="warn" />
         </div>
+
+        <BlacklistManager initialEntries={blacklistEntries} />
 
         {sorted.length === 0 ? (
           <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 text-sm leading-7 text-emerald-100/68">

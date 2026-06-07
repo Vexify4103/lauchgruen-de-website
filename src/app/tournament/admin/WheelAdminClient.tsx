@@ -8,6 +8,7 @@ import {
   type TournamentWheelState,
   type WheelMatchAssignment,
 } from "@/lib/tournament-wheel-shared";
+import { poolHistoryScopeForMatchPhase } from "@/lib/tournament-rules";
 import type { AdminMatch } from "./MatchAdminClient";
 
 const SPIN_DURATION_MS = 1900;
@@ -70,10 +71,10 @@ export function WheelAdminClient({
   );
 
   const teamARemaining = selectedMatch
-    ? remainingPoolsForTeam(state, selectedMatch.teamA)
+    ? remainingPoolsForTeam(state, selectedMatch.teamA, poolHistoryScopeForMatchPhase(selectedMatch.phase))
     : [];
   const teamBRemaining = selectedMatch
-    ? remainingPoolsForTeam(state, selectedMatch.teamB)
+    ? remainingPoolsForTeam(state, selectedMatch.teamB, poolHistoryScopeForMatchPhase(selectedMatch.phase))
     : [];
 
   function spin() {
@@ -188,6 +189,7 @@ export function WheelAdminClient({
             {playableMatches.map((match) => (
               <option key={match.id} value={match.id} className="bg-emerald-950">
                 {match.id}: {match.teamA} vs {match.teamB}
+                {match.phase === "playoffs" ? " · Playoff-Reset" : ""}
                 {match.status === "Finished" || state.completedMatchIds.includes(match.id)
                   ? " · abgeschlossen"
                   : state.currentAssignment?.matchId === match.id
@@ -319,12 +321,13 @@ function TeamWheel({
           >
             {azLetterPools.map((letterPool, index) => {
               const angle = index * SEGMENT_DEGREES + SEGMENT_DEGREES / 2;
+              const uprightFlip = angle > 90 && angle < 270 ? 180 : 0;
               return (
                 <span
                   key={letterPool}
                   className="absolute left-1/2 top-1/2 grid h-8 w-12 origin-center place-items-center rounded-full border border-emerald-950/20 bg-emerald-950/72 text-[10px] font-black tracking-[0.08em] text-lime-50 shadow-lg shadow-black/20"
                   style={{
-                    transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-78px) rotate(90deg)`,
+                    transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-78px) rotate(${-angle + uprightFlip}deg)`,
                   }}
                 >
                   {compactPoolLabel(letterPool)}

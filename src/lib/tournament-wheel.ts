@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongo";
 import { azLetterPools } from "@/lib/tournament-data";
+import type { PoolHistoryScope } from "@/lib/tournament-rules";
 import {
   remainingPoolsForTeam,
   type TournamentWheelState,
@@ -30,6 +31,7 @@ function defaultWheelState(): TournamentWheelState {
     id: DOC_ID,
     currentAssignment: null,
     usedPoolsByTeam: {},
+    playoffUsedPoolsByTeam: {},
     completedMatchIds: [],
     history: [],
     updatedAt: new Date().toISOString(),
@@ -56,6 +58,7 @@ function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
   }
   return {
     matchId: raw.matchId,
+    scope: raw.scope === "playoffs" ? "playoffs" : "groups",
     teamAName: raw.teamAName,
     teamBName: raw.teamBName,
     teamAPool,
@@ -72,6 +75,12 @@ function stripMongoId(doc: WheelDoc): TournamentWheelState {
       sanitizePools(pools),
     ]),
   );
+  const playoffUsedPoolsByTeam = Object.fromEntries(
+    Object.entries(doc.playoffUsedPoolsByTeam ?? {}).map(([teamName, pools]) => [
+      teamName,
+      sanitizePools(pools),
+    ]),
+  );
 
   const currentAssignment = sanitizeAssignment(doc.currentAssignment);
   const history = Array.isArray(doc.history)
@@ -84,6 +93,7 @@ function stripMongoId(doc: WheelDoc): TournamentWheelState {
     id: DOC_ID,
     currentAssignment,
     usedPoolsByTeam,
+    playoffUsedPoolsByTeam,
     completedMatchIds: Array.isArray(doc.completedMatchIds)
       ? [...new Set(doc.completedMatchIds.map((id) => String(id)).filter(Boolean))]
       : [],
@@ -106,9 +116,11 @@ export async function spinTournamentWheelForMatch(input: {
   matchId: string;
   teamAName: string;
   teamBName: string;
+  scope?: PoolHistoryScope;
   spunBy?: string;
 }): Promise<TournamentWheelState> {
   const current = await getTournamentWheelState();
+  const scope = input.scope ?? "groups";
   if (
     current.currentAssignment
     && !current.completedMatchIds.includes(current.currentAssignment.matchId)
@@ -125,8 +137,8 @@ export async function spinTournamentWheelForMatch(input: {
     throw new Error("Für dieses Match wurde bereits ein Pool gezogen.");
   }
 
-  const teamARemaining = remainingPoolsForTeam(current, input.teamAName);
-  const teamBRemaining = remainingPoolsForTeam(current, input.teamBName);
+  const teamARemaining = remainingPoolsForTeam(current, input.teamAName, scope);
+  const teamBRemaining = remainingPoolsForTeam(current, input.teamBName, scope);
 
   if (teamARemaining.length === 0) {
     throw new Error(`${input.teamAName} hat keine ungespielten Pools mehr.`);
@@ -145,6 +157,7 @@ export async function spinTournamentWheelForMatch(input: {
 
   const assignment: WheelMatchAssignment = {
     matchId: input.matchId,
+    scope,
     teamAName: input.teamAName,
     teamBName: input.teamBName,
     teamAPool,
@@ -157,6 +170,7 @@ export async function spinTournamentWheelForMatch(input: {
     id: DOC_ID,
     currentAssignment: assignment,
     usedPoolsByTeam: current.usedPoolsByTeam,
+    playoffUsedPoolsByTeam: current.playoffUsedPoolsByTeam,
     completedMatchIds: current.completedMatchIds,
     history: [assignment, ...current.history].slice(0, 40),
     updatedAt: now,
@@ -183,13 +197,15 @@ export async function commitWheelAssignmentForMatch(
   if (!assignment) return current;
 
   const now = new Date().toISOString();
-  const usedPoolsByTeam = {
-    ...current.usedPoolsByTeam,
+  const scope = assignment.scope ?? "groups";
+  const target = scope === "playoffs" ? current.playoffUsedPoolsByTeam : current.usedPoolsByTeam;
+  const updatedTarget = {
+    ...target,
     [assignment.teamAName]: [
-      ...new Set([...(current.usedPoolsByTeam[assignment.teamAName] ?? []), assignment.teamAPool]),
+      ...new Set([...(target[assignment.teamAName] ?? []), assignment.teamAPool]),
     ],
     [assignment.teamBName]: [
-      ...new Set([...(current.usedPoolsByTeam[assignment.teamBName] ?? []), assignment.teamBPool]),
+      ...new Set([...(target[assignment.teamBName] ?? []), assignment.teamBPool]),
     ],
   };
 
@@ -197,7 +213,8 @@ export async function commitWheelAssignmentForMatch(
     id: DOC_ID,
     currentAssignment:
       current.currentAssignment?.matchId === matchId ? null : current.currentAssignment,
-    usedPoolsByTeam,
+    usedPoolsByTeam: scope === "groups" ? updatedTarget : current.usedPoolsByTeam,
+    playoffUsedPoolsByTeam: scope === "playoffs" ? updatedTarget : current.playoffUsedPoolsByTeam,
     completedMatchIds: [...new Set([...current.completedMatchIds, matchId])],
     history: current.history,
     updatedAt: now,

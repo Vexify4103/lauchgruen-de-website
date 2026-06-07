@@ -20,6 +20,7 @@ export function ThemedSelect({
   required?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const [highlight, setHighlight] = useState(() =>
     Math.max(0, options.findIndex((option) => option.value === value)),
   );
@@ -28,6 +29,15 @@ export function ThemedSelect({
   const listRef = useRef<HTMLUListElement>(null);
 
   const selected = options.find((option) => option.value === value);
+
+  function toggleOpen() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const expectedHeight = Math.min(272, options.length * 42 + 16);
+      setDropUp(window.innerHeight - rect.bottom < expectedHeight && rect.top > expectedHeight);
+    }
+    setOpen((prev) => !prev);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +101,7 @@ export function ThemedSelect({
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={toggleOpen}
         onKeyDown={onKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -137,7 +147,9 @@ export function ThemedSelect({
           ref={listRef}
           role="listbox"
           tabIndex={-1}
-          className="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-1 shadow-2xl shadow-black/40 backdrop-blur"
+          className={`absolute z-50 max-h-64 w-full overflow-auto rounded-2xl border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-1 shadow-2xl shadow-black/40 backdrop-blur ${
+            dropUp ? "bottom-full mb-2" : "mt-2"
+          }`}
         >
           {options.map((option, index) => {
             const isSelected = option.value === value;

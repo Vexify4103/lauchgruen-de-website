@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   clearRiotLink,
   findApplication,
+  findBlacklistMatch,
   getVerifiedAccount,
   listApplications,
   upsertApplication,
@@ -29,7 +31,8 @@ function applicationId(puuid: string, discordId: string) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.TOURNAMENT_APPLICATIONS_ENABLED === "false") {
+  const settings = await getTournamentSettings();
+  if (!settings.applicationsOpen) {
     return NextResponse.json(
       { message: "Bewerbungen sind aktuell geschlossen." },
       { status: 403 },
@@ -62,6 +65,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { message: "Verifiziere zuerst deinen Riot-Account, bevor du die Bewerbung absendest." },
       { status: 412 },
+    );
+  }
+  const blacklistMatch = await findBlacklistMatch({
+    discordId,
+    riotId: verified.riotId,
+  });
+  if (blacklistMatch) {
+    return NextResponse.json(
+      {
+        message:
+          "Dieser Discord- oder Riot-Account ist für Lauchgruen-Turniere gesperrt. Bitte melde dich beim Orga-Team, falls du glaubst, dass das ein Fehler ist.",
+      },
+      { status: 403 },
     );
   }
 

@@ -1,16 +1,25 @@
+import Link from "next/link";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { computeGroupStandings } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
 
 const groups = ["A", "B"] as const;
 
 export default async function GroupsPage() {
   const ctx = await getTournamentContext();
-  const state = await readTournamentState(ctx.groupMatches);
+  const [state, wheel] = await Promise.all([
+    readTournamentState(ctx.groupMatches),
+    getTournamentWheelState(),
+  ]);
   const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
   const matchesWithScores = ctx.groupMatches.map((match) => ({
     ...match,
     ...(state.matches[match.id] ?? {}),
+    poolAssignment:
+      wheel.currentAssignment?.matchId === match.id
+        ? wheel.currentAssignment
+        : wheel.history.find((entry) => entry.matchId === match.id) ?? null,
   }));
 
   return (
@@ -85,8 +94,17 @@ export default async function GroupsPage() {
                 </div>
 
                 <div className="mt-5 grid gap-3">
-                  {matches.map((match) => (
-                    <div key={match.id} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                  {matches.map((match) => {
+                    const isLive = match.status === "Live";
+                    return (
+                    <div
+                      key={match.id}
+                      className={`rounded-2xl border p-4 ${
+                        isLive
+                          ? "border-red-300/34 bg-red-500/12 shadow-lg shadow-red-950/20"
+                          : "border-white/10 bg-black/18"
+                      }`}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">
                           {match.round} · {match.time}
@@ -96,21 +114,55 @@ export default async function GroupsPage() {
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-lg font-black text-emerald-50">
-                        <span className="truncate text-right">{match.teamA}</span>
+                        <div className="min-w-0 text-right">
+                          <span className="block truncate">{match.teamA}</span>
+                          {match.poolAssignment ? (
+                            <span className="mt-1 inline-flex rounded-full border border-lime-200/18 bg-lime-200/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
+                              Pool {compactPoolLabel(match.poolAssignment.teamAPool)}
+                            </span>
+                          ) : null}
+                        </div>
                         <span className="text-center text-lime-100">
                           {match.scoreA !== undefined && match.scoreB !== undefined
                             ? `${match.scoreA}:${match.scoreB}`
                             : "vs."}
                         </span>
-                        <span className="truncate">{match.teamB}</span>
+                        <div className="min-w-0">
+                          <span className="block truncate">{match.teamB}</span>
+                          {match.poolAssignment ? (
+                            <span className="mt-1 inline-flex rounded-full border border-lime-200/18 bg-lime-200/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
+                              Pool {compactPoolLabel(match.poolAssignment.teamBPool)}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       {match.winner ? (
                         <div className="mt-3 text-sm font-bold text-lime-100">
                           Sieger: {match.winner}
                         </div>
                       ) : null}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {isLive ? (
+                          <span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
+                            Current Match
+                          </span>
+                        ) : null}
+                        {match.poolAssignment ? (
+                          <Link
+                            href={`/tournament/champ-select/${match.id}/spectate`}
+                            className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-50/82"
+                          >
+                            Draft Link bereit
+                          </Link>
+                        ) : (
+                          <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/38">
+                            Wartet auf Pools
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </article>
             );

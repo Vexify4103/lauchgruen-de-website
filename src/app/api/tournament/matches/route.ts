@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { deriveWinner } from "@/lib/bracket-resolver";
+import { writeAuditLog } from "@/lib/tournament-audit";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   readTournamentState,
@@ -23,13 +25,20 @@ const matchUpdateSchema = z.object({
     z.coerce.number().int().min(0).max(99).optional(),
   ),
   status: z.enum(["Scheduled", "Live", "Finished", "Locked", "Pending"]),
+  teamAChampions: z.array(z.string().trim().min(1)).optional(),
+  teamBChampions: z.array(z.string().trim().min(1)).optional(),
+  blueSide: z.enum(["teamA", "teamB"]).optional(),
   // Winner is derived from scores on the server — accept but ignore.
 });
 
 async function requireOwner() {
   const session = await auth();
   const discordId = session?.user?.discordId;
-  return Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
+  return {
+    ok: Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)),
+    session,
+    discordId,
+  };
 }
 
 export async function GET() {
@@ -39,7 +48,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  if (!(await requireOwner())) {
+  const owner = await requireOwner();
+  if (!owner.ok) {
     return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
   }
 
@@ -51,8 +61,18 @@ export async function PATCH(request: Request) {
   }
 
   const updatedAt = new Date().toISOString();
-  const ctx = await getTournamentContext();
+  const [ctx, settings] = await Promise.all([
+    getTournamentContext(),
+    getTournamentSettings(),
+  ]);
   const state = await readTournamentState(ctx.groupMatches);
+  const currentStatus = state.matches[parsed.data.id]?.status;
+  if (parsed.data.status === "Live" && currentStatus !== "Live" && !settings.tournamentLive) {
+    return NextResponse.json(
+      { message: "Turniermodus ist noch auf Vorbereitung. Stelle ihn im Admin-Dashboard zuerst auf Live." },
+      { status: 409 },
+    );
+  }
   const winner = deriveWinner(
     parsed.data.id,
     parsed.data.scoreA,
@@ -65,6 +85,9 @@ export async function PATCH(request: Request) {
     id: parsed.data.id,
     scoreA: parsed.data.scoreA,
     scoreB: parsed.data.scoreB,
+    teamAChampions: parsed.data.teamAChampions,
+    teamBChampions: parsed.data.teamBChampions,
+    blueSide: parsed.data.blueSide,
     status: parsed.data.status,
     winner: winner ?? undefined,
     updatedAt,
@@ -72,6 +95,21 @@ export async function PATCH(request: Request) {
   if (parsed.data.status === "Finished") {
     await commitWheelAssignmentForMatch(parsed.data.id);
   }
+  await writeAuditLog({
+    action: "match.update",
+    targetType: "match",
+    targetId: parsed.data.id,
+    summary: `Match ${parsed.data.id} saved as ${parsed.data.status}.`,
+    actorDiscordId: owner.discordId,
+    actorLabel: owner.session?.user.discordHandle ?? owner.discordId,
+    metadata: {
+      scoreA: parsed.data.scoreA,
+      scoreB: parsed.data.scoreB,
+      status: parsed.data.status,
+      blueSide: parsed.data.blueSide,
+      winner,
+    },
+  });
 
   return NextResponse.json({ match });
 }

@@ -10,14 +10,24 @@ import { NextResponse } from "next/server";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getTournamentWheelState } from "@/lib/tournament-wheel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const ctx = await getTournamentContext();
-  const state = await readTournamentState(ctx.groupMatches);
-  const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
+  const [state, wheel] = await Promise.all([
+    readTournamentState(ctx.groupMatches),
+    getTournamentWheelState(),
+  ]);
+  const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches).map((match) => ({
+    ...match,
+    poolAssignment:
+      wheel.currentAssignment?.matchId === match.id
+        ? wheel.currentAssignment
+        : wheel.history.find((entry) => entry.matchId === match.id) ?? null,
+  }));
   return NextResponse.json(
     { matches },
     {
