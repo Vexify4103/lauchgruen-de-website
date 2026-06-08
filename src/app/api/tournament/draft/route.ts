@@ -4,10 +4,13 @@ import { auth } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
 import { getMatchControlContext } from "@/lib/match-control";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import {
   createDraftSequence,
+  draftComplete,
+  draftReady,
   forceDraftReady,
   getDraftState,
   handleDraftTimeout,
@@ -20,6 +23,7 @@ import {
   type DraftSide,
 } from "@/lib/tournament-draft";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { upsertMatch } from "@/lib/tournament-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,6 +93,17 @@ export async function POST(request: Request) {
         actorDiscordId: discordId,
         actorLabel: updatedBy,
       });
+      await writeTournamentEvent({
+        type: `draft.${parsed.data.action}`,
+        targetType: "draft",
+        targetId: parsed.data.matchId,
+        createdBy: updatedBy,
+      });
+      await syncMatchStatusFromDraft({
+        matchId: parsed.data.matchId,
+        draft,
+        actor: updatedBy,
+      });
       return NextResponse.json({ draft });
     } catch (error) {
       return NextResponse.json(
@@ -106,6 +121,18 @@ export async function POST(request: Request) {
         matchId: parsed.data.matchId,
         triggeredBy: session.user.discordHandle ?? discordId,
         extraBanSide: match ? bonusBanSideForMatch(match) : null,
+      });
+      await writeTournamentEvent({
+        type: "draft.timeout",
+        targetType: "draft",
+        targetId: parsed.data.matchId,
+        createdBy: session.user.discordHandle ?? discordId,
+      });
+      await syncMatchStatusFromDraft({
+        matchId: parsed.data.matchId,
+        draft,
+        extraBanSide: match ? bonusBanSideForMatch(match) : null,
+        actor: session.user.discordHandle ?? discordId,
       });
       return NextResponse.json({ draft });
     } catch (error) {
@@ -175,6 +202,17 @@ export async function POST(request: Request) {
         selectedBy: session.user.discordHandle ?? discordId,
         extraBanSide,
       });
+      await writeTournamentEvent({
+        type: "draft.selection_pending",
+        targetType: "draft",
+        targetId: parsed.data.matchId,
+        createdBy: session.user.discordHandle ?? discordId,
+        payload: {
+          side: turn.side,
+          kind: turn.kind,
+          champion: parsed.data.champion,
+        },
+      });
       return NextResponse.json({ draft });
     } catch (error) {
       return NextResponse.json(
@@ -194,6 +232,19 @@ export async function POST(request: Request) {
       matchId: parsed.data.matchId,
       side,
       readyBy: session.user.discordHandle ?? discordId,
+    });
+    await writeTournamentEvent({
+      type: "draft.ready",
+      targetType: "draft",
+      targetId: parsed.data.matchId,
+      createdBy: session.user.discordHandle ?? discordId,
+      payload: { side },
+    });
+    await syncMatchStatusFromDraft({
+      matchId: parsed.data.matchId,
+      draft,
+      extraBanSide: bonusBanSideForMatch(match),
+      actor: session.user.discordHandle ?? discordId,
     });
     return NextResponse.json({ draft });
   } catch (error) {
@@ -289,6 +340,19 @@ export async function PATCH(request: Request) {
       actorLabel: session.user.discordHandle ?? discordId,
       metadata: { side: turn.side, kind: turn.kind, champion: parsed.data.champion },
     });
+    await writeTournamentEvent({
+      type: turn.kind === "ban" ? "draft.ban_locked" : "draft.pick_locked",
+      targetType: "draft",
+      targetId: parsed.data.matchId,
+      createdBy: session.user.discordHandle ?? discordId,
+      payload: { side: turn.side, kind: turn.kind, champion: parsed.data.champion },
+    });
+    await syncMatchStatusFromDraft({
+      matchId: parsed.data.matchId,
+      draft,
+      extraBanSide,
+      actor: session.user.discordHandle ?? discordId,
+    });
     return NextResponse.json({ draft });
   } catch (error) {
     return NextResponse.json(
@@ -296,6 +360,47 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
+}
+
+async function syncMatchStatusFromDraft({
+  matchId,
+  draft,
+  extraBanSide,
+  actor,
+}: {
+  matchId: string;
+  draft: Awaited<ReturnType<typeof getDraftState>>;
+  extraBanSide?: DraftSide | null;
+  actor?: string;
+}) {
+  const ctx = await getMatchControlContext();
+  const match = ctx.matches.find((entry) => entry.id === matchId);
+  if (!match || match.status === "Finished") return;
+
+  const sequence = createDraftSequence(extraBanSide ?? bonusBanSideForMatch(match));
+  const nextStatus = draftComplete(draft, sequence)
+    ? "Live"
+    : draftReady(draft) || draft.actions.length > 0 || draft.pendingSelection
+      ? "Pending"
+      : null;
+
+  if (!nextStatus || match.status === nextStatus) return;
+
+  await upsertMatch(matchId, {
+    id: matchId,
+    status: nextStatus,
+    updatedAt: new Date().toISOString(),
+  });
+  await writeTournamentEvent({
+    type: "match.status_auto",
+    targetType: "match",
+    targetId: matchId,
+    createdBy: actor,
+    payload: {
+      status: nextStatus,
+      reason: nextStatus === "Live" ? "draft_completed" : "draft_in_progress",
+    },
+  });
 }
 
 function captainDraftSideForUser(

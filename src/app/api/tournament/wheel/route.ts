@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   readTournamentState,
@@ -66,6 +67,17 @@ export async function POST(request: Request) {
       actorDiscordId: discordId,
       actorLabel: session.user.discordHandle ?? discordId,
       metadata: parsed.data.action === "reset" ? undefined : {
+        teamAName: parsed.data.teamAName,
+        teamBName: parsed.data.teamBName,
+      },
+    });
+    await writeTournamentEvent({
+      type: parsed.data.action === "reset" ? "wheel.reset" : "wheel.pools_drawn",
+      targetType: "wheel",
+      targetId: parsed.data.action === "reset" ? "az-2026" : parsed.data.matchId,
+      createdBy: session.user.discordHandle ?? discordId,
+      payload: parsed.data.action === "reset" ? undefined : {
+        matchId: parsed.data.matchId,
         teamAName: parsed.data.teamAName,
         teamBName: parsed.data.teamBName,
       },

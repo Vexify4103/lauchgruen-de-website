@@ -74,6 +74,12 @@ export default async function TournamentAdminPage() {
           {isOwner ? (
             <div className="flex flex-wrap items-start gap-2">
               <Link
+                href="/tournament/admin/live"
+                className="rounded-2xl border border-red-300/24 bg-red-500/12 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-red-100 transition hover:border-red-300/40"
+              >
+                Live-Cockpit →
+              </Link>
+              <Link
                 href="/tournament/admin/applicants"
                 className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
               >

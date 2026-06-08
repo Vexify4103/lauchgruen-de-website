@@ -692,6 +692,11 @@ function CurrentTurnPanel({
                 style={{ width: `${timer.progress}%` }}
               />
             </div>
+            {timer.remainingMs > 0 && timer.remainingMs <= 5000 ? (
+              <div className="mt-3 animate-pulse rounded-xl border border-red-300/30 bg-red-500/16 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-100">
+                Letzte 5 Sekunden
+              </div>
+            ) : null}
             <p className="hidden mt-2 text-xs leading-5 text-emerald-100/54">
               {timer.remainingMs <= 0
                 ? "Timer ist auf 0. Gleich wird ohne Champion gelockt und der Draft neu gestartet."

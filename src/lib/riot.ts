@@ -103,6 +103,11 @@ export async function getAccountByRiotId(
   return riotGet<RiotAccount>(url);
 }
 
+export async function getAccountByPuuid(puuid: string): Promise<RiotAccount> {
+  const url = `https://${region()}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`;
+  return riotGet<RiotAccount>(url);
+}
+
 export async function getSummonerByPuuid(puuid: string): Promise<RiotSummoner> {
   const url = `https://${platform()}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(puuid)}`;
   return riotGet<RiotSummoner>(url);

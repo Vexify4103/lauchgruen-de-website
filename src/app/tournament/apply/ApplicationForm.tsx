@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { announcedDates } from "@/lib/tournament-data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 
 type SubmitState =
   | { status: "idle"; message: "" }
@@ -55,6 +57,7 @@ export function ApplicationForm({
   initialVerified: VerifiedAccount;
 }) {
   const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
+  const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
   const [state, setState] = useState<SubmitState>(initialState);
   const [guildMember, setGuildMember] = useState(isGuildMember);
   const [membershipStatus, setMembershipStatus] = useState<
@@ -72,6 +75,10 @@ export function ApplicationForm({
     }
     if (!verified) {
       setState({ status: "error", message: "Bitte zuerst deinen Riot-Account verifizieren." });
+      return;
+    }
+    if (preferredRoles.length === 0) {
+      setState({ status: "error", message: "Bitte wähle mindestens eine Wunschrolle aus." });
       return;
     }
 
@@ -232,7 +239,7 @@ export function ApplicationForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?" />
-          <SelectField label="Main Rolle" name="mainRole" options={roleOptions} />
+          <ThemedSelectField label="Main Rolle" name="mainRole" options={roleOptions} />
           <ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
           <ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
           <ReadOnlyField
@@ -241,26 +248,17 @@ export function ApplicationForm({
           />
         </div>
 
-        <div>
+        <div className="grid gap-2">
           <label className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
             Wunschrollen
           </label>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {roleOptions.map((role) => (
-              <label
-                key={role}
-                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/16 px-4 py-3 text-sm font-bold text-emerald-100/76"
-              >
-                <input
-                  type="checkbox"
-                  name="preferredRoles"
-                  value={role}
-                  className="size-4 accent-lime-300"
-                />
-                {role}
-              </label>
-            ))}
-          </div>
+          <ThemedMultiSelect
+            name="preferredRoles"
+            value={preferredRoles}
+            onChange={setPreferredRoles}
+            placeholder="Eine oder mehrere Rollen wählen"
+            options={roleOptions.map((role) => ({ value: role, label: role }))}
+          />
         </div>
 
         <label className="grid gap-2">
@@ -305,6 +303,17 @@ export function ApplicationForm({
         >
           {state.status === "loading" ? "Wird abgeschickt..." : "Bewerbung absenden"}
         </button>
+        <p className="text-xs leading-5 text-emerald-100/48">
+          Mit dem Absenden bestätigst du verbindlich die{" "}
+          <Link href="/tournament/terms" className="font-black text-lime-100 underline decoration-lime-200/40 underline-offset-4">
+            Teilnahmebedingungen
+          </Link>{" "}
+          und die{" "}
+          <Link href="/tournament/privacy" className="font-black text-lime-100 underline decoration-lime-200/40 underline-offset-4">
+            Datenschutzhinweise
+          </Link>{" "}
+          für dieses Turnier.
+        </p>
       </form>
     </div>
   );
@@ -584,6 +593,34 @@ function Field({
   );
 }
 
+function ThemedSelectField({
+  label,
+  name,
+  options,
+}: {
+  label: string;
+  name: string;
+  options: string[];
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <label className="grid gap-2">
+      <span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+        {label}
+      </span>
+      <ThemedSelect
+        name={name}
+        value={value}
+        onChange={setValue}
+        required
+        placeholder="Bitte auswählen"
+        options={options.map((option) => ({ value: option, label: option }))}
+      />
+    </label>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SelectField({
   label,
   name,

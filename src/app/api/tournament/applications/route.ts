@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
+import { writeAuditLog } from "@/lib/tournament-audit";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
@@ -24,6 +25,14 @@ const applicationSchema = z.object({
   notes: z.string().trim().max(1500).optional().default(""),
   acceptedRules: z.literal(true),
   acceptedDataStorage: z.literal(true),
+});
+
+const applicationPatchSchema = z.object({
+  id: z.string().trim().min(1),
+  displayName: z.string().trim().min(2).max(60).optional(),
+  mainRole: z.string().trim().min(1).max(20).optional(),
+  preferredRoles: z.array(z.string().trim().min(1).max(20)).min(1).max(6).optional(),
+  notes: z.string().trim().max(1500).optional(),
 });
 
 function applicationId(puuid: string, discordId: string) {
@@ -122,13 +131,61 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("token");
   const adminToken = process.env.TOURNAMENT_ADMIN_TOKEN;
+  const session = await auth();
+  const discordId = session?.user?.discordId;
+  const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
 
-  if (!adminToken || token !== adminToken) {
+  if (!isOwner && (!adminToken || token !== adminToken)) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
 
   const applications = await listApplications();
   return NextResponse.json({ applications });
+}
+
+export async function PATCH(request: Request) {
+  const session = await auth();
+  const discordId = session?.user?.discordId;
+  if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) {
+    return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = applicationPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ message: "Ungueltige Bewerbungsdaten." }, { status: 400 });
+  }
+
+  const existing = await findApplication(parsed.data.id);
+  if (!existing) {
+    return NextResponse.json({ message: "Bewerbung nicht gefunden." }, { status: 404 });
+  }
+
+  const nextApplication: TournamentApplication = {
+    ...existing,
+    ...(parsed.data.displayName !== undefined ? { displayName: parsed.data.displayName } : {}),
+    ...(parsed.data.mainRole !== undefined ? { mainRole: parsed.data.mainRole } : {}),
+    ...(parsed.data.preferredRoles !== undefined ? { preferredRoles: parsed.data.preferredRoles } : {}),
+    ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await upsertApplication(nextApplication);
+  await writeAuditLog({
+    action: "application.update",
+    targetType: "application",
+    targetId: existing.id,
+    summary: `Bewerbung bearbeitet: ${existing.displayName} -> ${nextApplication.displayName}.`,
+    actorDiscordId: discordId,
+    actorLabel: session.user.discordHandle ?? discordId,
+    metadata: {
+      displayName: nextApplication.displayName,
+      mainRole: nextApplication.mainRole,
+      preferredRoles: nextApplication.preferredRoles,
+    },
+  });
+
+  return NextResponse.json({ application: nextApplication });
 }
 
 /**

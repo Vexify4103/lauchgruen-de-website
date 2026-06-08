@@ -4,7 +4,7 @@ import {
   azLetterPools,
   playoffMatches,
   tournament,
-  tournamentHighlights,
+  tournamentCurrentHighlights,
 } from "@/lib/tournament-data";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -82,7 +82,7 @@ export default async function TournamentHomePage() {
               Was passiert?
             </div>
             <div className="mt-4 grid gap-2">
-              {tournamentHighlights.map((item) => (
+              {tournamentCurrentHighlights.map((item) => (
                 <p key={item} className="rounded-2xl border border-white/8 bg-black/16 p-3 text-sm leading-6 text-emerald-100/72">
                   {item}
                 </p>
@@ -116,13 +116,37 @@ export default async function TournamentHomePage() {
             <p className="mt-3 text-sm leading-7 text-emerald-100/70">
               Discord-Sign-in identifiziert die Bewerbung, Riot-Verifizierung
               läuft direkt im Formular über den League-Client-Profilicon-Trick.
-              Kein zusätzliches OAuth-Setup nötig.
             </p>
           </div>
         </aside>
       </section>
 
       <section className="mx-auto mt-6 grid w-full max-w-7xl gap-4 lg:grid-cols-3">
+        <div className="rounded-[2rem] border border-cyan-200/12 bg-cyan-300/[0.055] p-6 shadow-xl shadow-black/20 lg:col-span-3">
+          <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/70">
+            Ablauf & wichtige Infos
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <p className="rounded-2xl border border-white/8 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
+              <strong className="text-emerald-50">Zeitplan:</strong> Freitag
+              19.06. und Samstag 20.06.2026, Start jeweils 18:00 Uhr CEST.
+              Tag 2 ist für Endgames, Platzierungsspiele, Halbfinale und Finale.
+            </p>
+            <p className="rounded-2xl border border-white/8 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
+              <strong className="text-emerald-50">A-Z Format:</strong> Jedes
+              Team bekommt pro Match einen Pool per Glücksrad. Nur Champions
+              aus diesem Pool dürfen gepickt werden; gespielte Pools verlassen
+              danach das jeweilige Team-Rad.
+            </p>
+            <p className="rounded-2xl border border-white/8 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
+              <strong className="text-emerald-50">Verbindlich:</strong> Anmeldung
+              gilt für beide Tage. Discord-Beitritt, Riot-Verifizierung,
+              Anzeigename, aktuelle Elo, Main Rolle und Wunschrollen helfen uns
+              beim fairen Team-Building.
+            </p>
+          </div>
+        </div>
+
         <div className="rounded-[2rem] border border-lime-200/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20 lg:col-span-3">
           <div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/60">
             Buchstaben-Pools
@@ -133,6 +157,12 @@ export default async function TournamentHomePage() {
           <p className="mt-3 text-sm leading-7 text-emerald-100/68">
             Nach jedem Spiel fliegt der gespielte Pool aus dem Rad.
           </p>
+          <Link
+            href="/tournament/pools"
+            className="mt-4 inline-flex rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50 transition hover:-translate-y-0.5 hover:border-lime-200/40 hover:bg-lime-200/16"
+          >
+            Alle Pools & Champions ansehen
+          </Link>
           <div className="mt-4 flex flex-wrap gap-2">
             {azLetterPools.map((pool, index) => (
               <span

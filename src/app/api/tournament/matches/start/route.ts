@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getMatchControlContext } from "@/lib/match-control";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { poolHistoryScopeForMatchId } from "@/lib/tournament-rules";
 import { spinTournamentWheelForMatch } from "@/lib/tournament-wheel";
@@ -75,6 +76,17 @@ export async function POST(request: Request) {
     actorDiscordId: discordId,
     actorLabel: session.user.discordHandle ?? discordId,
     metadata: { drewPools, teamAName: match.teamAName, teamBName: match.teamBName },
+  });
+  await writeTournamentEvent({
+    type: "match.started",
+    targetType: "match",
+    targetId: match.id,
+    createdBy: session.user.discordHandle ?? discordId,
+    payload: {
+      drewPools,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    },
   });
 
   return NextResponse.json({ match: updated, drewPools });

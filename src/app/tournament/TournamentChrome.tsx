@@ -53,11 +53,19 @@ export function TournamentChrome({
 
       {focusedDraft ? null : (
         <footer className="relative z-10 border-t border-lime-200/10 px-5 py-8">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 text-sm text-emerald-100/54 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 text-sm text-emerald-100/54 sm:flex-row sm:items-center sm:justify-between">
             <p>Kunterbuntes A-Z Turnier ist Lucas Community-Turnier am 19.06. und 20.06.2026.</p>
-            <a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
-              Zurück zu lauchgruen.de
-            </a>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <Link href="/tournament/privacy" className="font-bold text-lime-200/80 hover:text-lime-100">
+                Datenschutz
+              </Link>
+              <Link href="/tournament/terms" className="font-bold text-lime-200/80 hover:text-lime-100">
+                Teilnahmebedingungen
+              </Link>
+              <a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
+                Zurück zu lauchgruen.de
+              </a>
+            </div>
           </div>
         </footer>
       )}

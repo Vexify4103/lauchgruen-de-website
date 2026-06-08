@@ -748,7 +748,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
         >
           <button
             type="button"
-            aria-label="SchlieÃŸen"
+            aria-label="Schließen"
             onClick={() => setEditTeamTarget(null)}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
@@ -825,7 +825,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
                 disabled={editingTeam || !editTeamName.trim() || !editTeamGroup}
                 className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
               >
-                {editingTeam ? "Speichertâ€¦" : "Team speichern"}
+                {editingTeam ? "Speichert…" : "Team speichern"}
               </button>
             </div>
           </div>

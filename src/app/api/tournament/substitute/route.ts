@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import { isPlayerRole, type PlayerRole } from "@/lib/roster";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 
 export const runtime = "nodejs";
@@ -101,6 +102,19 @@ export async function POST(request: Request) {
     actorLabel: session.user.discordHandle ?? discordId,
     metadata: {
       incomingDiscordId: verified.discordId,
+      outgoingDiscordId: parsed.data.outgoingDiscordId || null,
+      role: parsed.data.role,
+    },
+  });
+  await writeTournamentEvent({
+    type: "team.substitute",
+    targetType: "team",
+    targetId: parsed.data.teamKey,
+    createdBy: session.user.discordHandle ?? discordId,
+    payload: {
+      teamName: target.name,
+      incomingDiscordId: verified.discordId,
+      incomingRiotId: verified.riotId,
       outgoingDiscordId: parsed.data.outgoingDiscordId || null,
       role: parsed.data.role,
     },

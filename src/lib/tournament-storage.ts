@@ -66,6 +66,7 @@ export type StoredTournamentMatch = {
   blueSide?: "teamA" | "teamB";
   status?: "Scheduled" | "Live" | "Finished" | "Locked" | "Pending";
   winner?: string;
+  adminNote?: string;
   updatedAt?: string;
 };
 
@@ -228,6 +229,22 @@ export async function upsertVerifiedAccount(
     { _id: account.discordId },
     { ...account },
     { upsert: true },
+  );
+}
+
+export async function updateVerifiedAccountSnapshot(
+  discordId: string,
+  patch: {
+    riotId: string;
+    gameName: string;
+    tagLine: string;
+    currentRankAuto: string | null;
+  },
+): Promise<void> {
+  const col = await verifiedCollection();
+  await col.updateOne(
+    { _id: discordId },
+    { $set: patch },
   );
 }
 

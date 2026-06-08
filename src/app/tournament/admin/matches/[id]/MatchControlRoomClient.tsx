@@ -61,6 +61,7 @@ export function MatchControlRoomClient({
   const [blueSide, setBlueSide] = useState<"teamA" | "teamB">(match.blueSide);
   const [teamAChampions, setTeamAChampions] = useState(match.teamAChampions ?? []);
   const [teamBChampions, setTeamBChampions] = useState(match.teamBChampions ?? []);
+  const [adminNote, setAdminNote] = useState(match.adminNote ?? "");
   const [message, setMessage] = useState("");
   const [coinTossing, setCoinTossing] = useState(false);
   const [coinWinner, setCoinWinner] = useState<"teamA" | "teamB">(match.blueSide);
@@ -135,6 +136,7 @@ export function MatchControlRoomClient({
           teamAChampions,
           teamBChampions,
           blueSide,
+          adminNote,
         }),
       });
       const json = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -217,6 +219,14 @@ export function MatchControlRoomClient({
             />
           </div>
         ) : null}
+
+        <DraftSummary
+          match={match}
+          draft={draft}
+          sequence={draftSequence}
+          teamAChampions={teamAChampions}
+          teamBChampions={teamBChampions}
+        />
       </section>
 
       <aside className="grid content-start gap-5">
@@ -327,6 +337,18 @@ export function MatchControlRoomClient({
               options={statuses.map((value) => ({ value, label: value }))}
             />
           </div>
+          <label className="mt-4 grid gap-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-100/52">
+              Admin-Notiz / Korrekturgrund
+            </span>
+            <textarea
+              value={adminNote}
+              onChange={(event) => setAdminNote(event.target.value)}
+              rows={3}
+              placeholder="Optional: Warum wurde das Ergebnis geändert?"
+              className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
+            />
+          </label>
           <ProtectionWarnings
             hasPools={Boolean(match.poolAssignment)}
             draftReady={draftReady(draft)}
@@ -397,6 +419,103 @@ function ProtectionWarnings({
           </p>
         ))}
       </div>
+    </div>
+  );
+}
+
+function DraftSummary({
+  match,
+  draft,
+  sequence,
+  teamAChampions,
+  teamBChampions,
+}: {
+  match: ControlMatch;
+  draft: TournamentDraftState;
+  sequence: ReturnType<typeof createDraftSequence>;
+  teamAChampions: string[];
+  teamBChampions: string[];
+}) {
+  const bans = draft.actions.filter((action) => action.kind === "ban");
+  const picks = draft.actions.filter((action) => action.kind === "pick");
+  const complete = draftComplete(draft, sequence);
+  const hasContent =
+    draft.actions.length > 0
+    || teamAChampions.length > 0
+    || teamBChampions.length > 0
+    || match.scoreA !== undefined
+    || match.scoreB !== undefined;
+
+  if (!hasContent) {
+    return (
+      <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 shadow-xl shadow-black/20">
+        <div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">
+          Match-Zusammenfassung
+        </div>
+        <p className="mt-3 text-sm leading-6 text-emerald-100/52">
+          Sobald Pools, Draft oder Score vorhanden sind, entsteht hier automatisch
+          eine kompakte Zusammenfassung für Orga, Discord oder Stream.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">
+            Match-Zusammenfassung
+          </div>
+          <h2 className="mt-2 text-2xl font-black text-emerald-50">
+            {match.teamALabel} vs {match.teamBLabel}
+          </h2>
+        </div>
+        <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/58">
+          {complete ? "Draft abgeschlossen" : `Draft ${draft.actions.length}/${sequence.length}`}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <SummaryTile
+          label="Score"
+          value={
+            match.scoreA !== undefined && match.scoreB !== undefined
+              ? `${match.scoreA}:${match.scoreB}`
+              : "Noch offen"
+          }
+        />
+        <SummaryTile
+          label="Bans"
+          value={bans.length > 0 ? bans.map((action) => action.champion).join(", ") : "Noch keine"}
+        />
+        <SummaryTile
+          label="Picks"
+          value={picks.length > 0 ? picks.map((action) => action.champion).join(", ") : "Noch keine"}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <SummaryTile
+          label={`${match.teamALabel} gespielt`}
+          value={teamAChampions.length > 0 ? teamAChampions.join(", ") : "Noch nicht eingetragen"}
+        />
+        <SummaryTile
+          label={`${match.teamBLabel} gespielt`}
+          value={teamBChampions.length > 0 ? teamBChampions.join(", ") : "Noch nicht eingetragen"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/18 p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-200/52">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-bold leading-6 text-emerald-100/78">{value}</div>
     </div>
   );
 }

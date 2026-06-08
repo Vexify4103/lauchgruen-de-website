@@ -8,6 +8,8 @@ import {
   type TournamentApplication,
 } from "@/lib/tournament-storage";
 import { DeleteApplicantButton } from "./DeleteApplicantButton";
+import { EditApplicantForm } from "./EditApplicantForm";
+import { RefreshRanksButton } from "./RefreshRanksButton";
 import { BlacklistManager } from "./BlacklistManager";
 
 export const dynamic = "force-dynamic";
@@ -102,12 +104,6 @@ export default async function ApplicantsPage() {
             <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
               Eingereichte Anmeldungen.
             </h1>
-            <p className="mt-4 text-sm leading-7 text-emerald-100/68">
-              Alle über{" "}
-              <code className="rounded bg-black/40 px-1.5 py-0.5">/tournament/apply</code>
-              {" "}eingereichten Bewerbungen — sortiert nach Datum, neueste zuerst.
-              Statusbadge zeigt, ob die Person bereits einem Team zugewiesen ist.
-            </p>
           </div>
           <Link
             href="/tournament/admin"
@@ -121,6 +117,7 @@ export default async function ApplicantsPage() {
           <StatPill label="Gesamt" value={sorted.length.toString()} tone="neutral" />
           <StatPill label="Zugewiesen" value={assignedCount.toString()} tone="ok" />
           <StatPill label="Offen" value={unassignedCount.toString()} tone="warn" />
+          <RefreshRanksButton label="Alle Ränge aktualisieren" confirmBulk />
         </div>
 
         <BlacklistManager initialEntries={blacklistEntries} />
@@ -208,12 +205,17 @@ function ApplicantCard({
       <div className="grid gap-2 text-xs">
         <Row label="Anzeigename">{app.displayName}</Row>
         <Row label="Aktueller Rang">
-          {app.currentRankAuto ?? <span className="italic text-emerald-100/40">Unranked</span>}
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{app.currentRankAuto ?? <span className="italic text-emerald-100/40">Unranked</span>}</span>
+            <RefreshRanksButton applicationId={app.id} label="Refresh" />
+          </span>
         </Row>
         <Row label="Main Rolle">
           {app.mainRole ?? <span className="italic text-emerald-100/40">nicht angegeben</span>}
         </Row>
       </div>
+
+      <EditApplicantForm app={app} />
 
       <div>
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">

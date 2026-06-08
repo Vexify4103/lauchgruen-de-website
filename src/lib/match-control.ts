@@ -23,6 +23,7 @@ export type ControlMatch = {
   teamBChampions?: string[];
   blueSide: "teamA" | "teamB";
   winner?: string;
+  adminNote?: string;
   poolAssignment: WheelMatchAssignment | null;
 };
 
@@ -63,6 +64,7 @@ function groupToControlMatch(
     teamBChampions: stored?.teamBChampions ?? [],
     blueSide: stored?.blueSide ?? "teamA",
     winner: stored?.winner,
+    adminNote: stored?.adminNote,
     poolAssignment: assignment,
   };
 }
@@ -88,6 +90,7 @@ function playoffToControlMatch(
     teamBChampions: stored?.teamBChampions ?? [],
     blueSide: stored?.blueSide ?? "teamA",
     winner: stored?.winner ?? match.winner ?? undefined,
+    adminNote: stored?.adminNote,
     poolAssignment: assignment,
   };
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { deriveWinner } from "@/lib/bracket-resolver";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -28,6 +29,7 @@ const matchUpdateSchema = z.object({
   teamAChampions: z.array(z.string().trim().min(1)).optional(),
   teamBChampions: z.array(z.string().trim().min(1)).optional(),
   blueSide: z.enum(["teamA", "teamB"]).optional(),
+  adminNote: z.string().trim().max(1000).optional(),
   // Winner is derived from scores on the server — accept but ignore.
 });
 
@@ -88,6 +90,7 @@ export async function PATCH(request: Request) {
     teamAChampions: parsed.data.teamAChampions,
     teamBChampions: parsed.data.teamBChampions,
     blueSide: parsed.data.blueSide,
+    adminNote: parsed.data.adminNote,
     status: parsed.data.status,
     winner: winner ?? undefined,
     updatedAt,
@@ -108,6 +111,21 @@ export async function PATCH(request: Request) {
       status: parsed.data.status,
       blueSide: parsed.data.blueSide,
       winner,
+      adminNote: parsed.data.adminNote,
+    },
+  });
+  await writeTournamentEvent({
+    type: parsed.data.status === "Finished" ? "match.finished" : "match.updated",
+    targetType: "match",
+    targetId: parsed.data.id,
+    createdBy: owner.session?.user.discordHandle ?? owner.discordId,
+    payload: {
+      scoreA: parsed.data.scoreA,
+      scoreB: parsed.data.scoreB,
+      status: parsed.data.status,
+      blueSide: parsed.data.blueSide,
+      winner,
+      adminNote: parsed.data.adminNote,
     },
   });
 

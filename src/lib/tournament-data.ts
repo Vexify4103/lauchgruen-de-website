@@ -92,7 +92,7 @@ export const tournamentHighlights = [
   "Freitag, 19.06. und Samstag, 20.06. um 18:00 CEST.",
   "Gruppenphase plus Endbracket: du musst mindestens zweimal verlieren, bevor du raus bist.",
   "Pro Runde wird ein Buchstaben-Pool gelost. Gespielt werden nur Champions aus diesem Pool.",
-  "Gespielte Buchstaben-Pools verlassen das Glücksrad. Ab Top 3 wird der Pool wieder refreshed.",
+  "Gespielte Buchstaben-Pools verlassen das Glücksrad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
   "Platz 1 bekommt für Tag 2 einen vierten Ban als Bonus.",
   "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
 ];
@@ -110,6 +110,24 @@ export const azLetterPools = [
   "V und X",
   "T und W",
   "Y und Z",
+];
+
+export const tournamentLatestHighlights = [
+  "Start ist Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 CEST.",
+  "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um die Platzierungen.",
+  "Pro Match bekommt jedes Team per Glücksrad einen A-Z Champion-Pool. Nur Champions aus diesem Pool sind erlaubt.",
+  "Gespielte Pools verlassen für das jeweilige Team das Rad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
+  "Gruppensieger bekommen in ihrem ersten Playoff-Match einen vierten Ban als Bonus.",
+  "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
+];
+
+export const tournamentCurrentHighlights = [
+  "Start ist Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 CEST.",
+  "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um die Platzierungen.",
+  "Pro Match bekommt jedes Team per Glücksrad einen A-Z Champion-Pool. Nur Champions aus diesem Pool sind erlaubt.",
+  "Gespielte Pools verlassen für das jeweilige Team das Rad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
+  "Gruppensieger bekommen in ihrem ersten Playoff-Match einen vierten Ban als Bonus.",
+  "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
 ];
 
 const linkName = (name: string) => encodeURIComponent(name.replace("#", "-"));
@@ -351,7 +369,7 @@ export const playoffMatches: PlayoffMatch[] = [
 
 export const applicationSteps = [
   "Melde dich mit Discord an und tritt dem Lauchgruen Discord bei.",
-  "Verifiziere deine Riot-ID ueber das Profilicon im League-Client.",
+  "Verifiziere deine Riot-ID über das Profilicon im League-Client.",
   "Gib Anzeigename, Main Rolle und Wunschrollen an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
   "Bestätige, dass du am 19.06. und 20.06. ab 18:00 Uhr CEST verbindlich Zeit hast.",
   "Warte auf Teamzuteilung und weitere Infos im Discord.",

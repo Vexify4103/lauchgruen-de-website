@@ -142,8 +142,7 @@ export default async function ApplyPage() {
             </div>
             <p className="mt-4 text-xs leading-6 text-emerald-100/58">
               Discord identifiziert die Bewerbung, die Riot-Verifizierung läuft
-              direkt im Formular über das Wechseln deines League-Profilicons —
-              Riot bietet kein öffentliches OAuth für Community-Turniere an.
+              direkt im Formular über das Wechseln deines League-Profilicons.
             </p>
           </div>
 

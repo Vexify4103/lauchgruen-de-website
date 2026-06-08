@@ -24,11 +24,11 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
         | null;
       setPendingId(null);
       if (!response.ok || !json?.deleted) {
-        setMessage(json?.message ?? "Audit-Eintrag konnte nicht geloescht werden.");
+        setMessage(json?.message ?? "Audit-Eintrag konnte nicht gelöscht werden.");
         return;
       }
       setEntries((current) => current.filter((item) => item.id !== entry.id));
-      setMessage("Audit-Eintrag geloescht.");
+      setMessage("Audit-Eintrag gelöscht.");
       router.refresh();
     });
   }
@@ -36,7 +36,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
   function deleteAllEntries() {
     if (entries.length === 0 || bulkDeleting) return;
     const confirmed = window.confirm(
-      "Wirklich den kompletten Audit Log loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.",
+      "Wirklich den kompletten Audit Log löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
     );
     if (!confirmed) return;
 
@@ -51,11 +51,11 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
         | null;
       setBulkDeleting(false);
       if (!response.ok || !json?.deleted) {
-        setMessage(json?.message ?? "Audit Log konnte nicht geloescht werden.");
+        setMessage(json?.message ?? "Audit Log konnte nicht gelöscht werden.");
         return;
       }
       setEntries([]);
-      setMessage(`Audit Log geloescht (${json.deletedCount ?? 0} Eintraege).`);
+      setMessage(`Audit Log gelöscht (${json.deletedCount ?? 0} Einträge).`);
       router.refresh();
     });
   }
@@ -81,7 +81,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
             onClick={deleteAllEntries}
             className="rounded-2xl border border-red-300/18 bg-red-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-300/34 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {bulkDeleting ? "Loesche..." : "Alle loeschen"}
+            {bulkDeleting ? "Lösche..." : "Alle löschen"}
           </button>
         </div>
       </div>
@@ -115,7 +115,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
                   onClick={() => deleteEntry(entry)}
                   className="rounded-xl border border-red-300/18 bg-red-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-300/34 disabled:opacity-50"
                 >
-                  {pendingId === entry.id ? "..." : "Loeschen"}
+                  {pendingId === entry.id ? "..." : "Löschen"}
                 </button>
               </div>
             ))}

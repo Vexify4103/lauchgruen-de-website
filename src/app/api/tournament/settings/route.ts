@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings, updateTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 
@@ -28,7 +29,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ message: "Ungueltige Settings." }, { status: 400 });
+    return NextResponse.json({ message: "Ungültige Settings." }, { status: 400 });
   }
 
   const settings = await updateTournamentSettings({
@@ -43,6 +44,13 @@ export async function PATCH(request: Request) {
     actorDiscordId: discordId,
     actorLabel: session.user.discordHandle ?? discordId,
     metadata: parsed.data,
+  });
+  await writeTournamentEvent({
+    type: "settings.updated",
+    targetType: "settings",
+    targetId: "default",
+    createdBy: session.user.discordHandle ?? discordId,
+    payload: parsed.data,
   });
 
   return NextResponse.json({ settings });
