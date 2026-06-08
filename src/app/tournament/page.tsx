@@ -131,9 +131,7 @@ export default async function TournamentHomePage() {
             Das Glücksrad entscheidet, welche Champions erlaubt sind.
           </h2>
           <p className="mt-3 text-sm leading-7 text-emerald-100/68">
-            Nach jedem Spiel fliegt der gespielte Pool aus dem Rad. Keine Sorge:
-            eine Championliste kommt in den Discord und wird nach den Spielen
-            gepflegt.
+            Nach jedem Spiel fliegt der gespielte Pool aus dem Rad.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {azLetterPools.map((pool, index) => (
