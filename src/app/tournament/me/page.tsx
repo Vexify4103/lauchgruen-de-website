@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import type { ReactNode } from "react";
 import { auth, signIn } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";

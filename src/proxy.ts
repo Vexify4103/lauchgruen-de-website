@@ -13,6 +13,7 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { TOURNAMENT_HOSTS } from "@/lib/tournament-url";
 
 // Treat the apex (and www) as landing-only.
 // `.localhost` entries are for local dev — modern browsers (Chrome, Firefox,
@@ -26,11 +27,6 @@ const APEX_HOSTS = new Set([
   "www.lauchgruen.de",
   "lauchgruen.localhost",
   "www.lauchgruen.localhost",
-]);
-
-const TOURNAMENT_HOSTS = new Set([
-  "tournament.lauchgruen.de",
-  "tournament.lauchgruen.localhost",
 ]);
 
 /**

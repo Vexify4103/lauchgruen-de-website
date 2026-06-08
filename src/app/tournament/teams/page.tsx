@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";

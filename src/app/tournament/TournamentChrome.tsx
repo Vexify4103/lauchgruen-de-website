@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { TournamentLink as Link, TournamentUrlProvider } from "./TournamentLink";
 
 type NavItem = {
   href: string;
@@ -15,12 +15,14 @@ export function TournamentChrome({
   applicationsOpen,
   tournamentLive,
   apexUrl,
+  cleanUrls,
 }: {
   children: ReactNode;
   navItems: NavItem[];
   applicationsOpen: boolean;
   tournamentLive: boolean;
   apexUrl: string;
+  cleanUrls: boolean;
 }) {
   const pathname = usePathname();
   const focusedDraft =
@@ -28,7 +30,8 @@ export function TournamentChrome({
     || pathname.includes("/champ-select/");
 
   return (
-    <div className="min-h-screen bg-[#07110c] text-emerald-50">
+    <TournamentUrlProvider cleanUrls={cleanUrls}>
+      <div className="min-h-screen bg-[#07110c] text-emerald-50">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-[-12rem] h-[34rem] w-[60rem] -translate-x-1/2 rounded-full bg-lime-300/10 blur-3xl" />
         <div className="absolute bottom-[-14rem] left-[-10rem] h-[32rem] w-[32rem] rounded-full bg-cyan-400/10 blur-3xl" />
@@ -69,7 +72,8 @@ export function TournamentChrome({
           </div>
         </footer>
       )}
-    </div>
+      </div>
+    </TournamentUrlProvider>
   );
 }
 

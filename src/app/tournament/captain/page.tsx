@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import { auth, signIn } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";

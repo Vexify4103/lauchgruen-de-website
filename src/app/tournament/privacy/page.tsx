@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import type { ReactNode } from "react";
 
 const dataItems = [

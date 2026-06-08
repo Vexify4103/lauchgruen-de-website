@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TournamentLink as Link } from "@/app/tournament/TournamentLink";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";

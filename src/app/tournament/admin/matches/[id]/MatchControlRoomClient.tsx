@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TournamentLink as Link } from "../../../TournamentLink";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import type { ControlMatch } from "@/lib/match-control";

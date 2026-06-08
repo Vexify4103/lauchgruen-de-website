@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import { headers } from "next/headers";
 import { auth, signIn } from "@/lib/auth";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";

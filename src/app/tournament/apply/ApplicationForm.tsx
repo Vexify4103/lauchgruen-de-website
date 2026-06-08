@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { TournamentLink as Link } from "../TournamentLink";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { announcedDates } from "@/lib/tournament-data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";

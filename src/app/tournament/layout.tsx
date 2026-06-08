@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getSiteUrls } from "@/lib/site-urls";
 import { tournament } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { isTournamentHost } from "@/lib/tournament-url";
 import { TournamentChrome } from "./TournamentChrome";
 
 const navItems = [
@@ -29,6 +30,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
   const host = (await headers()).get("host");
   const siteUrls = getSiteUrls(host);
   const settings = await getTournamentSettings();
+  const cleanUrls = isTournamentHost(host);
 
   return (
     <TournamentChrome
@@ -36,6 +38,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
       applicationsOpen={settings.applicationsOpen}
       tournamentLive={settings.tournamentLive}
       apexUrl={siteUrls.apex}
+      cleanUrls={cleanUrls}
     >
       {children}
     </TournamentChrome>

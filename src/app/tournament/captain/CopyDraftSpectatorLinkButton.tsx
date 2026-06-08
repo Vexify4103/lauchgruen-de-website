@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTournamentHref } from "../TournamentLink";
 
 export function CopyDraftSpectatorLinkButton({
   matchId,
@@ -10,10 +11,11 @@ export function CopyDraftSpectatorLinkButton({
   disabled?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const spectatorPath = useTournamentHref(`/tournament/champ-select/${matchId}/spectate`);
 
   async function copy() {
     if (disabled) return;
-    const url = new URL(`/tournament/champ-select/${matchId}/spectate`, window.location.origin);
+    const url = new URL(spectatorPath, window.location.origin);
     await navigator.clipboard.writeText(url.toString());
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);

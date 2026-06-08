@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TournamentLink as Link } from "../../TournamentLink";
 import { auth, signIn } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import {
