@@ -55,7 +55,9 @@ export function proxy(req: NextRequest) {
     }
 
     if (pathname === "/tournament" || pathname.startsWith("/tournament/")) {
-      return NextResponse.next();
+      const url = req.nextUrl.clone();
+      url.pathname = pathname === "/tournament" ? "/" : pathname.slice("/tournament".length);
+      return NextResponse.redirect(url, { status: 308 });
     }
 
     const url = req.nextUrl.clone();
