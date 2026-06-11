@@ -53,14 +53,8 @@ async function buildInitial(
     (s) => s.played === groupSize - 1,
   );
   let playoffSlot: string | null = null;
-  if (standing && allPlayed && standing.rank <= 3) {
-    if (team.group === "A") {
-      playoffSlot =
-        standing.rank === 1 ? "Seed #1" : standing.rank === 2 ? "Seed #3" : "Seed #5";
-    } else {
-      playoffSlot =
-        standing.rank === 1 ? "Seed #2" : standing.rank === 2 ? "Seed #4" : "Seed #6";
-    }
+  if (standing && allPlayed && !standing.tiebreakerRequired && standing.rank <= 4) {
+    playoffSlot = `Gruppe ${team.group} #${standing.rank}`;
   }
 
   const live = resolved.find(

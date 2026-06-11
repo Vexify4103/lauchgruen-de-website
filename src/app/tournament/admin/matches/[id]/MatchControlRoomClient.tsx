@@ -41,6 +41,7 @@ export function MatchControlRoomClient({
   roster,
   tournamentLive,
   draftEnabled,
+  parallelMatches,
 }: {
   match: ControlMatch;
   teamA: TournamentTeam | null;
@@ -51,6 +52,7 @@ export function MatchControlRoomClient({
   roster: RosterSnapshot;
   tournamentLive: boolean;
   draftEnabled: boolean;
+  parallelMatches: ControlMatch[];
 }) {
   const router = useRouter();
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? "");
@@ -164,6 +166,24 @@ export function MatchControlRoomClient({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section className="grid content-start gap-5">
+        {parallelMatches.length > 0 ? (
+          <div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] p-4">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/58">
+              Läuft parallel
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {parallelMatches.map((parallel) => (
+                <Link
+                  key={parallel.id}
+                  href={`/tournament/admin/matches/${parallel.id}`}
+                  className="rounded-xl border border-white/10 bg-black/18 px-4 py-3 text-sm font-black text-emerald-50 transition hover:border-cyan-200/30"
+                >
+                  {parallel.teamALabel} vs {parallel.teamBLabel}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">

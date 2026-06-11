@@ -1,7 +1,7 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { headers } from "next/headers";
 import { auth, signIn } from "@/lib/auth";
-import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
+import { computeGroupStandings, resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { checkDiscordMemberRole, isDiscordGuildMember } from "@/lib/discord";
 import { listAuditLog } from "@/lib/tournament-audit";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -35,12 +35,19 @@ export default async function TournamentAdminPage() {
     : null;
 
   let adminMatches: AdminMatch[] = [];
+  let tiebreakerGroups: Array<"A" | "B"> = [];
   if (state && ctx) {
+    const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
+    tiebreakerGroups = (["A", "B"] as const).filter((group) =>
+      standings[group].some((standing) => standing.tiebreakerRequired),
+    );
     const resolved = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
     adminMatches = [
       ...ctx.groupMatches.map<AdminMatch>((m) => ({
         id: m.id,
         phase: "groups",
+        group: m.group,
+        round: m.round,
         teamA: m.teamA,
         teamB: m.teamB,
         status: (state.matches[m.id]?.status ?? m.status) as AdminMatch["status"],
@@ -48,6 +55,7 @@ export default async function TournamentAdminPage() {
       ...resolved.map<AdminMatch>((m) => ({
         id: m.id,
         phase: "playoffs",
+        round: m.round,
         teamA: m.teamALabel,
         teamB: m.teamBLabel,
         status: (state.matches[m.id]?.status ?? m.status) as AdminMatch["status"],
@@ -125,10 +133,20 @@ export default async function TournamentAdminPage() {
 
         <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
           {isOwner && state ? (
-            <MatchAdminClient
-              initialMatches={adminMatches}
-              initialStored={state.matches}
-            />
+            <>
+              {tiebreakerGroups.length > 0 ? (
+                <div className="mb-5 rounded-2xl border border-amber-200/24 bg-amber-200/10 p-4 text-sm leading-6 text-amber-50">
+                  <strong>Tiebreaker erforderlich:</strong>{" "}
+                  {tiebreakerGroups.map((group) => `Gruppe ${group}`).join(", ")} ist
+                  nach allen Gruppenspielen nicht eindeutig entschieden. Das
+                  Playoff-Seeding bleibt bis zum zusätzlichen Entscheidungsspiel gesperrt.
+                </div>
+              ) : null}
+              <MatchAdminClient
+                initialMatches={adminMatches}
+                initialStored={state.matches}
+              />
+            </>
           ) : (
             <div className="rounded-2xl border border-amber-200/24 bg-amber-200/10 p-5 text-sm leading-7 text-amber-50">
               <p>Melde dich mit einem Owner-Discord-Account an, um Turniermatches zu bearbeiten.</p>

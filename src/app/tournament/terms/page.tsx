@@ -18,6 +18,14 @@ const ruleSections = [
     text: "Nur Team-Captains oder berechtigte Admins dürfen im Champ Select ready klicken, Champions auswählen, bannen oder locken. Bei Disconnects, Missclicks oder technischen Problemen dürfen Admins Drafts pausieren, zurücksetzen, force-ready setzen oder Locks korrigieren.",
   },
   {
+    title: "Gruppenphase und Tiebreaker",
+    text: "Die Platzierung in der Gruppenphase richtet sich zuerst nach der Sieg-Niederlagen-Bilanz. Sind genau zwei Teams gleichauf, entscheidet der direkte Vergleich. Besteht danach ein Mehrfach-Gleichstand, der die Platzierung oder das Seeding beeinflusst, setzt das Orga-Team ein zusätzliches Tiebreaker-Spiel an. Die angezeigten Punkte für und gegen dienen nur als Statistik und entscheiden nicht automatisch über die Platzierung.",
+  },
+  {
+    title: "Playoff-Seeding",
+    text: "Alle acht Teams spielen am zweiten Turniertag weiter. Die Gruppensieger steigen erst in Upper Runde 2 ein. In Upper Runde 1 spielt A #2 mit vier Bans gegen B #3 und B #2 mit vier Bans gegen A #3. Die Verlierer treffen anschließend im Lower Bracket auf A #4 beziehungsweise B #4. Danach wird das Turnier als Double-Elimination-Bracket fortgesetzt.",
+  },
+  {
     title: "Verhalten",
     text: "Das Turnier ist ein Spaß- und Community-Event. Toxisches Verhalten, Beleidigungen, absichtliches Feeden, Griefing, Cheating, Scripting, Stream-Sniping, Belästigung oder sonstiges störendes Verhalten kann zum Ausschluss führen.",
   },

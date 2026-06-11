@@ -44,9 +44,11 @@ export type GroupMatch = {
 };
 
 export type PlayoffRound =
-  | "Upper QF"
+  | "Upper R1"
+  | "Upper R2"
   | "Upper Final"
   | "Lower R1"
+  | "Lower R2"
   | "Lower SF"
   | "Lower Final"
   | "Grand Final"
@@ -88,14 +90,22 @@ export const tournament = {
   rulesUrl: "/tournament/apply#rules",
 };
 
-export const tournamentHighlights = [
-  "Freitag, 19.06. und Samstag, 20.06. um 18:00 CEST.",
-  "Gruppenphase plus Endbracket: du musst mindestens zweimal verlieren, bevor du raus bist.",
-  "Pro Runde wird ein Buchstaben-Pool gelost. Gespielt werden nur Champions aus diesem Pool.",
-  "Gespielte Buchstaben-Pools verlassen das Glücksrad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
-  "Platz 1 bekommt für Tag 2 einen vierten Ban als Bonus.",
-  "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
-];
+export type PastTournamentWinner = {
+  id: string;
+  tournamentName: string;
+  season: string;
+  date: string;
+  game: string;
+  format: string;
+  placement: "Champion" | "Finalist" | "Third";
+  teamName: string;
+  captain?: string;
+  roster: string[];
+  note?: string;
+};
+
+export const pastTournamentWinners: PastTournamentWinner[] = [];
+
 
 export const azLetterPools = [
   "A",
@@ -112,21 +122,13 @@ export const azLetterPools = [
   "Y und Z",
 ];
 
-export const tournamentLatestHighlights = [
-  "Start ist Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 CEST.",
-  "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um die Platzierungen.",
-  "Pro Match bekommt jedes Team per Glücksrad einen A-Z Champion-Pool. Nur Champions aus diesem Pool sind erlaubt.",
-  "Gespielte Pools verlassen für das jeweilige Team das Rad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
-  "Gruppensieger bekommen in ihrem ersten Playoff-Match einen vierten Ban als Bonus.",
-  "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
-];
-
 export const tournamentCurrentHighlights = [
   "Start ist Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 CEST.",
-  "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um die Platzierungen.",
+  "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um den Titel.",
   "Pro Match bekommt jedes Team per Glücksrad einen A-Z Champion-Pool. Nur Champions aus diesem Pool sind erlaubt.",
   "Gespielte Pools verlassen für das jeweilige Team das Rad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
-  "Gruppensieger bekommen in ihrem ersten Playoff-Match einen vierten Ban als Bonus.",
+  "Gruppensieger überspringen die erste Upper-Bracket-Runde. Die Zweitplatzierten erhalten dort gegen Platz 3 einen vierten Ban.",
+  "Gewinnerteam wird in die Hall of Fame aufgenommen.",
   "Streamer bekommen ein OBS-Panel mit Teamname und Gruppenphasen-Performance.",
 ];
 
@@ -257,7 +259,7 @@ function roundRobin(
   return pairings.map(([teamA, teamB], index) => ({
     id: `${group.toLowerCase()}-r${Math.floor(index / 2) + 1}-${(index % 2) + 1}`,
     group,
-    round: `Round ${Math.floor(index / 2) + 1}`,
+    round: `Round ${Math.floor(index / 2) + 1} · Slot ${(index % 2) + 1}`,
     time: "TBA",
     teamA,
     teamB,
@@ -275,53 +277,93 @@ export const groupMatches: GroupMatch[] = [
 
 export const playoffMatches: PlayoffMatch[] = [
   {
-    id: "ub-qf-1",
+    id: "ub-r1-1",
     bracket: "Upper",
-    round: "Upper QF",
-    slot: "Upper QF · Seed 1 vs. Seed 4",
-    time: "Nach der Gruppenphase",
-    teamA: seed(1),
-    teamB: seed(4),
+    round: "Upper R1",
+    slot: "Upper R1 · Gruppe A #2 vs. Gruppe B #3",
+    time: "Playoff-Runde 1",
+    teamA: seed(3),
+    teamB: seed(6),
     status: "Pending",
   },
   {
-    id: "ub-qf-2",
+    id: "ub-r1-2",
     bracket: "Upper",
-    round: "Upper QF",
-    slot: "Upper QF · Seed 2 vs. Seed 3",
-    time: "Nach der Gruppenphase",
-    teamA: seed(2),
-    teamB: seed(3),
+    round: "Upper R1",
+    slot: "Upper R1 · Gruppe B #2 vs. Gruppe A #3",
+    time: "Playoff-Runde 1",
+    teamA: seed(4),
+    teamB: seed(5),
     status: "Pending",
+  },
+  {
+    id: "ub-r2-1",
+    bracket: "Upper",
+    round: "Upper R2",
+    slot: "Upper R2 · Gruppe B #1 vs. Sieger UB-R1-1",
+    time: "Playoff-Runde 2",
+    teamA: seed(2),
+    teamB: winnerOf("ub-r1-1"),
+    status: "Locked",
+  },
+  {
+    id: "ub-r2-2",
+    bracket: "Upper",
+    round: "Upper R2",
+    slot: "Upper R2 · Gruppe A #1 vs. Sieger UB-R1-2",
+    time: "Playoff-Runde 2",
+    teamA: seed(1),
+    teamB: winnerOf("ub-r1-2"),
+    status: "Locked",
   },
   {
     id: "ub-f",
     bracket: "Upper",
     round: "Upper Final",
     slot: "Upper-Bracket-Finale",
-    time: "Nach Upper QF",
-    teamA: winnerOf("ub-qf-1"),
-    teamB: winnerOf("ub-qf-2"),
+    time: "Nach Upper R2",
+    teamA: winnerOf("ub-r2-1"),
+    teamB: winnerOf("ub-r2-2"),
     status: "Locked",
   },
   {
     id: "lb-r1-1",
     bracket: "Lower",
     round: "Lower R1",
-    slot: "Lower R1 · Seed 5 vs. Verlierer UB-QF1",
-    time: "Nach Upper QF",
-    teamA: seed(5),
-    teamB: loserOf("ub-qf-1"),
+    slot: "Lower R1 · Verlierer UB-R1-1 vs. Gruppe A #4",
+    time: "Playoff-Runde 1",
+    teamA: loserOf("ub-r1-1"),
+    teamB: seed(7),
     status: "Locked",
   },
   {
     id: "lb-r1-2",
     bracket: "Lower",
     round: "Lower R1",
-    slot: "Lower R1 · Seed 6 vs. Verlierer UB-QF2",
-    time: "Nach Upper QF",
-    teamA: seed(6),
-    teamB: loserOf("ub-qf-2"),
+    slot: "Lower R1 · Verlierer UB-R1-2 vs. Gruppe B #4",
+    time: "Playoff-Runde 1",
+    teamA: loserOf("ub-r1-2"),
+    teamB: seed(8),
+    status: "Locked",
+  },
+  {
+    id: "lb-r2-1",
+    bracket: "Lower",
+    round: "Lower R2",
+    slot: "Lower R2 · Sieger LB-R1-1 vs. Verlierer UB-R2-1",
+    time: "Nach Upper R2",
+    teamA: winnerOf("lb-r1-1"),
+    teamB: loserOf("ub-r2-1"),
+    status: "Locked",
+  },
+  {
+    id: "lb-r2-2",
+    bracket: "Lower",
+    round: "Lower R2",
+    slot: "Lower R2 · Sieger LB-R1-2 vs. Verlierer UB-R2-2",
+    time: "Nach Upper R2",
+    teamA: winnerOf("lb-r1-2"),
+    teamB: loserOf("ub-r2-2"),
     status: "Locked",
   },
   {
@@ -329,9 +371,9 @@ export const playoffMatches: PlayoffMatch[] = [
     bracket: "Lower",
     round: "Lower SF",
     slot: "Lower-Halbfinale",
-    time: "Nach Lower R1",
-    teamA: winnerOf("lb-r1-1"),
-    teamB: winnerOf("lb-r1-2"),
+    time: "Nach Lower R2",
+    teamA: winnerOf("lb-r2-1"),
+    teamB: winnerOf("lb-r2-2"),
     status: "Locked",
   },
   {

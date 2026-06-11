@@ -201,9 +201,9 @@ function makeTeam(
 }
 
 /**
- * Build the round-robin schedule (6 matches per group) from a teams list.
- * Keeps the match-ID convention `<group>-r<round>-<n>` so existing stored
- * scores continue to map to the right matches.
+ * Build a round-robin schedule for each four-team group. Every team plays the
+ * other three teams once. A slot contains one match from group A and one from
+ * group B, so exactly two matches run in parallel.
  */
 function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
   const out: GroupMatch[] = [];
@@ -212,31 +212,31 @@ function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
       .filter((t) => t.group === group)
       .sort((a, b) => a.seed - b.seed);
     if (groupTeams.length !== 4) continue;
-    const [t1, t2, t3, t4] = groupTeams.map((t) => t.name) as [
-      string,
-      string,
-      string,
-      string,
-    ];
-    const pairings: Array<[string, string]> = [
-      [t1, t2],
-      [t3, t4],
-      [t1, t3],
-      [t2, t4],
-      [t1, t4],
-      [t2, t3],
-    ];
-    pairings.forEach(([teamA, teamB], index) => {
-      out.push({
-        id: `${group.toLowerCase()}-r${Math.floor(index / 2) + 1}-${(index % 2) + 1}`,
-        group,
-        round: `Round ${Math.floor(index / 2) + 1}`,
-        time: "TBA",
-        teamA,
-        teamB,
-        status: "Scheduled",
-      });
-    });
+
+    const rotation: Array<string | null> = groupTeams.map((team) => team.name);
+    if (rotation.length % 2 !== 0) rotation.push(null);
+    const rounds = rotation.length - 1;
+
+    for (let roundIndex = 0; roundIndex < rounds; roundIndex += 1) {
+      let matchIndex = 0;
+      for (let index = 0; index < rotation.length / 2; index += 1) {
+        const teamA = rotation[index];
+        const teamB = rotation[rotation.length - 1 - index];
+        if (!teamA || !teamB) continue;
+        matchIndex += 1;
+        out.push({
+          id: `${group.toLowerCase()}-r${roundIndex + 1}-${matchIndex}`,
+          group,
+          round: `Round ${roundIndex + 1} · Slot ${matchIndex}`,
+          time: "TBA",
+          teamA,
+          teamB,
+          status: "Scheduled",
+        });
+      }
+
+      rotation.splice(1, 0, rotation.pop() ?? null);
+    }
   }
   return out;
 }

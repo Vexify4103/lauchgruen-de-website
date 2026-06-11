@@ -1061,7 +1061,7 @@ function DraftOrder({
       </div>
       {extraBanSide ? (
         <p className="mt-2 text-xs font-bold text-lime-100/70">
-          Gruppenplatz 1 Bonus: {turnLabel({ side: extraBanSide })} hat in diesem Match einen vierten Ban.
+          Gruppenplatz-2-Bonus: {turnLabel({ side: extraBanSide })} hat in diesem Match einen vierten Ban.
         </p>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">

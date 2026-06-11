@@ -1,7 +1,9 @@
 import { TournamentLink as Link } from "./TournamentLink";
+
 import {
   applicationSteps,
   azLetterPools,
+  pastTournamentWinners,
   playoffMatches,
   tournament,
   tournamentCurrentHighlights,
@@ -82,11 +84,26 @@ export default async function TournamentHomePage() {
               Was passiert?
             </div>
             <div className="mt-4 grid gap-2">
-              {tournamentCurrentHighlights.map((item) => (
-                <p key={item} className="rounded-2xl border border-white/8 bg-black/16 p-3 text-sm leading-6 text-emerald-100/72">
-                  {item}
-                </p>
-              ))}
+              {tournamentCurrentHighlights.map((item) => {
+                if (item.startsWith("Gewinnerteam")) {
+                  return (
+                    <p key={item} className="rounded-2xl border border-white/8 bg-black/16 p-3 text-sm leading-6 text-emerald-100/72">
+                      {item}
+                      <Link
+                        href="/tournament/winners"
+                        className="inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-3 py-1 text-xs font-black tracking-[0.14em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+                      >
+                        Hall of Fame ansehen
+                      </Link>
+                    </p>
+                  );
+                }
+                return (
+                  <p key={item} className="rounded-2xl border border-white/8 bg-black/16 p-3 text-sm leading-6 text-emerald-100/72">
+                    {item}
+                  </p>
+                )
+              })}
             </div>
           </div>
 
@@ -185,13 +202,19 @@ export default async function TournamentHomePage() {
           href="/tournament/groups"
           label="Gruppen"
           title={`${groupMatches.length} geplante Spiele`}
-          text="Die Gruppenphase ist bereit für Scores, Bilanz und Stream-Timing."
+          text="2 Gruppen, je 4 Teams. Jeweils 6 Spiele pro Team."
         />
         <DashboardCard
           href="/tournament/playoffs"
-          label="Finals"
-          title={`${playoffMatches.length} Bracket-Slots`}
-          text="Endgames am zweiten Tag: Platzierungsspiele, Halbfinale, Finale und Bracket-Story auf einer Seite."
+          label="Playoffs"
+          title={`${playoffMatches.length - 1} Playoff-Spiele`}
+          text="Alle 8 Teams spielen am zweiten Spieltag weiter. Gruppensieger überspringen die erste Upper-Bracket-Runde, Platz 2 erhält dort einen vierten Ban gegen Platz 3, und Platz 4 steigt im Lower Bracket ein."
+        />
+        <DashboardCard
+          href="/tournament/winners"
+          label="Hall of Fame"
+          title={`${pastTournamentWinners.length} Einträge`}
+          text="Vergangene Champions, Finalisten und besondere Turniermomente gesammelt an einem Ort."
         />
       </section>
     </div>

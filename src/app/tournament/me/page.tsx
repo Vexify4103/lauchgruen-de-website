@@ -1,14 +1,19 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import type { ReactNode } from "react";
-import { auth, signIn } from "@/lib/auth";
+import { auth, signIn, signOut } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
-import { getVerifiedAccount, listApplications } from "@/lib/tournament-storage";
+import {
+  getVerifiedAccount,
+  listApplications,
+  TOURNAMENT_OWNER_DISCORD_IDS,
+} from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 
 export default async function TournamentMePage() {
   const session = await auth();
   const discordId = session?.user?.discordId;
+  const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
 
   if (!discordId) {
     return (
@@ -117,6 +122,29 @@ export default async function TournamentMePage() {
               Dein persönlicher Turnier-Check: Bewerbung, Riot, Discord, Team und
               nächstes Match an einem Ort.
             </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              {isOwner ? (
+                <Link
+                  href="/tournament/admin"
+                  className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:-translate-y-0.5"
+                >
+                  Admin öffnen
+                </Link>
+              ) : null}
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut({ redirectTo: "/tournament" });
+                }}
+              >
+                <button
+                  type="submit"
+                  className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/74 transition hover:border-red-200/30 hover:bg-red-500/10 hover:text-red-100"
+                >
+                  Logout
+                </button>
+              </form>
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

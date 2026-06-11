@@ -11,6 +11,8 @@ TWITCH_CLIENT_SECRET
 DISCORD_CLIENT_ID
 DISCORD_CLIENT_SECRET
 AUTH_SECRET
+AUTH_URL=https://tournament.lauchgruen.de
+AUTH_REDIRECT_PROXY_URL=https://tournament.lauchgruen.de/api/auth
 NEXTAUTH_URL=https://tournament.lauchgruen.de
 TOURNAMENT_APPLICATIONS_FILE=./data/tournament-applications.json
 TOURNAMENT_ADMIN_TOKEN=
@@ -34,9 +36,15 @@ docker run -d --name lauchgruen-web \
   -e DISCORD_CLIENT_ID=... \
   -e DISCORD_CLIENT_SECRET=... \
   -e AUTH_SECRET=... \
+  -e AUTH_URL=https://tournament.lauchgruen.de \
+  -e AUTH_REDIRECT_PROXY_URL=https://tournament.lauchgruen.de/api/auth \
   -e NEXTAUTH_URL=https://tournament.lauchgruen.de \
   lauchgruen-web
 ```
+
+`AUTH_SECRET` must be a stable random secret and must not change between
+deploys unless all users are expected to sign in again. If you also set
+`NEXTAUTH_SECRET` for compatibility, use the exact same value.
 
 ## Caddy
 

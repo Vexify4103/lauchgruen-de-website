@@ -8,6 +8,7 @@ declare module "next-auth" {
       discordId?: string;
       discordHandle?: string;
       discordUsername?: string;
+      discordAvatar?: string;
       discordInGuild?: boolean;
     } & DefaultSession["user"];
   }
@@ -18,17 +19,38 @@ type DiscordProfile = {
   username?: string;
   global_name?: string | null;
   discriminator?: string;
+  avatar?: string | null;
 };
 
 type DiscordToken = {
   discordId?: string;
   discordHandle?: string;
   discordUsername?: string;
+  discordAvatar?: string;
   discordInGuild?: boolean;
 };
 
+function getAuthRedirectProxyUrl() {
+  const configured = process.env.AUTH_REDIRECT_PROXY_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+  if (!publicAuthUrl) return undefined;
+
+  try {
+    const url = new URL(publicAuthUrl);
+    url.pathname = "/api/auth";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  redirectProxyUrl: getAuthRedirectProxyUrl(),
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID,
@@ -61,6 +83,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         appToken.discordId = dp.id;
         appToken.discordUsername = username;
         appToken.discordHandle = `${dp.global_name ?? username}${discriminator}`;
+        appToken.discordAvatar =
+          dp.id && dp.avatar
+            ? `https://cdn.discordapp.com/avatars/${dp.id}/${dp.avatar}.png?size=128`
+            : undefined;
       }
 
       if (account?.access_token) {
@@ -94,6 +120,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.discordHandle =
         typeof appToken.discordHandle === "string"
           ? appToken.discordHandle
+          : undefined;
+      session.user.discordAvatar =
+        typeof appToken.discordAvatar === "string"
+          ? appToken.discordAvatar
           : undefined;
       session.user.discordInGuild =
         typeof appToken.discordInGuild === "boolean"

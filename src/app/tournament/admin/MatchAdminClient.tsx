@@ -20,7 +20,9 @@ const statusToneClass: Record<(typeof statuses)[number], string> = {
 export type AdminMatch = {
   id: string;
   phase: "groups" | "playoffs";
-  teamA: string;        // resolved display name OR placeholder ("Seed #1")
+  group?: "A" | "B";
+  round: string;
+  teamA: string;        // resolved display name or a group-placement placeholder
   teamB: string;
   status: (typeof statuses)[number];
 };
@@ -76,16 +78,47 @@ export function MatchAdminClient({
         </div>
       ) : null}
 
-      {initialMatches.map((match) => (
-        <MatchRow
-          key={match.id}
-          base={match}
-          stored={stored[match.id] ?? { id: match.id }}
-          onSubmit={updateMatch}
-        />
+      {groupMatchesByRound(initialMatches).map(({ label, matches }) => (
+        <section key={label} className="grid gap-3">
+          <div className="flex items-center gap-3 px-1">
+            <span className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">
+              {label}
+            </span>
+            <span className="h-px flex-1 bg-white/10" />
+            {matches.length > 1 ? (
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/52">
+                Parallel
+              </span>
+            ) : null}
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {matches.map((match) => (
+              <MatchRow
+                key={match.id}
+                base={match}
+                stored={stored[match.id] ?? { id: match.id }}
+                onSubmit={updateMatch}
+              />
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   );
+}
+
+function groupMatchesByRound(matches: AdminMatch[]) {
+  const sections = new Map<string, AdminMatch[]>();
+  for (const match of matches) {
+    const label = match.phase === "groups"
+      ? `Gruppenphase · ${match.round}`
+      : `Playoffs · ${match.round}`;
+    sections.set(label, [...(sections.get(label) ?? []), match]);
+  }
+  return [...sections.entries()].map(([label, entries]) => ({
+    label,
+    matches: entries.sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "")),
+  }));
 }
 
 function MatchRow({

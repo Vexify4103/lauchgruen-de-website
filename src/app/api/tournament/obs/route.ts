@@ -174,13 +174,9 @@ export async function GET(request: Request) {
   if (standing) {
     const rank = standing.rank;
     const allPlayed = standings[team.group].every((s) => s.played === groupSize - 1);
-    if (allPlayed && rank <= 3) {
+    if (allPlayed && !standing.tiebreakerRequired && rank <= 4) {
       // Map group rank → overall seed using the same logic as the resolver
-      if (team.group === "A") {
-        playoffSlot = rank === 1 ? "Seed #1" : rank === 2 ? "Seed #3" : "Seed #5";
-      } else {
-        playoffSlot = rank === 1 ? "Seed #2" : rank === 2 ? "Seed #4" : "Seed #6";
-      }
+      playoffSlot = `Gruppe ${team.group} #${rank}`;
     }
   }
 

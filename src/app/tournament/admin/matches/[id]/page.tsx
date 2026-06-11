@@ -32,6 +32,13 @@ export default async function MatchControlRoomPage({
   ]);
   const match = ctx.matches.find((entry) => entry.id === id);
   if (!match) notFound();
+  const parallelMatches = ctx.matches.filter((entry) =>
+    entry.id !== match.id
+    && entry.phase === match.phase
+    && entry.round === match.round
+    && entry.teamAName
+    && entry.teamBName,
+  );
 
   return (
     <div className="px-5 py-10 sm:py-14">
@@ -46,6 +53,7 @@ export default async function MatchControlRoomPage({
           roster={roster}
           tournamentLive={settings.tournamentLive}
           draftEnabled={settings.draftEnabled}
+          parallelMatches={parallelMatches}
         />
       </section>
     </div>

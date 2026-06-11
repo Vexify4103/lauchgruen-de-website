@@ -30,13 +30,20 @@ export default async function GroupsPage() {
             Gruppenphase
           </div>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-            Zwei Vierergruppen. Top 3 jeder Gruppe ziehen ein.
+            Zwei Vierergruppen. Alle Teams ziehen in die Playoffs ein.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-            Sechs BO1-Spiele pro Gruppe. Gruppensieger werden als Seed #1 / #2
-            ins Upper Bracket gesetzt, die Zweiten als #3 / #4, und Platz drei
-            startet als #5 / #6 im Lower Bracket.
+            Sechs BO1-Spiele pro Gruppe. Die Gruppensieger überspringen die erste
+            Upper-Bracket-Runde. Platz 2 spielt dort mit vier Bans gegen Platz 3
+            der anderen Gruppe. Die Viertplatzierten starten in Runde 1 des
+            Lower Brackets.
           </p>
+          <div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] p-4 text-sm leading-7 text-amber-50/82">
+            <strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz.
+            Bei Gleichstand zwischen zwei Teams entscheidet der direkte Vergleich.
+            Bleibt ein Mehrfach-Gleichstand bestehen und betrifft er Einzug oder
+            Seeding, wird die Spieldauer herangezogen.
+          </div>
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
@@ -88,6 +95,11 @@ export default async function GroupsPage() {
                         <span className="text-right font-bold text-emerald-100/60">
                           {standing.pointsFor}
                         </span>
+                        {standing.tiebreakerRequired ? (
+                          <span className="col-span-5 mt-1 rounded-xl border border-amber-200/18 bg-amber-200/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                            Tiebreaker erforderlich
+                          </span>
+                        ) : null}
                       </div>
                     );
                   })}

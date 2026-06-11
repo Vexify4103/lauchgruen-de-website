@@ -26,15 +26,8 @@ export default async function PlayoffsPage() {
             Playoffs und Finals
           </div>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-            Sechs Teams. Double Elimination. Bracket Reset live.
+            Acht Teams – Double Elimination.
           </h1>
-          <p className="mt-4 text-sm leading-7 text-emerald-100/68">
-            Die Top-vier-Seeds eröffnen das Upper Bracket. Seeds fünf und sechs
-            starten im Lower Bracket und treffen auf die Verlierer aus dem Upper
-            Bracket. Der Lower-Bracket-Sieger fordert den Upper-Bracket-Champion
-            im Grand Final — mit möglichem Reset, falls die Lower-Seite Set 1
-            gewinnt.
-          </p>
         </div>
 
         <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-3 shadow-xl shadow-black/24 sm:p-5">

@@ -28,7 +28,7 @@ export default async function AdminLiveDashboardPage() {
   const playable = ctx.matches.filter((match) => match.teamAName && match.teamBName);
   const live = playable.filter((match) => match.status === "Live");
   const open = playable.filter((match) => match.status !== "Finished");
-  const next = open.filter((match) => match.status !== "Live").slice(0, 6);
+  const next = getNextMatches(open.filter((match) => match.status !== "Live"));
   const missingScores = playable.filter(
     (match) => match.status === "Finished" && (match.scoreA === undefined || match.scoreB === undefined),
   );
@@ -159,6 +159,24 @@ export default async function AdminLiveDashboardPage() {
       </section>
     </div>
   );
+}
+
+function getNextMatches(
+  matches: Awaited<ReturnType<typeof getMatchControlContext>>["matches"],
+) {
+  const groupMatches = matches.filter((match) => match.phase === "groups");
+  if (groupMatches.length === 0) return matches.slice(0, 4);
+
+  const groupA = groupMatches
+    .filter((match) => match.id.startsWith("a-"))
+    .slice(0, 2);
+  const groupB = groupMatches
+    .filter((match) => match.id.startsWith("b-"))
+    .slice(0, 2);
+
+  return [0, 1]
+    .flatMap((index) => [groupA[index], groupB[index]])
+    .filter((match): match is (typeof matches)[number] => Boolean(match));
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {

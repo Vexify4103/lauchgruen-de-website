@@ -14,7 +14,7 @@ export function bonusBanSideForMatch(input: {
   id: string;
   blueSide: "teamA" | "teamB";
 }): DraftSide | null {
-  const bonusBracketSide = input.id === "ub-qf-1" || input.id === "ub-qf-2"
+  const bonusBracketSide = input.id === "ub-r1-1" || input.id === "ub-r1-2"
     ? "teamA"
     : null;
   if (!bonusBracketSide) return null;

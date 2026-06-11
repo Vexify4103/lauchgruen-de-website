@@ -7,16 +7,20 @@ import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wh
 
 /** Per-section grid positions. Each sub-grid has its own row/col coordinates. */
 const UB_POSITIONS: Record<string, CSSProperties> = {
-  "ub-qf-1": { gridRow: "1 / span 2", gridColumn: 1 },
-  "ub-qf-2": { gridRow: "3 / span 2", gridColumn: 1 },
-  "ub-f":    { gridRow: "2 / span 2", gridColumn: 2 },
+  "ub-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
+  "ub-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
+  "ub-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
+  "ub-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
+  "ub-f":    { gridRow: "2 / span 2", gridColumn: 3 },
 };
 
 const LB_POSITIONS: Record<string, CSSProperties> = {
   "lb-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
   "lb-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
-  "lb-sf":   { gridRow: "2 / span 2", gridColumn: 2 },
-  "lb-f":    { gridRow: "1 / span 4", gridColumn: 3 },
+  "lb-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
+  "lb-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
+  "lb-sf":   { gridRow: "2 / span 2", gridColumn: 3 },
+  "lb-f":    { gridRow: "1 / span 4", gridColumn: 4 },
 };
 
 const GF_POSITIONS_WITH_RESET: Record<string, CSSProperties> = {
@@ -42,11 +46,15 @@ type BracketMatch = ResolvedPlayoffMatch & {
 };
 
 const CONNECTIONS: Connection[] = [
-  { from: "ub-qf-1", to: "ub-f",     port: "top",    kind: "advance" },
-  { from: "ub-qf-2", to: "ub-f",     port: "bottom", kind: "advance" },
+  { from: "ub-r1-1", to: "ub-r2-1", port: "middle", kind: "advance" },
+  { from: "ub-r1-2", to: "ub-r2-2", port: "middle", kind: "advance" },
+  { from: "ub-r2-1", to: "ub-f",     port: "top",    kind: "advance" },
+  { from: "ub-r2-2", to: "ub-f",     port: "bottom", kind: "advance" },
 
-  { from: "lb-r1-1", to: "lb-sf",    port: "top",    kind: "advance" },
-  { from: "lb-r1-2", to: "lb-sf",    port: "bottom", kind: "advance" },
+  { from: "lb-r1-1", to: "lb-r2-1", port: "middle", kind: "advance" },
+  { from: "lb-r1-2", to: "lb-r2-2", port: "middle", kind: "advance" },
+  { from: "lb-r2-1", to: "lb-sf",    port: "top",    kind: "advance" },
+  { from: "lb-r2-2", to: "lb-sf",    port: "bottom", kind: "advance" },
 
   { from: "lb-sf",   to: "lb-f",     port: "middle", kind: "advance" },
 
@@ -56,8 +64,8 @@ const CONNECTIONS: Connection[] = [
   { from: "gf",      to: "gf-reset", port: "top",    kind: "conditional" },
 ];
 
-const UB_COLUMN_LABELS = ["Runde 1 · QF", "Upper Final"];
-const LB_COLUMN_LABELS = ["Runde 1", "Lower-Halbfinale", "Lower Final"];
+const UB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Upper Final"];
+const LB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Lower-Halbfinale", "Lower Final"];
 
 export function BracketTree({ matches }: { matches: BracketMatch[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -154,7 +162,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
     <div className="overflow-x-auto pb-2 -mx-2 px-2">
       <div
         ref={containerRef}
-        className="relative grid min-w-[62rem] gap-x-10"
+        className="relative grid min-w-[88rem] gap-x-10"
         style={{ gridTemplateColumns: "minmax(0, 1fr) 14rem" }}
       >
         <svg
@@ -188,7 +196,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
             label="Upper-Bracket"
             accent="lime"
             columnLabels={UB_COLUMN_LABELS}
-            columns={2}
+            columns={3}
             rows={4}
             positions={UB_POSITIONS}
             matches={matches}
@@ -200,7 +208,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
             label="Lower-Bracket"
             accent="sky"
             columnLabels={LB_COLUMN_LABELS}
-            columns={3}
+            columns={4}
             rows={4}
             positions={LB_POSITIONS}
             matches={matches}
@@ -222,12 +230,6 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
             registerCard={registerCard}
             lookup={lookup}
           />
-          {!showReset ? (
-            <p className="mt-2 px-1 text-[10px] font-bold leading-relaxed text-emerald-100/40">
-              Ein Bracket Reset findet nur statt, wenn das Team aus dem Lower
-              Bracket das Grand Final gewinnt.
-            </p>
-          ) : null}
         </div>
       </div>
 
@@ -493,12 +495,16 @@ function shortRoundLabel(round: ResolvedPlayoffMatch["round"]): string {
       return "Bracket Reset";
     case "Grand Final":
       return "Grand Final";
-    case "Upper QF":
-      return "Upper QF";
+    case "Upper R1":
+      return "Upper R1";
+    case "Upper R2":
+      return "Upper R2";
     case "Upper Final":
       return "Upper Final";
     case "Lower R1":
       return "Lower R1";
+    case "Lower R2":
+      return "Lower R2";
     case "Lower SF":
       return "Lower SF";
     case "Lower Final":

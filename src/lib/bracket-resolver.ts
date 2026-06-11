@@ -18,6 +18,7 @@ export type TeamStanding = {
   pointsAgainst: number;
   pointDiff: number;
   rank: number;
+  tiebreakerRequired: boolean;
 };
 
 export type GroupStandings = {
@@ -38,12 +39,26 @@ export function slotLabel(slot: TeamSlot): string {
     case "team":
       return slot.name;
     case "groupSeed":
-      return `Seed #${slot.seed}`;
+      return groupPlacementLabel(slot.seed);
     case "matchWinner":
       return `Winner ${slot.matchId.toUpperCase()}`;
     case "matchLoser":
       return `Loser ${slot.matchId.toUpperCase()}`;
   }
+}
+
+function groupPlacementLabel(seed: number): string {
+  const placements: Record<number, string> = {
+    1: "Gruppe A #1",
+    2: "Gruppe B #1",
+    3: "Gruppe A #2",
+    4: "Gruppe B #2",
+    5: "Gruppe A #3",
+    6: "Gruppe B #3",
+    7: "Gruppe A #4",
+    8: "Gruppe B #4",
+  };
+  return placements[seed] ?? `Seed #${seed}`;
 }
 
 type StoredMap = Record<string, StoredTournamentMatch>;
@@ -66,6 +81,7 @@ export function computeGroupStandings(
       pointsAgainst: 0,
       pointDiff: 0,
       rank: 0,
+      tiebreakerRequired: false,
     }));
     const byName = new Map(standings.map((s) => [s.team.name, s]));
 
@@ -116,6 +132,18 @@ export function computeGroupStandings(
       if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
       return a.team.name.localeCompare(b.team.name);
     });
+
+    const groupComplete = standings.every(
+      (standing) => standing.played === Math.max(groupTeams.length - 1, 0),
+    );
+
+    for (const standing of standings) {
+      const tiedTeams = standings.filter(
+        (other) => other.wins === standing.wins,
+      );
+      standing.tiebreakerRequired = groupComplete && tiedTeams.length > 2;
+    }
+
     standings.forEach((s, i) => (s.rank = i + 1));
 
     byGroup[group] = standings;
@@ -144,15 +172,21 @@ function addH2H(
 export function computeSeeds(
   standings: GroupStandings,
 ): Record<number, string | null> {
-  const allGroupMatchesFinished = (group: "A" | "B") =>
-    standings[group].every((s) => s.played === 3); // 3 matches per team in a 4-team round-robin
+  const allGroupMatchesFinished = (group: "A" | "B") => {
+    const expectedMatchesPerTeam = Math.max(standings[group].length - 1, 0);
+    return standings[group].length >= 3
+      && standings[group].every((standing) => standing.played === expectedMatchesPerTeam)
+      && standings[group].every((standing) => !standing.tiebreakerRequired);
+  };
 
   const a1 = allGroupMatchesFinished("A") ? standings.A[0]?.team.name ?? null : null;
   const a2 = allGroupMatchesFinished("A") ? standings.A[1]?.team.name ?? null : null;
   const a3 = allGroupMatchesFinished("A") ? standings.A[2]?.team.name ?? null : null;
+  const a4 = allGroupMatchesFinished("A") ? standings.A[3]?.team.name ?? null : null;
   const b1 = allGroupMatchesFinished("B") ? standings.B[0]?.team.name ?? null : null;
   const b2 = allGroupMatchesFinished("B") ? standings.B[1]?.team.name ?? null : null;
   const b3 = allGroupMatchesFinished("B") ? standings.B[2]?.team.name ?? null : null;
+  const b4 = allGroupMatchesFinished("B") ? standings.B[3]?.team.name ?? null : null;
 
   return {
     1: a1,
@@ -161,6 +195,8 @@ export function computeSeeds(
     4: b2,
     5: a3,
     6: b3,
+    7: a4,
+    8: b4,
   };
 }
 
@@ -268,4 +304,3 @@ export function deriveWinner(
   if (!r || !r.teamAName || !r.teamBName) return null;
   return scoreA > scoreB ? r.teamAName : r.teamBName;
 }
-
