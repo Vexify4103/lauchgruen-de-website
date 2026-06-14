@@ -2,15 +2,13 @@
 
 import { TournamentLink as Link } from "../TournamentLink";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
-import { ThemedSelect } from "@/components/ThemedSelect";
 import { formatGameDuration } from "@/lib/match-duration";
 
-const statuses = ["Scheduled", "Live", "Finished", "Pending", "Locked"] as const;
-const statusOptions = statuses.map((value) => ({ value, label: value }));
+type MatchStatus = NonNullable<StoredTournamentMatch["status"]>;
 
-const statusToneClass: Record<(typeof statuses)[number], string> = {
+const statusToneClass: Record<MatchStatus, string> = {
   Scheduled: "border-white/10 bg-black/24 text-emerald-100/80",
   Live: "border-red-300/40 bg-red-500/20 text-red-100",
   Finished: "border-lime-200/30 bg-lime-200/14 text-lime-50",
@@ -25,7 +23,8 @@ export type AdminMatch = {
   round: string;
   teamA: string;        // resolved display name or a group-placement placeholder
   teamB: string;
-  status: (typeof statuses)[number];
+  status: MatchStatus;
+  poolsDrawn: boolean;
 };
 
 export function MatchAdminClient({
@@ -37,7 +36,12 @@ export function MatchAdminClient({
 }) {
   const router = useRouter();
   const [stored, setStored] = useState(initialStored);
+  const [preparedMatchIds, setPreparedMatchIds] = useState(
+    () => new Set(initialMatches.filter((match) => match.poolsDrawn).map((match) => match.id)),
+  );
+  const [preparingId, setPreparingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [isPreparing, startPreparing] = useTransition();
 
   async function updateMatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,7 +57,6 @@ export function MatchAdminClient({
         scoreA: formData.get("scoreA"),
         scoreB: formData.get("scoreB"),
         gameDuration: formData.get("gameDuration"),
-        status: formData.get("status"),
       }),
     });
 
@@ -70,6 +73,44 @@ export function MatchAdminClient({
     setMessage("Match aktualisiert.");
     // Re-fetch server data so dependent playoff slots refresh with the new team names.
     router.refresh();
+  }
+
+  function prepareMatch(match: AdminMatch) {
+    if (
+      isPreparing
+      || match.status !== "Scheduled"
+      || preparedMatchIds.has(match.id)
+    ) {
+      return;
+    }
+
+    setMessage("");
+    setPreparingId(match.id);
+    startPreparing(async () => {
+      const response = await fetch("/api/tournament/matches/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: match.id }),
+      });
+      const result = (await response.json().catch(() => null)) as
+        | { message?: string; drewPools?: boolean }
+        | null;
+
+      if (!response.ok) {
+        setMessage(result?.message ?? "Pools konnten nicht gezogen werden.");
+        setPreparingId(null);
+        return;
+      }
+
+      setPreparedMatchIds((current) => new Set(current).add(match.id));
+      setMessage(
+        result?.drewPools
+          ? `Pools für ${match.teamA} vs. ${match.teamB} gezogen.`
+          : "Dieses Match war bereits vorbereitet.",
+      );
+      setPreparingId(null);
+      router.refresh();
+    });
   }
 
   return (
@@ -99,6 +140,9 @@ export function MatchAdminClient({
                 key={match.id}
                 base={match}
                 stored={stored[match.id] ?? { id: match.id }}
+                poolsDrawn={preparedMatchIds.has(match.id)}
+                preparing={preparingId === match.id}
+                onPrepare={() => prepareMatch(match)}
                 onSubmit={updateMatch}
               />
             ))}
@@ -129,14 +173,19 @@ function groupMatchesByRound(matches: AdminMatch[]) {
 function MatchRow({
   base,
   stored,
+  poolsDrawn,
+  preparing,
+  onPrepare,
   onSubmit,
 }: {
   base: AdminMatch;
   stored: StoredTournamentMatch;
+  poolsDrawn: boolean;
+  preparing: boolean;
+  onPrepare: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
-  const initialStatus = (stored.status ?? base.status) as (typeof statuses)[number];
-  const [status, setStatus] = useState<(typeof statuses)[number]>(initialStatus);
+  const status = base.status;
   const tone = statusToneClass[status] ?? statusToneClass.Scheduled;
 
   return (
@@ -183,14 +232,11 @@ function MatchRow({
 
         <div className="grid gap-2">
           <span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">
-            Status
+            Status (automatisch)
           </span>
-          <ThemedSelect
-            name="status"
-            value={status}
-            onChange={(value) => setStatus(value as (typeof statuses)[number])}
-            options={statusOptions}
-          />
+          <div className="flex h-[42px] items-center rounded-xl border border-white/10 bg-black/24 px-3 text-sm font-black text-emerald-100/72">
+            {status}
+          </div>
         </div>
 
         <div className="grid min-w-0 gap-2">
@@ -209,12 +255,29 @@ function MatchRow({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
           <button
             type="submit"
-            className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
+            disabled={status === "Locked"}
+            className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Speichern
+            {status === "Locked" ? "Teilnehmer offen" : "Ergebnis speichern"}
+          </button>
+          <button
+            type="button"
+            onClick={onPrepare}
+            disabled={poolsDrawn || preparing || status !== "Scheduled"}
+            className="rounded-xl border border-cyan-200/20 bg-cyan-300/8 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-emerald-100/32"
+          >
+            {preparing
+              ? "Pools werden gezogen..."
+              : poolsDrawn
+                ? "Pools gezogen"
+                : status === "Locked"
+                  ? "Teilnehmer offen"
+                  : status !== "Scheduled"
+                    ? "Draft läuft"
+                    : "Pools ziehen"}
           </button>
           <Link
             href={`/tournament/admin/matches/${base.id}`}

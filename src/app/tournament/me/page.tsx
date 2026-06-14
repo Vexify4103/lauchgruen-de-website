@@ -6,14 +6,20 @@ import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import {
   getVerifiedAccount,
   getPreferenceGroupForDiscordId,
+  getTwitchLink,
   listApplications,
   TOURNAMENT_PREFERENCE_GROUP_LIMIT,
   TOURNAMENT_OWNER_DISCORD_IDS,
 } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { PreferenceGroupCard } from "./PreferenceGroupCard";
+import { TwitchLinkCard } from "./TwitchLinkCard";
 
-export default async function TournamentMePage() {
+export default async function TournamentMePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ twitch?: string }>;
+}) {
   const session = await auth();
   const discordId = session?.user?.discordId;
   const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
@@ -48,13 +54,15 @@ export default async function TournamentMePage() {
     );
   }
 
-  const [verified, applications, member, ctx, preferenceGroup] = await Promise.all([
+  const [verified, applications, member, ctx, preferenceGroup, twitchLink] = await Promise.all([
     getVerifiedAccount(discordId),
     listApplications(),
     isDiscordGuildMember(discordId),
     getMatchControlContext(),
     getPreferenceGroupForDiscordId(discordId),
+    getTwitchLink(discordId),
   ]);
+  const twitchStatus = (await searchParams).twitch;
   const application = applications.find((entry) => entry.discordId === discordId) ?? null;
   const team = ctx.teams.find((entry) =>
     entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase())
@@ -183,6 +191,12 @@ export default async function TournamentMePage() {
                   }
                 : null
             }
+          />
+
+          <TwitchLinkCard
+            initialLink={twitchLink}
+            status={twitchStatus}
+            isOwner={isOwner}
           />
 
           {nextMatch ? (

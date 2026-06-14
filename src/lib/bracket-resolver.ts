@@ -285,6 +285,7 @@ export function resolvePlayoffMatches(
     const stored = state[id];
     const teamAName = resolveSlot(base.teamA);
     const teamBName = resolveSlot(base.teamB);
+    const teamsResolved = Boolean(teamAName && teamBName);
 
     let winner: string | null = null;
     if (
@@ -305,7 +306,11 @@ export function resolvePlayoffMatches(
       teamBLabel: teamBName ?? slotLabel(base.teamB),
       scoreA: stored?.scoreA,
       scoreB: stored?.scoreB,
-      status: (stored?.status as PlayoffMatch["status"]) ?? base.status,
+      status: !teamsResolved
+        ? "Locked"
+        : stored?.status && stored.status !== "Locked"
+          ? stored.status
+          : "Scheduled",
       winner,
     };
     resolved.set(id, out);

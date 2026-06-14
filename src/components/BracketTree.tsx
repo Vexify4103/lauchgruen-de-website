@@ -514,6 +514,8 @@ function shortRoundLabel(round: ResolvedPlayoffMatch["round"]): string {
 
 function statusToneClass(status: ResolvedPlayoffMatch["status"]): string {
   switch (status) {
+    case "Scheduled":
+      return "border-white/10 bg-black/24 text-emerald-100/80";
     case "Live":
       return "border-red-300/40 bg-red-500/20 text-red-100";
     case "Finished":

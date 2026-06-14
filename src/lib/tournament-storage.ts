@@ -67,6 +67,23 @@ export type TournamentPreferenceGroup = {
   updatedAt: string;
 };
 
+export type TournamentTwitchLink = {
+  discordId: string;
+  twitchUserId: string;
+  login: string;
+  displayName: string;
+  profileImageUrl: string;
+  showWhenLive: boolean;
+  linkedAt: string;
+  updatedAt: string;
+};
+
+export type TwitchLinkState = {
+  discordId: string;
+  createdAt: Date;
+  expiresAt: Date;
+};
+
 export type StoredTournamentMatch = {
   id: string;
   scoreA?: number;
@@ -92,8 +109,11 @@ const VERIFIED_RIOT = "verified_riot_accounts";
 const RIOT_CHALLENGES = "riot_verifications";
 const BLACKLIST = "tournament_blacklist";
 const PREFERENCE_GROUPS = "tournament_preference_groups";
+const TWITCH_LINKS = "tournament_twitch_links";
+const TWITCH_LINK_STATES = "tournament_twitch_link_states";
 
 const VERIFICATION_TTL_MIN = 15;
+const TWITCH_LINK_STATE_TTL_MIN = 10;
 
 let ensuredIndexes = false;
 async function ensureIndexes() {
@@ -107,6 +127,14 @@ async function ensureIndexes() {
   await db
     .collection(PREFERENCE_GROUPS)
     .createIndex({ memberDiscordIds: 1 }, { unique: true })
+    .catch(() => {});
+  await db
+    .collection(TWITCH_LINK_STATES)
+    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+    .catch(() => {});
+  await db
+    .collection(TWITCH_LINKS)
+    .createIndex({ twitchUserId: 1 }, { unique: true })
     .catch(() => {});
 }
 
@@ -127,6 +155,8 @@ type BlacklistDoc = TournamentBlacklistEntry & { _id: string };
 type PreferenceGroupDoc = Omit<TournamentPreferenceGroup, "code"> & {
   _id: string;
 };
+type TwitchLinkDoc = TournamentTwitchLink & { _id: string };
+type TwitchLinkStateDoc = TwitchLinkState & { _id: string };
 
 async function applicationsCollection() {
   return (await getDb()).collection<AppDoc>(APPLICATIONS);
@@ -143,6 +173,16 @@ async function blacklistCollection() {
 async function preferenceGroupsCollection() {
   await ensureIndexes();
   return (await getDb()).collection<PreferenceGroupDoc>(PREFERENCE_GROUPS);
+}
+
+async function twitchLinksCollection() {
+  await ensureIndexes();
+  return (await getDb()).collection<TwitchLinkDoc>(TWITCH_LINKS);
+}
+
+async function twitchLinkStatesCollection() {
+  await ensureIndexes();
+  return (await getDb()).collection<TwitchLinkStateDoc>(TWITCH_LINK_STATES);
 }
 
 function stripMongoId<T extends Record<string, unknown>>(doc: T): Omit<T, "_id"> {
@@ -371,6 +411,98 @@ export async function leavePreferenceGroup(discordId: string): Promise<void> {
       },
     },
   );
+}
+
+export async function createTwitchLinkState(
+  state: string,
+  discordId: string,
+): Promise<void> {
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + TWITCH_LINK_STATE_TTL_MIN * 60 * 1000,
+  );
+  const col = await twitchLinkStatesCollection();
+  await col.replaceOne(
+    { _id: state },
+    {
+      discordId,
+      createdAt: now,
+      expiresAt,
+    },
+    { upsert: true },
+  );
+}
+
+export async function consumeTwitchLinkState(
+  state: string,
+): Promise<TwitchLinkState | null> {
+  const col = await twitchLinkStatesCollection();
+  const doc = await col.findOneAndDelete({
+    _id: state,
+    expiresAt: { $gt: new Date() },
+  });
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  void _id;
+  return rest as TwitchLinkState;
+}
+
+export async function upsertTwitchLink(
+  link: TournamentTwitchLink,
+): Promise<void> {
+  const col = await twitchLinksCollection();
+  // A verified Twitch account can move to the current Discord account, but
+  // must never remain linked to two Discord users at once.
+  await col.deleteMany({
+    twitchUserId: link.twitchUserId,
+    _id: { $ne: link.discordId },
+  });
+  await col.replaceOne(
+    { _id: link.discordId },
+    { ...link },
+    { upsert: true },
+  );
+}
+
+export async function getTwitchLink(
+  discordId: string,
+): Promise<TournamentTwitchLink | null> {
+  const col = await twitchLinksCollection();
+  const doc = await col.findOne({ _id: discordId });
+  return doc ? (stripMongoId(doc) as TournamentTwitchLink) : null;
+}
+
+export async function listTwitchLinksForDiscordIds(
+  discordIds: string[],
+): Promise<TournamentTwitchLink[]> {
+  const uniqueIds = [...new Set(discordIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+  const col = await twitchLinksCollection();
+  const docs = await col.find({ _id: { $in: uniqueIds } }).toArray();
+  return docs.map((doc) => stripMongoId(doc) as TournamentTwitchLink);
+}
+
+export async function updateTwitchLinkVisibility(
+  discordId: string,
+  showWhenLive: boolean,
+): Promise<TournamentTwitchLink | null> {
+  const col = await twitchLinksCollection();
+  const doc = await col.findOneAndUpdate(
+    { _id: discordId },
+    {
+      $set: {
+        showWhenLive,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" },
+  );
+  return doc ? (stripMongoId(doc) as TournamentTwitchLink) : null;
+}
+
+export async function deleteTwitchLink(discordId: string): Promise<void> {
+  const col = await twitchLinksCollection();
+  await col.deleteOne({ _id: discordId });
 }
 
 type ChallengeDoc = RiotVerificationChallenge & { _id: string };

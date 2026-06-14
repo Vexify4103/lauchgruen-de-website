@@ -18,8 +18,6 @@ import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { formatGameDuration, parseGameDuration } from "@/lib/match-duration";
 
-const statuses = ["Scheduled", "Live", "Finished", "Pending", "Locked"] as const;
-
 function opggMultiSearchUrl(riotIds: string[]) {
   const uniqueIds = [...new Set(riotIds.filter(Boolean))];
   const params = new URLSearchParams({
@@ -32,6 +30,25 @@ function teamRiotIds(team: TournamentTeam | null) {
   return team?.players.map((player) => player.riotId) ?? [];
 }
 
+function draftedPicksForMatchTeams(
+  draft: TournamentDraftState,
+  blueSide: "teamA" | "teamB",
+  sequence: ReturnType<typeof createDraftSequence>,
+) {
+  if (!draftComplete(draft, sequence)) {
+    return { teamA: [] as string[], teamB: [] as string[] };
+  }
+  const bluePicks = draft.actions
+    .filter((action) => action.kind === "pick" && action.side === "teamA")
+    .map((action) => action.champion);
+  const redPicks = draft.actions
+    .filter((action) => action.kind === "pick" && action.side === "teamB")
+    .map((action) => action.champion);
+  return blueSide === "teamA"
+    ? { teamA: bluePicks, teamB: redPicks }
+    : { teamA: redPicks, teamB: bluePicks };
+}
+
 export function MatchControlRoomClient({
   match,
   teamA,
@@ -40,7 +57,6 @@ export function MatchControlRoomClient({
   draft,
   extraBanSide,
   roster,
-  tournamentLive,
   draftEnabled,
   parallelMatches,
 }: {
@@ -51,22 +67,29 @@ export function MatchControlRoomClient({
   draft: TournamentDraftState;
   extraBanSide: DraftSide | null;
   roster: RosterSnapshot;
-  tournamentLive: boolean;
   draftEnabled: boolean;
   parallelMatches: ControlMatch[];
 }) {
   const router = useRouter();
+  const draftSequence = createDraftSequence(extraBanSide);
+  const draftedPicks = draftedPicksForMatchTeams(
+    draft,
+    match.blueSide,
+    draftSequence,
+  );
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? "");
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? "");
   const [gameDuration, setGameDuration] = useState(
     formatGameDuration(match.gameDurationSeconds),
   );
-  const [status, setStatus] = useState<(typeof statuses)[number]>(
-    (match.status ?? "Scheduled") as (typeof statuses)[number],
-  );
+  const [status, setStatus] = useState(match.status ?? "Scheduled");
   const [blueSide, setBlueSide] = useState<"teamA" | "teamB">(match.blueSide);
-  const [teamAChampions, setTeamAChampions] = useState(match.teamAChampions ?? []);
-  const [teamBChampions, setTeamBChampions] = useState(match.teamBChampions ?? []);
+  const [teamAChampions, setTeamAChampions] = useState(
+    match.teamAChampions?.length ? match.teamAChampions : draftedPicks.teamA,
+  );
+  const [teamBChampions, setTeamBChampions] = useState(
+    match.teamBChampions?.length ? match.teamBChampions : draftedPicks.teamB,
+  );
   const [adminNote, setAdminNote] = useState(match.adminNote ?? "");
   const [message, setMessage] = useState("");
   const [coinTossing, setCoinTossing] = useState(false);
@@ -74,12 +97,16 @@ export function MatchControlRoomClient({
   const [isPending, startTransition] = useTransition();
 
   const canDraw = Boolean(teamA && teamB && !match.poolAssignment && status !== "Finished");
-  const canStart = Boolean(teamA && teamB && status !== "Finished" && tournamentLive);
+  const canPrepare = Boolean(
+    teamA
+    && teamB
+    && status === "Scheduled"
+    && !match.poolAssignment,
+  );
   const poolA = match.poolAssignment?.teamAPool ?? null;
   const poolB = match.poolAssignment?.teamBPool ?? null;
   const allowedA = poolA ? pools.find((pool) => pool.pool === poolA)?.champions ?? [] : [];
   const allowedB = poolB ? pools.find((pool) => pool.pool === poolB)?.champions ?? [] : [];
-  const draftSequence = createDraftSequence(extraBanSide);
 
   function drawPools() {
     if (!teamA || !teamB || isPending) return;
@@ -105,8 +132,8 @@ export function MatchControlRoomClient({
     });
   }
 
-  function startMatch() {
-    if (!canStart || isPending) return;
+  function prepareMatch() {
+    if (!canPrepare || isPending) return;
     setMessage("");
     startTransition(async () => {
       const response = await fetch("/api/tournament/matches/start", {
@@ -118,11 +145,50 @@ export function MatchControlRoomClient({
         | { message?: string; drewPools?: boolean }
         | null;
       if (!response.ok) {
-        setMessage(json?.message ?? "Match konnte nicht gestartet werden.");
+        setMessage(json?.message ?? "Match konnte nicht vorbereitet werden.");
         return;
       }
-      setStatus("Live");
-      setMessage(json?.drewPools ? "Match gestartet und Pools gezogen." : "Match gestartet.");
+      setStatus("Scheduled");
+      setMessage(
+        json?.drewPools
+          ? "Match vorbereitet und Pools gezogen."
+          : "Match ist vorbereitet.",
+      );
+      router.refresh();
+    });
+  }
+
+  function resetDraft() {
+    if (isPending) return;
+    const confirmed = window.confirm(
+      "Draft für dieses Match vollständig zurücksetzen? Picks, Bans, Ready-Status, Hover, Timer und automatisch übernommene Champions werden gelöscht. Pools und Ergebnisfelder bleiben erhalten.",
+    );
+    if (!confirmed) return;
+
+    setMessage("");
+    startTransition(async () => {
+      const response = await fetch("/api/tournament/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          matchId: match.id,
+          action: "reset",
+        }),
+      });
+      const json = (await response.json().catch(() => null)) as
+        | { message?: string }
+        | null;
+      if (!response.ok) {
+        setMessage(json?.message ?? "Draft konnte nicht zurückgesetzt werden.");
+        return;
+      }
+
+      setTeamAChampions([]);
+      setTeamBChampions([]);
+      setStatus("Scheduled");
+      setMessage(
+        "Draft vollständig zurückgesetzt. Beide Captains müssen erneut ready klicken.",
+      );
       router.refresh();
     });
   }
@@ -139,19 +205,27 @@ export function MatchControlRoomClient({
           scoreA,
           scoreB,
           gameDuration,
-          status,
           teamAChampions,
           teamBChampions,
           blueSide,
           adminNote,
         }),
       });
-      const json = (await response.json().catch(() => null)) as { message?: string } | null;
+      const json = (await response.json().catch(() => null)) as
+        | { message?: string; match?: { status?: ControlMatch["status"] } }
+        | null;
       if (!response.ok) {
         setMessage(json?.message ?? "Match konnte nicht gespeichert werden.");
         return;
       }
-      setMessage("Match gespeichert.");
+      if (json?.match?.status) {
+        setStatus(json.match.status);
+      }
+      setMessage(
+        json?.match?.status === "Finished"
+          ? "Ergebnis gespeichert. Match ist abgeschlossen."
+          : "Match gespeichert.",
+      );
       router.refresh();
     });
   }
@@ -210,15 +284,27 @@ export function MatchControlRoomClient({
               Zurück
             </Link>
             <Link
-              href={`/tournament/champ-select/${match.id}/spectate`}
-              className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.16em] transition md:flex-none ${
-                draftEnabled
-                  ? "border-sky-200/16 bg-sky-300/8 text-sky-100 hover:border-sky-200/34"
-                  : "pointer-events-none border-white/8 bg-white/[0.025] text-emerald-100/30"
-              }`}
+              href={`/tournament/champ-select/${match.id}`}
+              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50 transition hover:border-lime-200/48 md:flex-none"
             >
-              {draftEnabled ? "Spectator Draft" : "Draft pausiert"}
+              Draft steuern
             </Link>
+            {draftEnabled ? (
+              <Link
+                href={`/tournament/champ-select/${match.id}/spectate`}
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-sky-200/16 bg-sky-300/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-100 transition hover:border-sky-200/34 md:flex-none"
+              >
+                Zuschaueransicht
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={resetDraft}
+              disabled={isPending}
+              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-red-200/18 bg-red-500/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/76 transition hover:border-red-200/36 hover:text-red-50 disabled:opacity-50 md:flex-none"
+            >
+              Draft zurücksetzen
+            </button>
             </div>
           </div>
         </div>
@@ -284,17 +370,12 @@ export function MatchControlRoomClient({
 
         <button
           type="button"
-          onClick={startMatch}
-          disabled={!canStart || isPending || status === "Live"}
-          className="rounded-[1.4rem] bg-gradient-to-r from-red-200 via-amber-200 to-lime-200 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-amber-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={prepareMatch}
+          disabled={!canPrepare || isPending}
+          className="rounded-[1.4rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === "Live" ? "Match ist live" : "Match starten"}
+          {match.poolAssignment ? "Match vorbereitet" : "Match vorbereiten"}
         </button>
-        {!tournamentLive ? (
-          <div className="rounded-2xl border border-amber-200/18 bg-amber-200/8 px-4 py-3 text-xs font-bold leading-5 text-amber-50/80">
-            Turniermodus steht auf Vorbereitung. Match starten ist blockiert, bis du im Admin-Dashboard auf Live stellst.
-          </div>
-        ) : null}
 
         <div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-xl shadow-black/24">
           <div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">
@@ -369,17 +450,14 @@ export function MatchControlRoomClient({
             </label>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="grid gap-1.5">
+            <div className="grid gap-1.5">
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">
-                Status
+                Status (automatisch)
               </span>
-              <ThemedSelect
-                name="status"
-                value={status}
-                onChange={(value) => setStatus(value as (typeof statuses)[number])}
-                options={statuses.map((value) => ({ value, label: value }))}
-              />
-            </label>
+              <div className="flex min-h-11 items-center rounded-xl border border-white/10 bg-black/24 px-3 text-sm font-black text-emerald-100/72">
+                {status}
+              </div>
+            </div>
             <label className="grid gap-1.5">
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">
                 Blue Side
@@ -479,7 +557,7 @@ function ProtectionWarnings({
       ? "Blue Side wurde geändert, aber der Draft hat schon begonnen. Draft danach ggf. zurücksetzen."
       : "",
     draftComplete && status !== "Finished"
-      ? "Draft ist abgeschlossen. Nach Score-Eingabe Match als Finished speichern."
+      ? "Draft ist abgeschlossen und das Match live. Ein gültiges Ergebnis schließt es automatisch ab."
       : "",
   ].filter(Boolean);
   if (warnings.length === 0) return null;

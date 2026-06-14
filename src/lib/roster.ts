@@ -67,6 +67,12 @@ export type RosterApplicant = {
   mainRole?: string;
   preferredRoles: string[];
   preferenceGroupCode?: string;
+  availableAllDates: boolean;
+  notes: string;
+  acceptedRules: boolean;
+  acceptedDataStorage: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type RosterTeam = {
@@ -144,6 +150,12 @@ function toApplicant(
     mainRole: app.mainRole,
     preferredRoles: app.preferredRoles,
     preferenceGroupCode,
+    availableAllDates: app.availableAllDates,
+    notes: app.notes,
+    acceptedRules: app.acceptedRules,
+    acceptedDataStorage: app.acceptedDataStorage,
+    createdAt: app.createdAt,
+    updatedAt: app.updatedAt,
   };
 }
 

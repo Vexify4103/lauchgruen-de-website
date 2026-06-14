@@ -253,7 +253,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setAutoRunning(false);
     setMessage({
       tone: "ok",
-      text: `Snake-Draft hat ${assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt. Prüfen und speichern, wenn alles passt.`,
+      text: `Auto-Balance hat ${assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt und Freundesgruppen nach Möglichkeit zusammengehalten. Prüfen und speichern, wenn alles passt.`,
     });
   }
 
@@ -416,6 +416,28 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       });
       return;
     }
+    const removedTeamKeys = new Set<string>(json.teamKeysRemoved ?? []);
+    setState((previous) => {
+      const assignments = new Map<string, Assignment>();
+      for (const [discordId, assignment] of previous.assignments) {
+        if (discordId.startsWith("test-")) continue;
+        assignments.set(
+          discordId,
+          removedTeamKeys.has(assignment.teamKey)
+            ? { teamKey: "", role: null }
+            : assignment,
+        );
+      }
+      const captains = new Map<string, string | null>();
+      for (const [teamKey, discordId] of previous.captains) {
+        if (removedTeamKeys.has(teamKey)) continue;
+        captains.set(
+          teamKey,
+          discordId?.startsWith("test-") ? null : discordId,
+        );
+      }
+      return { assignments, captains };
+    });
     const parts: string[] = [
       `${json.applications} Bewerbung(en)`,
       `${json.teamsRemoved} Team(s)`,
@@ -568,7 +590,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               disabled={autoRunning || saving}
               className="rounded-xl border border-lime-200/30 bg-lime-200/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-lime-50 transition hover:border-lime-200/60 disabled:opacity-50"
             >
-              {autoRunning ? "Snake-Draft läuft…" : "⚡ Auto-Balance"}
+              {autoRunning ? "Auto-Balance läuft…" : "⚡ Auto-Balance"}
             </button>
             <button
               type="button"
@@ -709,13 +731,14 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
         title="Roster automatisch ausbalancieren?"
         description={
           <>
-            Das löscht jede aktuelle Zuweisung und füllt per Snake-Draft nach
-            Rang neu auf. Wunschrollen werden berücksichtigt, sofern der Slot
-            frei ist. <strong className="text-emerald-50">Captains werden zurückgesetzt.</strong>
+            Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu.
+            Freundesgruppen werden nach Möglichkeit gemeinsam eingeplant;
+            Wunschrollen werden berücksichtigt, sofern der Slot frei ist.{" "}
+            <strong className="text-emerald-50">Captains werden zurückgesetzt.</strong>
             {" "}Du kannst danach manuell anpassen, bevor du speicherst.
           </>
         }
-        confirmLabel="Teams snake-füllen"
+        confirmLabel="Teams ausbalancieren"
         cancelLabel="Abbrechen"
         onConfirm={runAutoBalance}
         onCancel={() => setAutoConfirm(false)}
@@ -1181,6 +1204,7 @@ function PlayerRow({
           </button>
         </div>
       </div>
+      {applicant ? <ApplicationDetails applicant={applicant} compact /> : null}
     </div>
   );
 }
@@ -1229,6 +1253,79 @@ function ApplicantCard({ applicant }: { applicant: RosterApplicant; compact?: bo
           </span>
         ))}
       </div>
+      <ApplicationDetails applicant={applicant} />
+    </div>
+  );
+}
+
+function ApplicationDetails({
+  applicant,
+  compact = false,
+}: {
+  applicant: RosterApplicant;
+  compact?: boolean;
+}) {
+  const submittedAt = new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(new Date(applicant.createdAt));
+
+  return (
+    <details className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-cyan-200/12 bg-cyan-300/[0.035]`}>
+      <summary className="cursor-pointer list-none px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70 transition hover:text-cyan-50">
+        Bewerbung ansehen
+      </summary>
+      <div className="grid gap-2 border-t border-white/8 px-3 py-3 text-[11px]">
+        <ApplicationDetailRow label="Anzeigename" value={applicant.displayName} />
+        <ApplicationDetailRow
+          label="Rollen"
+          value={[
+            applicant.mainRole ? `Main: ${applicant.mainRole}` : "",
+            applicant.preferredRoles.length > 0
+              ? `Wunsch: ${applicant.preferredRoles.join(", ")}`
+              : "",
+          ].filter(Boolean).join(" · ") || "Keine Angaben"}
+        />
+        <ApplicationDetailRow
+          label="Termine"
+          value={applicant.availableAllDates ? "Für beide Tage bestätigt" : "Nicht bestätigt"}
+        />
+        <ApplicationDetailRow label="Eingegangen" value={`${submittedAt} Uhr`} />
+        <ApplicationDetailRow
+          label="Zustimmungen"
+          value={
+            applicant.acceptedRules && applicant.acceptedDataStorage
+              ? "Regeln und Datenspeicherung bestätigt"
+              : "Unvollständig"
+          }
+        />
+        <div>
+          <div className="font-black uppercase tracking-[0.14em] text-lime-200/52">
+            Notiz
+          </div>
+          <p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/8 bg-black/20 p-2 leading-5 text-emerald-100/72">
+            {applicant.notes || "Keine Notiz hinterlegt."}
+          </p>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function ApplicationDetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <span className="font-black uppercase tracking-[0.14em] text-lime-200/52">
+        {label}
+      </span>
+      <span className="min-w-0 break-words text-emerald-100/72">{value}</span>
     </div>
   );
 }

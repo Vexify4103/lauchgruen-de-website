@@ -107,6 +107,7 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
     // only fall back to "Fill" when no role was supplied.
     role: p.role ?? "Fill",
     riotId: p.riotId,
+    discordId: p.discordId,
     opggUrl: `https://www.op.gg/summoners/euw/${encoded}`,
     dpmUrl: `https://dpm.lol/${encoded}`,
   };

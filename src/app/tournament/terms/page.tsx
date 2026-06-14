@@ -2,6 +2,10 @@ import { TournamentLink as Link } from "../TournamentLink";
 
 const ruleSections = [
 	{
+		title: "Twitch-Streams",
+		text: "Die Verknüpfung eines Twitch-Kanals ist freiwillig. Wenn die öffentliche Anzeige aktiviert ist, kann ein tatsächlich laufender Stream während eines Live-Matches im Zeitplan und bei den Teams verlinkt werden.",
+	},
+	{
 		title: "Verbindliche Anmeldung",
 		text: "Bewerbungsschluss ist Donnerstag, 18.06.2026 um 20:00 Uhr CEST. Mit dem Absenden der Bewerbung meldest du dich verbindlich für beide Turniertage an: Freitag, 19.06. um 18:00 Uhr CEST und Samstag, 20.06. um 16:00 Uhr CEST. Wenn du unsicher bist oder nur teilweise Zeit hast, musst du das in den Notizen angeben oder dem Orga-Team frühzeitig schreiben. Wer ohne vorherige Abmeldung nicht erscheint, wird vom nächsten Turnier ausgeschlossen.",
 	},

@@ -47,5 +47,6 @@ export async function DELETE() {
     verified: apps.verified,
     teamsRemoved: teams.teamsRemoved,
     playersStripped: teams.playersStripped,
+    teamKeysRemoved: teams.teamKeysRemoved,
   });
 }

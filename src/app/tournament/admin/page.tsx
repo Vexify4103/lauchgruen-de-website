@@ -37,6 +37,10 @@ export default async function TournamentAdminPage() {
   let adminMatches: AdminMatch[] = [];
   let tiebreakerGroups: Array<"A" | "B"> = [];
   if (state && ctx) {
+    const matchesWithPools = new Set([
+      ...(wheel?.history.map((assignment) => assignment.matchId) ?? []),
+      ...(wheel?.currentAssignment ? [wheel.currentAssignment.matchId] : []),
+    ]);
     const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
     tiebreakerGroups = (["A", "B"] as const).filter((group) =>
       standings[group].some((standing) => standing.tiebreakerRequired),
@@ -51,6 +55,7 @@ export default async function TournamentAdminPage() {
         teamA: m.teamA,
         teamB: m.teamB,
         status: (state.matches[m.id]?.status ?? m.status) as AdminMatch["status"],
+        poolsDrawn: matchesWithPools.has(m.id),
       })),
       ...resolved.map<AdminMatch>((m) => ({
         id: m.id,
@@ -58,7 +63,8 @@ export default async function TournamentAdminPage() {
         round: m.round,
         teamA: m.teamALabel,
         teamB: m.teamBLabel,
-        status: (state.matches[m.id]?.status ?? m.status) as AdminMatch["status"],
+        status: m.status as AdminMatch["status"],
+        poolsDrawn: matchesWithPools.has(m.id),
       })),
     ];
   }
@@ -106,6 +112,10 @@ export default async function TournamentAdminPage() {
 
         {isOwner && wheel ? (
           <>
+            <div className="mt-8 grid gap-5 xl:grid-cols-2">
+              {settings ? <TournamentModePanel initialSettings={settings} /> : null}
+              <DiscordSyncPanel statuses={diagnostics?.captainRoleDetails ?? []} />
+            </div>
             <div className="mt-8">
               <ReadinessChecklist
                 teams={ctx?.teams ?? []}
@@ -113,19 +123,6 @@ export default async function TournamentAdminPage() {
                 diagnostics={diagnostics}
                 applicationsEnabled={settings?.applicationsOpen ?? false}
                 hasActiveWheelDraw={Boolean(wheel.currentAssignment)}
-              />
-            </div>
-            <div className="mt-8 grid gap-5 xl:grid-cols-2">
-              {settings ? <TournamentModePanel initialSettings={settings} /> : null}
-              <DiscordSyncPanel statuses={diagnostics?.captainRoleDetails ?? []} />
-            </div>
-            <div className="mt-8">
-              <AuditLogPanel initialEntries={audit} />
-            </div>
-            <div className="mt-8">
-              <WheelAdminClient
-                initialState={wheel}
-                matches={adminMatches}
               />
             </div>
           </>
@@ -173,6 +170,21 @@ export default async function TournamentAdminPage() {
             </div>
           )}
         </div>
+
+        {isOwner && wheel ? (
+          <div className="mt-8">
+            <WheelAdminClient
+              initialState={wheel}
+              matches={adminMatches}
+            />
+          </div>
+        ) : null}
+
+        {isOwner ? (
+          <div className="mt-8">
+            <AuditLogPanel initialEntries={audit} />
+          </div>
+        ) : null}
       </section>
     </div>
   );

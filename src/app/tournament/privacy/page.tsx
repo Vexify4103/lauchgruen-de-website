@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 
 const dataItems = [
   {
+    title: "Optionale Twitch-Verknüpfung",
+    text: "Wenn du Twitch freiwillig verbindest, speichern wir deine Twitch-ID, deinen Login, Anzeigenamen, dein Profilbild sowie deine Einstellung zur öffentlichen Live-Anzeige. Zugriffstoken werden nach der Verknüpfung nicht dauerhaft gespeichert. Während eines laufenden Matches prüfen wir über die Twitch-API, ob dein Kanal live ist.",
+  },
+  {
     title: "Discord-Daten",
     text: "Beim Login speichern wir deine Discord-ID, deinen Discord-Handle und, falls verfügbar, deinen Nutzernamen. Wir prüfen außerdem, ob du Mitglied des Lauchgruen-Discords bist, weil die Teilnahme an den Discord-Server gebunden ist.",
   },

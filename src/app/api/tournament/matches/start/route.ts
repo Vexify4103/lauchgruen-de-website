@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { getMatchControlContext } from "@/lib/match-control";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { writeTournamentEvent } from "@/lib/tournament-events";
-import { getTournamentSettings } from "@/lib/tournament-settings";
 import { poolHistoryScopeForMatchId } from "@/lib/tournament-rules";
 import { spinTournamentWheelForMatch } from "@/lib/tournament-wheel";
 import { TOURNAMENT_OWNER_DISCORD_IDS, upsertMatch } from "@/lib/tournament-storage";
@@ -29,17 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Match-ID fehlt." }, { status: 400 });
   }
 
-  const [ctx, settings] = await Promise.all([
-    getMatchControlContext(),
-    getTournamentSettings(),
-  ]);
-  if (!settings.tournamentLive) {
-    return NextResponse.json(
-      { message: "Turniermodus ist noch auf Vorbereitung. Stelle ihn im Admin-Dashboard zuerst auf Live." },
-      { status: 409 },
-    );
-  }
-
+  const ctx = await getMatchControlContext();
   const match = ctx.matches.find((entry) => entry.id === parsed.data.id);
   if (!match) {
     return NextResponse.json({ message: "Match nicht gefunden." }, { status: 404 });
@@ -49,6 +38,12 @@ export async function POST(request: Request) {
   }
   if (match.status === "Finished") {
     return NextResponse.json({ message: "Dieses Match ist bereits abgeschlossen." }, { status: 409 });
+  }
+  if (match.status === "Pending" || match.status === "Live") {
+    return NextResponse.json(
+      { message: "Der Draft für dieses Match läuft bereits oder ist abgeschlossen." },
+      { status: 409 },
+    );
   }
 
   let drewPools = false;
@@ -65,20 +60,20 @@ export async function POST(request: Request) {
 
   const updated = await upsertMatch(match.id, {
     id: match.id,
-    status: "Live",
+    status: "Scheduled",
     updatedAt: new Date().toISOString(),
   });
   await writeAuditLog({
-    action: "match.start",
+    action: "match.prepare",
     targetType: "match",
     targetId: match.id,
-    summary: drewPools ? "Match started and pools were drawn." : "Match started.",
+    summary: drewPools ? "Match prepared and pools were drawn." : "Match prepared.",
     actorDiscordId: discordId,
     actorLabel: session.user.discordHandle ?? discordId,
     metadata: { drewPools, teamAName: match.teamAName, teamBName: match.teamBName },
   });
   await writeTournamentEvent({
-    type: "match.started",
+    type: "match.prepared",
     targetType: "match",
     targetId: match.id,
     createdBy: session.user.discordHandle ?? discordId,

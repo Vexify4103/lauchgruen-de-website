@@ -5,6 +5,11 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
 import type { WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { playoffRollingTime } from "@/lib/tournament-schedule";
+import { getTournamentLiveStreams } from "@/lib/tournament-live-streams";
+import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
+import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLinks";
+import { auth } from "@/lib/auth";
+import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 
 type ScheduleMatch = {
   id: string;
@@ -35,7 +40,17 @@ const PLAYOFF_ORDER = [
   "gf",
 ] as const;
 
-export default async function TournamentSchedulePage() {
+export default async function TournamentSchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ twitchPreview?: string }>;
+}) {
+  const previewRequested = (await searchParams).twitchPreview === "1";
+  const session = previewRequested ? await auth() : null;
+  const previewEnabled = Boolean(
+    session?.user?.discordId
+    && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId),
+  );
   const ctx = await getTournamentContext();
   const [state, wheel] = await Promise.all([
     readTournamentState(ctx.groupMatches),
@@ -77,6 +92,30 @@ export default async function TournamentSchedulePage() {
     (a, b) => PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number])
       - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number]),
   );
+  const ownerTeam = previewEnabled
+    ? ctx.teams.find((team) =>
+        team.players.some(
+          (player) => player.discordId === session?.user?.discordId,
+        ),
+      ) ?? null
+    : null;
+  const previewMatch = previewEnabled && ownerTeam
+    ? [...friday, ...saturday].find(
+        (match) =>
+          match.status !== "Finished"
+          && (match.teamA === ownerTeam.name || match.teamB === ownerTeam.name),
+      ) ?? null
+    : null;
+  const liveStreams = await getTournamentLiveStreams(
+    ctx.teams,
+    [...friday, ...saturday]
+      .filter(
+        (match) =>
+          match.status === "Live" || match.id === previewMatch?.id,
+      )
+      .flatMap((match) => [match.teamA, match.teamB]),
+    { previewOffline: previewEnabled },
+  );
 
   const sections = [
     {
@@ -93,7 +132,29 @@ export default async function TournamentSchedulePage() {
 
   return (
     <div className="px-5 py-10 sm:py-14">
+      <TournamentLiveRefresh />
       <section className="mx-auto w-full max-w-7xl">
+        {previewEnabled ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">
+            <span>
+              Admin-Vorschau: Verbundene Offline-Kanäle werden testweise angezeigt.
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/tournament/teams?twitchPreview=1"
+                className="rounded-xl border border-amber-100/24 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
+              >
+                Bei Teams testen
+              </Link>
+              <Link
+                href="/tournament/schedule"
+                className="rounded-xl border border-white/12 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
+              >
+                Vorschau beenden
+              </Link>
+            </div>
+          </div>
+        ) : null}
         <div className="max-w-3xl">
           <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
             Zeitplan
@@ -152,8 +213,16 @@ export default async function TournamentSchedulePage() {
                     </div>
                     <div className="grid gap-3 xl:grid-cols-2">
                     {batch.matches.map((match) => {
-                  const isLive = match.status === "Live";
+                  const isPreview = match.id === previewMatch?.id;
+                  const isLive = match.status === "Live" || isPreview;
                   const hasTeams = !/seed|winner|loser|sieger|verlierer|tbd/i.test(`${match.teamA} ${match.teamB}`);
+                  const matchStreams = isLive
+                    ? liveStreams.filter(
+                        (stream) =>
+                          stream.teamName === match.teamA
+                          || stream.teamName === match.teamB,
+                      )
+                    : [];
                   return (
                     <div
                       key={match.id}
@@ -190,7 +259,7 @@ export default async function TournamentSchedulePage() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         {isLive ? (
                           <span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
-                            Aktuelles Match
+                            {isPreview ? "Live-Vorschau" : "Aktuelles Match"}
                           </span>
                         ) : null}
                         {match.pool ? (
@@ -206,6 +275,7 @@ export default async function TournamentSchedulePage() {
                           </span>
                         ) : null}
                       </div>
+                      <TournamentLiveStreamLinks streams={matchStreams} />
                     </div>
                   );
                     })}

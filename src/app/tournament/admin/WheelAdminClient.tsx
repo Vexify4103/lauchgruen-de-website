@@ -50,6 +50,8 @@ export function WheelAdminClient({
   const playableMatches = matches.filter(
     (match) => isResolvableTeamName(match.teamA) && isResolvableTeamName(match.teamB),
   );
+  const groupMatches = playableMatches.filter((match) => match.phase === "groups");
+  const playoffMatches = playableMatches.filter((match) => match.phase === "playoffs");
   const [state, setState] = useState(initialState);
   const [selectedMatchId, setSelectedMatchId] = useState(playableMatches[0]?.id ?? "");
   const [spinning, setSpinning] = useState(false);
@@ -124,6 +126,13 @@ export function WheelAdminClient({
 
   function reset() {
     if (isPending || spinning) return;
+    if (
+      !window.confirm(
+        "Wirklich alle gezogenen Pools und Team-Historien zurücksetzen? Diese Aktion betrifft das gesamte Turnier-Wheel.",
+      )
+    ) {
+      return;
+    }
     setMessage(null);
     setPreview(null);
     setTeamARotation(0);
@@ -168,7 +177,7 @@ export function WheelAdminClient({
           disabled={isPending || spinning}
           className="rounded-2xl border border-red-300/24 bg-red-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100 transition hover:border-red-200/44 disabled:opacity-60"
         >
-          Reset
+          Wheel-Daten zurücksetzen
         </button>
       </div>
 
@@ -186,17 +195,16 @@ export function WheelAdminClient({
             }}
             className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm font-bold text-emerald-50 outline-none"
           >
-            {playableMatches.map((match) => (
-              <option key={match.id} value={match.id} className="bg-emerald-950">
-                {match.id}: {match.teamA} vs {match.teamB}
-                {match.phase === "playoffs" ? " · Playoff-Reset" : ""}
-                {match.status === "Finished" || state.completedMatchIds.includes(match.id)
-                  ? " · abgeschlossen"
-                  : state.currentAssignment?.matchId === match.id
-                    ? " · Pool gezogen"
-                    : ""}
-              </option>
-            ))}
+            <MatchOptions
+              label="Gruppenphase"
+              matches={groupMatches}
+              state={state}
+            />
+            <MatchOptions
+              label="Playoffs · neuer Pool-Zyklus"
+              matches={playoffMatches}
+              state={state}
+            />
           </select>
         </label>
         <button
@@ -280,6 +288,32 @@ export function WheelAdminClient({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function MatchOptions({
+  label,
+  matches,
+  state,
+}: {
+  label: string;
+  matches: AdminMatch[];
+  state: TournamentWheelState;
+}) {
+  if (matches.length === 0) return null;
+  return (
+    <optgroup label={label}>
+      {matches.map((match) => (
+        <option key={match.id} value={match.id} className="bg-emerald-950">
+          {match.id}: {match.teamA} vs {match.teamB}
+          {match.status === "Finished" || state.completedMatchIds.includes(match.id)
+            ? " · abgeschlossen"
+            : state.currentAssignment?.matchId === match.id
+              ? " · Pool gezogen"
+              : ""}
+        </option>
+      ))}
+    </optgroup>
   );
 }
 

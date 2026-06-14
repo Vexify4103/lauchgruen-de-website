@@ -58,7 +58,6 @@ export default async function MatchControlRoomPage({
           draft={draft}
           extraBanSide={bonusBanSideForMatch(match)}
           roster={roster}
-          tournamentLive={settings.tournamentLive}
           draftEnabled={settings.draftEnabled}
           parallelMatches={parallelMatches}
         />

@@ -2,6 +2,7 @@ export type TournamentPlayer = {
   name: string;
   role: "Top" | "Jungle" | "Mid" | "Bot" | "Support" | "Fill" | "Sub";
   riotId: string;
+  discordId?: string;
   opggUrl: string;
   dpmUrl: string;
 };
@@ -76,7 +77,7 @@ export type PlayoffMatch = {
   teamB: TeamSlot;
   scoreA?: number;
   scoreB?: number;
-  status: "Locked" | "Pending" | "Live" | "Finished";
+  status: "Locked" | "Scheduled" | "Pending" | "Live" | "Finished";
 };
 
 export const tournament = {
@@ -296,7 +297,7 @@ export const playoffMatches: PlayoffMatch[] = [
     time: "Playoff-Runde 1",
     teamA: seed(3),
     teamB: seed(6),
-    status: "Pending",
+    status: "Locked",
   },
   {
     id: "ub-r1-2",
@@ -306,7 +307,7 @@ export const playoffMatches: PlayoffMatch[] = [
     time: "Playoff-Runde 1",
     teamA: seed(4),
     teamB: seed(5),
-    status: "Pending",
+    status: "Locked",
   },
   {
     id: "ub-r2-1",

@@ -285,6 +285,7 @@ function isTestPlayer(p: StoredPlayerLike): boolean {
 export async function clearTestTeams(): Promise<{
 	teamsRemoved: number;
 	playersStripped: number;
+	teamKeysRemoved: string[];
 }> {
 	const db = await getDb();
 	const doc = await db
@@ -306,11 +307,13 @@ export async function clearTestTeams(): Promise<{
 	const unsetOps: Record<string, ""> = {};
 	let teamsRemoved = 0;
 	let playersStripped = 0;
+	const teamKeysRemoved: string[] = [];
 
 	for (const [key, team] of Object.entries(teamsObj)) {
 		if (team?.isTestData === true) {
 			unsetOps[`teams.${key}`] = "";
 			teamsRemoved += 1;
+			teamKeysRemoved.push(key);
 			continue;
 		}
 		// Real team — filter out any dummy players from its roster
@@ -341,5 +344,5 @@ export async function clearTestTeams(): Promise<{
 			.updateOne({ _id: "default" }, update);
 	}
 
-	return { teamsRemoved, playersStripped };
+	return { teamsRemoved, playersStripped, teamKeysRemoved };
 }

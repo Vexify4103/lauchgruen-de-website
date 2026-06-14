@@ -178,6 +178,66 @@ export async function getStream(login: string): Promise<TwitchStream | null> {
 }
 
 /**
+ * Returns live streams for many logins in one Helix request. Twitch accepts up
+ * to 100 user_login parameters, so a full tournament fits comfortably.
+ */
+export async function getStreams(logins: string[]): Promise<Map<string, TwitchStream>> {
+  const uniqueLogins = [...new Set(
+    logins.map((login) => login.trim().toLowerCase()).filter(Boolean),
+  )].slice(0, 100);
+  const result = new Map<string, TwitchStream>();
+  const missing: string[] = [];
+
+  for (const login of uniqueLogins) {
+    const cached = streamCache.get(login);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (cached.data) result.set(login, cached.data);
+    } else {
+      missing.push(login);
+    }
+  }
+
+  if (missing.length === 0) return result;
+
+  const params = new URLSearchParams();
+  for (const login of missing) params.append("user_login", login);
+  const json = (await helix(`${STREAMS_URL}?${params.toString()}`)) as
+    | { data: Array<{
+        id: string; user_login: string; user_name: string; game_name: string;
+        title: string; viewer_count: number; started_at: string;
+        thumbnail_url: string; language: string;
+      }> }
+    | null;
+
+  const found = new Map<string, TwitchStream>();
+  for (const stream of json?.data ?? []) {
+    const data: TwitchStream = {
+      id: stream.id,
+      userName: stream.user_name,
+      gameName: stream.game_name,
+      title: stream.title,
+      viewerCount: stream.viewer_count,
+      startedAt: stream.started_at,
+      thumbnailUrl: stream.thumbnail_url
+        .replace("{width}", "640")
+        .replace("{height}", "360"),
+      language: stream.language,
+    };
+    found.set(stream.user_login.toLowerCase(), data);
+    result.set(stream.user_login.toLowerCase(), data);
+  }
+
+  for (const login of missing) {
+    streamCache.set(login, {
+      data: found.get(login) ?? null,
+      expiresAt: Date.now() + STREAM_CACHE_MS,
+    });
+  }
+
+  return result;
+}
+
+/**
  * Returns Twitch user info (display name, avatar, bio) for `login`.
  * Cached for 1 hour.
  */

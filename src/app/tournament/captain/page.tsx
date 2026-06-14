@@ -6,6 +6,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { CopyDraftSpectatorLinkButton } from "./CopyDraftSpectatorLinkButton";
 import { RenameTeamForm } from "./RenameTeamForm";
+import { TransferCaptainCard } from "./TransferCaptainCard";
 
 function opggMultiSearchUrl(riotIds: string[]) {
   const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -103,6 +104,22 @@ export default async function CaptainPortalPage() {
           <RenameTeamForm
             teamKey={team.name.trim().toLowerCase()}
             initialName={team.name}
+          />
+
+          <TransferCaptainCard
+            teamKey={team.name.trim().toLowerCase()}
+            candidates={team.players
+              .filter(
+                (player) =>
+                  Boolean(player.discordId)
+                  && player.discordId !== discordId,
+              )
+              .map((player) => ({
+                discordId: player.discordId!,
+                name: player.name,
+                riotId: player.riotId,
+                role: player.role,
+              }))}
           />
 
           {nextMatch ? (

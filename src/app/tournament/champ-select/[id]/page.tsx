@@ -30,7 +30,9 @@ export default async function ChampSelectPage({
       </div>
     );
   }
-  if (!settings.draftEnabled) {
+  const discordId = session?.user?.discordId;
+  const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
+  if (!settings.draftEnabled && !isOwner) {
     return (
       <div className="px-5 py-10 sm:py-14">
         <section className="mx-auto max-w-3xl rounded-[2rem] border border-amber-200/18 bg-amber-200/8 p-6 text-amber-50">
@@ -47,8 +49,6 @@ export default async function ChampSelectPage({
     );
   }
 
-  const discordId = session?.user?.discordId;
-  const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
   const teamA = ctx.teams.find((team) => team.name === match.teamAName);
   const teamB = ctx.teams.find((team) => team.name === match.teamBName);
   const blueTeam = match.blueSide === "teamA" ? teamA : teamB;

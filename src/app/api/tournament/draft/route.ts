@@ -49,17 +49,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const settings = await getTournamentSettings();
-  if (!settings.draftEnabled) {
-    return NextResponse.json(
-      { message: "Champ Select ist aktuell pausiert." },
-      { status: 423 },
-    );
-  }
-
   const session = await auth();
   const discordId = session?.user?.discordId;
   if (!discordId) {
     return NextResponse.json({ message: "Nicht angemeldet." }, { status: 401 });
+  }
+  const isOwner = TOURNAMENT_OWNER_DISCORD_IDS.has(discordId);
+  if (!settings.draftEnabled && !isOwner) {
+    return NextResponse.json(
+      { message: "Champ Select ist aktuell pausiert." },
+      { status: 423 },
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -67,8 +67,6 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ message: "Ungültige Draft-Aktion." }, { status: 400 });
   }
-
-  const isOwner = TOURNAMENT_OWNER_DISCORD_IDS.has(discordId);
 
   if (parsed.data.action === "reset" || parsed.data.action === "undo" || parsed.data.action === "forceReady") {
     if (!isOwner) {
@@ -99,11 +97,21 @@ export async function POST(request: Request) {
         targetId: parsed.data.matchId,
         createdBy: updatedBy,
       });
-      await syncMatchStatusFromDraft({
-        matchId: parsed.data.matchId,
-        draft,
-        actor: updatedBy,
-      });
+      if (parsed.data.action === "reset") {
+        await upsertMatch(parsed.data.matchId, {
+          id: parsed.data.matchId,
+          status: "Scheduled",
+          teamAChampions: undefined,
+          teamBChampions: undefined,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await syncMatchStatusFromDraft({
+          matchId: parsed.data.matchId,
+          draft,
+          actor: updatedBy,
+        });
+      }
       return NextResponse.json({ draft });
     } catch (error) {
       return NextResponse.json(
@@ -257,17 +265,17 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const settings = await getTournamentSettings();
-  if (!settings.draftEnabled) {
-    return NextResponse.json(
-      { message: "Champ Select ist aktuell pausiert." },
-      { status: 423 },
-    );
-  }
-
   const session = await auth();
   const discordId = session?.user?.discordId;
   if (!discordId) {
     return NextResponse.json({ message: "Nicht angemeldet." }, { status: 401 });
+  }
+  const isOwner = TOURNAMENT_OWNER_DISCORD_IDS.has(discordId);
+  if (!settings.draftEnabled && !isOwner) {
+    return NextResponse.json(
+      { message: "Champ Select ist aktuell pausiert." },
+      { status: 423 },
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -298,7 +306,6 @@ export async function PATCH(request: Request) {
 
   const teamName = teamNameForDraftSide(match, turn.side);
   const team = ctx.teams.find((entry) => entry.name === teamName);
-  const isOwner = TOURNAMENT_OWNER_DISCORD_IDS.has(discordId);
   if (!isOwner && (!team || team.captainRef?.discordId !== discordId)) {
     return NextResponse.json({ message: "Nur der Captain des aktuellen Teams darf diesen Turn locken." }, { status: 403 });
   }
@@ -378,19 +385,42 @@ async function syncMatchStatusFromDraft({
   if (!match || match.status === "Finished") return;
 
   const sequence = createDraftSequence(extraBanSide ?? bonusBanSideForMatch(match));
-  const nextStatus = draftComplete(draft, sequence)
+  const complete = draftComplete(draft, sequence);
+  const nextStatus = complete
     ? "Live"
     : draftReady(draft) || draft.actions.length > 0 || draft.pendingSelection
       ? "Pending"
       : null;
 
-  if (!nextStatus || match.status === nextStatus) return;
+  const bluePicks = draft.actions
+    .filter((action) => action.kind === "pick" && action.side === "teamA")
+    .map((action) => action.champion);
+  const redPicks = draft.actions
+    .filter((action) => action.kind === "pick" && action.side === "teamB")
+    .map((action) => action.champion);
+  const championPatch = complete
+    ? match.blueSide === "teamA"
+      ? { teamAChampions: bluePicks, teamBChampions: redPicks }
+      : { teamAChampions: redPicks, teamBChampions: bluePicks }
+    : { teamAChampions: undefined, teamBChampions: undefined };
+
+  if (!nextStatus) {
+    await upsertMatch(matchId, {
+      id: matchId,
+      ...championPatch,
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
 
   await upsertMatch(matchId, {
     id: matchId,
     status: nextStatus,
+    ...championPatch,
     updatedAt: new Date().toISOString(),
   });
+  if (match.status === nextStatus) return;
+
   await writeTournamentEvent({
     type: "match.status_auto",
     targetType: "match",

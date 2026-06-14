@@ -85,7 +85,7 @@ function playoffToControlMatch(
     teamBName: match.teamBName,
     teamALabel: match.teamALabel,
     teamBLabel: match.teamBLabel,
-    status: stored?.status ?? match.status,
+    status: match.status,
     scoreA: stored?.scoreA,
     scoreB: stored?.scoreB,
     gameDurationSeconds: stored?.gameDurationSeconds,

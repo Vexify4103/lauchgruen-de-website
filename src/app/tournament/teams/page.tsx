@@ -7,6 +7,11 @@ import {
   getTournamentWheelState,
   remainingPoolsForTeam,
 } from "@/lib/tournament-wheel";
+import { getTournamentLiveStreams } from "@/lib/tournament-live-streams";
+import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
+import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLinks";
+import { auth } from "@/lib/auth";
+import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { CopyOverlayButton } from "./CopyOverlayButton";
 
 function CrownIcon() {
@@ -31,7 +36,17 @@ function opggMultiSearchUrl(riotIds: string[]) {
   return `https://op.gg/lol/multisearch/euw?${params.toString()}`;
 }
 
-export default async function TeamsPage() {
+export default async function TeamsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ twitchPreview?: string }>;
+}) {
+  const previewRequested = (await searchParams).twitchPreview === "1";
+  const session = previewRequested ? await auth() : null;
+  const previewEnabled = Boolean(
+    session?.user?.discordId
+    && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId),
+  );
   const ctx = await getTournamentContext();
   const { teams } = ctx;
   const [wheel, state] = await Promise.all([
@@ -43,7 +58,7 @@ export default async function TeamsPage() {
     wheel.currentAssignment?.matchId === matchId
       ? wheel.currentAssignment
       : wheel.history.find((entry) => entry.matchId === matchId) ?? null;
-  const liveMatches = [
+  const allMatches = [
     ...ctx.groupMatches.map((match) => ({
       id: match.id,
       teamA: match.teamA,
@@ -60,10 +75,56 @@ export default async function TeamsPage() {
       status: state.matches[match.id]?.status ?? match.status,
       poolAssignment: poolFor(match.id),
     })),
-  ].filter((match) => match.status === "Live");
+  ];
+  const ownerTeam = previewEnabled
+    ? teams.find((team) =>
+        team.players.some(
+          (player) => player.discordId === session?.user?.discordId,
+        ),
+      ) ?? null
+    : null;
+  const previewMatch = previewEnabled && ownerTeam
+    ? allMatches.find(
+        (match) =>
+          match.status !== "Finished"
+          && (match.teamA === ownerTeam.name || match.teamB === ownerTeam.name),
+      ) ?? null
+    : null;
+  const liveMatches = allMatches.filter((match) => match.status === "Live");
+  const displayedLiveMatches =
+    previewMatch && !liveMatches.some((match) => match.id === previewMatch.id)
+      ? [{ ...previewMatch, preview: true }, ...liveMatches.map((match) => ({ ...match, preview: false }))]
+      : liveMatches.map((match) => ({ ...match, preview: false }));
+  const liveStreams = await getTournamentLiveStreams(
+    teams,
+    displayedLiveMatches.flatMap((match) => [match.teamA, match.teamB]),
+    { previewOffline: previewEnabled },
+  );
   return (
     <div className="px-5 py-10 sm:py-14">
+      <TournamentLiveRefresh />
       <section className="mx-auto w-full max-w-7xl">
+        {previewEnabled ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">
+            <span>
+              Admin-Vorschau: Verbundene Offline-Kanäle werden testweise angezeigt.
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/tournament/schedule?twitchPreview=1"
+                className="rounded-xl border border-amber-100/24 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
+              >
+                Im Zeitplan testen
+              </Link>
+              <Link
+                href="/tournament/teams"
+                className="rounded-xl border border-white/12 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
+              >
+                Vorschau beenden
+              </Link>
+            </div>
+          </div>
+        ) : null}
         <div className="max-w-3xl">
             <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
               Teams und Rosters
@@ -77,20 +138,25 @@ export default async function TeamsPage() {
             </p>
         </div>
 
-        {liveMatches.length > 0 ? (
+        {displayedLiveMatches.length > 0 ? (
           <div className="mt-8 rounded-[2rem] border border-red-300/24 bg-red-500/10 p-5 shadow-xl shadow-red-950/20">
             <div className="text-xs font-black uppercase tracking-[0.28em] text-red-100/72">
               Current Match
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              {liveMatches.map((match) => (
-                <Link
+              {displayedLiveMatches.map((match) => {
+                const matchStreams = liveStreams.filter(
+                  (stream) =>
+                    stream.teamName === match.teamA
+                    || stream.teamName === match.teamB,
+                );
+                return (
+                <div
                   key={match.id}
-                  href={match.poolAssignment ? `/tournament/champ-select/${match.id}/spectate` : "/tournament/teams"}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-red-200/36"
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
                 >
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100/72">
-                    {match.round} · {match.id}
+                    {match.preview ? "Live-Vorschau" : match.round} · {match.id}
                   </div>
                   <div className="mt-2 text-lg font-black text-emerald-50">
                     {match.teamA} vs {match.teamB}
@@ -104,9 +170,6 @@ export default async function TeamsPage() {
                         <span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
                           {compactPoolLabel(match.poolAssignment.teamBPool)}
                         </span>
-                        <span className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50/82">
-                          Draft bereit
-                        </span>
                       </>
                     ) : (
                       <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/38">
@@ -114,8 +177,18 @@ export default async function TeamsPage() {
                       </span>
                     )}
                   </div>
-                </Link>
-              ))}
+                  <TournamentLiveStreamLinks streams={matchStreams} />
+                  {match.poolAssignment ? (
+                    <Link
+                      href={`/tournament/champ-select/${match.id}/spectate`}
+                      className="mt-3 inline-flex rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50/82 transition hover:border-sky-100/40"
+                    >
+                      Draft ansehen
+                    </Link>
+                  ) : null}
+                </div>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -164,7 +237,11 @@ export default async function TeamsPage() {
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          {teams.map((team) => (
+          {teams.map((team) => {
+            const teamStreams = liveStreams.filter(
+              (stream) => stream.teamName === team.name,
+            );
+            return (
             <article
               key={team.id}
               className={`flex min-h-full flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br ${team.accent} p-5 shadow-xl shadow-black/24`}
@@ -203,6 +280,7 @@ export default async function TeamsPage() {
                       Captain: {team.captain}
                     </p>
                   ) : null}
+                  <TournamentLiveStreamLinks streams={teamStreams} />
                 </div>
               </div>
 
@@ -244,7 +322,13 @@ export default async function TeamsPage() {
                         </a>
                         <div className="truncate text-sm text-emerald-100/54">{player.riotId}</div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <TournamentLiveStreamLinks
+                          streams={teamStreams.filter(
+                            (stream) => stream.riotId === player.riotId,
+                          )}
+                          compact
+                        />
                         <a
                           href={player.opggUrl}
                           target="_blank"
@@ -282,7 +366,8 @@ export default async function TeamsPage() {
                 playoffRemaining={remainingPoolsForTeam(wheel, team.name, "playoffs").length}
               />
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>
