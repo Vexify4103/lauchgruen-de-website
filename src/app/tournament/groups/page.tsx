@@ -3,6 +3,7 @@ import { readTournamentState } from "@/lib/tournament-storage";
 import { computeGroupStandings } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
+import { formatGameDuration } from "@/lib/match-duration";
 
 const groups = ["A", "B"] as const;
 
@@ -33,16 +34,17 @@ export default async function GroupsPage() {
             Zwei Vierergruppen. Alle Teams ziehen in die Playoffs ein.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-            Sechs BO1-Spiele pro Gruppe. Die Gruppensieger überspringen die erste
+            Zwölf BO1-Spiele pro Gruppe, also sechs Spiele pro Team mit Hin- und
+            Rückrunde. Die Gruppensieger überspringen die erste
             Upper-Bracket-Runde. Platz 2 spielt dort mit vier Bans gegen Platz 3
             der anderen Gruppe. Die Viertplatzierten starten in Runde 1 des
             Lower Brackets.
           </p>
           <div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] p-4 text-sm leading-7 text-amber-50/82">
             <strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz.
-            Bei Gleichstand zwischen zwei Teams entscheidet der direkte Vergleich.
-            Bleibt ein Mehrfach-Gleichstand bestehen und betrifft er Einzug oder
-            Seeding, wird die Spieldauer herangezogen.
+            Bei Gleichstand zählen die direkten Siege zwischen den betroffenen
+            Teams. Bleibt auch dieser Vergleich gleich, gewinnt das Team mit der
+            niedrigeren durchschnittlichen Spielzeit in seinen gewonnenen Matches.
           </div>
         </div>
 
@@ -61,39 +63,61 @@ export default async function GroupsPage() {
                     <h2 className="mt-2 text-4xl font-black text-lime-100">{group}</h2>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-2 text-sm font-black text-emerald-100/70">
-                    BO1 · jeder gegen jeden
+                    12 Matches · 6 pro Team
                   </div>
                 </div>
 
                 <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-                  <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.2em] text-lime-200/62">
+                  <div className="grid grid-cols-[2rem_1fr_3rem_3rem_4rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.2em] text-lime-200/62">
                     <span>#</span>
                     <span>Team</span>
                     <span className="text-right">W-L</span>
-                    <span className="text-right">+/-</span>
-                    <span className="text-right">PF</span>
+                    <span className="text-right">DV</span>
+                    <span className="text-right">Ø Sieg</span>
                   </div>
                   {groupStandings.map((standing) => {
-                    const advances = standing.rank <= 3;
+                    const rankStyle = standing.rank === 1
+                      ? "border-lime-200/22 bg-gradient-to-r from-lime-200/16 via-emerald-300/8 to-transparent shadow-[inset_3px_0_0_rgb(190_242_100/0.8)]"
+                      : standing.rank === 4
+                        ? "border-orange-300/18 bg-gradient-to-r from-orange-400/12 via-amber-300/[0.04] to-transparent shadow-[inset_3px_0_0_rgb(251_146_60/0.72)]"
+                        : "border-white/8 bg-black/8";
+                    const rankTone = standing.rank === 1
+                      ? "text-lime-100"
+                      : standing.rank === 4
+                        ? "text-orange-200"
+                        : "text-emerald-100/72";
                     return (
                       <div
                         key={standing.team.id}
-                        className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-2 border-t border-white/8 px-4 py-3 text-sm ${
-                          advances ? "" : "opacity-70"
-                        }`}
+                        className={`grid grid-cols-[2rem_1fr_3rem_3rem_4rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}
                       >
-                        <span className={`font-black ${advances ? "text-lime-100" : "text-emerald-100/40"}`}>
+                        <span className={`font-black ${rankTone}`}>
                           {standing.rank}
                         </span>
-                        <span className="truncate font-bold text-emerald-50">{standing.team.name}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-bold text-emerald-50">
+                            {standing.team.name}
+                          </span>
+                          <span className={`mt-0.5 block text-[9px] font-black uppercase tracking-[0.15em] ${rankTone}`}>
+                            {standing.rank === 1
+                              ? "Freilos · Einstieg Upper R2"
+                              : standing.rank === 2
+                                ? "Upper R1 · 4 Bans"
+                                : standing.rank === 3
+                                  ? "Upper R1"
+                                  : "Start im Lower Bracket"}
+                          </span>
+                        </span>
                         <span className="text-right font-black text-lime-100">
                           {standing.wins}-{standing.losses}
                         </span>
                         <span className="text-right font-bold text-emerald-100/70">
-                          {standing.pointDiff > 0 ? `+${standing.pointDiff}` : standing.pointDiff}
+                          {standing.headToHeadWins}
                         </span>
                         <span className="text-right font-bold text-emerald-100/60">
-                          {standing.pointsFor}
+                          {standing.avgWinTimeSeconds === null
+                            ? "–"
+                            : formatGameDuration(Math.round(standing.avgWinTimeSeconds))}
                         </span>
                         {standing.tiebreakerRequired ? (
                           <span className="col-span-5 mt-1 rounded-xl border border-amber-200/18 bg-amber-200/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
@@ -119,10 +143,15 @@ export default async function GroupsPage() {
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">
-                          {match.round} · {match.time}
+                          {match.round}
                         </div>
-                        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-emerald-100/62">
-                          {match.status}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-cyan-200/14 bg-cyan-300/[0.06] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/62">
+                            {match.time}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
+                            {statusLabel(match.status)}
+                          </span>
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-lg font-black text-emerald-50">
@@ -149,8 +178,13 @@ export default async function GroupsPage() {
                         </div>
                       </div>
                       {match.winner ? (
-                        <div className="mt-3 text-sm font-bold text-lime-100">
-                          Sieger: {match.winner}
+                        <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold text-lime-100">
+                          <span>Sieger: {match.winner}</span>
+                          {match.gameDurationSeconds !== undefined ? (
+                            <span className="text-emerald-100/56">
+                              Spielzeit: {formatGameDuration(match.gameDurationSeconds)}
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -183,4 +217,21 @@ export default async function GroupsPage() {
       </section>
     </div>
   );
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case "Scheduled":
+      return "Geplant";
+    case "Pending":
+      return "Ausstehend";
+    case "Locked":
+      return "Gesperrt";
+    case "Live":
+      return "Live";
+    case "Finished":
+      return "Beendet";
+    default:
+      return status;
+  }
 }

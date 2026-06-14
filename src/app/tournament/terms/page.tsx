@@ -1,47 +1,153 @@
 import { TournamentLink as Link } from "../TournamentLink";
 
 const ruleSections = [
-  {
-    title: "Verbindliche Anmeldung",
-    text: "Mit dem Absenden der Bewerbung meldest du dich verbindlich für beide Turniertage an: Freitag, 19.06.2026 und Samstag, 20.06.2026, jeweils ab 18:00 Uhr CEST. Wenn du unsicher bist oder nur teilweise Zeit hast, musst du das in den Notizen angeben oder dem Orga-Team frühzeitig schreiben.",
-  },
-  {
-    title: "Discord und Riot-Account",
-    text: "Teilnahme ist nur mit Discord-Login, Mitgliedschaft im Lauchgruen-Discord und verifiziertem Riot-Account möglich. Du darfst nur mit deinem eigenen Riot-Account teilnehmen. Account-Sharing, Smurf-Verschleierung oder falsche Angaben können zum Ausschluss führen.",
-  },
-  {
-    title: "A-Z Champion-Pools",
-    text: "Für jedes Match wird pro Team ein A-Z Pool gelost. Ein Team darf in diesem Match nur Champions aus dem eigenen Pool picken. Bans richten sich gegen den gegnerischen Pool. Gespielte Pools verlassen für das jeweilige Team das Rad; zum zweiten Spieltag / Playoff-Tag wird der Pool-Verlauf zurückgesetzt.",
-  },
-  {
-    title: "Draft und Captains",
-    text: "Nur Team-Captains oder berechtigte Admins dürfen im Champ Select ready klicken, Champions auswählen, bannen oder locken. Bei Disconnects, Missclicks oder technischen Problemen dürfen Admins Drafts pausieren, zurücksetzen, force-ready setzen oder Locks korrigieren.",
-  },
-  {
-    title: "Gruppenphase und Tiebreaker",
-    text: "Die Platzierung in der Gruppenphase richtet sich zuerst nach der Sieg-Niederlagen-Bilanz. Sind genau zwei Teams gleichauf, entscheidet der direkte Vergleich. Besteht danach ein Mehrfach-Gleichstand, der die Platzierung oder das Seeding beeinflusst, setzt das Orga-Team ein zusätzliches Tiebreaker-Spiel an. Die angezeigten Punkte für und gegen dienen nur als Statistik und entscheiden nicht automatisch über die Platzierung.",
-  },
-  {
-    title: "Playoff-Seeding",
-    text: "Alle acht Teams spielen am zweiten Turniertag weiter. Die Gruppensieger steigen erst in Upper Runde 2 ein. In Upper Runde 1 spielt A #2 mit vier Bans gegen B #3 und B #2 mit vier Bans gegen A #3. Die Verlierer treffen anschließend im Lower Bracket auf A #4 beziehungsweise B #4. Danach wird das Turnier als Double-Elimination-Bracket fortgesetzt.",
-  },
-  {
-    title: "Verhalten",
-    text: "Das Turnier ist ein Spaß- und Community-Event. Toxisches Verhalten, Beleidigungen, absichtliches Feeden, Griefing, Cheating, Scripting, Stream-Sniping, Belästigung oder sonstiges störendes Verhalten kann zum Ausschluss führen.",
-  },
-  {
-    title: "Substitutes und Teamänderungen",
-    text: "Das Orga-Team darf Ersatzspieler eintragen, Rollen ändern oder Teams anpassen, wenn das für Fairness, Ablauf oder Notfälle nötig ist. Historische Matchdaten bleiben dabei möglichst nachvollziehbar erhalten.",
-  },
-  {
-    title: "Admin-Entscheidungen",
-    text: "Das Orga-Team entscheidet über Streitfälle, technische Probleme, Regelverstöße, Remakes, Ergebnis-Korrekturen und Disqualifikationen. Ziel ist ein fairer und entspannter Ablauf für alle Beteiligten.",
-  },
-  {
-    title: "Öffentliche Darstellung",
-    text: "Teamname, Roster, Riot-ID, Rollen, Scores, Pools, Draft-Informationen und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
-  },
+	{
+		title: "Verbindliche Anmeldung",
+		text: "Bewerbungsschluss ist Donnerstag, 18.06.2026 um 20:00 Uhr CEST. Mit dem Absenden der Bewerbung meldest du dich verbindlich für beide Turniertage an: Freitag, 19.06. um 18:00 Uhr CEST und Samstag, 20.06. um 16:00 Uhr CEST. Wenn du unsicher bist oder nur teilweise Zeit hast, musst du das in den Notizen angeben oder dem Orga-Team frühzeitig schreiben. Wer ohne vorherige Abmeldung nicht erscheint, wird vom nächsten Turnier ausgeschlossen.",
+	},
+	{
+		title: "Discord und Riot-Account",
+		text: "Teilnahme ist nur mit Discord-Login, Mitgliedschaft im Lauchgruen-Discord und verifiziertem Riot-Account möglich.",
+		list: [
+			"Du darfst nur mit deinem eigenen Riot-Account teilnehmen",
+			"Account-Sharing ist verboten",
+			"Smurf-Verschleierung oder falsche Angaben können zum Ausschluss führen",
+			"Das Orga-Team kann bei Verdachtsfällen eine Verifizierung verlangen",
+		],
+	},
+	{
+		title: "Verhalten",
+		text: "Das Turnier ist ein Spaß- und Community-Event. Alle Teilnehmer behandeln Mitspieler, Gegner, Zuschauer und Admins respektvoll.",
+		list: [
+			"Keine Beleidigungen oder Belästigungen",
+			"Kein absichtliches Feeden oder Griefing",
+			"Kein Cheating oder Scripting",
+			"Kein Stream-Sniping",
+			"Keine unsportlichen Manipulationen des Turnierablaufs",
+		],
+		footer: "Verstöße können je nach Schwere mit Verwarnungen, Matchverlusten oder Ausschluss geahndet werden.",
+	},
+	{
+		title: "Account-Änderungen",
+		text: "Die bei der Bewerbung angegebene Riot-ID muss korrekt sein. Änderungen nach der Anmeldung müssen dem Orga-Team vor Turnierbeginn mitgeteilt werden.",
+	},
+	{
+		title: "A-Z Champion-Pools",
+		text: "Für jedes Match wird pro Team ein A-Z Pool gelost. Ein Team darf in diesem Match nur Champions aus dem eigenen Pool picken. Bans richten sich gegen den gegnerischen Pool. Gespielte Pools verlassen für das jeweilige Team das Rad; zum zweiten Spieltag beziehungsweise Playoff-Tag wird der Pool-Verlauf zurückgesetzt.",
+		list: [
+			"Jedes Team verfügt standardmäßig über 3 Bans pro Match",
+			"In Upper Bracket Runde 1 erhalten A #2 und B #2 jeweils einen zusätzlichen vierten Ban",
+			"Nach Upper Bracket Runde 1 gelten wieder die normalen 3 Bans pro Team",
+		]
+	},
+	{
+		title: "Draft und Captains",
+		text: "Nur Team-Captains oder berechtigte Admins dürfen im Champ Select ready klicken, Champions auswählen, bannen oder locken.",
+		list: [
+			"Captains sind für die Einhaltung der Pool-Regeln verantwortlich",
+			"Admins dürfen bei technischen Problemen eingreifen",
+			"Admins dürfen Drafts pausieren, zurücksetzen oder korrigieren",
+		],
+	},
+	{
+		title: "Falsche Picks oder Bans",
+		text: "Wird ein Champion gepickt oder gebannt, der gegen die Turnierregeln verstößt, muss dies sofort gemeldet werden.",
+		footer: "Das Orga-Team entscheidet im Einzelfall über Draft-Neustart, Pick-Korrektur, Matchverlust oder weitere Maßnahmen.",
+	},
+	{
+		title: "Spectator Delay",
+		text: "In Turnier-Lobbys darf kein zusätzlicher Spectator Delay aktiviert werden. Die Spiele müssen nur für Caster und das Orga-Team live verfolgbar sein.",
+	},
+	{
+		title: "Coaching und Zuschauer",
+		text: "Während laufender Spiele dürfen keine externen spielrelevanten Informationen an Teilnehmer weitergegeben werden.",
+		list: [
+			"Kein Live-Coaching während des Spiels",
+			"Keine Informationen durch Zuschauer",
+			"Keine Weitergabe von gegnerischen Positionen oder Cooldowns",
+		],
+	},
+	{
+		title: "Lobby und Seitenwahl",
+		text: "Nach jedem Match kommen alle Captains in den Captain-Call. Für jedes kommende Match wird per Münzwurf bestimmt, welches Team die Seitenwahl erhält.",
+		list: [
+			"Der Captain mit Seitenwahl entscheidet zwischen Blue Side und Red Side",
+			"Der Blue-Side-Captain erstellt die Lobby",
+      "Der Blue-Side-Captain lädt seine eigenen Spieler und den Captain des gegnerischen Teams ein",
+      "Der gegnerische Captain lädt anschließend seine Spieler ein",
+		],
+    footer: "Das Orga-Team kann bei Problemen eine Lobby neu erstellen lassen oder die Lobby-Erstellung selbst übernehmen.",
+	},
+	{
+		title: "Pünktlichkeit",
+		text: "Teams müssen spätestens 10 Minuten nach dem geplanten Match-Start vollständig im Voice-Channel bereitstehen. Ist ein Team nach Ablauf dieser Frist nicht vollständig anwesend, kann das Orga-Team ein Forfeit zugunsten des wartenden Teams verhängen.",
+	},
+	{
+		title: "Pausen während des Spiels",
+		text: "Pausen dürfen ausschließlich bei technischen Problemen oder wichtigen Notfällen genutzt werden.",
+		list: [
+			"Der Grund der Pause muss sofort mitgeteilt werden",
+			"Pausen dürfen nicht für taktische Besprechungen missbraucht werden",
+			"Das Orga-Team kann Pausen beenden oder verlängern",
+		],
+	},
+	{
+		title: "Remake",
+		text: "Ein Remake kann beantragt werden, wenn ein Spieler innerhalb der ersten 3 Minuten disconnected und nicht rechtzeitig reconnecten kann.",
+		footer: "Der Remake muss vom Orga-Team genehmigt werden. Wiederholte oder selbst verschuldete technische Probleme begründen keinen automatischen Anspruch auf ein Remake.",
+	},
+	{
+		title: "Gruppenphase",
+		text: "Jedes Team spielt zweimal gegen jedes andere Team seiner Gruppe, also sechs Gruppenspiele pro Team. Die Platzierung richtet sich zuerst nach der Sieg-Niederlagen-Bilanz.",
+		list: [
+			"Anzahl der direkten Siege zwischen den gleichstehenden Teams",
+			"Niedrigere durchschnittliche Spielzeit in den gewonnenen Matches",
+			"Entscheidung durch das Orga-Team, falls weiterhin Gleichstand besteht",
+		],
+		footer: "Fehlende Spielzeiten können nicht zugunsten eines Teams gewertet werden.",
+	},
+	{
+		title: "Ergebnismeldung",
+		text: "Der Captain des Sieger-Teams meldet das Ergebnis unmittelbar nach Spielende im offiziellen Turnier-Channel im Discord.",
+		list: [
+			"Screenshot des Endbildschirms beifügen",
+			"Spielzeit im Format mm:ss angeben",
+			"Ergebnis zeitnah melden",
+			"Bei Streitfällen beide Screenshots bereithalten",
+		],
+	},
+	{
+		title: "Playoff-Seeding",
+		text: "Alle acht Teams spielen am zweiten Turniertag weiter. Die Gruppensieger steigen erst in Upper Runde 2 ein. In Upper Runde 1 spielt A #2 mit vier Bans gegen B #3 und B #2 mit vier Bans gegen A #3.",
+		footer: "Danach wird das Turnier als Double-Elimination-Bracket fortgesetzt.",
+	},
+	{
+		title: "Streaming",
+		text: "Wer das Turnier streamt, erfüllt mindestens eine der folgenden Bedingungen:",
+		list: [
+			"@lauchgruen wird im Streamtitel erwähnt",
+			"Ein automatischer Bot postet mindestens 1× pro Stunde einen Shoutout an Lauchgruen im Chat",
+			"Eine angepinnte Chatnachricht mit @lauchgruen ist während des gesamten Streams sichtbar",
+		],
+		footer: "Das Turnier lebt von der Community. Ein kleines Dankeschön an die Veranstalter ist gerne gesehen.",
+	},
+	{
+		title: "Substitutes und Teamänderungen",
+		text: "Das Orga-Team darf Ersatzspieler eintragen, Rollen ändern oder Teams anpassen, wenn das für Fairness, Ablauf oder Notfälle nötig ist.",
+		footer: "Historische Matchdaten und Turnierergebnisse bleiben dabei möglichst nachvollziehbar erhalten.",
+	},
+	{
+		title: "Öffentliche Darstellung",
+		text: "Teamname, Roster, Riot-ID, Rollen, Scores, Pools, Draft-Informationen und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
+	},
+	{
+		title: "Admin-Entscheidungen",
+		text: "Das Orga-Team entscheidet über Streitfälle, technische Probleme, Regelverstöße, Remakes, Ergebnis-Korrekturen und Disqualifikationen.",
+		footer: "Ziel ist ein fairer, transparenter und entspannter Ablauf für alle Beteiligten.",
+	},
 ];
+
+
 
 export default function TournamentTermsPage() {
   return (
@@ -56,8 +162,7 @@ export default function TournamentTermsPage() {
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/72">
             Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung
-            bestätigst. Kurz gesagt: ehrlich anmelden, beide Tage einplanen,
-            fair spielen, nett bleiben und Admin-Entscheidungen respektieren.
+            bestätigst.
           </p>
         </div>
 
@@ -74,6 +179,19 @@ export default function TournamentTermsPage() {
                 <div>
                   <h2 className="text-lg font-black text-emerald-50">{section.title}</h2>
                   <p className="mt-2 text-sm leading-7 text-emerald-100/70">{section.text}</p>
+                  {"list" in section && section.list && (
+                    <ul className="mt-2 space-y-1">
+                      {section.list.map((item, i) => (
+                        <li key={i} className="flex gap-2 text-sm leading-7 text-emerald-100/70">
+                          <span className="shrink-0 text-lime-300/60">–</span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {"footer" in section && section.footer && (
+                    <p className="mt-2 text-sm leading-7 text-emerald-100/50">{section.footer}</p>
+                  )}
                 </div>
               </div>
             </article>
@@ -84,7 +202,7 @@ export default function TournamentTermsPage() {
               Zustimmung bei Bewerbung
             </h2>
             <p className="mt-4 text-sm leading-7 text-amber-50/82">
-              Wenn du auf „Bewerbung absenden“ klickst, bestätigst du, dass du
+              Wenn du auf &quot;Bewerbung absenden&quot; klickst, bestätigst du, dass du
               diese Teilnahmebedingungen und die Datenschutzhinweise gelesen hast
               und mit der Verarbeitung deiner Turnierdaten für Organisation,
               Durchführung und Nachvollziehbarkeit des Events einverstanden bist.

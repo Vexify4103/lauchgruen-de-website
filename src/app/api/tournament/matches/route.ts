@@ -7,6 +7,7 @@ import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { parseGameDuration } from "@/lib/match-duration";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   readTournamentState,
@@ -24,6 +25,10 @@ const matchUpdateSchema = z.object({
   scoreB: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().min(0).max(99).optional(),
+  ),
+  gameDuration: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().trim().optional(),
   ),
   status: z.enum(["Scheduled", "Live", "Finished", "Locked", "Pending"]),
   teamAChampions: z.array(z.string().trim().min(1)).optional(),
@@ -68,6 +73,40 @@ export async function PATCH(request: Request) {
     getTournamentSettings(),
   ]);
   const state = await readTournamentState(ctx.groupMatches);
+  const isGroupMatch = ctx.groupMatches.some((match) => match.id === parsed.data.id);
+  const gameDurationSeconds = parsed.data.gameDuration === undefined
+    ? undefined
+    : parseGameDuration(parsed.data.gameDuration);
+  if (gameDurationSeconds === null) {
+    return NextResponse.json(
+      { message: "Die Spielzeit muss im Format mm:ss eingetragen werden." },
+      { status: 400 },
+    );
+  }
+  if (
+    isGroupMatch
+    && parsed.data.status === "Finished"
+    && gameDurationSeconds === undefined
+  ) {
+    return NextResponse.json(
+      { message: "Für ein abgeschlossenes Gruppenspiel wird die Spielzeit benötigt." },
+      { status: 400 },
+    );
+  }
+  if (
+    isGroupMatch
+    && parsed.data.status === "Finished"
+    && (
+      parsed.data.scoreA === undefined
+      || parsed.data.scoreB === undefined
+      || parsed.data.scoreA === parsed.data.scoreB
+    )
+  ) {
+    return NextResponse.json(
+      { message: "Ein abgeschlossenes Gruppenspiel benötigt einen eindeutigen Score." },
+      { status: 400 },
+    );
+  }
   const currentStatus = state.matches[parsed.data.id]?.status;
   if (parsed.data.status === "Live" && currentStatus !== "Live" && !settings.tournamentLive) {
     return NextResponse.json(
@@ -87,6 +126,7 @@ export async function PATCH(request: Request) {
     id: parsed.data.id,
     scoreA: parsed.data.scoreA,
     scoreB: parsed.data.scoreB,
+    gameDurationSeconds,
     teamAChampions: parsed.data.teamAChampions,
     teamBChampions: parsed.data.teamBChampions,
     blueSide: parsed.data.blueSide,
@@ -108,6 +148,7 @@ export async function PATCH(request: Request) {
     metadata: {
       scoreA: parsed.data.scoreA,
       scoreB: parsed.data.scoreB,
+      gameDurationSeconds,
       status: parsed.data.status,
       blueSide: parsed.data.blueSide,
       winner,
@@ -122,6 +163,7 @@ export async function PATCH(request: Request) {
     payload: {
       scoreA: parsed.data.scoreA,
       scoreB: parsed.data.scoreB,
+      gameDurationSeconds,
       status: parsed.data.status,
       blueSide: parsed.data.blueSide,
       winner,

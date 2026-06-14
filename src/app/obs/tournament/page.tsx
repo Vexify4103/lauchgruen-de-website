@@ -50,7 +50,7 @@ async function buildInitial(
 
   const groupSize = standings[team.group].length;
   const allPlayed = standings[team.group].every(
-    (s) => s.played === groupSize - 1,
+    (s) => s.played === (groupSize - 1) * 2,
   );
   let playoffSlot: string | null = null;
   if (standing && allPlayed && !standing.tiebreakerRequired && standing.rank <= 4) {

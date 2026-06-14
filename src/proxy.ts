@@ -98,6 +98,6 @@ export function proxy(req: NextRequest) {
 // that the apex landing page calls via fetch().
 export const config = {
   matcher: [
-    "/((?!_next/|_vercel/|favicon\\.ico|bear-logo\\.png|api/health|api/twitch/|api/tournament/obs|obs/).*)",
+    "/((?!_next/|_vercel/|favicon\\.ico|bear-logo\\.png|tournament-bear-mark\\.png|api/health|api/twitch/|api/tournament/obs|obs/).*)",
   ],
 };

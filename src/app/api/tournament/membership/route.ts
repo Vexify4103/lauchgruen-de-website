@@ -24,9 +24,9 @@ export async function GET() {
     member,
     checkedLive: liveGuildMember !== null,
     message: member
-      ? "Discord-Mitgliedschaft bestaetigt."
+      ? "Discord-Mitgliedschaft bestätigt."
       : liveGuildMember === null
-        ? "Mitgliedschaft konnte nicht live geprueft werden. Pruefe DISCORD_TOKEN und DISCORD_GUILD_ID."
+        ? "Mitgliedschaft konnte nicht live geprüft werden. Prüfe DISCORD_TOKEN und DISCORD_GUILD_ID."
         : "Du bist noch nicht auf dem Lauchgruen Discord.",
   });
 }

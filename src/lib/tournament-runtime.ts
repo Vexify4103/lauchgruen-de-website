@@ -14,6 +14,7 @@ import {
   type TournamentPlayer,
   type TournamentTeam,
 } from "@/lib/tournament-data";
+import { groupRollingTime } from "@/lib/tournament-schedule";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -44,6 +45,7 @@ type StoredTeam = {
   playedChampions: string[];
   roleId?: string;
   voiceChannelId?: string;
+  textChannelId?: string;
   meta?: TeamMeta;
 };
 
@@ -201,9 +203,9 @@ function makeTeam(
 }
 
 /**
- * Build a round-robin schedule for each four-team group. Every team plays the
- * other three teams once. A slot contains one match from group A and one from
- * group B, so exactly two matches run in parallel.
+ * Build a double round-robin schedule for each four-team group. Every team
+ * plays the other three teams twice. A slot contains one match from group A
+ * and one from group B, so exactly two matches run in parallel.
  */
 function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
   const out: GroupMatch[] = [];
@@ -217,6 +219,7 @@ function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
     if (rotation.length % 2 !== 0) rotation.push(null);
     const rounds = rotation.length - 1;
 
+    const firstLeg: Array<{ round: number; slot: number; teamA: string; teamB: string }> = [];
     for (let roundIndex = 0; roundIndex < rounds; roundIndex += 1) {
       let matchIndex = 0;
       for (let index = 0; index < rotation.length / 2; index += 1) {
@@ -224,18 +227,34 @@ function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
         const teamB = rotation[rotation.length - 1 - index];
         if (!teamA || !teamB) continue;
         matchIndex += 1;
-        out.push({
-          id: `${group.toLowerCase()}-r${roundIndex + 1}-${matchIndex}`,
-          group,
-          round: `Round ${roundIndex + 1} · Slot ${matchIndex}`,
-          time: "TBA",
-          teamA,
-          teamB,
-          status: "Scheduled",
-        });
+        firstLeg.push({ round: roundIndex + 1, slot: matchIndex, teamA, teamB });
       }
 
       rotation.splice(1, 0, rotation.pop() ?? null);
+    }
+
+    for (const match of firstLeg) {
+      out.push({
+        id: `${group.toLowerCase()}-r${match.round}-${match.slot}`,
+        group,
+        round: `Runde ${match.round} · Slot ${match.slot}`,
+        time: groupRollingTime(match.round),
+        teamA: match.teamA,
+        teamB: match.teamB,
+        status: "Scheduled",
+      });
+    }
+    for (const match of firstLeg) {
+      const returnRound = match.round + rounds;
+      out.push({
+        id: `${group.toLowerCase()}-r${returnRound}-${match.slot}`,
+        group,
+        round: `Runde ${returnRound} · Slot ${match.slot}`,
+        time: groupRollingTime(returnRound),
+        teamA: match.teamB,
+        teamB: match.teamA,
+        status: "Scheduled",
+      });
     }
   }
   return out;

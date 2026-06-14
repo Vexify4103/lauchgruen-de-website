@@ -3,10 +3,15 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
 import { writeAuditLog } from "@/lib/tournament-audit";
+import {
+  TOURNAMENT_APPLICATION_DEADLINE_LABEL,
+  areTournamentApplicationsOpen,
+  isTournamentApplicationDeadlinePassed,
+} from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import {
   TOURNAMENT_OWNER_DISCORD_IDS,
-  clearRiotLink,
+  deleteApplicationsByDiscordId,
   findApplication,
   findBlacklistMatch,
   getVerifiedAccount,
@@ -41,9 +46,13 @@ function applicationId(puuid: string, discordId: string) {
 
 export async function POST(request: Request) {
   const settings = await getTournamentSettings();
-  if (!settings.applicationsOpen) {
+  if (!areTournamentApplicationsOpen(settings.applicationsOpen)) {
     return NextResponse.json(
-      { message: "Bewerbungen sind aktuell geschlossen." },
+      {
+        message: isTournamentApplicationDeadlinePassed()
+          ? `Der Bewerbungsschluss war am ${TOURNAMENT_APPLICATION_DEADLINE_LABEL}.`
+          : "Bewerbungen sind aktuell geschlossen.",
+      },
       { status: 403 },
     );
   }
@@ -123,7 +132,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     message: existing
-      ? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell haeltst."
+      ? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell hältst."
       : "Bewerbung gespeichert. Willkommen in der Warteliste.",
   });
 }
@@ -153,7 +162,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = applicationPatchSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ message: "Ungueltige Bewerbungsdaten." }, { status: 400 });
+    return NextResponse.json({ message: "Ungültige Bewerbungsdaten." }, { status: 400 });
   }
 
   const existing = await findApplication(parsed.data.id);
@@ -188,11 +197,7 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ application: nextApplication });
 }
 
-/**
- * Admin-only: deletes an applicant entirely. Wipes their application,
- * verified Riot account, and any pending verification challenge. They'd have
- * to re-verify if they wanted to re-apply.
- */
+/** Admin-only: removes tournament applications while preserving the Riot link. */
 export async function DELETE(request: Request) {
   const session = await auth();
   const discordId = session?.user?.discordId;
@@ -210,6 +215,16 @@ export async function DELETE(request: Request) {
     );
   }
 
-  await clearRiotLink(targetDiscordId);
-  return NextResponse.json({ ok: true });
+  const deletedCount = await deleteApplicationsByDiscordId(targetDiscordId);
+  await writeAuditLog({
+    action: "application.delete",
+    targetType: "application",
+    targetId: targetDiscordId,
+    summary: "Bewerbung entfernt; verifizierte Riot-Verknüpfung wurde beibehalten.",
+    actorDiscordId: discordId,
+    actorLabel: session.user.discordHandle ?? discordId,
+    metadata: { deletedCount, preservedRiotLink: true },
+  });
+
+  return NextResponse.json({ ok: true, deletedCount, preservedRiotLink: true });
 }

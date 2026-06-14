@@ -88,7 +88,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const parsed = refreshSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ message: "Ungueltige Rank-Refresh-Daten." }, { status: 400 });
+    return NextResponse.json({ message: "Ungültige Rank-Refresh-Daten." }, { status: 400 });
   }
 
   const applications = parsed.data.id

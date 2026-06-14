@@ -5,6 +5,7 @@ import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { CopyDraftSpectatorLinkButton } from "./CopyDraftSpectatorLinkButton";
+import { RenameTeamForm } from "./RenameTeamForm";
 
 function opggMultiSearchUrl(riotIds: string[]) {
   const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -98,6 +99,11 @@ export default async function CaptainPortalPage() {
               Dein schneller Überblick für Match, Pool, Roster und nützliche Links.
             </p>
           </div>
+
+          <RenameTeamForm
+            teamKey={team.name.trim().toLowerCase()}
+            initialName={team.name}
+          />
 
           {nextMatch ? (
             <div className="rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/24">

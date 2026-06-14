@@ -1,4 +1,7 @@
 const DISCORD_API = "https://discord.com/api/v10";
+const DISCORD_ROLE_MAX_ATTEMPTS = 5;
+
+let discordRoleMutationQueue: Promise<void> = Promise.resolve();
 
 export const DISCORD_INVITE_URL = "https://discord.gg/GFYv7K3SKb";
 
@@ -146,26 +149,83 @@ export async function setDiscordMemberRole(input: {
   roleId: string;
   enabled: boolean;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
+  const run = discordRoleMutationQueue.then(
+    () => setDiscordMemberRoleWithRetry(input),
+    () => setDiscordMemberRoleWithRetry(input),
+  );
+  discordRoleMutationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function setDiscordMemberRoleWithRetry(input: {
+  discordId: string;
+  roleId: string;
+  enabled: boolean;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
   const token = discordBotToken();
   const guildId = discordGuildId();
   if (!token || !guildId) {
     return { ok: false, message: "Discord role sync skipped: bot token or guild ID missing." };
   }
 
-  const response = await fetch(
-    `${DISCORD_API}/guilds/${guildId}/members/${input.discordId}/roles/${input.roleId}`,
-    {
-      method: input.enabled ? "PUT" : "DELETE",
-      headers: { authorization: `Bot ${token}` },
-    },
-  );
+  for (let attempt = 1; attempt <= DISCORD_ROLE_MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(
+        `${DISCORD_API}/guilds/${guildId}/members/${input.discordId}/roles/${input.roleId}`,
+        {
+          method: input.enabled ? "PUT" : "DELETE",
+          headers: { authorization: `Bot ${token}` },
+          cache: "no-store",
+        },
+      );
+    } catch {
+      if (attempt === DISCORD_ROLE_MAX_ATTEMPTS) {
+        return {
+          ok: false,
+          message: `Discord-Rolle konnte für ${input.discordId} wegen eines Netzwerkfehlers nicht ${input.enabled ? "vergeben" : "entfernt"} werden.`,
+        };
+      }
+      await wait(250 * attempt);
+      continue;
+    }
 
-  if (!response.ok) {
+    if (response.ok) return { ok: true };
+
+    if (response.status === 429 && attempt < DISCORD_ROLE_MAX_ATTEMPTS) {
+      const body = (await response.json().catch(() => null)) as
+        | { retry_after?: number }
+        | null;
+      const retryAfterSeconds =
+        body?.retry_after
+        ?? parseRetryAfter(response.headers.get("retry-after"))
+        ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after"))
+        ?? 1;
+      await wait(Math.ceil(retryAfterSeconds * 1000) + 100);
+      continue;
+    }
+
     return {
       ok: false,
-      message: `Discord captain role could not be ${input.enabled ? "added" : "removed"} for ${input.discordId}. Check Manage Roles and role hierarchy.`,
+      message: `Discord-Rolle konnte für ${input.discordId} nicht ${input.enabled ? "vergeben" : "entfernt"} werden (HTTP ${response.status}). Prüfe „Rollen verwalten“ und die Rollen-Hierarchie.`,
     };
   }
 
-  return { ok: true };
+  return {
+    ok: false,
+    message: `Discord-Rolle konnte für ${input.discordId} nach mehreren Versuchen nicht ${input.enabled ? "vergeben" : "entfernt"} werden.`,
+  };
+}
+
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }

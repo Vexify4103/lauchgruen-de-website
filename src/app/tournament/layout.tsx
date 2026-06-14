@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { auth } from "@/lib/auth";
 import { getSiteUrls } from "@/lib/site-urls";
+import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
 import { tournament } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
@@ -47,7 +48,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
   return (
     <TournamentChrome
       navItems={navItems}
-      applicationsOpen={settings.applicationsOpen}
+      applicationsOpen={areTournamentApplicationsOpen(settings.applicationsOpen)}
       tournamentLive={settings.tournamentLive}
       apexUrl={siteUrls.apex}
       cleanUrls={cleanUrls}

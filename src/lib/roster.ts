@@ -10,6 +10,7 @@ import { getDb } from "@/lib/mongo";
 import { setDiscordMemberRole } from "@/lib/discord";
 import {
   listApplications,
+  listPreferenceGroups,
   type TournamentApplication,
 } from "@/lib/tournament-storage";
 
@@ -46,6 +47,7 @@ type BotTeam = {
   playedChampions: string[];
   roleId?: string;
   voiceChannelId?: string;
+  textChannelId?: string;
   meta?: BotTeamMeta;
 };
 
@@ -64,6 +66,7 @@ export type RosterApplicant = {
   currentRank: string | null;
   mainRole?: string;
   preferredRoles: string[];
+  preferenceGroupCode?: string;
 };
 
 export type RosterTeam = {
@@ -89,9 +92,10 @@ export type RosterSnapshot = {
 /** Single read fetching everything the roster builder needs. */
 export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
   const db = await getDb();
-  const [appsRaw, botDoc] = await Promise.all([
+  const [appsRaw, botDoc, preferenceGroups] = await Promise.all([
     listApplications(),
     db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
+    listPreferenceGroups(),
   ]);
 
   const teamsObj = botDoc?.teams ?? {};
@@ -108,12 +112,27 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
     })),
   }));
 
-  const applicants: RosterApplicant[] = appsRaw.map(toApplicant);
+  const preferenceGroupByDiscordId = new Map(
+    preferenceGroups.flatMap((group) =>
+      group.memberDiscordIds.map(
+        (discordId) => [discordId, group.code] as const,
+      ),
+    ),
+  );
+  const applicants: RosterApplicant[] = appsRaw.map((application) =>
+    toApplicant(
+      application,
+      preferenceGroupByDiscordId.get(application.discordId),
+    ),
+  );
 
   return { applicants, teams };
 }
 
-function toApplicant(app: TournamentApplication): RosterApplicant {
+function toApplicant(
+  app: TournamentApplication,
+  preferenceGroupCode?: string,
+): RosterApplicant {
   return {
     discordId: app.discordId,
     discordHandle: app.discordHandle,
@@ -124,6 +143,7 @@ function toApplicant(app: TournamentApplication): RosterApplicant {
     currentRank: app.currentRankAuto,
     mainRole: app.mainRole,
     preferredRoles: app.preferredRoles,
+    preferenceGroupCode,
   };
 }
 
@@ -162,6 +182,12 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
   const previousCaptainIds = new Set(
     Object.values(teamsObj)
       .map((team) => team.meta?.captain?.discordId)
+      .filter((discordId): discordId is string => !!discordId),
+  );
+  const previousPlayerIds = new Set(
+    Object.values(teamsObj)
+      .flatMap((team) => team.players ?? [])
+      .map((player) => player.discordId)
       .filter((discordId): discordId is string => !!discordId),
   );
 
@@ -274,18 +300,119 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
       .updateOne({ _id: "default" }, update, { upsert: true });
   }
 
-  const warnings = payload.captains
-    ? await syncDiscordCaptainRole(previousCaptainIds, payload.captains)
-    : [];
+  const warnings = await syncDiscordTournamentRole(
+    previousPlayerIds,
+    new Set(allDiscordIds),
+  );
+  warnings.push(...(await syncDiscordTeamRoles(teamsObj, payload.teamPlayers)));
+  if (payload.captains) {
+    warnings.push(
+      ...(await syncDiscordCaptainRole(previousCaptainIds, payload.captains)),
+    );
+  }
 
   return { applied, teamsUpdated, errors: [], warnings };
+}
+
+async function syncDiscordTournamentRole(
+  previousPlayerIds: Set<string>,
+  nextPlayerIds: Set<string>,
+): Promise<string[]> {
+  const roleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
+  if (!roleId) {
+    return [
+      "Turnierrolle nicht synchronisiert: DISCORD_TOURNAMENT_ROLE_ID fehlt.",
+    ];
+  }
+
+  const warnings: string[] = [];
+
+  // PUT is idempotent and repairs roles removed manually between roster saves.
+  for (const discordId of nextPlayerIds) {
+    const result = await setDiscordMemberRole({
+      discordId,
+      roleId,
+      enabled: true,
+    });
+    if (!result.ok) warnings.push(result.message);
+  }
+
+  for (const discordId of previousPlayerIds) {
+    if (nextPlayerIds.has(discordId)) continue;
+    const result = await setDiscordMemberRole({
+      discordId,
+      roleId,
+      enabled: false,
+    });
+    if (!result.ok) warnings.push(result.message);
+  }
+
+  return warnings;
+}
+
+async function syncDiscordTeamRoles(
+  teams: Record<string, BotTeam>,
+  teamPlayers: RosterSavePayload["teamPlayers"],
+): Promise<string[]> {
+  const warnings: string[] = [];
+
+  for (const [teamKey, nextSlots] of Object.entries(teamPlayers)) {
+    const team = teams[teamKey];
+    if (!team) continue;
+
+    const previousIds = new Set(
+      (team.players ?? [])
+        .map((player) => player.discordId)
+        .filter((discordId): discordId is string => !!discordId),
+    );
+    const nextIds = new Set(nextSlots.map((slot) => slot.discordId));
+    const roleId = team.roleId?.trim();
+
+    if (!roleId) {
+      if (nextIds.size > 0) {
+        warnings.push(
+          `Team-Rolle für „${team.name}“ fehlt. Erstelle oder verknüpfe zuerst eine Discord-Rolle für dieses Team.`,
+        );
+      }
+      continue;
+    }
+
+    // Re-apply the role to every current player. Discord's PUT endpoint is
+    // idempotent and therefore also repairs roles removed manually.
+    for (const discordId of nextIds) {
+      const result = await setDiscordMemberRole({
+        discordId,
+        roleId,
+        enabled: true,
+      });
+      if (!result.ok) {
+        warnings.push(`Team „${team.name}“: ${result.message}`);
+      }
+    }
+
+    for (const discordId of previousIds) {
+      if (nextIds.has(discordId)) continue;
+      const result = await setDiscordMemberRole({
+        discordId,
+        roleId,
+        enabled: false,
+      });
+      if (!result.ok) {
+        warnings.push(`Team „${team.name}“: ${result.message}`);
+      }
+    }
+  }
+
+  return warnings;
 }
 
 async function syncDiscordCaptainRole(
   previousCaptainIds: Set<string>,
   captains: Record<string, string | null>,
 ): Promise<string[]> {
-  const roleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim();
+  const roleId =
+    process.env.DISCORD_CAPTAINS_ROLE_ID?.trim()
+    || process.env.CAPTAIN_ROLE_ID?.trim();
   if (!roleId) {
     return ["Captain-Rolle nicht synchronisiert: DISCORD_CAPTAINS_ROLE_ID fehlt."];
   }

@@ -5,10 +5,13 @@ import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import {
   getVerifiedAccount,
+  getPreferenceGroupForDiscordId,
   listApplications,
+  TOURNAMENT_PREFERENCE_GROUP_LIMIT,
   TOURNAMENT_OWNER_DISCORD_IDS,
 } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
+import { PreferenceGroupCard } from "./PreferenceGroupCard";
 
 export default async function TournamentMePage() {
   const session = await auth();
@@ -45,11 +48,12 @@ export default async function TournamentMePage() {
     );
   }
 
-  const [verified, applications, member, ctx] = await Promise.all([
+  const [verified, applications, member, ctx, preferenceGroup] = await Promise.all([
     getVerifiedAccount(discordId),
     listApplications(),
     isDiscordGuildMember(discordId),
     getMatchControlContext(),
+    getPreferenceGroupForDiscordId(discordId),
   ]);
   const application = applications.find((entry) => entry.discordId === discordId) ?? null;
   const team = ctx.teams.find((entry) =>
@@ -167,6 +171,19 @@ export default async function TournamentMePage() {
               </div>
             ))}
           </div>
+
+          <PreferenceGroupCard
+            hasApplication={Boolean(application)}
+            initialGroup={
+              preferenceGroup
+                ? {
+                    code: preferenceGroup.code,
+                    memberCount: preferenceGroup.memberDiscordIds.length,
+                    maxMembers: TOURNAMENT_PREFERENCE_GROUP_LIMIT,
+                  }
+                : null
+            }
+          />
 
           {nextMatch ? (
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">

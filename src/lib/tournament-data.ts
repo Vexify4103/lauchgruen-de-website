@@ -84,7 +84,7 @@ export const tournament = {
   season: "A-Z Turnier 2026",
   game: "League of Legends",
   region: "EUW",
-  startDate: "19.06. und 20.06.2026 ab 18:00 Uhr CEST",
+  startDate: "19.06. um 18:00 Uhr CEST und 20.06. um 16:00 Uhr CEST",
   format: "Gruppenphase + Endbracket · A-Z Champion-Pools",
   discordUrl: "https://discord.gg/GFYv7K3SKb",
   rulesUrl: "/tournament/apply#rules",
@@ -123,7 +123,8 @@ export const azLetterPools = [
 ];
 
 export const tournamentCurrentHighlights = [
-  "Start ist Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 CEST.",
+  "Bewerbungsschluss ist Donnerstag, 18.06.2026 um 20:00 Uhr CEST.",
+  "Start ist Freitag, 19.06. um 18:00 Uhr und Samstag, 20.06. um 16:00 Uhr.",
   "Gespielt wird Gruppenphase plus Endbracket. Wer lange genug überlebt, kämpft am Samstag um den Titel.",
   "Pro Match bekommt jedes Team per Glücksrad einen A-Z Champion-Pool. Nur Champions aus diesem Pool sind erlaubt.",
   "Gespielte Pools verlassen für das jeweilige Team das Rad. Am zweiten Spieltag / Playoff-Tag werden die Pools refreshed.",
@@ -256,13 +257,24 @@ function roundRobin(
     [t1, t4],
     [t2, t3],
   ];
-  return pairings.map(([teamA, teamB], index) => ({
-    id: `${group.toLowerCase()}-r${Math.floor(index / 2) + 1}-${(index % 2) + 1}`,
-    group,
-    round: `Round ${Math.floor(index / 2) + 1} · Slot ${(index % 2) + 1}`,
-    time: "TBA",
+  const firstLeg = pairings.map(([teamA, teamB], index) => ({
+    round: Math.floor(index / 2) + 1,
+    slot: (index % 2) + 1,
     teamA,
     teamB,
+  }));
+  return [...firstLeg, ...firstLeg.map((match) => ({
+    ...match,
+    round: match.round + 3,
+    teamA: match.teamB,
+    teamB: match.teamA,
+  }))].map((match) => ({
+    id: `${group.toLowerCase()}-r${match.round}-${match.slot}`,
+    group,
+    round: `Runde ${match.round} · Slot ${match.slot}`,
+    time: groupRollingTime(match.round),
+    teamA: match.teamA,
+    teamB: match.teamB,
     status: "Scheduled",
   }));
 }
@@ -413,11 +425,12 @@ export const applicationSteps = [
   "Melde dich mit Discord an und tritt dem Lauchgruen Discord bei.",
   "Verifiziere deine Riot-ID über das Profilicon im League-Client.",
   "Gib Anzeigename, Main Rolle und Wunschrollen an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
-  "Bestätige, dass du am 19.06. und 20.06. ab 18:00 Uhr CEST verbindlich Zeit hast.",
+  "Bestätige, dass du am 19.06. um 18:00 Uhr CEST und 20.06. um 16:00 Uhr CEST verbindlich Zeit hast.",
+  "Sende deine verbindliche Bewerbung spätestens am 18.06.2026 um 20:00 Uhr CEST ab.",
   "Warte auf Teamzuteilung und weitere Infos im Discord.",
 ];
 
-export const announcedDates = "Freitag, 19.06.2026 ab 18:00 Uhr CEST + Samstag, 20.06.2026 ab 18:00 Uhr CEST";
+export const announcedDates = "Freitag, 19.06.2026 um 18:00 Uhr CEST + Samstag, 20.06.2026 um 16:00 Uhr CEST";
 
 export const rankOptions = [
   "Unranked",
@@ -432,3 +445,4 @@ export const rankOptions = [
   "Grandmaster",
   "Challenger",
 ];
+import { groupRollingTime } from "@/lib/tournament-schedule";

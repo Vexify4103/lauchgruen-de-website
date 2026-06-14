@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -150,8 +151,16 @@ function FullTournamentHeader({
     <header className="sticky top-0 z-30 border-b border-lime-200/10 bg-[#07110c]/78 px-5 py-4 backdrop-blur-2xl">
       <nav className="mx-auto flex w-full max-w-7xl flex-col gap-4 xl:flex-row xl:items-center">
         <Link href="/tournament" className="group inline-flex w-fit items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl border border-lime-200/20 bg-lime-300/12 font-black text-lime-100 shadow-lg shadow-lime-400/10">
-            LG
+          <span className="relative size-12 overflow-hidden rounded-2xl border border-lime-300/40 bg-[#06130b] shadow-[0_0_24px_rgba(163,230,53,0.18)] transition group-hover:border-lime-200/70 group-hover:shadow-[0_0_30px_rgba(163,230,53,0.28)]">
+            <Image
+              src="/tournament-bear-mark.png"
+              alt="Lauchgruen Bärenkopf"
+              fill
+              sizes="48px"
+              className="object-cover"
+              priority
+              unoptimized
+            />
           </span>
           <span>
             <span className="block text-sm font-black uppercase tracking-[0.28em] text-lime-200/70">

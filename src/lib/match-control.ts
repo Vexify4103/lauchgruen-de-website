@@ -19,6 +19,7 @@ export type ControlMatch = {
   status: StoredTournamentMatch["status"];
   scoreA?: number;
   scoreB?: number;
+  gameDurationSeconds?: number;
   teamAChampions?: string[];
   teamBChampions?: string[];
   blueSide: "teamA" | "teamB";
@@ -60,6 +61,7 @@ function groupToControlMatch(
     status: stored?.status ?? match.status,
     scoreA: stored?.scoreA,
     scoreB: stored?.scoreB,
+    gameDurationSeconds: stored?.gameDurationSeconds,
     teamAChampions: stored?.teamAChampions ?? [],
     teamBChampions: stored?.teamBChampions ?? [],
     blueSide: stored?.blueSide ?? "teamA",
@@ -86,6 +88,7 @@ function playoffToControlMatch(
     status: stored?.status ?? match.status,
     scoreA: stored?.scoreA,
     scoreB: stored?.scoreB,
+    gameDurationSeconds: stored?.gameDurationSeconds,
     teamAChampions: stored?.teamAChampions ?? [],
     teamBChampions: stored?.teamBChampions ?? [],
     blueSide: stored?.blueSide ?? "teamA",

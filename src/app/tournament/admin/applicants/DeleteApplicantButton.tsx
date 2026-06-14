@@ -56,12 +56,12 @@ export function DeleteApplicantButton({
         title="Bewerbung wirklich löschen?"
         description={
           <>
-            <strong className="text-emerald-50">{label}</strong> wird komplett
-            entfernt — Bewerbung, verifizierter Riot-Account und alle offenen
-            Verifizierungs-Challenges. Die Person muss sich neu verifizieren,
-            falls sie sich erneut bewerben will. Eine Zuweisung in einem
-            bestehenden Bot-Team wird nicht entfernt — dafür musst du sie
-            zusätzlich aus dem Roster werfen.
+            Die Bewerbung von{" "}
+            <strong className="text-emerald-50">{label}</strong> wird entfernt.
+            Die verifizierte Discord-Riot-Verknüpfung bleibt erhalten, damit
+            der Account bei einem späteren Turnier nicht erneut verifiziert
+            werden muss. Eine bestehende Team-Zuweisung bleibt ebenfalls
+            bestehen und muss bei Bedarf separat im Roster entfernt werden.
           </>
         }
         confirmLabel="Ja, löschen"

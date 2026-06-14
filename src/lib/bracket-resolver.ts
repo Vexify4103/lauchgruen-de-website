@@ -17,6 +17,10 @@ export type TeamStanding = {
   pointsFor: number;
   pointsAgainst: number;
   pointDiff: number;
+  headToHeadWins: number;
+  timedWins: number;
+  winDurationSeconds: number;
+  avgWinTimeSeconds: number | null;
   rank: number;
   tiebreakerRequired: boolean;
 };
@@ -80,6 +84,10 @@ export function computeGroupStandings(
       pointsFor: 0,
       pointsAgainst: 0,
       pointDiff: 0,
+      headToHeadWins: 0,
+      timedWins: 0,
+      winDurationSeconds: 0,
+      avgWinTimeSeconds: null,
       rank: 0,
       tiebreakerRequired: false,
     }));
@@ -92,6 +100,7 @@ export function computeGroupStandings(
       const stored = state[match.id];
       if (
         !stored ||
+        stored.status !== "Finished" ||
         stored.scoreA === undefined ||
         stored.scoreB === undefined
       ) {
@@ -113,35 +122,71 @@ export function computeGroupStandings(
         a.wins += 1;
         b.losses += 1;
         addH2H(h2h, match.teamA, match.teamB);
+        if (stored.gameDurationSeconds !== undefined) {
+          a.timedWins += 1;
+          a.winDurationSeconds += stored.gameDurationSeconds;
+        }
       } else if (stored.scoreB > stored.scoreA) {
         b.wins += 1;
         a.losses += 1;
         addH2H(h2h, match.teamB, match.teamA);
+        if (stored.gameDurationSeconds !== undefined) {
+          b.timedWins += 1;
+          b.winDurationSeconds += stored.gameDurationSeconds;
+        }
       }
     }
 
-    for (const s of standings) s.pointDiff = s.pointsFor - s.pointsAgainst;
+    for (const standing of standings) {
+      standing.pointDiff = standing.pointsFor - standing.pointsAgainst;
+      standing.avgWinTimeSeconds =
+        standing.wins > 0 && standing.timedWins === standing.wins
+          ? standing.winDurationSeconds / standing.wins
+          : null;
+      const tiedTeams = standings.filter((other) => other.wins === standing.wins);
+      standing.headToHeadWins = tiedTeams.reduce(
+        (wins, opponent) =>
+          opponent.team.name === standing.team.name
+            ? wins
+            : wins + (h2h.get(standing.team.name)?.get(opponent.team.name) ?? 0),
+        0,
+      );
+    }
 
     standings.sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
-      // 2-way head-to-head
-      const aBeatB = h2h.get(a.team.name)?.get(b.team.name) ?? 0;
-      const bBeatA = h2h.get(b.team.name)?.get(a.team.name) ?? 0;
-      if (aBeatB !== bBeatA) return bBeatA - aBeatB;
+      if (b.headToHeadWins !== a.headToHeadWins) {
+        return b.headToHeadWins - a.headToHeadWins;
+      }
+      if (a.avgWinTimeSeconds !== b.avgWinTimeSeconds) {
+        if (a.avgWinTimeSeconds === null) return 1;
+        if (b.avgWinTimeSeconds === null) return -1;
+        return a.avgWinTimeSeconds - b.avgWinTimeSeconds;
+      }
       if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
       if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
       return a.team.name.localeCompare(b.team.name);
     });
 
     const groupComplete = standings.every(
-      (standing) => standing.played === Math.max(groupTeams.length - 1, 0),
+      (standing) => standing.played === Math.max((groupTeams.length - 1) * 2, 0),
     );
 
     for (const standing of standings) {
       const tiedTeams = standings.filter(
-        (other) => other.wins === standing.wins,
+        (other) =>
+          other.team.name !== standing.team.name
+          && other.wins === standing.wins
+          && other.headToHeadWins === standing.headToHeadWins,
       );
-      standing.tiebreakerRequired = groupComplete && tiedTeams.length > 2;
+      standing.tiebreakerRequired =
+        groupComplete
+        && tiedTeams.some(
+          (other) =>
+            standing.avgWinTimeSeconds === null
+            || other.avgWinTimeSeconds === null
+            || standing.avgWinTimeSeconds === other.avgWinTimeSeconds,
+        );
     }
 
     standings.forEach((s, i) => (s.rank = i + 1));
@@ -173,7 +218,7 @@ export function computeSeeds(
   standings: GroupStandings,
 ): Record<number, string | null> {
   const allGroupMatchesFinished = (group: "A" | "B") => {
-    const expectedMatchesPerTeam = Math.max(standings[group].length - 1, 0);
+    const expectedMatchesPerTeam = Math.max((standings[group].length - 1) * 2, 0);
     return standings[group].length >= 3
       && standings[group].every((standing) => standing.played === expectedMatchesPerTeam)
       && standings[group].every((standing) => !standing.tiebreakerRequired);

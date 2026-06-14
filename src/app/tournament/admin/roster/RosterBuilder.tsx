@@ -34,6 +34,10 @@ function normalizeRoleName(raw: string): PlayerRole | null {
 const ROLES: PlayerRole[] = ["Top", "Jungle", "Mid", "Bot", "Support"];
 const ALL_ROLES: PlayerRole[] = [...ROLES, "Fill", "Sub"];
 
+function opggUrl(riotId: string): string {
+  return `https://www.op.gg/summoners/euw/${encodeURIComponent(riotId.replace("#", "-"))}`;
+}
+
 type Assignment = {
   /** teamKey OR "" if unassigned */
   teamKey: string;
@@ -169,6 +173,19 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     }
     return sorted;
   }, [snapshot.applicants, state.assignments, sortMode, openRolesAnywhere]);
+
+  const preferenceGroups = useMemo(() => {
+    const grouped = new Map<string, RosterApplicant[]>();
+    for (const applicant of snapshot.applicants) {
+      if (!applicant.preferenceGroupCode) continue;
+      const members = grouped.get(applicant.preferenceGroupCode) ?? [];
+      members.push(applicant);
+      grouped.set(applicant.preferenceGroupCode, members);
+    }
+    return [...grouped.entries()]
+      .map(([code, members]) => ({ code, members }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [snapshot.applicants]);
 
   function assignPlayer(discordId: string, teamKey: string, role: PlayerRole) {
     setState((prev) => {
@@ -445,7 +462,10 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setMessage({
       tone: warnings.length > 0 ? "error" : "ok",
       text:
-        `Saved · ${json.applied} players across ${json.teamsUpdated} team(s).` +
+        `Roster gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s).` +
+        (warnings.length === 0
+          ? " Discord-Rollen wurden synchronisiert."
+          : "") +
         (warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
     });
   }
@@ -560,6 +580,66 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
             </button>
           </div>
         </div>
+
+        {preferenceGroups.length > 0 ? (
+          <section className="rounded-[1.8rem] border border-cyan-200/14 bg-cyan-300/[0.035] p-4 shadow-xl shadow-black/16">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">
+                  Wunschgruppen
+                </div>
+                <p className="mt-1 text-xs leading-5 text-emerald-100/48">
+                  Gemeinsame Einteilung ist ein Wunsch und keine Garantie.
+                </p>
+              </div>
+              <span className="rounded-full border border-cyan-200/16 bg-cyan-300/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50/66">
+                {preferenceGroups.length} Gruppen
+              </span>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {preferenceGroups.map(({ code, members }) => {
+                const assignedTeamKeys = new Set(
+                  members
+                    .map((member) => state.assignments.get(member.discordId)?.teamKey)
+                    .filter((teamKey): teamKey is string => Boolean(teamKey)),
+                );
+                const placement =
+                  assignedTeamKeys.size === 0
+                    ? "Noch nicht zugewiesen"
+                    : assignedTeamKeys.size === 1
+                      ? `Gemeinsam: ${teamByKey.get([...assignedTeamKeys][0])?.name ?? [...assignedTeamKeys][0]}`
+                      : `Auf ${assignedTeamKeys.size} Teams verteilt`;
+
+                return (
+                  <div
+                    key={code}
+                    className="rounded-2xl border border-white/9 bg-black/18 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <PreferenceGroupBadge code={code} />
+                      <span className="text-[10px] font-black text-emerald-100/38">
+                        {members.length}/5
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-cyan-100/54">
+                      {placement}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {members.map((member) => (
+                        <span
+                          key={member.discordId}
+                          className="rounded-lg border border-white/8 bg-white/[0.035] px-2 py-1 text-[10px] font-bold text-emerald-100/68"
+                        >
+                          {member.displayName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {snapshot.teams.length === 0 ? (
           <div className="rounded-[1.8rem] border border-amber-200/24 bg-amber-200/[0.08] p-6 text-sm leading-7 text-amber-50">
@@ -998,56 +1078,109 @@ function PlayerRow({
   onSetRole: (role: PlayerRole) => void;
   onToggleCaptain: () => void;
 }) {
+  const discordUsername = applicant?.discordUsername
+    ?.replace(/^@+/, "")
+    .trim();
+  const playerLabel = discordUsername
+    ? `@${discordUsername}`
+    : applicant?.discordHandle?.trim()
+      || applicant?.displayName?.trim()
+      || discordId;
+
   return (
     <div
-      className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 ${
+      className={`grid gap-2.5 rounded-xl border px-3 py-2.5 ${
         isCaptain
           ? "border-lime-200/40 bg-lime-200/10"
           : "border-white/10 bg-black/24"
       } ${pulsing ? "roster-row-pulse" : ""}`}
     >
-      <select
-        value={role}
-        onChange={(event) => onSetRole(event.target.value as PlayerRole)}
-        className="rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-lime-200/72"
-      >
-        {ALL_ROLES.map((r) => (
-          <option key={r} value={r}>
-            {r}
-          </option>
-        ))}
-      </select>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-black text-emerald-50">
-          {applicant?.discordUsername
-            ? `@${applicant.discordUsername}`
-            : applicant?.discordHandle ?? discordId}
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className="min-w-0 flex-1 truncate text-sm font-black text-emerald-50"
+            title={playerLabel}
+          >
+            {playerLabel}
+          </div>
+          {isCaptain ? (
+            <span className="shrink-0 rounded-full border border-lime-200/28 bg-lime-200/12 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-lime-50">
+              Captain
+            </span>
+          ) : null}
         </div>
-        <div className="truncate text-[10px] text-emerald-100/52">
+        <div
+          className="mt-0.5 truncate text-[10px] text-emerald-100/52"
+          title={[
+            applicant?.riotId,
+            applicant?.currentRank,
+          ].filter(Boolean).join(" · ")}
+        >
           {applicant?.riotId ?? "(no riot id)"}
           {applicant?.currentRank ? ` · ${applicant.currentRank}` : ""}
         </div>
+        {applicant?.preferenceGroupCode ? (
+          <div className="mt-1.5">
+            <PreferenceGroupBadge code={applicant.preferenceGroupCode} />
+          </div>
+        ) : null}
       </div>
-      <button
-        type="button"
-        onClick={onToggleCaptain}
-        title={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
-        className={`rounded-md border px-1.5 py-1 text-xs ${
-          isCaptain
-            ? "border-lime-200/40 bg-lime-200/14 text-lime-50"
-            : "border-white/12 bg-black/24 text-emerald-100/52 hover:text-lime-100"
-        }`}
-      >
-        ⭐
-      </button>
-      <button
-        type="button"
-        onClick={onUnassign}
-        title="Vom Team entfernen"
-        className="rounded-md border border-white/12 bg-black/24 px-1.5 py-1 text-xs text-emerald-100/52 hover:text-red-200"
-      >
-        ✕
-      </button>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-lime-200/52">
+            Rolle
+          </span>
+          <select
+            value={role}
+            onChange={(event) => onSetRole(event.target.value as PlayerRole)}
+            className="min-w-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100 outline-none transition focus:border-lime-200/40"
+          >
+            {ALL_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {applicant?.riotId ? (
+            <a
+              href={opggUrl(applicant.riotId)}
+              target="_blank"
+              rel="noreferrer"
+              title={`${applicant.riotId} auf OP.GG öffnen`}
+              aria-label={`${applicant.riotId} auf OP.GG öffnen`}
+              className="inline-flex h-8 items-center rounded-lg border border-white/12 bg-black/24 px-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100/64 transition hover:border-lime-200/34 hover:text-lime-100"
+            >
+              OP.GG
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={onToggleCaptain}
+            title={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
+            aria-label={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
+            className={`inline-flex size-8 items-center justify-center rounded-lg border text-xs transition ${
+              isCaptain
+                ? "border-lime-200/40 bg-lime-200/14 text-lime-50"
+                : "border-white/12 bg-black/24 text-emerald-100/52 hover:border-lime-200/30 hover:text-lime-100"
+            }`}
+          >
+            ⭐
+          </button>
+          <button
+            type="button"
+            onClick={onUnassign}
+            title="Vom Team entfernen"
+            aria-label="Vom Team entfernen"
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-red-300/30 hover:text-red-200"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1060,8 +1193,23 @@ function ApplicantCard({ applicant }: { applicant: RosterApplicant; compact?: bo
           ? `@${applicant.discordUsername}`
           : applicant.discordHandle}
       </div>
-      <div className="truncate text-[10px] text-emerald-100/52">{applicant.riotId}</div>
+      <div className="mt-0.5 flex items-center gap-2">
+        <div className="min-w-0 flex-1 truncate text-[10px] text-emerald-100/52">
+          {applicant.riotId}
+        </div>
+        <a
+          href={opggUrl(applicant.riotId)}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 rounded-md border border-white/12 bg-black/24 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/58 transition hover:border-lime-200/34 hover:text-lime-100"
+        >
+          OP.GG
+        </a>
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-1">
+        {applicant.preferenceGroupCode ? (
+          <PreferenceGroupBadge code={applicant.preferenceGroupCode} />
+        ) : null}
         {applicant.currentRank ? (
           <span className="rounded-full border border-lime-200/24 bg-lime-200/10 px-2 py-0.5 text-[10px] font-bold text-lime-50">
             {applicant.currentRank}
@@ -1165,6 +1313,13 @@ function Picker({
                       {applicant.riotId}
                       {applicant.currentRank ? ` · ${applicant.currentRank}` : ""}
                     </div>
+                    {applicant.preferenceGroupCode ? (
+                      <div className="mt-1">
+                        <PreferenceGroupBadge
+                          code={applicant.preferenceGroupCode}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </button>
               ))}
@@ -1183,5 +1338,16 @@ function Picker({
         </div>
       </div>
     </div>
+  );
+}
+
+function PreferenceGroupBadge({ code }: { code: string }) {
+  return (
+    <span
+      title="Unverbindliche Wunschgruppe"
+      className="inline-flex rounded-full border border-cyan-200/22 bg-cyan-300/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50/76"
+    >
+      Wunsch · {code}
+    </span>
   );
 }

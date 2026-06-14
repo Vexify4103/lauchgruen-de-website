@@ -2,12 +2,21 @@ import { TournamentLink as Link } from "../TournamentLink";
 import { headers } from "next/headers";
 import { auth, signIn, signOut } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
+import {
+  TOURNAMENT_APPLICATION_DEADLINE_LABEL,
+  areTournamentApplicationsOpen,
+  isTournamentApplicationDeadlinePassed,
+} from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { getVerifiedAccount } from "@/lib/tournament-storage";
+import {
+  findApplicationByDiscordId,
+  getVerifiedAccount,
+} from "@/lib/tournament-storage";
 import { ApplicationForm } from "./ApplicationForm";
 
 const rules = [
-  "Du meldest dich verbindlich für beide Abende an: Freitag, 19.06. und Samstag, 20.06. jeweils um 18:00 Uhr.",
+  `Bewerbungsschluss ist ${TOURNAMENT_APPLICATION_DEADLINE_LABEL}.`,
+  "Du meldest dich verbindlich für beide Tage an: Freitag, 19.06. um 18:00 Uhr und Samstag, 20.06. um 16:00 Uhr.",
   "Gespielt wird mit gelosten A-Z Champion-Pools. Pro Runde sind nur Champions aus dem aktuellen Pool erlaubt.",
   "Deine Riot-Verifizierung, Main Rolle und Wunschrollen werden fürs faire Team-Balancing genutzt.",
   "Kein toxisches Verhalten, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
@@ -16,7 +25,8 @@ const rules = [
 
 export default async function ApplyPage() {
   const settings = await getTournamentSettings();
-  if (!settings.applicationsOpen) {
+  const deadlinePassed = isTournamentApplicationDeadlinePassed();
+  if (!areTournamentApplicationsOpen(settings.applicationsOpen)) {
     return (
       <div className="px-5 py-10 sm:py-14">
         <section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-amber-200/16 bg-amber-200/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
@@ -24,12 +34,14 @@ export default async function ApplyPage() {
             Bewerbungen geschlossen
           </div>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-amber-50">
-            Bewerbungen öffnen in Kürze wieder.
+            {deadlinePassed
+              ? "Der Bewerbungsschluss ist vorbei."
+              : "Bewerbungen öffnen in Kürze wieder."}
           </h1>
           <p className="mt-4 text-sm leading-7 text-emerald-100/72">
-            Das A-Z Turnier findet am 19.06. und 20.06. abends statt. Wenn du
-            grundsätzlich Interesse und Zeit hast, melde dich im Discord bei
-            Luca oder dem Orga-Team, bis das Formular wieder offen ist.
+            {deadlinePassed
+              ? `Die Anmeldung war bis ${TOURNAMENT_APPLICATION_DEADLINE_LABEL} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
+              : "Das A-Z Turnier findet am 19.06. und 20.06. abends statt. Wenn du grundsätzlich Interesse und Zeit hast, melde dich im Discord bei Luca oder dem Orga-Team, bis das Formular wieder offen ist."}
           </p>
           <Link
             href="/tournament"
@@ -59,9 +71,12 @@ export default async function ApplyPage() {
     : null;
   const isGuildMember =
     liveGuildMember ?? (session?.user.discordInGuild ?? !process.env.DISCORD_GUILD_ID);
-  const verifiedAccount = discordIdentity
-    ? await getVerifiedAccount(discordIdentity.id)
-    : null;
+  const [verifiedAccount, existingApplication] = discordIdentity
+    ? await Promise.all([
+        getVerifiedAccount(discordIdentity.id),
+        findApplicationByDiscordId(discordIdentity.id),
+      ])
+    : [null, null];
   const initialVerified = verifiedAccount
     ? {
         riotId: verifiedAccount.riotId,
@@ -87,6 +102,9 @@ export default async function ApplyPage() {
               zu planen. Bitte trag direkt ein, wenn du an einem der beiden Abende
               unsicher bist.
             </p>
+            <div className="mt-5 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-4 py-3 text-sm font-black text-amber-50">
+              Bewerbungsschluss: {TOURNAMENT_APPLICATION_DEADLINE_LABEL}
+            </div>
           </div>
 
           <div className="rounded-[2rem] border border-amber-200/14 bg-amber-200/[0.06] p-6">
@@ -166,6 +184,7 @@ export default async function ApplyPage() {
             isGuildMember={isGuildMember}
             discordInviteUrl={DISCORD_INVITE_URL}
             initialVerified={initialVerified}
+            initialApplication={existingApplication}
           />
         </div>
       </section>

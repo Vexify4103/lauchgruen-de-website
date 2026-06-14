@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import { formatGameDuration } from "@/lib/match-duration";
 
 const statuses = ["Scheduled", "Live", "Finished", "Pending", "Locked"] as const;
 const statusOptions = statuses.map((value) => ({ value, label: value }));
@@ -51,6 +52,7 @@ export function MatchAdminClient({
         id,
         scoreA: formData.get("scoreA"),
         scoreB: formData.get("scoreB"),
+        gameDuration: formData.get("gameDuration"),
         status: formData.get("status"),
       }),
     });
@@ -110,14 +112,17 @@ export function MatchAdminClient({
 function groupMatchesByRound(matches: AdminMatch[]) {
   const sections = new Map<string, AdminMatch[]>();
   for (const match of matches) {
-    const label = match.phase === "groups"
-      ? `Gruppenphase · ${match.round}`
+    const groupRound = match.phase === "groups"
+      ? /^[ab]-r(\d+)-\d+$/.exec(match.id)?.[1]
+      : null;
+    const label = groupRound
+      ? `Gruppenphase · Runde ${groupRound}`
       : `Playoffs · ${match.round}`;
     sections.set(label, [...(sections.get(label) ?? []), match]);
   }
   return [...sections.entries()].map(([label, entries]) => ({
     label,
-    matches: entries.sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "")),
+    matches: entries.sort((a, b) => a.id.localeCompare(b.id)),
   }));
 }
 
@@ -159,9 +164,22 @@ function MatchRow({
         </span>
       </header>
 
-      <div className="grid gap-3 md:grid-cols-[5rem_5rem_minmax(0,11rem)_minmax(0,1fr)_auto_auto] md:items-end">
+      <div className="grid gap-3 sm:grid-cols-2">
         <NumberField short="A" name="scoreA" team={base.teamA} value={stored.scoreA} />
         <NumberField short="B" name="scoreB" team={base.teamB} value={stored.scoreB} />
+        <label className="grid gap-2">
+          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">
+            Spielzeit
+          </span>
+          <input
+            name="gameDuration"
+            inputMode="numeric"
+            placeholder="mm:ss"
+            pattern="\d{1,3}:[0-5]\d"
+            defaultValue={formatGameDuration(stored.gameDurationSeconds)}
+            className="w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-center text-sm font-black text-emerald-50 outline-none transition placeholder:text-emerald-100/24 focus:border-lime-200/40"
+          />
+        </label>
 
         <div className="grid gap-2">
           <span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">
@@ -191,18 +209,20 @@ function MatchRow({
           </div>
         </div>
 
-        <button
-          type="submit"
-          className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
-        >
-          Speichern
-        </button>
-        <Link
-          href={`/tournament/admin/matches/${base.id}`}
-          className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
-        >
-          Control Room
-        </Link>
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+          <button
+            type="submit"
+            className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5"
+          >
+            Speichern
+          </button>
+          <Link
+            href={`/tournament/admin/matches/${base.id}`}
+            className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
+          >
+            Control Room
+          </Link>
+        </div>
       </div>
     </form>
   );

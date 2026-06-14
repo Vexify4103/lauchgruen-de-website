@@ -32,16 +32,23 @@ export default async function MatchControlRoomPage({
   ]);
   const match = ctx.matches.find((entry) => entry.id === id);
   if (!match) notFound();
+  const groupRound = match.phase === "groups"
+    ? /^[ab]-r(\d+)-\d+$/.exec(match.id)?.[1]
+    : null;
   const parallelMatches = ctx.matches.filter((entry) =>
     entry.id !== match.id
     && entry.phase === match.phase
-    && entry.round === match.round
+    && (
+      groupRound
+        ? /^[ab]-r(\d+)-\d+$/.exec(entry.id)?.[1] === groupRound
+        : entry.round === match.round
+    )
     && entry.teamAName
     && entry.teamBName,
   );
 
   return (
-    <div className="px-5 py-10 sm:py-14">
+    <div className="px-5 py-6 sm:py-8">
       <section className="mx-auto w-full max-w-7xl">
         <MatchControlRoomClient
           match={match}

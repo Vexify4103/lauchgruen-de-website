@@ -4,6 +4,7 @@ import Image from "next/image";
 import { TournamentLink as Link } from "../TournamentLink";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { announcedDates } from "@/lib/tournament-data";
+import type { TournamentApplication } from "@/lib/tournament-storage";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 
@@ -33,6 +34,17 @@ type Challenge = {
   expiresAt: string;
 };
 
+type ExistingApplication = Pick<
+  TournamentApplication,
+  | "displayName"
+  | "mainRole"
+  | "preferredRoles"
+  | "availableAllDates"
+  | "notes"
+  | "acceptedRules"
+  | "acceptedDataStorage"
+>;
+
 function linkedRiotId(riotId: string) {
   return encodeURIComponent(riotId.replace("#", "-"));
 }
@@ -50,14 +62,21 @@ export function ApplicationForm({
   isGuildMember,
   discordInviteUrl,
   initialVerified,
+  initialApplication,
 }: {
   discordIdentity: DiscordIdentity;
   isGuildMember: boolean;
   discordInviteUrl: string;
   initialVerified: VerifiedAccount;
+  initialApplication: ExistingApplication | null;
 }) {
   const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
-  const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
+  const [preferredRoles, setPreferredRoles] = useState<string[]>(
+    initialApplication?.preferredRoles ?? [],
+  );
+  const [hasApplication, setHasApplication] = useState(
+    Boolean(initialApplication),
+  );
   const [state, setState] = useState<SubmitState>(initialState);
   const [guildMember, setGuildMember] = useState(isGuildMember);
   const [membershipStatus, setMembershipStatus] = useState<
@@ -84,7 +103,12 @@ export function ApplicationForm({
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    setState({ status: "loading", message: "Bewerbung wird abgeschickt..." });
+    setState({
+      status: "loading",
+      message: hasApplication
+        ? "Änderungen werden gespeichert..."
+        : "Bewerbung wird abgeschickt...",
+    });
 
     const payload = {
       displayName: String(formData.get("displayName") ?? ""),
@@ -118,6 +142,7 @@ export function ApplicationForm({
       status: "success",
       message: result?.message ?? "Bewerbung gespeichert.",
     });
+    setHasApplication(true);
   }
 
   if (!discordIdentity) {
@@ -132,7 +157,7 @@ export function ApplicationForm({
   async function recheckMembership() {
     setMembershipStatus({
       kind: "loading",
-      message: "Discord-Mitgliedschaft wird geprueft...",
+      message: "Discord-Mitgliedschaft wird geprüft...",
     });
     const response = await fetch("/api/tournament/membership", {
       cache: "no-store",
@@ -145,7 +170,7 @@ export function ApplicationForm({
       setGuildMember(true);
       setMembershipStatus({
         kind: "success",
-        message: result.message ?? "Discord-Mitgliedschaft bestaetigt.",
+        message: result.message ?? "Discord-Mitgliedschaft bestätigt.",
       });
       return;
     }
@@ -222,6 +247,13 @@ export function ApplicationForm({
         onSubmit={onSubmit}
         className={`grid gap-5 ${verified ? "" : "pointer-events-none opacity-50"}`}
       >
+        {hasApplication ? (
+          <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-50">
+            Du bist bereits angemeldet. Hier kannst du deine Bewerbung
+            aktualisieren.
+          </div>
+        ) : null}
+
         <label className="grid gap-2">
           <span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
             Angekündigte Turniertermine
@@ -233,13 +265,26 @@ export function ApplicationForm({
           />
         </label>
 
-        <Consent name="availableAllDates">
+        <Consent
+          name="availableAllDates"
+          defaultChecked={initialApplication?.availableAllDates ?? false}
+        >
           Ich kann am 19.06. und 20.06. abends verbindlich teilnehmen. Wenn ich unsicher bin, schreibe ich es in die Notizen.
         </Consent>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?" />
-          <ThemedSelectField label="Main Rolle" name="mainRole" options={roleOptions} />
+          <Field
+            label="Anzeigename"
+            name="displayName"
+            placeholder="Wie soll das Orga-Team dich nennen?"
+            defaultValue={initialApplication?.displayName ?? ""}
+          />
+          <ThemedSelectField
+            label="Main Rolle"
+            name="mainRole"
+            options={roleOptions}
+            initialValue={initialApplication?.mainRole ?? ""}
+          />
           <ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
           <ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
           <ReadOnlyField
@@ -268,17 +313,24 @@ export function ApplicationForm({
           <textarea
             name="notes"
             rows={3}
+            defaultValue={initialApplication?.notes ?? ""}
             placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder wenn du an einem der beiden Tage unsicher bist."
             className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
           />
         </label>
 
         <div className="grid gap-3">
-          <Consent name="acceptedRules">
+          <Consent
+            name="acceptedRules"
+            defaultChecked={initialApplication?.acceptedRules ?? false}
+          >
             Ich habe die A-Z Regeln gelesen und verstehe, dass toxisches Verhalten
             oder absichtliches Stören zum Ausschluss führen kann.
           </Consent>
-          <Consent name="acceptedDataStorage">
+          <Consent
+            name="acceptedDataStorage"
+            defaultChecked={initialApplication?.acceptedDataStorage ?? false}
+          >
             Ich bin damit einverstanden, dass meine Turnierbewerbung zur
             Eventorganisation gespeichert wird.
           </Consent>
@@ -301,7 +353,13 @@ export function ApplicationForm({
           disabled={state.status === "loading" || !verified}
           className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:opacity-60"
         >
-          {state.status === "loading" ? "Wird abgeschickt..." : "Bewerbung absenden"}
+          {state.status === "loading"
+            ? hasApplication
+              ? "Änderungen werden gespeichert..."
+              : "Wird abgeschickt..."
+            : hasApplication
+              ? "Bewerbung ändern"
+              : "Bewerbung absenden"}
         </button>
         <p className="text-xs leading-5 text-emerald-100/48">
           Mit dem Absenden bestätigst du verbindlich die{" "}
@@ -573,10 +631,12 @@ function Field({
   label,
   name,
   placeholder,
+  defaultValue,
 }: {
   label: string;
   name: string;
   placeholder: string;
+  defaultValue?: string;
 }) {
   return (
     <label className="grid gap-2">
@@ -586,6 +646,7 @@ function Field({
       <input
         name={name}
         required
+        defaultValue={defaultValue}
         placeholder={placeholder}
         className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
       />
@@ -597,12 +658,14 @@ function ThemedSelectField({
   label,
   name,
   options,
+  initialValue = "",
 }: {
   label: string;
   name: string;
   options: string[];
+  initialValue?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   return (
     <label className="grid gap-2">
       <span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
@@ -669,10 +732,24 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Consent({ name, children }: { name: string; children: ReactNode }) {
+function Consent({
+  name,
+  children,
+  defaultChecked = false,
+}: {
+  name: string;
+  children: ReactNode;
+  defaultChecked?: boolean;
+}) {
   return (
     <label className="flex gap-3 rounded-2xl border border-white/10 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
-      <input required type="checkbox" name={name} className="mt-1 size-4 shrink-0 accent-lime-300" />
+      <input
+        required
+        type="checkbox"
+        name={name}
+        defaultChecked={defaultChecked}
+        className="mt-1 size-4 shrink-0 accent-lime-300"
+      />
       <span>{children}</span>
     </label>
   );

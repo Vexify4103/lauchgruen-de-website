@@ -51,6 +51,10 @@ function formatDate(iso: string): string {
   }
 }
 
+function opggUrl(riotId: string): string {
+  return `https://www.op.gg/summoners/euw/${encodeURIComponent(riotId.replace("#", "-"))}`;
+}
+
 export default async function ApplicantsPage() {
   const session = await auth();
   const discordId = session?.user?.discordId;
@@ -180,7 +184,19 @@ function ApplicantCard({
           <div className="truncate text-lg font-black text-emerald-50">
             {app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}
           </div>
-          <div className="truncate text-xs text-lime-200/72">{app.riotId}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <div className="min-w-0 truncate text-xs text-lime-200/72">
+              {app.riotId}
+            </div>
+            <a
+              href={opggUrl(app.riotId)}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-lg border border-white/12 bg-black/24 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/68 transition hover:border-lime-200/34 hover:text-lime-100"
+            >
+              OP.GG
+            </a>
+          </div>
         </div>
         <div className="flex shrink-0 items-start gap-2">
           {assignedTo ? (
