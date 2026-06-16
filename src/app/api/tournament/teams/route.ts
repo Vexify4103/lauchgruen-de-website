@@ -13,11 +13,13 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { claimAdminVersion } from "@/lib/admin-version";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
+  expectedVersion: z.number().int().min(0),
   name: z.string().trim().min(2).max(60),
   group: z.enum(["A", "B"]),
   seed: z.coerce.number().int().min(1).max(4).optional(),
@@ -26,6 +28,7 @@ const bodySchema = z.object({
 });
 
 const patchSchema = z.object({
+  expectedVersion: z.number().int().min(0).optional(),
   key: z.string().trim().min(1),
   name: z.string().trim().min(2).max(60),
   group: z.enum(["A", "B"]).optional(),
@@ -381,6 +384,15 @@ export async function POST(request: Request) {
     }
   }
 
+  const versionClaim = await claimAdminVersion({
+    resource: "roster",
+    expectedVersion: parsed.data.expectedVersion,
+    updatedBy: session.user.discordHandle ?? discordId,
+  });
+  if (!versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
+  }
+
   let roleId: string | undefined;
   let voiceChannelId: string | undefined;
   let textChannelId: string | undefined;
@@ -455,6 +467,7 @@ export async function POST(request: Request) {
     voiceChannelId,
     textChannelId,
     warnings,
+    version: versionClaim.version,
   });
 }
 
@@ -523,6 +536,18 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const versionClaim =
+    isOwner && parsed.data.expectedVersion !== undefined
+      ? await claimAdminVersion({
+          resource: "roster",
+          expectedVersion: parsed.data.expectedVersion,
+          updatedBy: session.user.discordHandle ?? discordId,
+        })
+      : null;
+  if (versionClaim && !versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
+  }
+
   const nextTeam: StoredTeam = {
     ...existing,
     name: newName,
@@ -565,6 +590,7 @@ export async function PATCH(request: Request) {
     key: newKey,
     name: newName,
     warnings,
+    ...(versionClaim?.ok ? { version: versionClaim.version } : {}),
   });
 }
 
@@ -637,6 +663,7 @@ export async function DELETE(request: Request) {
   }
 
   const key = new URL(request.url).searchParams.get("key")?.trim().toLowerCase();
+  const expectedVersionValue = new URL(request.url).searchParams.get("expectedVersion");
   if (!key) {
     return NextResponse.json(
       { message: "Query-Parameter 'key' erforderlich." },
@@ -658,11 +685,32 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: "Team nicht gefunden." }, { status: 404 });
   }
 
+  const expectedVersion = Number(expectedVersionValue);
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
+    return NextResponse.json(
+      { message: "Eine gültige Roster-Version ist erforderlich." },
+      { status: 400 },
+    );
+  }
+  const versionClaim = await claimAdminVersion({
+    resource: "roster",
+    expectedVersion,
+    updatedBy: session.user.discordHandle ?? discordId,
+  });
+  if (!versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
+  }
+
   const warnings = await deleteDiscordTeamResources(team);
 
   await db
     .collection<{ _id: string }>("bot_state")
     .updateOne({ _id: "default" }, { $unset: { [`teams.${key}`]: "" } });
 
-  return NextResponse.json({ ok: true, key, warnings });
+  return NextResponse.json({
+    ok: true,
+    key,
+    warnings,
+    version: versionClaim.version,
+  });
 }

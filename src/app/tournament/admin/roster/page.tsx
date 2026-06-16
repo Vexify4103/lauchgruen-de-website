@@ -3,6 +3,7 @@ import { auth, signIn } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { loadRosterSnapshot } from "@/lib/roster";
 import { RosterBuilder } from "./RosterBuilder";
+import { getAdminVersion } from "@/lib/admin-version";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,10 @@ export default async function RosterPage() {
     );
   }
 
-  const snapshot = await loadRosterSnapshot();
+  const [snapshot, version] = await Promise.all([
+    loadRosterSnapshot(),
+    getAdminVersion("roster"),
+  ]);
 
   return (
     <div className="px-5 py-10 sm:py-14">
@@ -43,14 +47,10 @@ export default async function RosterPage() {
               Roster-Builder
             </div>
             <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-              Verifizierte Bewerber Teams zuweisen.
+              Spielerteams einteilen
             </h1>
             <p className="mt-4 text-sm leading-7 text-emerald-100/68">
-              Klicke einen leeren Rollen-Slot, um einen Spieler zuzuweisen.
-              Spieler sind nach Rang sortiert; ein 👍 markiert alle, die diese
-              Rolle in der Bewerbung als Wunsch angegeben haben. Captain ⭐
-              kann pro Team umgeschaltet werden. „Speichern“ schreibt alles
-              atomar in den Bot.
+              Klicke einen leeren Rollen-Slot, um einen Spieler zuzuweisen
             </p>
           </div>
           <Link
@@ -62,7 +62,7 @@ export default async function RosterPage() {
         </div>
 
         <div className="mt-8">
-          <RosterBuilder snapshot={snapshot} />
+          <RosterBuilder snapshot={snapshot} initialVersion={version} />
         </div>
       </section>
     </div>

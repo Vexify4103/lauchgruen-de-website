@@ -25,7 +25,9 @@ type BotStoredPlayer = {
   riotId: string;
   puuid: string;
   discordId?: string;
+  discordUsername?: string;
   role?: PlayerRole;
+  verificationStatus?: "verified" | "manual";
 };
 
 type BotTeamMeta = {
@@ -73,6 +75,8 @@ export type RosterApplicant = {
   acceptedDataStorage: boolean;
   createdAt: string;
   updatedAt: string;
+  verified: boolean;
+  source: "application" | "manual";
 };
 
 export type RosterTeam = {
@@ -131,6 +135,21 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
       preferenceGroupByDiscordId.get(application.discordId),
     ),
   );
+  const applicantIds = new Set(applicants.map((applicant) => applicant.discordId));
+
+  for (const team of Object.values(teamsObj)) {
+    for (const player of team.players ?? []) {
+      if (
+        !player.discordId
+        || player.verificationStatus !== "manual"
+        || applicantIds.has(player.discordId)
+      ) {
+        continue;
+      }
+      applicants.push(toManualApplicant(player));
+      applicantIds.add(player.discordId);
+    }
+  }
 
   return { applicants, teams };
 }
@@ -156,6 +175,32 @@ function toApplicant(
     acceptedDataStorage: app.acceptedDataStorage,
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
+    verified: true,
+    source: "application",
+  };
+}
+
+function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
+  const now = new Date().toISOString();
+  const discordUsername = player.discordUsername?.replace(/^@+/, "").trim();
+  return {
+    discordId: player.discordId ?? "",
+    discordHandle: discordUsername ? `@${discordUsername}` : player.discordId ?? "",
+    discordUsername,
+    displayName: discordUsername || player.riotId.split("#")[0] || "Ersatzspieler",
+    riotId: player.riotId,
+    puuid: player.puuid,
+    currentRank: null,
+    mainRole: "Sub",
+    preferredRoles: ["Sub"],
+    availableAllDates: false,
+    notes: "Manuell durch die Turnierleitung als Ersatzspieler eingetragen.",
+    acceptedRules: false,
+    acceptedDataStorage: false,
+    createdAt: now,
+    updatedAt: now,
+    verified: false,
+    source: "manual",
   };
 }
 
@@ -171,12 +216,20 @@ export type RosterSavePayload = {
   teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>>;
   /** Optional captain change per team (discordId or null to clear). */
   captains?: Record<string, string | null>;
+  /** Emergency substitutes entered by an admin without account verification. */
+  manualPlayers?: Record<
+    string,
+    {
+      discordUsername: string;
+      riotId: string;
+    }
+  >;
 };
 
 /**
  * Applies a roster snapshot to bot_state. Validates that:
  * 1. Every team key references an existing team
- * 2. Every discordId has a verified Riot account
+ * 2. Every discordId has a verified Riot account or an explicit manual substitute record
  * 3. No discordId appears on more than one team
  * Returns a summary of changes for the response.
  */
@@ -226,7 +279,8 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
     return { applied: 0, teamsUpdated: 0, errors, warnings: [] };
   }
 
-  // Resolve all referenced discordIds → verified Riot accounts in one query.
+  // Resolve all referenced discordIds to verified Riot accounts or explicitly
+  // admin-entered emergency substitutes.
   const allDiscordIds = [...new Set(Array.from(seen.keys()))];
   const verifiedDocs = await db
     .collection<{ _id: string; riotId: string; puuid: string; discordId: string }>(
@@ -235,10 +289,21 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
     .find({ _id: { $in: allDiscordIds } })
     .toArray();
   const verifiedByDiscordId = new Map(verifiedDocs.map((v) => [v.discordId, v]));
+  const manualByDiscordId = new Map(
+    Object.entries(payload.manualPlayers ?? {}).map(([discordId, player]) => [
+      discordId,
+      {
+        discordId,
+        discordUsername: player.discordUsername.replace(/^@+/, "").trim(),
+        riotId: player.riotId.trim(),
+        puuid: `manual-${discordId}`,
+      },
+    ]),
+  );
 
   for (const discordId of allDiscordIds) {
-    if (!verifiedByDiscordId.has(discordId)) {
-      errors.push(`Discord user ${discordId} has not verified their Riot account`);
+    if (!verifiedByDiscordId.has(discordId) && !manualByDiscordId.has(discordId)) {
+      errors.push(`Discord-Nutzer ${discordId} hat keinen verifizierten oder manuellen Riot-Account.`);
     }
   }
   if (errors.length > 0) {
@@ -255,11 +320,19 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 
   for (const [teamKey, slots] of Object.entries(payload.teamPlayers)) {
     const players: BotStoredPlayer[] = slots.map((slot) => {
-      const v = verifiedByDiscordId.get(slot.discordId)!;
+      const verified = verifiedByDiscordId.get(slot.discordId);
+      const manual = manualByDiscordId.get(slot.discordId);
+      const account = verified ?? manual!;
       return {
-        riotId: v.riotId,
-        puuid: v.puuid,
-        discordId: v.discordId,
+        riotId: account.riotId,
+        puuid: account.puuid,
+        discordId: account.discordId,
+        ...(manual && !verified
+          ? {
+              discordUsername: manual.discordUsername,
+              verificationStatus: "manual" as const,
+            }
+          : { verificationStatus: "verified" as const }),
         ...(slot.role ? { role: slot.role } : {}),
       };
     });
@@ -278,7 +351,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
       }
       const v = verifiedByDiscordId.get(captainId);
       if (!v) {
-        errors.push(`Captain ${captainId} has no verified Riot account`);
+        errors.push(`Captain ${captainId} benötigt einen verifizierten Riot-Account.`);
         continue;
       }
       setOps[`teams.${teamKey}.meta.captain`] = {

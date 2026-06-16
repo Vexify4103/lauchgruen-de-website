@@ -3,16 +3,25 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 
 export function DeleteApplicantButton({
   discordId,
+  applicationId,
+  initialVersion,
   label,
 }: {
   discordId: string;
+  applicationId: string;
+  initialVersion: number;
   /** Human-readable name shown in the confirm dialog. */
   label: string;
 }) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,12 +31,16 @@ export function DeleteApplicantButton({
     setBusy(true);
     setError(null);
     const response = await fetch(
-      `/api/tournament/applications?discordId=${encodeURIComponent(discordId)}`,
+      `/api/tournament/applications?discordId=${encodeURIComponent(discordId)}&id=${encodeURIComponent(applicationId)}&expectedVersion=${initialVersion}`,
       { method: "DELETE" },
     );
     setBusy(false);
     if (!response.ok) {
       const json = await response.json().catch(() => null);
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return;
+      }
       setError(json?.message ?? "Löschen fehlgeschlagen.");
       return;
     }

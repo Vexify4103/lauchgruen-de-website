@@ -105,7 +105,7 @@ const ruleSections = [
 		text: "Jedes Team spielt zweimal gegen jedes andere Team seiner Gruppe, also sechs Gruppenspiele pro Team. Die Platzierung richtet sich zuerst nach der Sieg-Niederlagen-Bilanz.",
 		list: [
 			"Anzahl der direkten Siege zwischen den gleichstehenden Teams",
-			"Niedrigere durchschnittliche Spielzeit in den gewonnenen Matches",
+			"Niedrigere durchschnittliche Spielzeit der Siege im direkten Vergleich dieser Teams",
 			"Entscheidung durch das Orga-Team, falls weiterhin Gleichstand besteht",
 		],
 		footer: "Fehlende Spielzeiten können nicht zugunsten eines Teams gewertet werden.",

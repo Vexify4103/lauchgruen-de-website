@@ -18,8 +18,8 @@ export type TeamStanding = {
   pointsAgainst: number;
   pointDiff: number;
   headToHeadWins: number;
-  timedWins: number;
-  winDurationSeconds: number;
+  headToHeadTimedWins: number;
+  headToHeadWinDurationSeconds: number;
   avgWinTimeSeconds: number | null;
   rank: number;
   tiebreakerRequired: boolean;
@@ -85,8 +85,8 @@ export function computeGroupStandings(
       pointsAgainst: 0,
       pointDiff: 0,
       headToHeadWins: 0,
-      timedWins: 0,
-      winDurationSeconds: 0,
+      headToHeadTimedWins: 0,
+      headToHeadWinDurationSeconds: 0,
       avgWinTimeSeconds: null,
       rank: 0,
       tiebreakerRequired: false,
@@ -95,6 +95,7 @@ export function computeGroupStandings(
 
     const matches: GroupMatch[] = groupMatches.filter((m) => m.group === group);
     const h2h = new Map<string, Map<string, number>>(); // winnerName → loserName → wins
+    const h2hDurations = new Map<string, Map<string, number[]>>();
 
     for (const match of matches) {
       const stored = state[match.id];
@@ -123,26 +124,30 @@ export function computeGroupStandings(
         b.losses += 1;
         addH2H(h2h, match.teamA, match.teamB);
         if (stored.gameDurationSeconds !== undefined) {
-          a.timedWins += 1;
-          a.winDurationSeconds += stored.gameDurationSeconds;
+          addH2HDuration(
+            h2hDurations,
+            match.teamA,
+            match.teamB,
+            stored.gameDurationSeconds,
+          );
         }
       } else if (stored.scoreB > stored.scoreA) {
         b.wins += 1;
         a.losses += 1;
         addH2H(h2h, match.teamB, match.teamA);
         if (stored.gameDurationSeconds !== undefined) {
-          b.timedWins += 1;
-          b.winDurationSeconds += stored.gameDurationSeconds;
+          addH2HDuration(
+            h2hDurations,
+            match.teamB,
+            match.teamA,
+            stored.gameDurationSeconds,
+          );
         }
       }
     }
 
     for (const standing of standings) {
       standing.pointDiff = standing.pointsFor - standing.pointsAgainst;
-      standing.avgWinTimeSeconds =
-        standing.wins > 0 && standing.timedWins === standing.wins
-          ? standing.winDurationSeconds / standing.wins
-          : null;
       const tiedTeams = standings.filter((other) => other.wins === standing.wins);
       standing.headToHeadWins = tiedTeams.reduce(
         (wins, opponent) =>
@@ -151,6 +156,21 @@ export function computeGroupStandings(
             : wins + (h2h.get(standing.team.name)?.get(opponent.team.name) ?? 0),
         0,
       );
+      const directWinDurations = tiedTeams.flatMap((opponent) =>
+        opponent.team.name === standing.team.name
+          ? []
+          : h2hDurations.get(standing.team.name)?.get(opponent.team.name) ?? [],
+      );
+      standing.headToHeadTimedWins = directWinDurations.length;
+      standing.headToHeadWinDurationSeconds = directWinDurations.reduce(
+        (total, seconds) => total + seconds,
+        0,
+      );
+      standing.avgWinTimeSeconds =
+        standing.headToHeadWins > 0
+        && standing.headToHeadTimedWins === standing.headToHeadWins
+          ? standing.headToHeadWinDurationSeconds / standing.headToHeadWins
+          : null;
     }
 
     standings.sort((a, b) => {
@@ -163,8 +183,6 @@ export function computeGroupStandings(
         if (b.avgWinTimeSeconds === null) return -1;
         return a.avgWinTimeSeconds - b.avgWinTimeSeconds;
       }
-      if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
-      if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
       return a.team.name.localeCompare(b.team.name);
     });
 
@@ -208,6 +226,22 @@ function addH2H(
     table.set(winner, row);
   }
   row.set(loser, (row.get(loser) ?? 0) + 1);
+}
+
+function addH2HDuration(
+  table: Map<string, Map<string, number[]>>,
+  winner: string,
+  loser: string,
+  durationSeconds: number,
+) {
+  let row = table.get(winner);
+  if (!row) {
+    row = new Map();
+    table.set(winner, row);
+  }
+  const durations = row.get(loser) ?? [];
+  durations.push(durationSeconds);
+  row.set(loser, durations);
 }
 
 /**

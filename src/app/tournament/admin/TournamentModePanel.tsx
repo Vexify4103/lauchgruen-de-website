@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 
 const items: Array<{
@@ -30,8 +34,16 @@ const items: Array<{
   },
 ];
 
-export function TournamentModePanel({ initialSettings }: { initialSettings: TournamentSettings }) {
+export function TournamentModePanel({
+  initialSettings,
+  initialVersion,
+}: {
+  initialSettings: TournamentSettings;
+  initialVersion: number;
+}) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
+  const [version, setVersion] = useState(initialVersion);
   const [settings, setSettings] = useState(initialSettings);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -44,16 +56,21 @@ export function TournamentModePanel({ initialSettings }: { initialSettings: Tour
       const response = await fetch("/api/tournament/settings", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ [key]: nextValue }),
+        body: JSON.stringify({ [key]: nextValue, expectedVersion: version }),
       });
       const json = (await response.json().catch(() => null)) as
-        | { settings?: TournamentSettings; message?: string }
+        | { settings?: TournamentSettings; message?: string; version?: number }
         | null;
       if (!response.ok || !json?.settings) {
         setSettings((current) => ({ ...current, [key]: !nextValue }));
+        if (isAdminVersionConflict(response, json)) {
+          showConflict(json);
+          return;
+        }
         setMessage(json?.message ?? "Settings konnten nicht gespeichert werden.");
         return;
       }
+      if (json.version !== undefined) setVersion(json.version);
       setSettings(json.settings);
       setMessage("Settings gespeichert.");
       router.refresh();

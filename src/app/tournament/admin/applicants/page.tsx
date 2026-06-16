@@ -5,12 +5,15 @@ import {
   TOURNAMENT_OWNER_DISCORD_IDS,
   listBlacklistEntries,
   listApplications,
+  listPreferenceGroups,
   type TournamentApplication,
 } from "@/lib/tournament-storage";
 import { DeleteApplicantButton } from "./DeleteApplicantButton";
 import { EditApplicantForm } from "./EditApplicantForm";
 import { RefreshRanksButton } from "./RefreshRanksButton";
 import { BlacklistManager } from "./BlacklistManager";
+import { PreferenceGroupManager } from "./PreferenceGroupManager";
+import { getAdminVersions } from "@/lib/admin-version";
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +84,23 @@ export default async function ApplicantsPage() {
     );
   }
 
-  const [applications, assignedByDiscordId, blacklistEntries] = await Promise.all([
+  const [applications, assignedByDiscordId, blacklistEntries, preferenceGroups] = await Promise.all([
     listApplications(),
     loadAssignmentMap(),
     listBlacklistEntries(),
+    listPreferenceGroups(),
+  ]);
+  const groupByDiscordId = new Map(
+    preferenceGroups.flatMap((group) =>
+      group.memberDiscordIds.map(
+        (memberDiscordId) => [memberDiscordId, group.code] as const,
+      ),
+    ),
+  );
+  const versions = await getAdminVersions([
+    "blacklist",
+    "preference-groups",
+    ...applications.map((app) => `application:${app.id}`),
   ]);
 
   // Newest-first
@@ -124,7 +140,25 @@ export default async function ApplicantsPage() {
           <RefreshRanksButton label="Alle Ränge aktualisieren" confirmBulk />
         </div>
 
-        <BlacklistManager initialEntries={blacklistEntries} />
+        <BlacklistManager
+          initialEntries={blacklistEntries}
+          initialVersion={versions.blacklist ?? 0}
+        />
+
+        <PreferenceGroupManager
+          applicants={sorted.map((app) => ({
+            discordId: app.discordId,
+            displayName: app.displayName,
+            discordHandle: app.discordHandle,
+            riotId: app.riotId,
+            groupCode: groupByDiscordId.get(app.discordId) ?? null,
+          }))}
+          groups={preferenceGroups.map((group) => ({
+            code: group.code,
+            memberDiscordIds: group.memberDiscordIds,
+          }))}
+          initialVersion={versions["preference-groups"] ?? 0}
+        />
 
         {sorted.length === 0 ? (
           <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 text-sm leading-7 text-emerald-100/68">
@@ -137,6 +171,7 @@ export default async function ApplicantsPage() {
                 key={app.id}
                 app={app}
                 assignedTo={assignedByDiscordId.get(app.discordId) ?? null}
+                version={versions[`application:${app.id}`] ?? 0}
               />
             ))}
           </div>
@@ -173,9 +208,11 @@ function StatPill({
 function ApplicantCard({
   app,
   assignedTo,
+  version,
 }: {
   app: TournamentApplication;
   assignedTo: string | null;
+  version: number;
 }) {
   return (
     <article className="flex flex-col gap-3 rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
@@ -213,6 +250,8 @@ function ApplicantCard({
           )}
           <DeleteApplicantButton
             discordId={app.discordId}
+            applicationId={app.id}
+            initialVersion={version}
             label={app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}
           />
         </div>
@@ -231,7 +270,7 @@ function ApplicantCard({
         </Row>
       </div>
 
-      <EditApplicantForm app={app} />
+      <EditApplicantForm app={app} initialVersion={version} />
 
       <div>
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 
 export function RenameTeamForm({
   teamKey,
@@ -17,11 +18,18 @@ export function RenameTeamForm({
     tone: "ok" | "error";
     text: string;
   } | null>(null);
+  const [savedName, setSavedName] = useState(initialName);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveName(): Promise<boolean> {
     const nextName = name.trim();
-    if (nextName === initialName || nextName.length < 2) return;
+    if (nextName === savedName) return true;
+    if (nextName.length < 2) {
+      setMessage({
+        tone: "error",
+        text: "Der Teamname muss mindestens zwei Zeichen lang sein.",
+      });
+      return false;
+    }
 
     setSaving(true);
     setMessage(null);
@@ -40,7 +48,7 @@ export function RenameTeamForm({
         tone: "error",
         text: result?.message ?? "Der Teamname konnte nicht geändert werden.",
       });
-      return;
+      return false;
     }
 
     const warnings = result?.warnings ?? [];
@@ -50,7 +58,20 @@ export function RenameTeamForm({
         ? `Teamname geändert. ${warnings.join(" ")}`
         : "Teamname und Discord-Ressourcen wurden geändert.",
     });
+    setSavedName(nextName);
     router.refresh();
+    return true;
+  }
+
+  useUnsavedChanges({
+    dirty: name.trim() !== savedName,
+    label: "Teamname",
+    save: saveName,
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void saveName();
   }
 
   return (
@@ -75,7 +96,7 @@ export function RenameTeamForm({
         />
         <button
           type="submit"
-          disabled={saving || name.trim() === initialName || name.trim().length < 2}
+          disabled={saving || name.trim() === savedName || name.trim().length < 2}
           className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? "Wird geändert..." : "Namen ändern"}

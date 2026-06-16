@@ -110,15 +110,19 @@ export async function POST(request: Request) {
   const okCount = results.filter((result) => result.ok).length;
   const failCount = results.length - okCount;
   const renamedCount = results.filter((result) => result.previousRiotId).length;
-  await writeAuditLog({
-    action: parsed.data.id ? "rank.refresh_one" : "rank.refresh_all",
-    targetType: "applications",
-    targetId: parsed.data.id ?? "all",
-    summary: `Ranks/Riot-IDs aktualisiert: ${okCount} ok, ${failCount} Fehler, ${renamedCount} Name-Updates.`,
-    actorDiscordId: discordId,
-    actorLabel: session.user.discordHandle ?? discordId,
-    metadata: { okCount, failCount, renamedCount, count: results.length },
-  });
+  try {
+    await writeAuditLog({
+      action: parsed.data.id ? "rank.refresh_one" : "rank.refresh_all",
+      targetType: "applications",
+      targetId: parsed.data.id ?? "all",
+      summary: `Ranks/Riot-IDs aktualisiert: ${okCount} ok, ${failCount} Fehler, ${renamedCount} Name-Updates.`,
+      actorDiscordId: discordId,
+      actorLabel: session.user.discordHandle ?? discordId,
+      metadata: { okCount, failCount, renamedCount, count: results.length },
+    });
+  } catch (error) {
+    console.error("[rank-refresh] Audit-Log konnte nicht geschrieben werden.", error);
+  }
 
   const rateLimited = results.some((result) => result.message?.includes("Rate-Limit"));
   return NextResponse.json(

@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 export const TOURNAMENT_OWNER_DISCORD_IDS = new Set([
   "337568120028004362",
   "411520867978313730",
+  "311497927870775297",
 ]);
 
 export type TournamentApplication = {
@@ -336,6 +337,119 @@ export async function createPreferenceGroup(
   }
 
   throw new Error("CODE_GENERATION_FAILED");
+}
+
+export async function adminCreatePreferenceGroup(
+  discordIds: string[],
+): Promise<TournamentPreferenceGroup> {
+  const uniqueIds = [...new Set(discordIds.map((id) => id.trim()).filter(Boolean))];
+  if (
+    uniqueIds.length === 0
+    || uniqueIds.length > TOURNAMENT_PREFERENCE_GROUP_LIMIT
+  ) {
+    throw new Error("INVALID_GROUP_SIZE");
+  }
+
+  const applications = await Promise.all(
+    uniqueIds.map((discordId) => findApplicationByDiscordId(discordId)),
+  );
+  if (applications.some((application) => !application)) {
+    throw new Error("APPLICATION_REQUIRED");
+  }
+
+  const col = await preferenceGroupsCollection();
+  const existing = await col.findOne({
+    memberDiscordIds: { $in: uniqueIds },
+  });
+  if (existing) throw new Error("ALREADY_IN_GROUP");
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = generatePreferenceGroupCode();
+    const now = new Date().toISOString();
+    try {
+      await col.insertOne({
+        _id: code,
+        memberDiscordIds: uniqueIds,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return {
+        code,
+        memberDiscordIds: uniqueIds,
+        createdAt: now,
+        updatedAt: now,
+      };
+    } catch (error) {
+      const duplicateKey =
+        typeof error === "object"
+        && error !== null
+        && "code" in error
+        && error.code === 11000;
+      if (!duplicateKey) throw error;
+    }
+  }
+
+  throw new Error("CODE_GENERATION_FAILED");
+}
+
+export async function adminMovePreferenceGroupMember(
+  discordId: string,
+  rawTargetCode: string | null,
+): Promise<TournamentPreferenceGroup | null> {
+  const application = await findApplicationByDiscordId(discordId);
+  if (!application) throw new Error("APPLICATION_REQUIRED");
+
+  const col = await preferenceGroupsCollection();
+  const current = await col.findOne({ memberDiscordIds: discordId });
+  const targetCode = rawTargetCode
+    ? normalizePreferenceGroupCode(rawTargetCode)
+    : null;
+
+  if (!targetCode) {
+    await leavePreferenceGroup(discordId);
+    return null;
+  }
+  if (!/^LG-[A-Z2-9]{6}$/.test(targetCode)) {
+    throw new Error("INVALID_GROUP_CODE");
+  }
+  if (current?._id === targetCode) return preferenceGroupFromDoc(current);
+
+  const target = await col.findOne({ _id: targetCode });
+  if (!target) throw new Error("INVALID_GROUP_CODE");
+  if (target.memberDiscordIds.length >= TOURNAMENT_PREFERENCE_GROUP_LIMIT) {
+    throw new Error("GROUP_FULL");
+  }
+
+  if (current) await leavePreferenceGroup(discordId);
+  const result = await col.updateOne(
+    {
+      _id: targetCode,
+      memberDiscordIds: { $ne: discordId },
+      "memberDiscordIds.4": { $exists: false },
+    },
+    {
+      $addToSet: { memberDiscordIds: discordId },
+      $set: { updatedAt: new Date().toISOString() },
+    },
+  );
+
+  if (result.modifiedCount !== 1) {
+    if (current) {
+      await col.updateOne(
+        { _id: current._id },
+        {
+          $addToSet: { memberDiscordIds: discordId },
+          $set: { updatedAt: new Date().toISOString() },
+          $setOnInsert: { createdAt: current.createdAt },
+        },
+        { upsert: true },
+      );
+    }
+    throw new Error("GROUP_FULL");
+  }
+
+  const updated = await col.findOne({ _id: targetCode });
+  return updated ? preferenceGroupFromDoc(updated) : null;
 }
 
 export async function joinPreferenceGroup(

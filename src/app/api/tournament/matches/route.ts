@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
 import { deriveWinner } from "@/lib/bracket-resolver";
 import { parseGameDuration } from "@/lib/match-duration";
@@ -17,6 +18,7 @@ export const runtime = "nodejs";
 
 const matchUpdateSchema = z.object({
   id: z.string().min(1),
+  expectedVersion: z.number().int().min(0),
   scoreA: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().min(0).max(99).optional(),
@@ -98,6 +100,15 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const versionClaim = await claimAdminVersion({
+    resource: `match:${parsed.data.id}`,
+    expectedVersion: parsed.data.expectedVersion,
+    updatedBy: owner.session?.user.discordHandle ?? owner.discordId,
+  });
+  if (!versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
+  }
+
   const winner = deriveWinner(
     parsed.data.id,
     parsed.data.scoreA,
@@ -164,5 +175,5 @@ export async function PATCH(request: Request) {
     },
   });
 
-  return NextResponse.json({ match });
+  return NextResponse.json({ match, version: versionClaim.version });
 }

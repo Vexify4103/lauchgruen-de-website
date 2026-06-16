@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
 import { formatGameDuration } from "@/lib/match-duration";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 
 type MatchStatus = NonNullable<StoredTournamentMatch["status"]>;
 
@@ -30,12 +35,16 @@ export type AdminMatch = {
 export function MatchAdminClient({
   initialMatches,
   initialStored,
+  initialVersions,
 }: {
   initialMatches: AdminMatch[];
   initialStored: Record<string, StoredTournamentMatch>;
+  initialVersions: Record<string, number>;
 }) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
   const [stored, setStored] = useState(initialStored);
+  const [versions, setVersions] = useState(initialVersions);
   const [preparedMatchIds, setPreparedMatchIds] = useState(
     () => new Set(initialMatches.filter((match) => match.poolsDrawn).map((match) => match.id)),
   );
@@ -43,36 +52,43 @@ export function MatchAdminClient({
   const [message, setMessage] = useState("");
   const [isPreparing, startPreparing] = useTransition();
 
-  async function updateMatch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const id = String(formData.get("id") ?? "");
-
+  async function updateMatch(
+    id: string,
+    values: { scoreA: string; scoreB: string; gameDuration: string },
+  ): Promise<boolean> {
     const response = await fetch("/api/tournament/matches", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         id,
-        scoreA: formData.get("scoreA"),
-        scoreB: formData.get("scoreB"),
-        gameDuration: formData.get("gameDuration"),
+        expectedVersion: versions[id] ?? 0,
+        scoreA: values.scoreA,
+        scoreB: values.scoreB,
+        gameDuration: values.gameDuration,
       }),
     });
 
     const result = (await response.json().catch(() => null)) as
-      | { match?: StoredTournamentMatch; message?: string }
+      | { match?: StoredTournamentMatch; message?: string; version?: number }
       | null;
 
     if (!response.ok || !result?.match) {
+      if (isAdminVersionConflict(response, result)) {
+        showConflict(result);
+        return false;
+      }
       setMessage(result?.message ?? "Match konnte nicht aktualisiert werden.");
-      return;
+      return false;
     }
 
     setStored((current) => ({ ...current, [id]: result.match! }));
+    if (result.version !== undefined) {
+      setVersions((current) => ({ ...current, [id]: result.version! }));
+    }
     setMessage("Match aktualisiert.");
     // Re-fetch server data so dependent playoff slots refresh with the new team names.
     router.refresh();
+    return true;
   }
 
   function prepareMatch(match: AdminMatch) {
@@ -143,7 +159,7 @@ export function MatchAdminClient({
                 poolsDrawn={preparedMatchIds.has(match.id)}
                 preparing={preparingId === match.id}
                 onPrepare={() => prepareMatch(match)}
-                onSubmit={updateMatch}
+                onSave={(values) => updateMatch(match.id, values)}
               />
             ))}
           </div>
@@ -176,21 +192,52 @@ function MatchRow({
   poolsDrawn,
   preparing,
   onPrepare,
-  onSubmit,
+  onSave,
 }: {
   base: AdminMatch;
   stored: StoredTournamentMatch;
   poolsDrawn: boolean;
   preparing: boolean;
   onPrepare: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onSave: (values: {
+    scoreA: string;
+    scoreB: string;
+    gameDuration: string;
+  }) => Promise<boolean>;
 }) {
   const status = base.status;
   const tone = statusToneClass[status] ?? statusToneClass.Scheduled;
+  const [scoreA, setScoreA] = useState(stored.scoreA?.toString() ?? "");
+  const [scoreB, setScoreB] = useState(stored.scoreB?.toString() ?? "");
+  const [gameDuration, setGameDuration] = useState(
+    formatGameDuration(stored.gameDurationSeconds),
+  );
+  const [saving, setSaving] = useState(false);
+  const [savedValues, setSavedValues] = useState(
+    JSON.stringify({ scoreA, scoreB, gameDuration }),
+  );
+  const currentValues = JSON.stringify({ scoreA, scoreB, gameDuration });
+
+  async function saveRow(): Promise<boolean> {
+    setSaving(true);
+    const saved = await onSave({ scoreA, scoreB, gameDuration });
+    setSaving(false);
+    if (saved) setSavedValues(currentValues);
+    return saved;
+  }
+
+  useUnsavedChanges({
+    dirty: currentValues !== savedValues,
+    label: `Match ${base.id}`,
+    save: saveRow,
+  });
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void saveRow();
+      }}
       className="grid gap-4 rounded-[1.7rem] border border-white/10 bg-black/18 p-4 sm:p-5"
     >
       <input type="hidden" name="id" value={base.id} />
@@ -214,18 +261,18 @@ function MatchRow({
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <NumberField short="A" name="scoreA" team={base.teamA} value={stored.scoreA} />
-        <NumberField short="B" name="scoreB" team={base.teamB} value={stored.scoreB} />
+        <NumberField short="A" team={base.teamA} value={scoreA} onChange={setScoreA} />
+        <NumberField short="B" team={base.teamB} value={scoreB} onChange={setScoreB} />
         <label className="grid gap-2">
           <span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">
             Spielzeit
           </span>
           <input
-            name="gameDuration"
             inputMode="numeric"
             placeholder="mm:ss"
             pattern="\d{1,3}:[0-5]\d"
-            defaultValue={formatGameDuration(stored.gameDurationSeconds)}
+            value={gameDuration}
+            onChange={(event) => setGameDuration(event.target.value)}
             className="w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-center text-sm font-black text-emerald-50 outline-none transition placeholder:text-emerald-100/24 focus:border-lime-200/40"
           />
         </label>
@@ -258,10 +305,14 @@ function MatchRow({
         <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
           <button
             type="submit"
-            disabled={status === "Locked"}
+            disabled={status === "Locked" || saving}
             className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {status === "Locked" ? "Teilnehmer offen" : "Ergebnis speichern"}
+            {saving
+              ? "Wird gespeichert..."
+              : status === "Locked"
+                ? "Teilnehmer offen"
+                : "Ergebnis speichern"}
           </button>
           <button
             type="button"
@@ -293,14 +344,14 @@ function MatchRow({
 
 function NumberField({
   short,
-  name,
   team,
   value,
+  onChange,
 }: {
   short: string;
-  name: string;
   team: string;
-  value: string | number | undefined;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <label className="grid gap-2" title={`Score · ${team}`}>
@@ -308,10 +359,10 @@ function NumberField({
         Score {short}
       </span>
       <input
-        name={name}
         type="number"
         min="0"
-        defaultValue={value ?? ""}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-center text-sm font-black text-emerald-50 outline-none transition focus:border-lime-200/40"
       />
     </label>

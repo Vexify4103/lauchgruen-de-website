@@ -17,6 +17,12 @@ import {
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { formatGameDuration, parseGameDuration } from "@/lib/match-duration";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 
 function opggMultiSearchUrl(riotIds: string[]) {
   const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -59,6 +65,8 @@ export function MatchControlRoomClient({
   roster,
   draftEnabled,
   parallelMatches,
+  initialVersion,
+  initialRosterVersion,
 }: {
   match: ControlMatch;
   teamA: TournamentTeam | null;
@@ -69,8 +77,13 @@ export function MatchControlRoomClient({
   roster: RosterSnapshot;
   draftEnabled: boolean;
   parallelMatches: ControlMatch[];
+  initialVersion: number;
+  initialRosterVersion: number;
 }) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
+  const [version, setVersion] = useState(initialVersion);
+  const [rosterVersion, setRosterVersion] = useState(initialRosterVersion);
   const draftSequence = createDraftSequence(extraBanSide);
   const draftedPicks = draftedPicksForMatchTeams(
     draft,
@@ -94,7 +107,38 @@ export function MatchControlRoomClient({
   const [message, setMessage] = useState("");
   const [coinTossing, setCoinTossing] = useState(false);
   const [coinWinner, setCoinWinner] = useState<"teamA" | "teamB">(match.blueSide);
+  const [resetDraftConfirmOpen, setResetDraftConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [savedMatchValues, setSavedMatchValues] = useState(
+    JSON.stringify({
+      scoreA: match.scoreA?.toString() ?? "",
+      scoreB: match.scoreB?.toString() ?? "",
+      gameDuration: formatGameDuration(match.gameDurationSeconds),
+      blueSide: match.blueSide,
+      teamAChampions: match.teamAChampions?.length
+        ? match.teamAChampions
+        : draftedPicks.teamA,
+      teamBChampions: match.teamBChampions?.length
+        ? match.teamBChampions
+        : draftedPicks.teamB,
+      adminNote: match.adminNote ?? "",
+    }),
+  );
+  const currentMatchValues = JSON.stringify({
+    scoreA,
+    scoreB,
+    gameDuration,
+    blueSide,
+    teamAChampions,
+    teamBChampions,
+    adminNote,
+  });
+
+  useUnsavedChanges({
+    dirty: currentMatchValues !== savedMatchValues,
+    label: `Match ${match.id}`,
+    save: persistMatch,
+  });
 
   const canDraw = Boolean(teamA && teamB && !match.poolAssignment && status !== "Finished");
   const canPrepare = Boolean(
@@ -160,10 +204,7 @@ export function MatchControlRoomClient({
 
   function resetDraft() {
     if (isPending) return;
-    const confirmed = window.confirm(
-      "Draft für dieses Match vollständig zurücksetzen? Picks, Bans, Ready-Status, Hover, Timer und automatisch übernommene Champions werden gelöscht. Pools und Ergebnisfelder bleiben erhalten.",
-    );
-    if (!confirmed) return;
+    setResetDraftConfirmOpen(false);
 
     setMessage("");
     startTransition(async () => {
@@ -193,40 +234,56 @@ export function MatchControlRoomClient({
     });
   }
 
+  async function persistMatch(): Promise<boolean> {
+    setMessage("");
+    const response = await fetch("/api/tournament/matches", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: match.id,
+        expectedVersion: version,
+        scoreA,
+        scoreB,
+        gameDuration,
+        teamAChampions,
+        teamBChampions,
+        blueSide,
+        adminNote,
+      }),
+    });
+    const json = (await response.json().catch(() => null)) as
+      | {
+          message?: string;
+          match?: { status?: ControlMatch["status"] };
+          version?: number;
+        }
+      | null;
+    if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
+      setMessage(json?.message ?? "Match konnte nicht gespeichert werden.");
+      return false;
+    }
+    if (json?.version !== undefined) setVersion(json.version);
+    if (json?.match?.status) {
+      setStatus(json.match.status);
+    }
+    setSavedMatchValues(currentMatchValues);
+    setMessage(
+      json?.match?.status === "Finished"
+        ? "Ergebnis gespeichert. Match ist abgeschlossen."
+        : "Match gespeichert.",
+    );
+    router.refresh();
+    return true;
+  }
+
   function saveMatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("");
     startTransition(async () => {
-      const response = await fetch("/api/tournament/matches", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: match.id,
-          scoreA,
-          scoreB,
-          gameDuration,
-          teamAChampions,
-          teamBChampions,
-          blueSide,
-          adminNote,
-        }),
-      });
-      const json = (await response.json().catch(() => null)) as
-        | { message?: string; match?: { status?: ControlMatch["status"] } }
-        | null;
-      if (!response.ok) {
-        setMessage(json?.message ?? "Match konnte nicht gespeichert werden.");
-        return;
-      }
-      if (json?.match?.status) {
-        setStatus(json.match.status);
-      }
-      setMessage(
-        json?.match?.status === "Finished"
-          ? "Ergebnis gespeichert. Match ist abgeschlossen."
-          : "Match gespeichert.",
-      );
-      router.refresh();
+      await persistMatch();
     });
   }
 
@@ -299,7 +356,7 @@ export function MatchControlRoomClient({
             ) : null}
             <button
               type="button"
-              onClick={resetDraft}
+              onClick={() => setResetDraftConfirmOpen(true)}
               disabled={isPending}
               className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-red-200/18 bg-red-500/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/76 transition hover:border-red-200/36 hover:text-red-50 disabled:opacity-50 md:flex-none"
             >
@@ -526,12 +583,24 @@ export function MatchControlRoomClient({
             <EmergencySubPanel
               match={match}
               roster={roster}
+              version={rosterVersion}
+              onVersionChange={setRosterVersion}
               onMessage={setMessage}
               embedded
             />
           </div>
         </details>
       </aside>
+      <ConfirmDialog
+        open={resetDraftConfirmOpen}
+        title="Draft vollständig zurücksetzen?"
+        description="Picks, Bans, Ready-Status, Hover, Timer und automatisch übernommene Champions werden gelöscht. Pools und Ergebnisfelder bleiben erhalten."
+        confirmLabel="Draft zurücksetzen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onCancel={() => setResetDraftConfirmOpen(false)}
+        onConfirm={resetDraft}
+      />
     </div>
   );
 }
@@ -934,15 +1003,20 @@ function PoolBadge({ label, pool }: { label: string; pool: string }) {
 function EmergencySubPanel({
   match,
   roster,
+  version,
+  onVersionChange,
   onMessage,
   embedded = false,
 }: {
   match: ControlMatch;
   roster: RosterSnapshot;
+  version: number;
+  onVersionChange: (version: number) => void;
   onMessage: (message: string) => void;
   embedded?: boolean;
 }) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
   const [teamKey, setTeamKey] = useState("");
   const [incomingDiscordId, setIncomingDiscordId] = useState("");
   const [outgoingDiscordId, setOutgoingDiscordId] = useState("");
@@ -955,35 +1029,59 @@ function EmergencySubPanel({
   const incomingOptions = roster.applicants.filter(
     (applicant) => !selectedTeam?.players.some((player) => player.discordId === applicant.discordId),
   );
+  const substituteDirty = Boolean(
+    teamKey || incomingDiscordId || outgoingDiscordId || role !== "Sub",
+  );
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function persistSubstitute(): Promise<boolean> {
     const targetTeamKey = teamKey || selectedTeam?.key || "";
     if (!targetTeamKey || !incomingDiscordId) {
       onMessage("Bitte Team und Ersatzspieler auswählen.");
-      return;
+      return false;
     }
 
-    startTransition(async () => {
-      const response = await fetch("/api/tournament/substitute", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamKey: targetTeamKey,
-          incomingDiscordId,
-          outgoingDiscordId: outgoingDiscordId || undefined,
-          role,
-        }),
-      });
-      const json = (await response.json().catch(() => null)) as { message?: string } | null;
-      if (!response.ok) {
-        onMessage(json?.message ?? "Substitute konnte nicht gespeichert werden.");
-        return;
+    const response = await fetch("/api/tournament/substitute", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        teamKey: targetTeamKey,
+        incomingDiscordId,
+        outgoingDiscordId: outgoingDiscordId || undefined,
+        role,
+        expectedVersion: version,
+      }),
+    });
+    const json = (await response.json().catch(() => null)) as
+      | { message?: string; version?: number }
+      | null;
+    if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
       }
-      onMessage("Emergency Substitute gespeichert.");
-      setIncomingDiscordId("");
-      setOutgoingDiscordId("");
-      router.refresh();
+      onMessage(json?.message ?? "Substitute konnte nicht gespeichert werden.");
+      return false;
+    }
+    if (json?.version !== undefined) onVersionChange(json.version);
+    onMessage("Emergency Substitute gespeichert.");
+    setTeamKey("");
+    setIncomingDiscordId("");
+    setOutgoingDiscordId("");
+    setRole("Sub");
+    router.refresh();
+    return true;
+  }
+
+  useUnsavedChanges({
+    dirty: substituteDirty,
+    label: "Emergency Substitute",
+    save: persistSubstitute,
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    startTransition(async () => {
+      await persistSubstitute();
     });
   }
 

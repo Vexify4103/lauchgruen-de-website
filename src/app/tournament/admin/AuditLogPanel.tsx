@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { TournamentAuditEntry } from "@/lib/tournament-audit";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAuditEntry[] }) {
   const router = useRouter();
@@ -10,6 +11,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
   const [message, setMessage] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function deleteEntry(entry: TournamentAuditEntry) {
@@ -35,11 +37,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
 
   function deleteAllEntries() {
     if (entries.length === 0 || bulkDeleting) return;
-    const confirmed = window.confirm(
-      "Wirklich den kompletten Audit Log löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-    );
-    if (!confirmed) return;
-
+    setBulkDeleteConfirmOpen(false);
     setMessage("");
     setBulkDeleting(true);
     startTransition(async () => {
@@ -78,7 +76,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
           <button
             type="button"
             disabled={entries.length === 0 || isPending || bulkDeleting}
-            onClick={deleteAllEntries}
+            onClick={() => setBulkDeleteConfirmOpen(true)}
             className="rounded-2xl border border-red-300/18 bg-red-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-300/34 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {bulkDeleting ? "Lösche..." : "Alle löschen"}
@@ -127,6 +125,16 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
           {message}
         </div>
       ) : null}
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        title="Audit Log vollständig löschen?"
+        description="Alle gespeicherten Admin-Aktionen werden unwiderruflich entfernt."
+        confirmLabel="Alle Einträge löschen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onCancel={() => setBulkDeleteConfirmOpen(false)}
+        onConfirm={deleteAllEntries}
+      />
     </section>
   );
 }

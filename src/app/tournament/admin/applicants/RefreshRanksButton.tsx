@@ -2,10 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type ApplicationSummary = {
+  id?: string;
   displayName?: string;
   riotId?: string;
+};
+
+type BulkApplicant = {
+  id: string;
+  label: string;
 };
 
 export function RefreshRanksButton({
@@ -27,7 +34,9 @@ export function RefreshRanksButton({
   const [message, setMessage] = useState("");
   const [progressIndex, setProgressIndex] = useState(0);
   const [runtimeNames, setRuntimeNames] = useState<string[]>([]);
+  const [runtimeApplicants, setRuntimeApplicants] = useState<BulkApplicant[]>([]);
   const [runtimeTotal, setRuntimeTotal] = useState(0);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const names = applicantNames.length > 0 ? applicantNames : runtimeNames;
@@ -39,9 +48,10 @@ export function RefreshRanksButton({
     if (!confirmBulk || applicantNames.length > 0 || runtimeNames.length > 0) return;
     let cancelled = false;
 
-    void fetchApplicationNames().then((loaded) => {
+    void fetchApplications().then((loaded) => {
       if (cancelled || loaded.length === 0) return;
-      setRuntimeNames(loaded);
+      setRuntimeApplicants(loaded);
+      setRuntimeNames(loaded.map((applicant) => applicant.label));
       setRuntimeTotal(loaded.length);
     });
 
@@ -50,14 +60,6 @@ export function RefreshRanksButton({
     };
   }, [applicantNames.length, confirmBulk, runtimeNames.length]);
 
-  useEffect(() => {
-    if (!isPending || !confirmBulk) return;
-    const interval = window.setInterval(() => {
-      setProgressIndex((current) => Math.min(effectiveTotal - 1, current + 1));
-    }, estimatedDelayMs);
-    return () => window.clearInterval(interval);
-  }, [confirmBulk, effectiveTotal, estimatedDelayMs, isPending]);
-
   async function ensureBulkNames() {
     if (!confirmBulk) return;
     if (names.length > 0) {
@@ -65,42 +67,95 @@ export function RefreshRanksButton({
       return;
     }
 
-    const loaded = await fetchApplicationNames();
+    const loaded = await fetchApplications();
     if (loaded.length === 0) return;
-    setRuntimeNames(loaded);
+    setRuntimeApplicants(loaded);
+    setRuntimeNames(loaded.map((applicant) => applicant.label));
     setRuntimeTotal(loaded.length);
   }
 
-  async function refreshRanks() {
-    if (confirmBulk) {
-      const confirmed = window.confirm(
-        "Alle Bewerbungs-Ränge und Riot-IDs aktualisieren? Das läuft absichtlich langsam, um Riot Rate Limits einzuhalten.",
-      );
-      if (!confirmed) return;
-    }
+  async function refreshOne(id?: string) {
+    const response = await fetch("/api/tournament/ranks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(id ? { id } : {}),
+    });
+    const json = (await response.json().catch(() => null)) as
+      | {
+          okCount?: number;
+          failCount?: number;
+          message?: string;
+          results?: Array<{ message?: string }>;
+        }
+      | null;
+    return { response, json };
+  }
 
+  async function refreshRanks() {
+    setBulkConfirmOpen(false);
     setMessage("");
     setProgressIndex(0);
     await ensureBulkNames();
 
     startTransition(async () => {
-      const response = await fetch("/api/tournament/ranks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(applicationId ? { id: applicationId } : {}),
-      });
-      const json = (await response.json().catch(() => null)) as
-        | { okCount?: number; failCount?: number; message?: string }
-        | null;
-
-      if (!response.ok && response.status !== 429) {
-        setMessage(json?.message ?? "Rank-Refresh fehlgeschlagen.");
+      if (!confirmBulk) {
+        try {
+          const { response, json } = await refreshOne(applicationId);
+          if (!response.ok && response.status !== 429) {
+            setMessage(json?.message ?? "Rank-Refresh fehlgeschlagen.");
+            return;
+          }
+          const ok = json?.okCount ?? 0;
+          const failed = json?.failCount ?? 0;
+          setMessage(failed > 0 ? `${ok} ok, ${failed} Fehler.` : `${ok} aktualisiert.`);
+          router.refresh();
+        } catch {
+          setMessage("Netzwerkfehler beim Rank-Refresh. Bitte erneut versuchen.");
+        }
         return;
       }
 
-      const ok = json?.okCount ?? 0;
-      const failed = json?.failCount ?? 0;
-      setMessage(failed > 0 ? `${ok} ok, ${failed} Fehler.` : `${ok} aktualisiert.`);
+      const applicants = runtimeApplicants.length > 0
+        ? runtimeApplicants
+        : await fetchApplications();
+      if (applicants.length === 0) {
+        setMessage("Keine Bewerbungen zum Aktualisieren gefunden.");
+        return;
+      }
+
+      setRuntimeApplicants(applicants);
+      setRuntimeNames(applicants.map((applicant) => applicant.label));
+      setRuntimeTotal(applicants.length);
+
+      let okCount = 0;
+      const failed: string[] = [];
+      for (let index = 0; index < applicants.length; index += 1) {
+        const applicant = applicants[index];
+        setProgressIndex(index);
+        try {
+          const { response, json } = await refreshOne(applicant.id);
+          if (response.ok && (json?.failCount ?? 0) === 0) {
+            okCount += json?.okCount ?? 1;
+          } else {
+            const detail =
+              json?.results?.[0]?.message
+              ?? json?.message
+              ?? `HTTP ${response.status}`;
+            failed.push(`${applicant.label}: ${detail}`);
+          }
+        } catch {
+          failed.push(`${applicant.label}: Netzwerkfehler`);
+        }
+        if (index < applicants.length - 1) {
+          await sleep(estimatedDelayMs);
+        }
+      }
+
+      setMessage(
+        failed.length === 0
+          ? `${okCount} Ränge erfolgreich aktualisiert.`
+          : `${okCount} aktualisiert, ${failed.length} fehlgeschlagen: ${failed.join(" · ")}`,
+      );
       router.refresh();
     });
   }
@@ -114,7 +169,13 @@ export function RefreshRanksButton({
       <button
         type="button"
         disabled={isPending}
-        onClick={refreshRanks}
+        onClick={() => {
+          if (confirmBulk) {
+            setBulkConfirmOpen(true);
+            return;
+          }
+          void refreshRanks();
+        }}
         className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-200/34 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isPending ? (
@@ -134,17 +195,33 @@ export function RefreshRanksButton({
       {message ? (
         <span className="text-[10px] font-bold text-emerald-100/54">{message}</span>
       ) : null}
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        title="Alle Riot-Daten aktualisieren?"
+        description="Alle Bewerbungs-Ränge und Riot-IDs werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten."
+        confirmLabel="Aktualisierung starten"
+        cancelLabel="Abbrechen"
+        onCancel={() => setBulkConfirmOpen(false)}
+        onConfirm={() => void refreshRanks()}
+      />
     </div>
   );
 }
 
-async function fetchApplicationNames() {
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function fetchApplications(): Promise<BulkApplicant[]> {
   const response = await fetch("/api/tournament/applications");
   const json = (await response.json().catch(() => null)) as
     | { applications?: ApplicationSummary[] }
     | null;
   if (!response.ok) return [];
   return json?.applications
-    ?.map((app) => app.displayName || app.riotId || "")
-    .filter(Boolean) ?? [];
+    ?.filter((app): app is ApplicationSummary & { id: string } => Boolean(app.id))
+    .map((app) => ({
+      id: app.id,
+      label: app.displayName || app.riotId || app.id,
+    })) ?? [];
 }

@@ -10,6 +10,7 @@ import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { MatchControlRoomClient } from "./MatchControlRoomClient";
+import { getAdminVersions } from "@/lib/admin-version";
 
 export default async function MatchControlRoomPage({
   params,
@@ -23,12 +24,13 @@ export default async function MatchControlRoomPage({
   }
 
   const { id } = await params;
-  const [ctx, pools, draft, roster, settings] = await Promise.all([
+  const [ctx, pools, draft, roster, settings, versions] = await Promise.all([
     getMatchControlContext(),
     getChampionPools(),
     getDraftState(id),
     loadRosterSnapshot(),
     getTournamentSettings(),
+    getAdminVersions([`match:${id}`, "roster"]),
   ]);
   const match = ctx.matches.find((entry) => entry.id === id);
   if (!match) notFound();
@@ -60,6 +62,8 @@ export default async function MatchControlRoomPage({
           roster={roster}
           draftEnabled={settings.draftEnabled}
           parallelMatches={parallelMatches}
+          initialVersion={versions[`match:${id}`] ?? 0}
+          initialRosterVersion={versions.roster ?? 0}
         />
       </section>
     </div>

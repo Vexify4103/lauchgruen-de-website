@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 
 type Candidate = {
   discordId: string;
@@ -22,6 +24,7 @@ export function TransferCaptainCard({
   const [targetDiscordId, setTargetDiscordId] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState<{
     tone: "ok" | "error";
     text: string;
@@ -30,17 +33,9 @@ export function TransferCaptainCard({
     (entry) => entry.discordId === targetDiscordId,
   );
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!candidate || confirmation.trim() !== candidate.name) return;
-    if (
-      !window.confirm(
-        `Captain wirklich an ${candidate.name} übertragen? Du verlierst sofort deine Captain- und Draft-Berechtigung.`,
-      )
-    ) {
-      return;
-    }
-
+  async function transferCaptain(): Promise<boolean> {
+    if (!candidate || confirmation.trim() !== candidate.name) return false;
+    setConfirmOpen(false);
     setSaving(true);
     setMessage(null);
     const response = await fetch("/api/tournament/captain/transfer", {
@@ -61,7 +56,7 @@ export function TransferCaptainCard({
         tone: "error",
         text: result?.message ?? "Captain konnte nicht übertragen werden.",
       });
-      return;
+      return false;
     }
 
     const warnings = result?.warnings ?? [];
@@ -71,7 +66,22 @@ export function TransferCaptainCard({
         ? `Captain übertragen. Discord-Warnung: ${warnings.join(" ")}`
         : `Captain wurde an ${candidate.name} übertragen.`,
     });
+    setTargetDiscordId("");
+    setConfirmation("");
     router.refresh();
+    return true;
+  }
+
+  useUnsavedChanges({
+    dirty: Boolean(targetDiscordId || confirmation),
+    label: "Captain-Übergabe",
+    save: transferCaptain,
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!candidate || confirmation.trim() !== candidate.name) return;
+    setConfirmOpen(true);
   }
 
   if (candidates.length === 0) {
@@ -153,6 +163,22 @@ export function TransferCaptainCard({
           {message.text}
         </p>
       ) : null}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Captain wirklich übertragen?"
+        description={
+          <>
+            Die Rolle wird sofort an{" "}
+            <strong className="text-emerald-50">{candidate?.name}</strong>{" "}
+            übertragen. Du verlierst dadurch deine Captain- und Draft-Rechte.
+          </>
+        }
+        confirmLabel="Captain übertragen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void transferCaptain()}
+      />
     </form>
   );
 }

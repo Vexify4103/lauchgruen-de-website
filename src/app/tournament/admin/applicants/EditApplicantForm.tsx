@@ -3,44 +3,82 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import type { TournamentApplication } from "@/lib/tournament-storage";
 
 const roleOptions = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill"];
 
-export function EditApplicantForm({ app }: { app: TournamentApplication }) {
+export function EditApplicantForm({
+  app,
+  initialVersion,
+}: {
+  app: TournamentApplication;
+  initialVersion: number;
+}) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
+  const [version, setVersion] = useState(initialVersion);
   const [displayName, setDisplayName] = useState(app.displayName);
   const [mainRole, setMainRole] = useState(app.mainRole);
   const [preferredRoles, setPreferredRoles] = useState(app.preferredRoles);
   const [notes, setNotes] = useState(app.notes);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [savedValues, setSavedValues] = useState(
+    JSON.stringify({
+      displayName: app.displayName,
+      mainRole: app.mainRole,
+      preferredRoles: app.preferredRoles,
+      notes: app.notes,
+    }),
+  );
+  const currentValues = JSON.stringify({
+    displayName,
+    mainRole,
+    preferredRoles,
+    notes,
+  });
 
-  function save() {
+  useUnsavedChanges({
+    dirty: currentValues !== savedValues,
+    label: `Bewerbung: ${app.displayName}`,
+    save,
+  });
+
+  async function save(): Promise<boolean> {
     setMessage("");
-
-    startTransition(async () => {
-      const response = await fetch("/api/tournament/applications", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: app.id,
-          displayName,
-          mainRole,
-          preferredRoles,
-          notes,
-        }),
-      });
-      const json = (await response.json().catch(() => null)) as
-        | { message?: string }
-        | null;
-      if (!response.ok) {
-        setMessage(json?.message ?? "Bewerbung konnte nicht gespeichert werden.");
-        return;
-      }
-      setMessage("Gespeichert.");
-      router.refresh();
+    const response = await fetch("/api/tournament/applications", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: app.id,
+        expectedVersion: version,
+        displayName,
+        mainRole,
+        preferredRoles,
+        notes,
+      }),
     });
+    const json = (await response.json().catch(() => null)) as
+      | { message?: string; version?: number }
+      | null;
+    if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
+      setMessage(json?.message ?? "Bewerbung konnte nicht gespeichert werden.");
+      return false;
+    }
+    if (json?.version !== undefined) setVersion(json.version);
+    setSavedValues(currentValues);
+    setMessage("Gespeichert.");
+    router.refresh();
+    return true;
   }
 
   return (
@@ -91,7 +129,11 @@ export function EditApplicantForm({ app }: { app: TournamentApplication }) {
           <button
             type="button"
             disabled={isPending}
-            onClick={save}
+            onClick={() =>
+              startTransition(async () => {
+                await save();
+              })
+            }
             className="rounded-xl bg-lime-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-45"
           >
             {isPending ? "Speichert..." : "Speichern"}

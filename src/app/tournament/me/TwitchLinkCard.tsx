@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { TournamentTwitchLink } from "@/lib/tournament-storage";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const statusMessages: Record<string, string> = {
   connected: "Dein Twitch-Kanal wurde erfolgreich verbunden.",
@@ -25,6 +26,7 @@ export function TwitchLinkCard({
   const router = useRouter();
   const [link, setLink] = useState(initialLink);
   const [busy, setBusy] = useState(false);
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
   const [message, setMessage] = useState(status ? statusMessages[status] : "");
 
   async function updateVisibility(showWhenLive: boolean) {
@@ -53,7 +55,7 @@ export function TwitchLinkCard({
   }
 
   async function disconnect() {
-    if (!window.confirm("Twitch-Verknüpfung wirklich entfernen?")) return;
+    setDisconnectConfirmOpen(false);
     setBusy(true);
     setMessage("");
     try {
@@ -144,7 +146,7 @@ export function TwitchLinkCard({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void disconnect()}
+              onClick={() => setDisconnectConfirmOpen(true)}
               className="rounded-2xl border border-red-200/18 bg-red-500/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 disabled:opacity-50"
             >
               Verbindung trennen
@@ -163,6 +165,16 @@ export function TwitchLinkCard({
       {message ? (
         <p className="mt-4 text-xs font-bold text-emerald-100/64">{message}</p>
       ) : null}
+      <ConfirmDialog
+        open={disconnectConfirmOpen}
+        title="Twitch-Verknüpfung entfernen?"
+        description="Dein Twitch-Kanal wird vom Turnierprofil getrennt und erscheint nicht mehr bei Live-Matches."
+        confirmLabel="Verbindung trennen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onCancel={() => setDisconnectConfirmOpen(false)}
+        onConfirm={() => void disconnect()}
+      />
     </section>
   );
 }

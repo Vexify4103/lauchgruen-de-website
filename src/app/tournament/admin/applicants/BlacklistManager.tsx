@@ -3,53 +3,91 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import type { TournamentBlacklistEntry } from "@/lib/tournament-storage";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 
 export function BlacklistManager({
   initialEntries,
+  initialVersion,
 }: {
   initialEntries: TournamentBlacklistEntry[];
+  initialVersion: number;
 }) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
+  const [version, setVersion] = useState(initialVersion);
   const [message, setMessage] = useState("");
+  const [discordId, setDiscordId] = useState("");
+  const [riotId, setRiotId] = useState("");
+  const [reason, setReason] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  async function persistEntry(): Promise<boolean> {
+    setMessage("");
+    const response = await fetch("/api/tournament/blacklist", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        discordId: discordId.trim() || undefined,
+        riotId: riotId.trim() || undefined,
+        reason: reason.trim(),
+        expectedVersion: version,
+      }),
+    });
+    const json = (await response.json().catch(() => null)) as
+      | { message?: string; version?: number }
+      | null;
+    if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
+      setMessage(json?.message ?? "Blacklist-Eintrag konnte nicht gespeichert werden.");
+      return false;
+    }
+    if (json?.version !== undefined) setVersion(json.version);
+    setDiscordId("");
+    setRiotId("");
+    setReason("");
+    setMessage("Blacklist-Eintrag gespeichert.");
+    router.refresh();
+    return true;
+  }
+
+  useUnsavedChanges({
+    dirty: Boolean(discordId.trim() || riotId.trim() || reason.trim()),
+    label: "Blacklist-Eintrag",
+    save: persistEntry,
+  });
 
   function addEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    setMessage("");
     startTransition(async () => {
-      const response = await fetch("/api/tournament/blacklist", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          discordId: String(formData.get("discordId") ?? "").trim() || undefined,
-          riotId: String(formData.get("riotId") ?? "").trim() || undefined,
-          reason: String(formData.get("reason") ?? "").trim(),
-        }),
-      });
-      const json = (await response.json().catch(() => null)) as { message?: string } | null;
-      if (!response.ok) {
-        setMessage(json?.message ?? "Blacklist-Eintrag konnte nicht gespeichert werden.");
-        return;
-      }
-      form.reset();
-      setMessage("Blacklist-Eintrag gespeichert.");
-      router.refresh();
+      await persistEntry();
     });
   }
 
   function removeEntry(id: string) {
     setMessage("");
     startTransition(async () => {
-      const response = await fetch(`/api/tournament/blacklist?id=${encodeURIComponent(id)}`, {
+      const response = await fetch(`/api/tournament/blacklist?id=${encodeURIComponent(id)}&expectedVersion=${version}`, {
         method: "DELETE",
       });
-      const json = (await response.json().catch(() => null)) as { message?: string } | null;
+      const json = (await response.json().catch(() => null)) as
+        | { message?: string; version?: number }
+        | null;
       if (!response.ok) {
+        if (isAdminVersionConflict(response, json)) {
+          showConflict(json);
+          return;
+        }
         setMessage(json?.message ?? "Blacklist-Eintrag konnte nicht entfernt werden.");
         return;
       }
+      if (json?.version !== undefined) setVersion(json.version);
       setMessage("Blacklist-Eintrag entfernt.");
       router.refresh();
     });
@@ -76,9 +114,9 @@ export function BlacklistManager({
       </div>
 
       <form onSubmit={addEntry} className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr_auto] lg:items-end">
-        <Field label="Discord-ID" name="discordId" placeholder="337568120028004362" />
-        <Field label="Riot-ID" name="riotId" placeholder="Name#TAG" />
-        <Field label="Grund" name="reason" placeholder="Regelbruch, Toxicity, No-show..." required />
+        <Field label="Discord-ID" value={discordId} onChange={setDiscordId} placeholder="337568120028004362" />
+        <Field label="Riot-ID" value={riotId} onChange={setRiotId} placeholder="Name#TAG" />
+        <Field label="Grund" value={reason} onChange={setReason} placeholder="Regelbruch, Toxicity, No-show..." required />
         <button
           type="submit"
           disabled={isPending}
@@ -121,12 +159,14 @@ export function BlacklistManager({
 
 function Field({
   label,
-  name,
+  value,
+  onChange,
   placeholder,
   required,
 }: {
   label: string;
-  name: string;
+  value: string;
+  onChange: (value: string) => void;
   placeholder: string;
   required?: boolean;
 }) {
@@ -136,7 +176,8 @@ function Field({
         {label}
       </span>
       <input
-        name={name}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         required={required}
         placeholder={placeholder}
         className="rounded-xl border border-red-200/12 bg-black/24 px-3 py-2.5 text-sm font-bold text-red-50 outline-none placeholder:text-red-100/26 focus:border-red-200/38"

@@ -310,16 +310,23 @@ export default async function TeamsPage({
                         ) : null}
                       </div>
                       <div className="min-w-0">
-                        <a
-                          href={player.opggUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`block truncate text-lg font-black hover:text-lime-100 ${
-                            isCaptain ? "text-lime-50" : "text-emerald-50"
-                          }`}
-                        >
-                          {player.name}
-                        </a>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <a
+                            href={player.opggUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`block min-w-0 truncate text-lg font-black hover:text-lime-100 ${
+                              isCaptain ? "text-lime-50" : "text-emerald-50"
+                            }`}
+                          >
+                            {player.name}
+                          </a>
+                          {player.verified === false ? (
+                            <span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                              Nicht verifiziert
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="truncate text-sm text-emerald-100/54">{player.riotId}</div>
                       </div>
                       <div className="flex flex-wrap gap-2">

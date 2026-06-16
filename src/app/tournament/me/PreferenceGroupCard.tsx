@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 
 type PreferenceGroupView = {
   code: string;
@@ -29,7 +30,7 @@ export function PreferenceGroupCard({
   async function mutate(
     action: "create" | "join" | "leave",
     code?: string,
-  ) {
+  ): Promise<boolean> {
     setPending(action);
     setMessage(null);
     try {
@@ -51,6 +52,7 @@ export function PreferenceGroupCard({
         tone: "ok",
         text: payload.message ?? "Wunschgruppe aktualisiert.",
       });
+      return true;
     } catch (error) {
       setMessage({
         tone: "error",
@@ -59,10 +61,17 @@ export function PreferenceGroupCard({
             ? error.message
             : "Wunschgruppe konnte nicht aktualisiert werden.",
       });
+      return false;
     } finally {
       setPending(null);
     }
   }
+
+  useUnsavedChanges({
+    dirty: Boolean(joinCode.trim()),
+    label: "Wunschgruppen-Code",
+    save: () => mutate("join", joinCode),
+  });
 
   async function copyCode() {
     if (!group) return;

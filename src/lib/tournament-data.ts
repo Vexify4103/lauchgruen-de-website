@@ -3,6 +3,8 @@ export type TournamentPlayer = {
   role: "Top" | "Jungle" | "Mid" | "Bot" | "Support" | "Fill" | "Sub";
   riotId: string;
   discordId?: string;
+  discordUsername?: string;
+  verified?: boolean;
   opggUrl: string;
   dpmUrl: string;
 };

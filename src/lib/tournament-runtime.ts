@@ -21,7 +21,9 @@ type StoredPlayer = {
   riotId: string;
   puuid: string;
   discordId?: string;
+  discordUsername?: string;
   role?: TournamentPlayer["role"];
+  verificationStatus?: "verified" | "manual";
 };
 
 type TeamCaptainRef = {
@@ -108,6 +110,8 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
     role: p.role ?? "Fill",
     riotId: p.riotId,
     discordId: p.discordId,
+    discordUsername: p.discordUsername,
+    verified: p.verificationStatus !== "manual",
     opggUrl: `https://www.op.gg/summoners/euw/${encoded}`,
     dpmUrl: `https://dpm.lol/${encoded}`,
   };

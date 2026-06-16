@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
 import { writeAuditLog } from "@/lib/tournament-audit";
@@ -34,6 +35,7 @@ const applicationSchema = z.object({
 
 const applicationPatchSchema = z.object({
   id: z.string().trim().min(1),
+  expectedVersion: z.number().int().min(0),
   displayName: z.string().trim().min(2).max(60).optional(),
   mainRole: z.string().trim().min(1).max(20).optional(),
   preferredRoles: z.array(z.string().trim().min(1).max(20)).min(1).max(6).optional(),
@@ -170,6 +172,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Bewerbung nicht gefunden." }, { status: 404 });
   }
 
+  const versionClaim = await claimAdminVersion({
+    resource: `application:${existing.id}`,
+    expectedVersion: parsed.data.expectedVersion,
+    updatedBy: session.user.discordHandle ?? discordId,
+  });
+  if (!versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
+  }
+
   const nextApplication: TournamentApplication = {
     ...existing,
     ...(parsed.data.displayName !== undefined ? { displayName: parsed.data.displayName } : {}),
@@ -194,7 +205,10 @@ export async function PATCH(request: Request) {
     },
   });
 
-  return NextResponse.json({ application: nextApplication });
+  return NextResponse.json({
+    application: nextApplication,
+    version: versionClaim.version,
+  });
 }
 
 /** Admin-only: removes tournament applications while preserving the Riot link. */
@@ -205,14 +219,29 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
   }
 
-  const targetDiscordId = new URL(request.url).searchParams
-    .get("discordId")
-    ?.trim();
-  if (!targetDiscordId) {
+  const searchParams = new URL(request.url).searchParams;
+  const targetDiscordId = searchParams.get("discordId")?.trim();
+  const applicationId = searchParams.get("id")?.trim();
+  const expectedVersion = Number(searchParams.get("expectedVersion"));
+  if (
+    !targetDiscordId
+    || !applicationId
+    || !Number.isInteger(expectedVersion)
+    || expectedVersion < 0
+  ) {
     return NextResponse.json(
-      { message: "Query-Parameter 'discordId' erforderlich." },
+      { message: "Bewerbungs-ID, Discord-ID und Version sind erforderlich." },
       { status: 400 },
     );
+  }
+
+  const versionClaim = await claimAdminVersion({
+    resource: `application:${applicationId}`,
+    expectedVersion,
+    updatedBy: session.user.discordHandle ?? discordId,
+  });
+  if (!versionClaim.ok) {
+    return NextResponse.json(versionClaim.conflict, { status: 409 });
   }
 
   const deletedCount = await deleteApplicationsByDiscordId(targetDiscordId);
@@ -226,5 +255,10 @@ export async function DELETE(request: Request) {
     metadata: { deletedCount, preservedRiotLink: true },
   });
 
-  return NextResponse.json({ ok: true, deletedCount, preservedRiotLink: true });
+  return NextResponse.json({
+    ok: true,
+    deletedCount,
+    preservedRiotLink: true,
+    version: versionClaim.version,
+  });
 }

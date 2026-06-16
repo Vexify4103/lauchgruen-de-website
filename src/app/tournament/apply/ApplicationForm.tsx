@@ -2,11 +2,18 @@
 
 import Image from "next/image";
 import { TournamentLink as Link } from "../TournamentLink";
-import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { announcedDates } from "@/lib/tournament-data";
 import type { TournamentApplication } from "@/lib/tournament-storage";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 
 type SubmitState =
   | { status: "idle"; message: "" }
@@ -57,6 +64,16 @@ function dpmUrl(riotId: string) {
   return `https://dpm.lol/${linkedRiotId(riotId)}`;
 }
 
+function serializeApplicationForm(form: HTMLFormElement | null) {
+  if (!form) return "";
+  return JSON.stringify(
+    [...new FormData(form).entries()].map(([key, value]) => [
+      key,
+      String(value),
+    ]),
+  );
+}
+
 export function ApplicationForm({
   discordIdentity,
   isGuildMember,
@@ -85,23 +102,47 @@ export function ApplicationForm({
     | { kind: "error"; message: string }
     | { kind: "success"; message: string }
   >({ kind: "idle", message: "" });
+  const formRef = useRef<HTMLFormElement>(null);
+  const [savedForm, setSavedForm] = useState("");
+  const [currentForm, setCurrentForm] = useState("");
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function syncCurrentForm() {
+    setCurrentForm(serializeApplicationForm(formRef.current));
+  }
+
+  useEffect(() => {
+    if (!formRef.current || savedForm) return;
+    const serialized = serializeApplicationForm(formRef.current);
+    setSavedForm(serialized);
+    setCurrentForm(serialized);
+  }, [savedForm, verified]);
+
+  useUnsavedChanges({
+    dirty: Boolean(
+      verified
+      && savedForm
+      && currentForm !== savedForm,
+    ),
+    label: "Turnierbewerbung",
+    save: persistApplication,
+  });
+
+  async function persistApplication(): Promise<boolean> {
     if (!discordIdentity) {
       setState({ status: "error", message: "Bitte zuerst mit Discord anmelden." });
-      return;
+      return false;
     }
     if (!verified) {
       setState({ status: "error", message: "Bitte zuerst deinen Riot-Account verifizieren." });
-      return;
+      return false;
     }
     if (preferredRoles.length === 0) {
       setState({ status: "error", message: "Bitte wähle mindestens eine Wunschrolle aus." });
-      return;
+      return false;
     }
 
-    const form = event.currentTarget;
+    const form = formRef.current;
+    if (!form) return false;
     const formData = new FormData(form);
     setState({
       status: "loading",
@@ -135,7 +176,7 @@ export function ApplicationForm({
         status: "error",
         message: result?.message ?? "Bewerbung konnte noch nicht abgeschickt werden.",
       });
-      return;
+      return false;
     }
 
     setState({
@@ -143,6 +184,15 @@ export function ApplicationForm({
       message: result?.message ?? "Bewerbung gespeichert.",
     });
     setHasApplication(true);
+    const serialized = serializeApplicationForm(form);
+    setSavedForm(serialized);
+    setCurrentForm(serialized);
+    return true;
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void persistApplication();
   }
 
   if (!discordIdentity) {
@@ -244,7 +294,13 @@ export function ApplicationForm({
       />
 
       <form
+        ref={formRef}
         onSubmit={onSubmit}
+        onInput={syncCurrentForm}
+        onChange={syncCurrentForm}
+        onClickCapture={() => {
+          window.setTimeout(syncCurrentForm, 0);
+        }}
         className={`grid gap-5 ${verified ? "" : "pointer-events-none opacity-50"}`}
       >
         {hasApplication ? (

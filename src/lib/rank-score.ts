@@ -53,3 +53,34 @@ export function parseRank(raw: string | null | undefined): number {
 	const div = division ? (DIVISION_BONUS[division] ?? 0) : 0;
 	return base + div + lp;
 }
+
+const SCORE_TIERS = [
+	"IRON",
+	"BRONZE",
+	"SILVER",
+	"GOLD",
+	"PLATINUM",
+	"EMERALD",
+	"DIAMOND",
+] as const;
+
+const SCORE_DIVISIONS = ["IV", "III", "II", "I"] as const;
+
+/**
+ * Turn the internal balancing score back into a rank players can understand.
+ * The result is an estimate because it averages multiple individual ranks.
+ */
+export function formatRankScore(score: number | null | undefined): string {
+	if (!score || score <= 0) return "Keine Wertung";
+	if (score >= TIER_BASE.CHALLENGER) return "Challenger";
+	if (score >= TIER_BASE.GRANDMASTER) return "Grandmaster";
+	if (score >= TIER_BASE.MASTER) return "Master";
+
+	const tierIndex = Math.min(
+		SCORE_TIERS.length - 1,
+		Math.floor(score / 400),
+	);
+	const pointsWithinTier = score - tierIndex * 400;
+	const divisionIndex = Math.min(3, Math.floor(pointsWithinTier / 100));
+	return `${SCORE_TIERS[tierIndex][0]}${SCORE_TIERS[tierIndex].slice(1).toLowerCase()} ${SCORE_DIVISIONS[divisionIndex]}`;
+}

@@ -8,9 +8,17 @@ import type {
   RosterSnapshot,
   RosterTeam,
 } from "@/lib/roster";
-import { snakeFillAssignments } from "@/lib/snake-fill";
-import { parseRank } from "@/lib/rank-score";
+import {
+  MAX_AUTOBALANCE_FRIEND_GROUP_SIZE,
+  snakeFillAssignments,
+} from "@/lib/snake-fill";
+import { formatRankScore, parseRank } from "@/lib/rank-score";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import {
+  isAdminVersionConflict,
+  useAdminConflict,
+} from "@/components/AdminConflictProvider";
 
 type SortMode = "rank-desc" | "rank-asc" | "role-available";
 
@@ -49,6 +57,8 @@ type State = {
   assignments: Map<string, Assignment>;
   /** teamKey → captain discordId | null */
   captains: Map<string, string | null>;
+  /** Admin-entered substitutes without completed account verification. */
+  manualPlayers: Map<string, RosterApplicant>;
 };
 
 function initialState(snapshot: RosterSnapshot): State {
@@ -66,11 +76,44 @@ function initialState(snapshot: RosterSnapshot): State {
   for (const team of snapshot.teams) {
     captains.set(team.key, team.captainDiscordId);
   }
-  return { assignments, captains };
+  const manualPlayers = new Map(
+    snapshot.applicants
+      .filter((applicant) => applicant.source === "manual")
+      .map((applicant) => [applicant.discordId, applicant]),
+  );
+  return { assignments, captains, manualPlayers };
 }
 
-export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
+function serializeRosterState(state: State) {
+  return JSON.stringify({
+    assignments: [...state.assignments.entries()].sort(([a], [b]) =>
+      a.localeCompare(b),
+    ),
+    captains: [...state.captains.entries()].sort(([a], [b]) =>
+      a.localeCompare(b),
+    ),
+    manualPlayers: [...state.manualPlayers.entries()]
+      .map(([discordId, player]) => [
+        discordId,
+        {
+          discordUsername: player.discordUsername ?? "",
+          riotId: player.riotId,
+        },
+      ])
+      .sort(([a], [b]) => String(a).localeCompare(String(b))),
+  });
+}
+
+export function RosterBuilder({
+  snapshot,
+  initialVersion,
+}: {
+  snapshot: RosterSnapshot;
+  initialVersion: number;
+}) {
   const router = useRouter();
+  const { showConflict } = useAdminConflict();
+  const [version, setVersion] = useState(initialVersion);
   const [state, setState] = useState<State>(() => initialState(snapshot));
   const [picker, setPicker] = useState<
     | null
@@ -100,6 +143,48 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
   const [editTeamSeed, setEditTeamSeed] = useState<number | "">("");
   const [deleteTeamTarget, setDeleteTeamTarget] = useState<RosterTeam | null>(null);
   const [deletingTeam, setDeletingTeam] = useState(false);
+  const [manualSubOpen, setManualSubOpen] = useState(false);
+  const [manualSubDiscordId, setManualSubDiscordId] = useState("");
+  const [manualSubDiscordUsername, setManualSubDiscordUsername] = useState("");
+  const [manualSubRiotId, setManualSubRiotId] = useState("");
+  const [manualSubTeamKey, setManualSubTeamKey] = useState("");
+  const [savedRosterState, setSavedRosterState] = useState(() =>
+    serializeRosterState(initialState(snapshot)),
+  );
+  const rosterDirty = serializeRosterState(state) !== savedRosterState;
+  const createTeamDirty = Boolean(
+    createOpen
+    && (
+      newTeamName.trim()
+      || newTeamGroup
+      || newTeamSeed !== ""
+      || newTeamCreateDiscord
+    ),
+  );
+  const editTeamDirty = Boolean(
+    editTeamTarget
+    && (
+      editTeamName !== editTeamTarget.name
+      || editTeamGroup !== (editTeamTarget.group ?? "")
+      || editTeamSeed !== (editTeamTarget.seed ?? "")
+    ),
+  );
+
+  useUnsavedChanges({
+    dirty: rosterDirty,
+    label: "Roster-Zuweisungen",
+    save,
+  });
+  useUnsavedChanges({
+    dirty: createTeamDirty,
+    label: "Neues Team",
+    save: createTeam,
+  });
+  useUnsavedChanges({
+    dirty: editTeamDirty,
+    label: `Team: ${editTeamTarget?.name ?? ""}`,
+    save: updateTeam,
+  });
 
   // Auto-dismiss "ok" toasts so they don't sit stuck after the next router
   // refresh. Errors stay until manually replaced.
@@ -109,9 +194,17 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     return () => clearTimeout(t);
   }, [message]);
 
-  const applicantById = useMemo(
-    () => new Map(snapshot.applicants.map((a) => [a.discordId, a])),
-    [snapshot.applicants],
+  const applicantById = useMemo(() => {
+    const applicants = new Map(snapshot.applicants.map((a) => [a.discordId, a]));
+    for (const [discordId, player] of state.manualPlayers) {
+      applicants.set(discordId, player);
+    }
+    return applicants;
+  }, [snapshot.applicants, state.manualPlayers]);
+
+  const allApplicants = useMemo(
+    () => [...applicantById.values()],
+    [applicantById],
   );
 
   const teamByKey = useMemo(
@@ -148,7 +241,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
   }, [snapshot.teams, playersByTeamRole]);
 
   const unassigned = useMemo(() => {
-    const base = snapshot.applicants.filter(
+    const base = allApplicants.filter(
       (a) => !state.assignments.has(a.discordId) || state.assignments.get(a.discordId)?.teamKey === "",
     );
     const sorted = [...base];
@@ -172,7 +265,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       });
     }
     return sorted;
-  }, [snapshot.applicants, state.assignments, sortMode, openRolesAnywhere]);
+  }, [allApplicants, state.assignments, sortMode, openRolesAnywhere]);
 
   const preferenceGroups = useMemo(() => {
     const grouped = new Map<string, RosterApplicant[]>();
@@ -186,6 +279,29 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       .map(([code, members]) => ({ code, members }))
       .sort((a, b) => a.code.localeCompare(b.code));
   }, [snapshot.applicants]);
+  const manualInterventionGroups = useMemo(
+    () =>
+      preferenceGroups.filter(
+        ({ members }) => members.length > MAX_AUTOBALANCE_FRIEND_GROUP_SIZE,
+      ),
+    [preferenceGroups],
+  );
+
+  const applicantEloSummary = useMemo(() => {
+    const eligibleApplicants = allApplicants.filter((applicant) => applicant.verified);
+    const scores = eligibleApplicants
+      .map((applicant) => parseRank(applicant.currentRank))
+      .filter((score) => score > 0);
+    return {
+      average: scores.length > 0
+        ? Math.round(
+            scores.reduce((total, score) => total + score, 0) / scores.length,
+          )
+        : null,
+      rated: scores.length,
+      total: eligibleApplicants.length,
+    };
+  }, [allApplicants]);
 
   function assignPlayer(discordId: string, teamKey: string, role: PlayerRole) {
     setState((prev) => {
@@ -204,7 +320,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       for (const [tk, cid] of captains) {
         if (cid === discordId) captains.set(tk, null);
       }
-      return { assignments: next, captains };
+      return { ...prev, assignments: next, captains };
     });
   }
 
@@ -219,6 +335,13 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
   }
 
   function toggleCaptain(teamKey: string, discordId: string) {
+    if (state.manualPlayers.has(discordId)) {
+      setMessage({
+        tone: "error",
+        text: "Nicht verifizierte Ersatzspieler können nicht als Captain eingetragen werden.",
+      });
+      return;
+    }
     setState((prev) => {
       const captains = new Map(prev.captains);
       captains.set(teamKey, captains.get(teamKey) === discordId ? null : discordId);
@@ -226,17 +349,112 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     });
   }
 
+  function openManualSubstituteDialog(teamKey = "") {
+    setManualSubTeamKey(teamKey || snapshot.teams[0]?.key || "");
+    setManualSubDiscordId("");
+    setManualSubDiscordUsername("");
+    setManualSubRiotId("");
+    setManualSubOpen(true);
+  }
+
+  function addManualSubstitute() {
+    const discordId = manualSubDiscordId.trim();
+    const discordUsername = manualSubDiscordUsername.replace(/^@+/, "").trim();
+    const riotId = manualSubRiotId.trim();
+    const teamKey = manualSubTeamKey;
+
+    if (!/^\d{17,20}$/.test(discordId)) {
+      setMessage({ tone: "error", text: "Bitte eine gültige numerische Discord-ID eingeben." });
+      return;
+    }
+    if (!discordUsername) {
+      setMessage({ tone: "error", text: "Bitte den Discord-Benutzernamen eingeben." });
+      return;
+    }
+    if (!/^.+#[^#]+$/.test(riotId)) {
+      setMessage({ tone: "error", text: "Die Riot-ID muss im Format Name#Tag angegeben werden." });
+      return;
+    }
+    if (!teamByKey.has(teamKey)) {
+      setMessage({ tone: "error", text: "Bitte ein Zielteam auswählen." });
+      return;
+    }
+    const existing = applicantById.get(discordId);
+    if (existing && existing.source !== "manual") {
+      setMessage({
+        tone: "error",
+        text: "Diese Discord-ID gehört bereits zu einem verifizierten Bewerber.",
+      });
+      return;
+    }
+    const duplicateRiotId = allApplicants.find(
+      (applicant) =>
+        applicant.discordId !== discordId
+        && applicant.riotId.toLocaleLowerCase("de-DE") === riotId.toLocaleLowerCase("de-DE"),
+    );
+    if (duplicateRiotId) {
+      setMessage({
+        tone: "error",
+        text: `Diese Riot-ID ist bereits ${duplicateRiotId.displayName} zugeordnet.`,
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const manualPlayer: RosterApplicant = {
+      discordId,
+      discordHandle: `@${discordUsername}`,
+      discordUsername,
+      displayName: discordUsername,
+      riotId,
+      puuid: `manual-${discordId}`,
+      currentRank: null,
+      mainRole: "Sub",
+      preferredRoles: ["Sub"],
+      availableAllDates: false,
+      notes: "Manuell durch die Turnierleitung als Ersatzspieler eingetragen.",
+      acceptedRules: false,
+      acceptedDataStorage: false,
+      createdAt: now,
+      updatedAt: now,
+      verified: false,
+      source: "manual",
+    };
+
+    setState((previous) => {
+      const assignments = new Map(previous.assignments);
+      assignments.set(discordId, { teamKey, role: "Sub" });
+      const manualPlayers = new Map(previous.manualPlayers);
+      manualPlayers.set(discordId, manualPlayer);
+      return { ...previous, assignments, manualPlayers };
+    });
+    setManualSubOpen(false);
+    setMessage({
+      tone: "ok",
+      text: `${discordUsername} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte das Roster speichern.`,
+    });
+  }
+
   async function runAutoBalance() {
     setAutoConfirm(false);
     setAutoRunning(true);
     setMessage(null);
-    const assignments = snakeFillAssignments(snapshot.applicants, snapshot.teams);
+    const manualGroupMemberIds = new Set(
+      manualInterventionGroups.flatMap(({ members }) =>
+        members.map((member) => member.discordId),
+      ),
+    );
+    const verifiedApplicants = snapshot.applicants.filter(
+      (applicant) =>
+        applicant.verified && !manualGroupMemberIds.has(applicant.discordId),
+    );
+    const assignments = snakeFillAssignments(verifiedApplicants, snapshot.teams);
 
     // Clear everything first.
     setState((prev) => ({
       ...prev,
       assignments: new Map(
-        snapshot.applicants.map((a) => [a.discordId, { teamKey: "", role: null }]),
+        allApplicants.map((a) => [a.discordId, { teamKey: "", role: null }]),
       ),
       captains: new Map([...prev.captains].map(([k]) => [k, null])),
     }));
@@ -252,20 +470,31 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setPulseId(null);
     setAutoRunning(false);
     setMessage({
-      tone: "ok",
-      text: `Auto-Balance hat ${assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt und Freundesgruppen nach Möglichkeit zusammengehalten. Prüfen und speichern, wenn alles passt.`,
+      tone: manualInterventionGroups.length > 0 ? "error" : "ok",
+      text:
+        `Auto-Balance hat ${assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt und Freundesgruppen mit bis zu drei Mitgliedern nach Möglichkeit zusammengehalten.` +
+        (manualInterventionGroups.length > 0
+          ? ` ${manualInterventionGroups.length} große Wunschgruppe(n) mit insgesamt ${manualGroupMemberIds.size} Spielern wurden nicht verteilt und benötigen eine manuelle Entscheidung.`
+          : " Prüfen und speichern, wenn alles passt."),
     });
   }
 
-  async function createTeam() {
+  async function createTeam(): Promise<boolean> {
     const name = newTeamName.trim();
-    if (!name || !newTeamGroup) return;
+    if (!name || !newTeamGroup) {
+      setMessage({
+        tone: "error",
+        text: "Teamname und Gruppe müssen ausgefüllt sein.",
+      });
+      return false;
+    }
     setCreating(true);
     setMessage(null);
     const response = await fetch("/api/tournament/teams", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        expectedVersion: version,
         name,
         group: newTeamGroup,
         seed: newTeamSeed === "" ? undefined : newTeamSeed,
@@ -275,12 +504,17 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setCreating(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
       setMessage({
         tone: "error",
         text: json?.message ?? "Team konnte nicht erstellt werden.",
       });
-      return;
+      return false;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
     setNewTeamName("");
     setNewTeamGroup("");
     setNewTeamSeed("");
@@ -292,6 +526,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       text: [`Team "${json.name}" erstellt.`, ...warnings].join(" "),
     });
     router.refresh();
+    return true;
   }
 
   function openEditTeam(team: RosterTeam) {
@@ -301,16 +536,23 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setEditTeamSeed(team.seed ?? "");
   }
 
-  async function updateTeam() {
-    if (!editTeamTarget) return;
+  async function updateTeam(): Promise<boolean> {
+    if (!editTeamTarget) return true;
     const name = editTeamName.trim();
-    if (!name || !editTeamGroup) return;
+    if (!name || !editTeamGroup) {
+      setMessage({
+        tone: "error",
+        text: "Teamname und Gruppe müssen ausgefüllt sein.",
+      });
+      return false;
+    }
     setEditingTeam(true);
     setMessage(null);
     const response = await fetch("/api/tournament/teams", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        expectedVersion: version,
         key: editTeamTarget.key,
         name,
         group: editTeamGroup,
@@ -320,12 +562,17 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setEditingTeam(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
       setMessage({
         tone: "error",
         text: json?.message ?? "Team konnte nicht aktualisiert werden.",
       });
-      return;
+      return false;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
     setEditTeamTarget(null);
     const updateWarnings = (json?.warnings as string[] | undefined) ?? [];
     setMessage({
@@ -333,6 +580,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       text: [`Team "${json.name}" aktualisiert.`, ...updateWarnings].join(" "),
     });
     router.refresh();
+    return true;
   }
 
   async function performDeleteTeam() {
@@ -342,18 +590,23 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     setDeletingTeam(true);
     setMessage(null);
     const response = await fetch(
-      `/api/tournament/teams?key=${encodeURIComponent(team.key)}`,
+      `/api/tournament/teams?key=${encodeURIComponent(team.key)}&expectedVersion=${version}`,
       { method: "DELETE" },
     );
     setDeletingTeam(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return;
+      }
       setMessage({
         tone: "error",
         text: json?.message ?? "Team konnte nicht gelöscht werden.",
       });
       return;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
     // Locally drop any assignments / captain that referenced this team — otherwise
     // they'd silently linger in component state until the next manual refresh.
     setState((prev) => {
@@ -365,7 +618,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
       }
       const nextCaptains = new Map(prev.captains);
       nextCaptains.delete(team.key);
-      return { assignments: nextAssignments, captains: nextCaptains };
+      return { ...prev, assignments: nextAssignments, captains: nextCaptains };
     });
     const warnings = (json?.warnings as string[] | undefined) ?? [];
     setMessage({
@@ -381,17 +634,22 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     const response = await fetch("/api/tournament/test-data", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ count: 40 }),
+      body: JSON.stringify({ count: 40, expectedVersion: version }),
     });
     setSeeding(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return;
+      }
       setMessage({
         tone: "error",
         text: json?.message ?? "Test-Daten konnten nicht angelegt werden.",
       });
       return;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
     const parts: string[] = [];
     if (json.applicants) parts.push(`${json.applicants} Bewerber`);
     if (json.teamsInserted) parts.push(`${json.teamsInserted} Team(s) angelegt`);
@@ -406,16 +664,25 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
   async function clearTestData() {
     setClearing(true);
     setMessage(null);
-    const response = await fetch("/api/tournament/test-data", { method: "DELETE" });
+    const response = await fetch("/api/tournament/test-data", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expectedVersion: version }),
+    });
     setClearing(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return;
+      }
       setMessage({
         tone: "error",
         text: json?.message ?? "Test-Daten konnten nicht gelöscht werden.",
       });
       return;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
     const removedTeamKeys = new Set<string>(json.teamKeysRemoved ?? []);
     setState((previous) => {
       const assignments = new Map<string, Assignment>();
@@ -436,7 +703,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
           discordId?.startsWith("test-") ? null : discordId,
         );
       }
-      return { assignments, captains };
+      return { ...previous, assignments, captains };
     });
     const parts: string[] = [
       `${json.applications} Bewerbung(en)`,
@@ -450,7 +717,8 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     router.refresh();
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
+    const stateBeingSaved = serializeRosterState(state);
     setSaving(true);
     setMessage(null);
     const teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>> = {};
@@ -468,18 +736,38 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
     for (const [teamKey, captainId] of state.captains) {
       captains[teamKey] = captainId;
     }
+    const manualPlayers = Object.fromEntries(
+      [...state.manualPlayers.entries()].map(([discordId, player]) => [
+        discordId,
+        {
+          discordUsername: player.discordUsername ?? player.discordHandle,
+          riotId: player.riotId,
+        },
+      ]),
+    );
     const response = await fetch("/api/tournament/roster", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ teamPlayers, captains }),
+      body: JSON.stringify({
+        expectedVersion: version,
+        teamPlayers,
+        captains,
+        manualPlayers,
+      }),
     });
     setSaving(false);
     const json = await response.json().catch(() => null);
     if (!response.ok) {
+      if (isAdminVersionConflict(response, json)) {
+        showConflict(json);
+        return false;
+      }
       const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
       setMessage({ tone: "error", text: errs.join(" · ") });
-      return;
+      return false;
     }
+    if (typeof json?.version === "number") setVersion(json.version);
+    setSavedRosterState(stateBeingSaved);
     const warnings = (json?.warnings as string[] | undefined) ?? [];
     setMessage({
       tone: warnings.length > 0 ? "error" : "ok",
@@ -490,6 +778,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
           : "") +
         (warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
     });
+    return true;
   }
 
   return (
@@ -501,6 +790,20 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
           </div>
           <div className="text-xs font-bold text-emerald-100/52">
             {unassigned.length}
+          </div>
+        </div>
+        <div
+          className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-cyan-200/16 bg-cyan-300/[0.07] px-3 py-2.5"
+          title={`Interner Vergleichswert: ${applicantEloSummary.average?.toLocaleString("de-DE") ?? "keine Wertung"}`}
+        >
+          <div className="row-span-2 text-lg font-black text-cyan-50">
+            {formatRankScore(applicantEloSummary.average)}
+          </div>
+          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/58">
+            Bewerber Ø Rang
+          </div>
+          <div className="text-[9px] font-bold text-cyan-100/38">
+            {applicantEloSummary.rated}/{applicantEloSummary.total} gewertet
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
@@ -526,7 +829,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
         <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
           {unassigned.length === 0 ? (
             <div className="rounded-xl border border-white/8 bg-black/24 p-3 text-xs text-emerald-100/52">
-              Alle verifizierten Bewerber sind zugewiesen.
+              Alle verfügbaren Spieler sind zugewiesen.
             </div>
           ) : (
             unassigned.map((a) => (
@@ -565,6 +868,15 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               className="rounded-xl border border-white/14 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100 disabled:opacity-50"
             >
               + Team anlegen
+            </button>
+            <button
+              type="button"
+              onClick={() => openManualSubstituteDialog()}
+              disabled={saving || autoRunning || snapshot.teams.length === 0}
+              title="Einen Ersatzspieler ohne Website-Bewerbung manuell eintragen"
+              className="rounded-xl border border-amber-200/24 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 transition hover:border-amber-200/44 hover:text-amber-50 disabled:opacity-50"
+            >
+              + Manueller Ersatzspieler
             </button>
             <button
               type="button"
@@ -618,8 +930,28 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
                 {preferenceGroups.length} Gruppen
               </span>
             </div>
+            {manualInterventionGroups.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-amber-200/28 bg-amber-200/[0.08] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-100">
+                    Manuelle Einteilung erforderlich
+                  </div>
+                  <span className="rounded-full border border-amber-200/24 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/80">
+                    {manualInterventionGroups.length} große Wunschgruppe
+                    {manualInterventionGroups.length === 1 ? "" : "n"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-amber-50/72">
+                  Gruppen mit vier oder fünf Mitgliedern werden vom Auto-Balancer
+                  nicht verteilt. Entscheidet manuell, ob sie gemeinsam,
+                  teilweise oder getrennt eingeteilt werden.
+                </p>
+              </div>
+            ) : null}
             <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {preferenceGroups.map(({ code, members }) => {
+                const requiresManualIntervention =
+                  members.length > MAX_AUTOBALANCE_FRIEND_GROUP_SIZE;
                 const assignedTeamKeys = new Set(
                   members
                     .map((member) => state.assignments.get(member.discordId)?.teamKey)
@@ -635,7 +967,11 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
                 return (
                   <div
                     key={code}
-                    className="rounded-2xl border border-white/9 bg-black/18 p-3"
+                    className={`rounded-2xl border p-3 ${
+                      requiresManualIntervention
+                        ? "border-amber-200/28 bg-amber-200/[0.07]"
+                        : "border-white/9 bg-black/18"
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <PreferenceGroupBadge code={code} />
@@ -643,6 +979,11 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
                         {members.length}/5
                       </span>
                     </div>
+                    {requiresManualIntervention ? (
+                      <div className="mt-2 inline-flex rounded-full border border-amber-200/24 bg-amber-200/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
+                        Manuell einteilen
+                      </div>
+                    ) : null}
                     <div className="mt-2 text-[10px] font-bold text-cyan-100/54">
                       {placement}
                     </div>
@@ -687,6 +1028,7 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
               onUnassign={unassignPlayer}
               onSetRole={setRole}
               onToggleCaptain={(discordId) => toggleCaptain(team.key, discordId)}
+              onAddManualSubstitute={() => openManualSubstituteDialog(team.key)}
               onEditTeam={() => openEditTeam(team)}
               onDeleteTeam={() => setDeleteTeamTarget(team)}
             />
@@ -705,6 +1047,105 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
             setPicker(null);
           }}
         />
+      ) : null}
+
+      {manualSubOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center px-5"
+        >
+          <button
+            type="button"
+            aria-label="Schließen"
+            onClick={() => setManualSubOpen(false)}
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+          />
+          <div className="relative w-full max-w-lg rounded-[1.8rem] border border-amber-200/18 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/50">
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-amber-200/72">
+              Notfall-Ersatzspieler
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-emerald-50">
+              Spieler manuell eintragen
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-100/58">
+              Dieser Spieler wird dem Team als Substitute hinzugefügt, erhält
+              die Discord-Rollen, gilt aber sichtbar als nicht verifiziert.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <label className="grid gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">
+                  Team
+                </span>
+                <select
+                  value={manualSubTeamKey}
+                  onChange={(event) => setManualSubTeamKey(event.target.value)}
+                  className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm font-bold text-emerald-50 outline-none focus:border-lime-200/40"
+                >
+                  {snapshot.teams.map((team) => (
+                    <option key={team.key} value={team.key} className="bg-emerald-950">
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">
+                    Discord-ID
+                  </span>
+                  <input
+                    value={manualSubDiscordId}
+                    onChange={(event) => setManualSubDiscordId(event.target.value)}
+                    inputMode="numeric"
+                    placeholder="337568120028004362"
+                    className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">
+                    Discord-Benutzername
+                  </span>
+                  <input
+                    value={manualSubDiscordUsername}
+                    onChange={(event) => setManualSubDiscordUsername(event.target.value)}
+                    placeholder="lethalfluff"
+                    className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+                  />
+                </label>
+              </div>
+              <label className="grid gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">
+                  Riot-ID
+                </span>
+                <input
+                  value={manualSubRiotId}
+                  onChange={(event) => setManualSubRiotId(event.target.value)}
+                  placeholder="LethalFluff#poof"
+                  className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManualSubOpen(false)}
+                className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-100"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={addManualSubstitute}
+                className="rounded-xl bg-gradient-to-r from-amber-200 via-lime-200 to-emerald-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+              >
+                Als Ersatzspieler hinzufügen
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <ConfirmDialog
@@ -732,8 +1173,16 @@ export function RosterBuilder({ snapshot }: { snapshot: RosterSnapshot }) {
         description={
           <>
             Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu.
-            Freundesgruppen werden nach Möglichkeit gemeinsam eingeplant;
+            Freundesgruppen mit bis zu drei Mitgliedern werden nach Möglichkeit
+            gemeinsam eingeplant;
             Wunschrollen werden berücksichtigt, sofern der Slot frei ist.{" "}
+            {manualInterventionGroups.length > 0 ? (
+              <strong className="text-amber-100">
+                {manualInterventionGroups.length} Wunschgruppe
+                {manualInterventionGroups.length === 1 ? "" : "n"} mit vier oder
+                fünf Mitgliedern werden übersprungen und bleiben unzugewiesen.{" "}
+              </strong>
+            ) : null}
             <strong className="text-emerald-50">Captains werden zurückgesetzt.</strong>
             {" "}Du kannst danach manuell anpassen, bevor du speicherst.
           </>
@@ -960,6 +1409,7 @@ function TeamCard({
   onUnassign,
   onSetRole,
   onToggleCaptain,
+  onAddManualSubstitute,
   onEditTeam,
   onDeleteTeam,
 }: {
@@ -973,9 +1423,22 @@ function TeamCard({
   onUnassign: (discordId: string) => void;
   onSetRole: (discordId: string, role: PlayerRole) => void;
   onToggleCaptain: (discordId: string) => void;
+  onAddManualSubstitute: () => void;
   onEditTeam: () => void;
   onDeleteTeam: () => void;
 }) {
+  const ratedStarterScores = ROLES.flatMap((role) =>
+    (playersByRole.get(role) ?? []).map((discordId) =>
+      parseRank(applicantById.get(discordId)?.currentRank),
+    ),
+  ).filter((score) => score > 0);
+  const averageElo = ratedStarterScores.length > 0
+    ? Math.round(
+        ratedStarterScores.reduce((total, score) => total + score, 0)
+        / ratedStarterScores.length,
+      )
+    : null;
+
   return (
     <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/20">
       <header className="flex items-center justify-between gap-2">
@@ -1008,6 +1471,21 @@ function TeamCard({
           </button>
         </div>
       </header>
+
+      <div
+        className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-200/16 bg-cyan-300/[0.07] px-2.5 py-1"
+        title={`Interner Vergleichswert: ${averageElo?.toLocaleString("de-DE") ?? "keine Wertung"}`}
+      >
+        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/52">
+          Ø Rang
+        </span>
+        <span className="text-xs font-black text-cyan-50">
+          {formatRankScore(averageElo)}
+        </span>
+        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-100/34">
+          {ratedStarterScores.length}/5 gewertet
+        </span>
+      </div>
 
       <div className="mt-3 grid gap-2">
         {ROLES.map((role) => {
@@ -1054,6 +1532,16 @@ function TeamCard({
             Substitute
           </span>
           <span>+ Hinzufügen</span>
+        </button>
+        <button
+          type="button"
+          onClick={onAddManualSubstitute}
+          className="flex w-full items-center justify-between rounded-xl border border-dashed border-orange-200/18 bg-orange-200/[0.04] px-3 py-2 text-left text-xs font-bold text-orange-100/66 transition hover:border-orange-200/40 hover:text-orange-50"
+        >
+          <span className="font-black uppercase tracking-[0.18em]">
+            Ohne Bewerbung
+          </span>
+          <span>+ Manuell</span>
         </button>
 
         {/* Fill / Sub buckets (shown only if used) */}
@@ -1131,6 +1619,11 @@ function PlayerRow({
               Captain
             </span>
           ) : null}
+          {applicant?.verified === false ? (
+            <span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+              Nicht verifiziert
+            </span>
+          ) : null}
         </div>
         <div
           className="mt-0.5 truncate text-[10px] text-emerald-100/52"
@@ -1180,19 +1673,21 @@ function PlayerRow({
               OP.GG
             </a>
           ) : null}
-          <button
-            type="button"
-            onClick={onToggleCaptain}
-            title={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
-            aria-label={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
-            className={`inline-flex size-8 items-center justify-center rounded-lg border text-xs transition ${
-              isCaptain
-                ? "border-lime-200/40 bg-lime-200/14 text-lime-50"
-                : "border-white/12 bg-black/24 text-emerald-100/52 hover:border-lime-200/30 hover:text-lime-100"
-            }`}
-          >
-            ⭐
-          </button>
+          {applicant?.verified !== false ? (
+            <button
+              type="button"
+              onClick={onToggleCaptain}
+              title={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
+              aria-label={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
+              className={`inline-flex size-8 items-center justify-center rounded-lg border text-xs transition ${
+                isCaptain
+                  ? "border-lime-200/40 bg-lime-200/14 text-lime-50"
+                  : "border-white/12 bg-black/24 text-emerald-100/52 hover:border-lime-200/30 hover:text-lime-100"
+              }`}
+            >
+              ⭐
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onUnassign}
@@ -1231,6 +1726,11 @@ function ApplicantCard({ applicant }: { applicant: RosterApplicant; compact?: bo
         </a>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1">
+        {applicant.verified === false ? (
+          <span className="rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">
+            Nicht verifiziert
+          </span>
+        ) : null}
         {applicant.preferenceGroupCode ? (
           <PreferenceGroupBadge code={applicant.preferenceGroupCode} />
         ) : null}
@@ -1265,6 +1765,15 @@ function ApplicationDetails({
   applicant: RosterApplicant;
   compact?: boolean;
 }) {
+  if (applicant.source === "manual") {
+    return (
+      <div className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2 text-[10px] leading-5 text-amber-100/72`}>
+        Manuell eingetragener Ersatzspieler. Discord- und Riot-Konto wurden
+        nicht über die Website verifiziert.
+      </div>
+    );
+  }
+
   const submittedAt = new Intl.DateTimeFormat("de-DE", {
     dateStyle: "medium",
     timeStyle: "short",

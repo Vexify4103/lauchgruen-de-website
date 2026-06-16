@@ -10,6 +10,7 @@ import {
 } from "@/lib/tournament-wheel-shared";
 import { poolHistoryScopeForMatchPhase } from "@/lib/tournament-rules";
 import type { AdminMatch } from "./MatchAdminClient";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const SPIN_DURATION_MS = 1900;
 const SEGMENT_DEGREES = 360 / azLetterPools.length;
@@ -40,6 +41,20 @@ function landingRotationForPool(pool: string, previousRotation: number) {
   return previousRotation + 360 * 5 + delta;
 }
 
+function compareGroupMatchOrder(a: AdminMatch, b: AdminMatch) {
+  const aParts = /^([ab])-r(\d+)-(\d+)$/.exec(a.id);
+  const bParts = /^([ab])-r(\d+)-(\d+)$/.exec(b.id);
+  if (!aParts || !bParts) return a.id.localeCompare(b.id);
+
+  const roundDifference = Number(aParts[2]) - Number(bParts[2]);
+  if (roundDifference !== 0) return roundDifference;
+
+  const groupDifference = aParts[1].localeCompare(bParts[1]);
+  if (groupDifference !== 0) return groupDifference;
+
+  return Number(aParts[3]) - Number(bParts[3]);
+}
+
 export function WheelAdminClient({
   initialState,
   matches,
@@ -50,7 +65,9 @@ export function WheelAdminClient({
   const playableMatches = matches.filter(
     (match) => isResolvableTeamName(match.teamA) && isResolvableTeamName(match.teamB),
   );
-  const groupMatches = playableMatches.filter((match) => match.phase === "groups");
+  const groupMatches = playableMatches
+    .filter((match) => match.phase === "groups")
+    .sort(compareGroupMatchOrder);
   const playoffMatches = playableMatches.filter((match) => match.phase === "playoffs");
   const [state, setState] = useState(initialState);
   const [selectedMatchId, setSelectedMatchId] = useState(playableMatches[0]?.id ?? "");
@@ -59,6 +76,7 @@ export function WheelAdminClient({
   const [message, setMessage] = useState<string | null>(null);
   const [teamARotation, setTeamARotation] = useState(0);
   const [teamBRotation, setTeamBRotation] = useState(0);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedMatch = playableMatches.find((match) => match.id === selectedMatchId) ?? null;
@@ -126,13 +144,7 @@ export function WheelAdminClient({
 
   function reset() {
     if (isPending || spinning) return;
-    if (
-      !window.confirm(
-        "Wirklich alle gezogenen Pools und Team-Historien zurücksetzen? Diese Aktion betrifft das gesamte Turnier-Wheel.",
-      )
-    ) {
-      return;
-    }
+    setResetConfirmOpen(false);
     setMessage(null);
     setPreview(null);
     setTeamARotation(0);
@@ -173,7 +185,7 @@ export function WheelAdminClient({
         </div>
         <button
           type="button"
-          onClick={reset}
+          onClick={() => setResetConfirmOpen(true)}
           disabled={isPending || spinning}
           className="rounded-2xl border border-red-300/24 bg-red-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100 transition hover:border-red-200/44 disabled:opacity-60"
         >
@@ -287,6 +299,16 @@ export function WheelAdminClient({
           </div>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="Wheel-Daten zurücksetzen?"
+        description="Alle gezogenen Pools und Team-Historien des gesamten Turniers werden gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+        confirmLabel="Alles zurücksetzen"
+        cancelLabel="Abbrechen"
+        tone="danger"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={reset}
+      />
     </section>
   );
 }

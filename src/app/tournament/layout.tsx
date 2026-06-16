@@ -10,6 +10,8 @@ import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { isTournamentHost } from "@/lib/tournament-url";
 import { TournamentAccountControl } from "./TournamentAccountControl";
 import { TournamentChrome } from "./TournamentChrome";
+import { AdminConflictProvider } from "@/components/AdminConflictProvider";
+import { UnsavedChangesProvider } from "@/components/UnsavedChangesProvider";
 
 const navItems = [
   { href: "/tournament", label: "Übersicht" },
@@ -46,16 +48,20 @@ export default async function TournamentLayout({ children }: { children: ReactNo
       : null;
 
   return (
-    <TournamentChrome
-      navItems={navItems}
-      applicationsOpen={areTournamentApplicationsOpen(settings.applicationsOpen)}
-      tournamentLive={settings.tournamentLive}
-      apexUrl={siteUrls.apex}
-      cleanUrls={cleanUrls}
-      accountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} />}
-      compactAccountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} compact />}
-    >
-      {children}
-    </TournamentChrome>
+    <AdminConflictProvider>
+      <UnsavedChangesProvider>
+        <TournamentChrome
+          navItems={navItems}
+          applicationsOpen={areTournamentApplicationsOpen(settings.applicationsOpen)}
+          tournamentLive={settings.tournamentLive}
+          apexUrl={siteUrls.apex}
+          cleanUrls={cleanUrls}
+          accountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} />}
+          compactAccountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} compact />}
+        >
+          {children}
+        </TournamentChrome>
+      </UnsavedChangesProvider>
+    </AdminConflictProvider>
   );
 }

@@ -208,6 +208,11 @@ export default async function CaptainPortalPage() {
                 </div>
                 <div className="mt-1 truncate text-sm font-black text-emerald-50">{player.name}</div>
                 <div className="truncate text-xs text-emerald-100/46">{player.riotId}</div>
+                {player.verified === false ? (
+                  <div className="mt-2 inline-flex rounded-full border border-amber-200/24 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                    Nicht verifiziert
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

@@ -44,7 +44,9 @@ export default async function GroupsPage() {
             <strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz.
             Bei Gleichstand zählen die direkten Siege zwischen den betroffenen
             Teams. Bleibt auch dieser Vergleich gleich, gewinnt das Team mit der
-            niedrigeren durchschnittlichen Spielzeit in seinen gewonnenen Matches.
+            niedrigeren durchschnittlichen Spielzeit seiner Siege innerhalb
+            dieses direkten Vergleichs. Andere Gruppenspiele beeinflussen diesen
+            Tiebreak nicht.
           </div>
         </div>
 
@@ -68,12 +70,12 @@ export default async function GroupsPage() {
                 </div>
 
                 <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-                  <div className="grid grid-cols-[2rem_1fr_3rem_3rem_4rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.2em] text-lime-200/62">
+                  <div className="grid grid-cols-[2rem_1fr_3rem_3rem_5rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-200/62">
                     <span>#</span>
                     <span>Team</span>
                     <span className="text-right">W-L</span>
                     <span className="text-right">DV</span>
-                    <span className="text-right">Ø Sieg</span>
+                    <span className="text-right">Ø DV-Sieg</span>
                   </div>
                   {groupStandings.map((standing) => {
                     const rankStyle = standing.rank === 1
@@ -89,7 +91,7 @@ export default async function GroupsPage() {
                     return (
                       <div
                         key={standing.team.id}
-                        className={`grid grid-cols-[2rem_1fr_3rem_3rem_4rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}
+                        className={`grid grid-cols-[2rem_1fr_3rem_3rem_5rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}
                       >
                         <span className={`font-black ${rankTone}`}>
                           {standing.rank}

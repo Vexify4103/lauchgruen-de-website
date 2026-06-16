@@ -1,10 +1,12 @@
 /**
  * Group-aware auto-balance for the roster builder.
  *
- * Friend groups are placed together whenever a team has enough free slots.
- * Units are assigned strongest-first to the currently weakest team. Within a
- * team, preferred roles are used when possible before falling back to another
- * open core role and finally Fill/Sub.
+ * Friend groups of up to three players are placed together whenever a team
+ * has enough free slots. Groups with four or five members require an explicit
+ * admin decision and must be filtered out by the caller. Units are assigned
+ * strongest-first to the currently weakest team. Within a team, preferred
+ * roles are used when possible before falling back to another open core role
+ * and finally Fill/Sub.
  */
 
 import { parseRank } from "@/lib/rank-score";
@@ -17,6 +19,7 @@ import type {
 const CORE_ROLES: PlayerRole[] = ["Top", "Jungle", "Mid", "Bot", "Support"];
 const OVERFLOW_ROLES: PlayerRole[] = ["Fill", "Sub"];
 const TEAM_CAPACITY = CORE_ROLES.length + OVERFLOW_ROLES.length;
+export const MAX_AUTOBALANCE_FRIEND_GROUP_SIZE = 3;
 
 export type Assignment = {
   discordId: string;

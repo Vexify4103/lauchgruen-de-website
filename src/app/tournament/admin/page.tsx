@@ -11,6 +11,7 @@ import {
 } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState } from "@/lib/tournament-wheel";
+import { getAdminVersions } from "@/lib/admin-version";
 import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { DiscordSyncPanel, type CaptainRoleStatus } from "./DiscordSyncPanel";
@@ -35,6 +36,7 @@ export default async function TournamentAdminPage() {
     : null;
 
   let adminMatches: AdminMatch[] = [];
+  let adminVersions: Record<string, number> = {};
   let tiebreakerGroups: Array<"A" | "B"> = [];
   if (state && ctx) {
     const matchesWithPools = new Set([
@@ -67,6 +69,10 @@ export default async function TournamentAdminPage() {
         poolsDrawn: matchesWithPools.has(m.id),
       })),
     ];
+    adminVersions = await getAdminVersions([
+      "settings",
+      ...adminMatches.map((match) => `match:${match.id}`),
+    ]);
   }
 
   return (
@@ -113,7 +119,12 @@ export default async function TournamentAdminPage() {
         {isOwner && wheel ? (
           <>
             <div className="mt-8 grid gap-5 xl:grid-cols-2">
-              {settings ? <TournamentModePanel initialSettings={settings} /> : null}
+              {settings ? (
+                <TournamentModePanel
+                  initialSettings={settings}
+                  initialVersion={adminVersions.settings ?? 0}
+                />
+              ) : null}
               <DiscordSyncPanel statuses={diagnostics?.captainRoleDetails ?? []} />
             </div>
             <div className="mt-8">
@@ -142,6 +153,12 @@ export default async function TournamentAdminPage() {
               <MatchAdminClient
                 initialMatches={adminMatches}
                 initialStored={state.matches}
+                initialVersions={Object.fromEntries(
+                  adminMatches.map((match) => [
+                    match.id,
+                    adminVersions[`match:${match.id}`] ?? 0,
+                  ]),
+                )}
               />
             </>
           ) : (
