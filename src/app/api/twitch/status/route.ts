@@ -18,26 +18,23 @@ import { getStream, getUser } from "@/lib/twitch";
 const DEFAULT_LOGIN = "lauchgruen";
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const login = (url.searchParams.get("login") ?? DEFAULT_LOGIN).toLowerCase();
+	const url = new URL(req.url);
+	const login = (url.searchParams.get("login") ?? DEFAULT_LOGIN).toLowerCase();
 
-  // Run both calls in parallel.
-  const [stream, user] = await Promise.all([
-    getStream(login),
-    getUser(login),
-  ]);
+	// Run both calls in parallel.
+	const [stream, user] = await Promise.all([getStream(login), getUser(login)]);
 
-  return NextResponse.json(
-    {
-      login,
-      live: !!stream,
-      stream,
-      user,
-    },
-    {
-      // Browsers/Next can additionally cache for 15s — bound is the
-      // server-side cache (30s) so this never serves stale-by-more-than-45s.
-      headers: { "Cache-Control": "public, max-age=15, s-maxage=30" },
-    },
-  );
+	return NextResponse.json(
+		{
+			login,
+			live: !!stream,
+			stream,
+			user,
+		},
+		{
+			// Browsers/Next can additionally cache for 15s — bound is the
+			// server-side cache (30s) so this never serves stale-by-more-than-45s.
+			headers: { "Cache-Control": "public, max-age=15, s-maxage=30" },
+		}
+	);
 }

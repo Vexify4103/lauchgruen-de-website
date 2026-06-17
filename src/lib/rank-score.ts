@@ -54,15 +54,7 @@ export function parseRank(raw: string | null | undefined): number {
 	return base + div + lp;
 }
 
-const SCORE_TIERS = [
-	"IRON",
-	"BRONZE",
-	"SILVER",
-	"GOLD",
-	"PLATINUM",
-	"EMERALD",
-	"DIAMOND",
-] as const;
+const SCORE_TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND"] as const;
 
 const SCORE_DIVISIONS = ["IV", "III", "II", "I"] as const;
 
@@ -76,10 +68,7 @@ export function formatRankScore(score: number | null | undefined): string {
 	if (score >= TIER_BASE.GRANDMASTER) return "Grandmaster";
 	if (score >= TIER_BASE.MASTER) return "Master";
 
-	const tierIndex = Math.min(
-		SCORE_TIERS.length - 1,
-		Math.floor(score / 400),
-	);
+	const tierIndex = Math.min(SCORE_TIERS.length - 1, Math.floor(score / 400));
 	const pointsWithinTier = score - tierIndex * 400;
 	const divisionIndex = Math.min(3, Math.floor(pointsWithinTier / 100));
 	return `${SCORE_TIERS[tierIndex][0]}${SCORE_TIERS[tierIndex].slice(1).toLowerCase()} ${SCORE_DIVISIONS[divisionIndex]}`;

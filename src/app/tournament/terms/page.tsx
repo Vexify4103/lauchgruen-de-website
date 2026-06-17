@@ -42,7 +42,7 @@ const ruleSections = [
 			"Jedes Team verfügt standardmäßig über 3 Bans pro Match",
 			"In Upper Bracket Runde 1 erhalten A #2 und B #2 jeweils einen zusätzlichen vierten Ban",
 			"Nach Upper Bracket Runde 1 gelten wieder die normalen 3 Bans pro Team",
-		]
+		],
 	},
 	{
 		title: "Draft und Captains",
@@ -65,11 +65,7 @@ const ruleSections = [
 	{
 		title: "Coaching und Zuschauer",
 		text: "Während laufender Spiele dürfen keine externen spielrelevanten Informationen an Teilnehmer weitergegeben werden.",
-		list: [
-			"Kein Live-Coaching während des Spiels",
-			"Keine Informationen durch Zuschauer",
-			"Keine Weitergabe von gegnerischen Positionen oder Cooldowns",
-		],
+		list: ["Kein Live-Coaching während des Spiels", "Keine Informationen durch Zuschauer", "Keine Weitergabe von gegnerischen Positionen oder Cooldowns"],
 	},
 	{
 		title: "Lobby und Seitenwahl",
@@ -77,10 +73,10 @@ const ruleSections = [
 		list: [
 			"Der Captain mit Seitenwahl entscheidet zwischen Blue Side und Red Side",
 			"Der Blue-Side-Captain erstellt die Lobby",
-      "Der Blue-Side-Captain lädt seine eigenen Spieler und den Captain des gegnerischen Teams ein",
-      "Der gegnerische Captain lädt anschließend seine Spieler ein",
+			"Der Blue-Side-Captain lädt seine eigenen Spieler und den Captain des gegnerischen Teams ein",
+			"Der gegnerische Captain lädt anschließend seine Spieler ein",
 		],
-    footer: "Das Orga-Team kann bei Problemen eine Lobby neu erstellen lassen oder die Lobby-Erstellung selbst übernehmen.",
+		footer: "Das Orga-Team kann bei Problemen eine Lobby neu erstellen lassen oder die Lobby-Erstellung selbst übernehmen.",
 	},
 	{
 		title: "Pünktlichkeit",
@@ -113,12 +109,7 @@ const ruleSections = [
 	{
 		title: "Ergebnismeldung",
 		text: "Der Captain des Sieger-Teams meldet das Ergebnis unmittelbar nach Spielende im offiziellen Turnier-Channel im Discord.",
-		list: [
-			"Screenshot des Endbildschirms beifügen",
-			"Spielzeit im Format mm:ss angeben",
-			"Ergebnis zeitnah melden",
-			"Bei Streitfällen beide Screenshots bereithalten",
-		],
+		list: ["Screenshot des Endbildschirms beifügen", "Spielzeit im Format mm:ss angeben", "Ergebnis zeitnah melden", "Bei Streitfällen beide Screenshots bereithalten"],
 	},
 	{
 		title: "Playoff-Seeding",
@@ -151,84 +142,66 @@ const ruleSections = [
 	},
 ];
 
-
-
 export default function TournamentTermsPage() {
-  return (
-    <div className="px-5 py-10 sm:py-14">
-      <section className="mx-auto w-full max-w-5xl">
-        <div className="rounded-[2.4rem] border border-lime-200/14 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-2xl shadow-black/30 sm:p-8">
-          <div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">
-            Teilnahmebedingungen
-          </div>
-          <h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-            Regeln für das Kunterbunte A-Z Turnier.
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/72">
-            Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung
-            bestätigst.
-          </p>
-        </div>
+	return (
+		<div className="px-5 py-10 sm:py-14">
+			<section className="mx-auto w-full max-w-5xl">
+				<div className="rounded-[2.4rem] border border-lime-200/14 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-2xl shadow-black/30 sm:p-8">
+					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Teilnahmebedingungen</div>
+					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Regeln für das Kunterbunte A-Z Turnier.</h1>
+					<p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/72">Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung bestätigst.</p>
+				</div>
 
-        <div className="mt-6 grid gap-4">
-          {ruleSections.map((section, index) => (
-            <article
-              key={section.title}
-              className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20"
-            >
-              <div className="flex gap-4">
-                <span className="grid size-9 shrink-0 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/10 text-sm font-black text-lime-100">
-                  {index + 1}
-                </span>
-                <div>
-                  <h2 className="text-lg font-black text-emerald-50">{section.title}</h2>
-                  <p className="mt-2 text-sm leading-7 text-emerald-100/70">{section.text}</p>
-                  {"list" in section && section.list && (
-                    <ul className="mt-2 space-y-1">
-                      {section.list.map((item, i) => (
-                        <li key={i} className="flex gap-2 text-sm leading-7 text-emerald-100/70">
-                          <span className="shrink-0 text-lime-300/60">–</span>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {"footer" in section && section.footer && (
-                    <p className="mt-2 text-sm leading-7 text-emerald-100/50">{section.footer}</p>
-                  )}
-                </div>
-              </div>
-            </article>
-          ))}
+				<div className="mt-6 grid gap-4">
+					{ruleSections.map((section, index) => (
+						<article key={section.title} className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+							<div className="flex gap-4">
+								<span className="grid size-9 shrink-0 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/10 text-sm font-black text-lime-100">
+									{index + 1}
+								</span>
+								<div>
+									<h2 className="text-lg font-black text-emerald-50">{section.title}</h2>
+									<p className="mt-2 text-sm leading-7 text-emerald-100/70">{section.text}</p>
+									{"list" in section && section.list && (
+										<ul className="mt-2 space-y-1">
+											{section.list.map((item, i) => (
+												<li key={i} className="flex gap-2 text-sm leading-7 text-emerald-100/70">
+													<span className="shrink-0 text-lime-300/60">–</span>
+													{item}
+												</li>
+											))}
+										</ul>
+									)}
+									{"footer" in section && section.footer && <p className="mt-2 text-sm leading-7 text-emerald-100/50">{section.footer}</p>}
+								</div>
+							</div>
+						</article>
+					))}
 
-          <article className="rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.06] p-5 shadow-xl shadow-black/20">
-            <h2 className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/72">
-              Zustimmung bei Bewerbung
-            </h2>
-            <p className="mt-4 text-sm leading-7 text-amber-50/82">
-              Wenn du auf &quot;Bewerbung absenden&quot; klickst, bestätigst du, dass du
-              diese Teilnahmebedingungen und die Datenschutzhinweise gelesen hast
-              und mit der Verarbeitung deiner Turnierdaten für Organisation,
-              Durchführung und Nachvollziehbarkeit des Events einverstanden bist.
-            </p>
-          </article>
+					<article className="rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.06] p-5 shadow-xl shadow-black/20">
+						<h2 className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/72">Zustimmung bei Bewerbung</h2>
+						<p className="mt-4 text-sm leading-7 text-amber-50/82">
+							Wenn du auf &quot;Bewerbung absenden&quot; klickst, bestätigst du, dass du diese Teilnahmebedingungen und die Datenschutzhinweise gelesen hast und mit
+							der Verarbeitung deiner Turnierdaten für Organisation, Durchführung und Nachvollziehbarkeit des Events einverstanden bist.
+						</p>
+					</article>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/tournament/privacy"
-              className="rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
-            >
-              Datenschutz
-            </Link>
-            <Link
-              href="/tournament/apply"
-              className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:-translate-y-0.5"
-            >
-              Zur Bewerbung
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+					<div className="flex flex-wrap gap-3">
+						<Link
+							href="/tournament/privacy"
+							className="rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+						>
+							Datenschutz
+						</Link>
+						<Link
+							href="/tournament/apply"
+							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:-translate-y-0.5"
+						>
+							Zur Bewerbung
+						</Link>
+					</div>
+				</div>
+			</section>
+		</div>
+	);
 }

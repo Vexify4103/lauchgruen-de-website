@@ -17,38 +17,38 @@ const isWindows = process.platform === "win32";
 const nextCmd = isWindows ? `${NEXT_BIN}.cmd` : NEXT_BIN;
 
 function ensureBuild() {
-  if (process.env.SKIP_BUILD === "1") {
-    console.log("[index] SKIP_BUILD=1; skipping next build");
-    return;
-  }
-  if (existsSync(BUILD_ID)) {
-    console.log("[index] Found .next/BUILD_ID; using existing build");
-    return;
-  }
+	if (process.env.SKIP_BUILD === "1") {
+		console.log("[index] SKIP_BUILD=1; skipping next build");
+		return;
+	}
+	if (existsSync(BUILD_ID)) {
+		console.log("[index] Found .next/BUILD_ID; using existing build");
+		return;
+	}
 
-  console.log("[index] No .next build found; running `next build`...");
-  const result = spawnSync(nextCmd, ["build"], {
-    stdio: "inherit",
-    cwd: ROOT,
-    env: { ...process.env, NODE_ENV: "production" },
-  });
+	console.log("[index] No .next build found; running `next build`...");
+	const result = spawnSync(nextCmd, ["build"], {
+		stdio: "inherit",
+		cwd: ROOT,
+		env: { ...process.env, NODE_ENV: "production" },
+	});
 
-  if (result.status !== 0) {
-    console.error(`[index] next build failed (exit ${result.status}); aborting`);
-    process.exit(result.status ?? 1);
-  }
+	if (result.status !== 0) {
+		console.error(`[index] next build failed (exit ${result.status}); aborting`);
+		process.exit(result.status ?? 1);
+	}
 }
 
 ensureBuild();
 
 console.log("[index] Starting Next server...");
 const proc = spawn(nextCmd, ["start"], {
-  stdio: "inherit",
-  cwd: ROOT,
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-  },
+	stdio: "inherit",
+	cwd: ROOT,
+	env: {
+		...process.env,
+		NODE_ENV: "production",
+	},
 });
 
 proc.on("exit", (code) => process.exit(code ?? 0));

@@ -16,24 +16,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const ctx = await getTournamentContext();
-  const [state, wheel] = await Promise.all([
-    readTournamentState(ctx.groupMatches),
-    getTournamentWheelState(),
-  ]);
-  const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches).map((match) => ({
-    ...match,
-    poolAssignment:
-      wheel.currentAssignment?.matchId === match.id
-        ? wheel.currentAssignment
-        : wheel.history.find((entry) => entry.matchId === match.id) ?? null,
-  }));
-  return NextResponse.json(
-    { matches },
-    {
-      headers: {
-        "Cache-Control": "public, max-age=5, s-maxage=5",
-      },
-    },
-  );
+	const ctx = await getTournamentContext();
+	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
+	const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches).map((match) => ({
+		...match,
+		poolAssignment: wheel.currentAssignment?.matchId === match.id ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === match.id) ?? null),
+	}));
+	return NextResponse.json(
+		{ matches },
+		{
+			headers: {
+				"Cache-Control": "public, max-age=5, s-maxage=5",
+			},
+		}
+	);
 }

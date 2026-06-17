@@ -12,23 +12,23 @@ import { getDb } from "@/lib/mongo";
 const TEST_FLAG = "isTestData";
 
 const TEST_TEAMS: Array<{
-  name: string;
-  group: "A" | "B";
-  seed: number;
-  accent: string;
+	name: string;
+	group: "A" | "B";
+	seed: number;
+	accent: string;
 }> = [
-  { name: "Sprout Squad",   group: "A", seed: 1, accent: "from-lime-300/24 via-emerald-400/12 to-cyan-400/10" },
-  { name: "Onion Order",    group: "A", seed: 2, accent: "from-amber-300/24 via-orange-400/12 to-emerald-400/10" },
-  { name: "Garlic Guard",   group: "A", seed: 3, accent: "from-yellow-200/22 via-lime-400/12 to-emerald-400/10" },
-  { name: "Pepper Patrol",  group: "A", seed: 4, accent: "from-rose-300/22 via-orange-400/12 to-amber-300/10" },
-  { name: "Baron Basil",    group: "B", seed: 1, accent: "from-sky-300/22 via-cyan-400/12 to-emerald-400/10" },
-  { name: "Nexus Garden",   group: "B", seed: 2, accent: "from-fuchsia-300/18 via-rose-400/10 to-emerald-400/10" },
-  { name: "Radish Riot",    group: "B", seed: 3, accent: "from-red-300/22 via-rose-400/12 to-fuchsia-400/10" },
-  { name: "Chili Chargers", group: "B", seed: 4, accent: "from-orange-300/22 via-red-400/12 to-rose-400/10" },
+	{ name: "Sprout Squad", group: "A", seed: 1, accent: "from-lime-300/24 via-emerald-400/12 to-cyan-400/10" },
+	{ name: "Onion Order", group: "A", seed: 2, accent: "from-amber-300/24 via-orange-400/12 to-emerald-400/10" },
+	{ name: "Garlic Guard", group: "A", seed: 3, accent: "from-yellow-200/22 via-lime-400/12 to-emerald-400/10" },
+	{ name: "Pepper Patrol", group: "A", seed: 4, accent: "from-rose-300/22 via-orange-400/12 to-amber-300/10" },
+	{ name: "Baron Basil", group: "B", seed: 1, accent: "from-sky-300/22 via-cyan-400/12 to-emerald-400/10" },
+	{ name: "Nexus Garden", group: "B", seed: 2, accent: "from-fuchsia-300/18 via-rose-400/10 to-emerald-400/10" },
+	{ name: "Radish Riot", group: "B", seed: 3, accent: "from-red-300/22 via-rose-400/12 to-fuchsia-400/10" },
+	{ name: "Chili Chargers", group: "B", seed: 4, accent: "from-orange-300/22 via-red-400/12 to-rose-400/10" },
 ];
 
 function teamKey(name: string): string {
-  return name.trim().toLowerCase();
+	return name.trim().toLowerCase();
 }
 
 const NAMES = [
@@ -181,10 +181,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 	}));
 
 	type StringIdDoc = { _id: string } & Record<string, unknown>;
-	await Promise.all([
-		db.collection<StringIdDoc>("verified_riot_accounts").insertMany(verifiedDocs),
-		db.collection<StringIdDoc>("tournament_applications").insertMany(appDocs),
-	]);
+	await Promise.all([db.collection<StringIdDoc>("verified_riot_accounts").insertMany(verifiedDocs), db.collection<StringIdDoc>("tournament_applications").insertMany(appDocs)]);
 
 	return docs.length;
 }
@@ -218,9 +215,7 @@ export async function seedTestTeams(): Promise<{
 	alreadyFull: boolean;
 }> {
 	const db = await getDb();
-	const doc = await db
-		.collection<{ _id: string; teams?: Record<string, unknown> }>("bot_state")
-		.findOne({ _id: "default" });
+	const doc = await db.collection<{ _id: string; teams?: Record<string, unknown> }>("bot_state").findOne({ _id: "default" });
 	const existing = doc?.teams ?? {};
 	const existingCount = Object.keys(existing).length;
 
@@ -255,9 +250,7 @@ export async function seedTestTeams(): Promise<{
 	}
 
 	if (inserted > 0) {
-		await db
-			.collection<{ _id: string }>("bot_state")
-			.updateOne({ _id: "default" }, { $set: setOps }, { upsert: true });
+		await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: setOps }, { upsert: true });
 	}
 
 	return { inserted, skipped, alreadyFull: false };
@@ -270,10 +263,7 @@ type StoredPlayerLike = {
 };
 
 function isTestPlayer(p: StoredPlayerLike): boolean {
-	return (
-		(typeof p.discordId === "string" && p.discordId.startsWith("test-")) ||
-		(typeof p.puuid === "string" && p.puuid.startsWith("test-puuid-"))
-	);
+	return (typeof p.discordId === "string" && p.discordId.startsWith("test-")) || (typeof p.puuid === "string" && p.puuid.startsWith("test-puuid-"));
 }
 
 /**
@@ -327,8 +317,7 @@ export async function clearTestTeams(): Promise<{
 		const captain = team?.meta?.captain;
 		if (
 			captain &&
-			((typeof captain.discordId === "string" && captain.discordId.startsWith("test-")) ||
-				(typeof captain.puuid === "string" && captain.puuid.startsWith("test-puuid-")))
+			((typeof captain.discordId === "string" && captain.discordId.startsWith("test-")) || (typeof captain.puuid === "string" && captain.puuid.startsWith("test-puuid-")))
 		) {
 			unsetOps[`teams.${key}.meta.captain`] = "";
 		}
@@ -339,9 +328,7 @@ export async function clearTestTeams(): Promise<{
 	if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
 
 	if (Object.keys(update).length > 0) {
-		await db
-			.collection<{ _id: string }>("bot_state")
-			.updateOne({ _id: "default" }, update);
+		await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, update);
 	}
 
 	return { teamsRemoved, playersStripped, teamKeysRemoved };

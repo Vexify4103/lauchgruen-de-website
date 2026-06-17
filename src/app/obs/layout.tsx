@@ -5,16 +5,16 @@
  * gradient bleed-through. Also strips any default margins/padding.
  */
 export default function ObsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <style>{`
+	return (
+		<>
+			<style>{`
         html, body {
           background: transparent !important;
           margin: 0 !important;
           padding: 0 !important;
         }
       `}</style>
-      {children}
-    </>
-  );
+			{children}
+		</>
+	);
 }
