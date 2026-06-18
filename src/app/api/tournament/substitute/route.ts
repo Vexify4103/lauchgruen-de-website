@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
 import { setDiscordMemberRole } from "@/lib/discord";
 import { getDb } from "@/lib/mongo";
@@ -45,7 +44,6 @@ const schema = z.object({
 		.string()
 		.trim()
 		.transform((value) => (isPlayerRole(value) ? value : "Sub")),
-	expectedVersion: z.number().int().min(0),
 });
 
 export async function POST(request: Request) {
@@ -73,15 +71,6 @@ export async function POST(request: Request) {
 	const verified = await db.collection<VerifiedDoc>("verified_riot_accounts").findOne({ _id: parsed.data.incomingDiscordId });
 	if (!verified) {
 		return NextResponse.json({ message: "Incoming player hat keinen verifizierten Riot Account." }, { status: 409 });
-	}
-
-	const versionClaim = await claimAdminVersion({
-		resource: "roster",
-		expectedVersion: parsed.data.expectedVersion,
-		updatedBy: session.user.discordHandle ?? discordId,
-	});
-	if (!versionClaim.ok) {
-		return NextResponse.json(versionClaim.conflict, { status: 409 });
 	}
 
 	const previousIncomingTeams = Object.entries(teams)
@@ -199,6 +188,5 @@ export async function POST(request: Request) {
 		outgoingDiscordId: parsed.data.outgoingDiscordId || null,
 		role: parsed.data.role,
 		warnings: roleWarnings,
-		version: versionClaim.version,
 	});
 }

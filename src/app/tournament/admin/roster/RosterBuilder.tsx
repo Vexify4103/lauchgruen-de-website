@@ -109,10 +109,9 @@ function teamFromMutationResponse(response: TeamMutationResponse): RosterTeam {
 	};
 }
 
-export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { snapshot: RosterSnapshot; initialVersion: number }) {
+export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterSnapshot; initialVersion: number }) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
-	const [version, setVersion] = useState(initialVersion);
 	const [snapshot, setSnapshot] = useState<RosterSnapshot>(initialSnapshot);
 	const [state, setState] = useState<State>(() => initialState(snapshot));
 	const [picker, setPicker] = useState<null | {
@@ -364,7 +363,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return;
 		}
-		setVersion(json.version);
 		setSnapshot((prev) => ({
 			...prev,
 			applicants: prev.applicants.map((a) => (a.discordId === applicant.discordId ? { ...a, manualRankOverride: override } : a)),
@@ -558,7 +556,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
-				expectedVersion: version,
 				name,
 				group: newTeamGroup,
 				seed: newTeamSeed === "" ? undefined : newTeamSeed,
@@ -578,7 +575,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return false;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		if (json?.key && json?.name) {
 			setSnapshot((current) => ({
 				...current,
@@ -604,7 +600,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		});
 		router.refresh();
 		return true;
-	}, [newTeamName, newTeamGroup, newTeamSeed, newTeamCreateDiscord, version, router, showConflict]);
+	}, [newTeamName, newTeamGroup, newTeamSeed, newTeamCreateDiscord, router, showConflict]);
 
 	const openEditTeam = useCallback((team: RosterTeam) => {
 		setEditTeamTarget(team);
@@ -637,7 +633,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			method: "PATCH",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
-				expectedVersion: version,
 				key: editTeamTarget.key,
 				name,
 				group: editTeamGroup,
@@ -657,7 +652,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return false;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		const oldKey = editTeamTarget.key;
 		if (json?.key && json?.name) {
 			const nextKey = String(json.key);
@@ -699,7 +693,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		});
 		router.refresh();
 		return true;
-	}, [editTeamTarget, editTeamName, editTeamGroup, editTeamSeed, version, router, showConflict]);
+	}, [editTeamTarget, editTeamName, editTeamGroup, editTeamSeed, router, showConflict]);
 
 	async function performDeleteTeam() {
 		if (!deleteTeamTarget) return;
@@ -707,7 +701,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		setDeleteTeamTarget(null);
 		setDeletingTeam(true);
 		setMessage(null);
-		const response = await fetch(`/api/tournament/teams?key=${encodeURIComponent(team.key)}&expectedVersion=${version}`, { method: "DELETE" });
+		const response = await fetch(`/api/tournament/teams?key=${encodeURIComponent(team.key)}`, { method: "DELETE" });
 		setDeletingTeam(false);
 		const json = await response.json().catch(() => null);
 		if (!response.ok) {
@@ -721,7 +715,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		// Locally drop any assignments / captain that referenced this team — otherwise
 		// they'd silently linger in component state until the next manual refresh.
 		setState((prev) => {
@@ -753,7 +746,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		const response = await fetch("/api/tournament/test-data", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ count: 40, expectedVersion: version }),
+			body: JSON.stringify({ count: 40 }),
 		});
 		setSeeding(false);
 		const json = await response.json().catch(() => null);
@@ -768,7 +761,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		const parts: string[] = [];
 		if (json.applicants) parts.push(`${json.applicants} Bewerber`);
 		if (json.teamsInserted) parts.push(`${json.teamsInserted} Team(s) angelegt`);
@@ -786,7 +778,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		const response = await fetch("/api/tournament/test-data", {
 			method: "DELETE",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ expectedVersion: version }),
+			body: JSON.stringify({}),
 		});
 		setClearing(false);
 		const json = await response.json().catch(() => null);
@@ -801,7 +793,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			});
 			return;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		const removedTeamKeys = new Set<string>(json.teamKeysRemoved ?? []);
 		setState((previous) => {
 			const assignments = new Map<string, Assignment>();
@@ -857,7 +848,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
-				expectedVersion: version,
 				teamPlayers,
 				captains,
 				manualPlayers,
@@ -874,7 +864,6 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			setMessage({ tone: "error", text: errs.join(" · ") });
 			return false;
 		}
-		if (typeof json?.version === "number") setVersion(json.version);
 		setSavedRosterState(stateBeingSaved);
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
 		setMessage({
@@ -885,7 +874,7 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 				(warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
 		});
 		return true;
-	}, [currentRosterState, version, state, snapshot.teams, showConflict]);
+	}, [currentRosterState, state, snapshot.teams, showConflict]);
 
 	useUnsavedChanges({
 		dirty: rosterDirty,

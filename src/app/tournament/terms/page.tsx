@@ -83,6 +83,17 @@ const ruleSections = [
 		text: "Teams müssen spätestens 10 Minuten nach dem geplanten Match-Start vollständig im Voice-Channel bereitstehen. Ist ein Team nach Ablauf dieser Frist nicht vollständig anwesend, kann das Orga-Team ein Forfeit zugunsten des wartenden Teams verhängen.",
 	},
 	{
+		title: "Rückzug, Forfeit und Team-Balance",
+		text: "Wunschgruppen sind nicht garantiert. Das Orga-Team darf Gruppen aus Fairness- und Balancing-Gründen aufteilen. Wer nach der finalen Teamzuteilung nicht mehr antreten möchte, muss das dem Orga-Team so früh wie möglich mitteilen.",
+		list: [
+			"Wenn ein Team wegen Rückzug, fehlenden Spielern oder verweigerter Teilnahme nicht spielbereit ist, kann das Orga-Team einzelne Matches als Forfeit werten",
+			"Ein Forfeit kann als Niederlage für das betroffene Team und als Sieg für den Gegner eingetragen werden",
+			"Wenn der Turnierablauf sonst gefährdet ist, darf das Orga-Team Ersatzspieler einsetzen oder Teams kurzfristig anpassen",
+			"Diskussionen über Wunschgruppen oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
+		],
+		footer: "Ziel ist, dass das Turnier für alle Teams fair und planbar bleibt.",
+	},
+	{
 		title: "Pausen während des Spiels",
 		text: "Pausen dürfen ausschließlich bei technischen Problemen oder wichtigen Notfällen genutzt werden.",
 		list: [

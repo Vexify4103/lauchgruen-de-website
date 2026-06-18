@@ -255,8 +255,15 @@ export function ApplicationForm({
 				className={`grid gap-5 ${verified ? "" : "pointer-events-none opacity-50"}`}
 			>
 				{hasApplication ? (
-					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-50">
-						Du bist bereits angemeldet. Hier kannst du deine Bewerbung aktualisieren.
+					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
+						<div>Du bist bereits angemeldet. Hier kannst du deine Bewerbung aktualisieren.</div>
+						<div className="mt-2 text-cyan-50/78">
+							Auf deiner{" "}
+							<Link href="/tournament/me" className="font-black text-cyan-100 underline decoration-cyan-200/40 underline-offset-4 hover:text-white">
+								Profilseite
+							</Link>{" "}
+							kannst du außerdem eine Wunschgruppe erstellen oder einem Code beitreten und optional deinen Twitch-Account verbinden.
+						</div>
 					</div>
 				) : null}
 

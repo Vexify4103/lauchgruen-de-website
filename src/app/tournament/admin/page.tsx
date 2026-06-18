@@ -300,16 +300,15 @@ async function buildReadinessDiagnostics(
 
 	const captainIds = ctx.teams.map((team) => team.captainRef?.discordId).filter((discordId): discordId is string => !!discordId);
 	const roleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim();
-	const roleChecks = await Promise.all(
-		ctx.teams
-			.filter((team) => team.captainRef?.discordId)
-			.map(async (team) => ({
-				teamName: team.name,
-				captainLabel: team.captainRef?.riotId ?? team.captain ?? "Captain",
-				discordId: team.captainRef?.discordId ?? "",
-				result: await checkDiscordMemberRole({ discordId: team.captainRef?.discordId ?? "", roleId }),
-			}))
-	);
+	const roleChecks = [];
+	for (const team of ctx.teams.filter((entry) => entry.captainRef?.discordId)) {
+		roleChecks.push({
+			teamName: team.name,
+			captainLabel: team.captainRef?.riotId ?? team.captain ?? "Captain",
+			discordId: team.captainRef?.discordId ?? "",
+			result: await checkDiscordMemberRole({ discordId: team.captainRef?.discordId ?? "", roleId }),
+		});
+	}
 	const failedRoleChecks = roleChecks.filter((entry) => entry.result.status !== "synced");
 	for (const entry of failedRoleChecks) {
 		warnings.push(`Captain ${entry.discordId}: ${entry.result.message}`);

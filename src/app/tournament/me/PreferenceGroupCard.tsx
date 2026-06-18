@@ -13,6 +13,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 	const [group, setGroup] = useState(initialGroup);
 	const [joinCode, setJoinCode] = useState("");
 	const [pending, setPending] = useState<"create" | "join" | "leave" | null>(null);
+	const [confirmJoinCode, setConfirmJoinCode] = useState("");
 	const [message, setMessage] = useState<{
 		tone: "ok" | "error";
 		text: string;
@@ -58,6 +59,23 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 		label: "Wunschgruppen-Code",
 		save: () => mutate("join", joinCode),
 	});
+
+	function requestJoinConfirmation() {
+		const code = joinCode.trim().toUpperCase();
+		if (!code) return;
+		setConfirmJoinCode(code);
+	}
+
+	function cancelJoinConfirmation() {
+		setConfirmJoinCode("");
+		setJoinCode("");
+	}
+
+	async function confirmJoinPreferenceGroup() {
+		const code = confirmJoinCode;
+		setConfirmJoinCode("");
+		await mutate("join", code);
+	}
 
 	async function copyCode() {
 		if (!group) return;
@@ -132,7 +150,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 						className="rounded-2xl border border-white/9 bg-black/18 p-4"
 						onSubmit={(event) => {
 							event.preventDefault();
-							if (joinCode.trim()) void mutate("join", joinCode);
+							requestJoinConfirmation();
 						}}
 					>
 						<label htmlFor="preference-group-code" className="text-sm font-black text-emerald-50">
@@ -160,6 +178,45 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 					</form>
 				</div>
 			)}
+
+			{confirmJoinCode ? (
+				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+					<button type="button" aria-label="Hinweis schließen" onClick={cancelJoinConfirmation} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+					<div className="relative w-full max-w-xl rounded-[2rem] border border-amber-200/24 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/60">
+						<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-200/72">Wunschgruppe beitreten</div>
+						<h3 className="mt-3 text-2xl font-black text-emerald-50">Wichtig vor dem Beitritt</h3>
+						<p className="mt-3 text-sm leading-6 text-emerald-100/68">
+							Wunschgruppen sind <strong className="font-black text-amber-100">nicht garantiert</strong>. Die Orga versucht, eure Gruppe beim Team-Building zu
+							berücksichtigen, aber faire Team-Balance hat Vorrang.
+						</p>
+						<div className="mt-4 rounded-2xl border border-amber-200/18 bg-amber-200/[0.08] p-4 text-sm leading-6 text-amber-50/80">
+							Mit <strong className="font-black text-amber-100">„Ich verstehe“</strong> akzeptierst du, dass Team-Fairness und Balancing wichtiger sind als diese
+							Wunschgruppe. Du verzichtest außerdem darauf, später mit Staff-Mitgliedern darüber zu diskutieren, falls deine Wunschgruppe aus Balancing-Gründen nicht
+							vollständig zusammen eingeteilt werden kann.
+						</div>
+						<p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100/56">
+							Code: <span className="font-mono text-cyan-50">{confirmJoinCode}</span>
+						</p>
+						<div className="mt-6 flex flex-wrap justify-end gap-3">
+							<button
+								type="button"
+								onClick={cancelJoinConfirmation}
+								className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-white/24 hover:text-emerald-50"
+							>
+								Okay
+							</button>
+							<button
+								type="button"
+								onClick={confirmJoinPreferenceGroup}
+								disabled={pending !== null}
+								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20 disabled:opacity-50"
+							>
+								{pending === "join" ? "Tritt bei…" : "Ich verstehe"}
+							</button>
+						</div>
+					</div>
+				</div>
+			) : null}
 
 			{message ? (
 				<div

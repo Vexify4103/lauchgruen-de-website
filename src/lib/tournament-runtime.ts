@@ -173,9 +173,24 @@ function sortPlayersByRole(players: StoredPlayer[]): StoredPlayer[] {
 	});
 }
 
+function resolveCaptainRef(stored: StoredTeam): TeamCaptainRef | undefined {
+	const captainRef = stored.meta?.captain;
+	if (!captainRef) return undefined;
+
+	const captainPlayer = stored.players.find((player) => player.riotId.toLowerCase() === captainRef.riotId.toLowerCase());
+	if (!captainPlayer?.discordId) return captainRef;
+
+	return {
+		...captainRef,
+		discordId: captainPlayer.discordId,
+		discordUsername: captainPlayer.discordUsername ?? captainRef.discordUsername,
+		puuid: captainPlayer.puuid || captainRef.puuid,
+	};
+}
+
 function makeTeam(stored: StoredTeam, group: "A" | "B", seed: number): TournamentTeam {
 	const accentIndex = (group === "A" ? 0 : 4) + Math.min(3, Math.max(0, seed - 1));
-	const captainRef = stored.meta?.captain;
+	const captainRef = resolveCaptainRef(stored);
 	const captainText = captainRef ? (captainRef.discordUsername ? `${captainRef.discordUsername} · ${captainRef.riotId}` : captainRef.riotId) : "Captain TBA";
 	return {
 		id: slugify(stored.name),

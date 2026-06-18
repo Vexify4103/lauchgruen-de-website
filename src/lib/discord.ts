@@ -1,6 +1,7 @@
 const DISCORD_API = "https://discord.com/api/v10";
 const DISCORD_ROLE_MAX_ATTEMPTS = 5;
 const DISCORD_NICKNAME_MAX_ATTEMPTS = 5;
+const DISCORD_MEMBER_MAX_ATTEMPTS = 5;
 
 let discordRoleMutationQueue: Promise<void> = Promise.resolve();
 let discordNicknameMutationQueue: Promise<void> = Promise.resolve();
@@ -39,11 +40,9 @@ export async function isDiscordGuildMember(discordId: string): Promise<boolean |
 	const guildId = discordGuildId();
 	if (!token || !guildId) return null;
 
-	const response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${discordId}`, {
-		headers: { authorization: `Bot ${token}` },
-		cache: "no-store",
-	});
+	const response = await fetchDiscordGuildMemberResponse(discordId, token, guildId);
 
+	if (!response) return null;
 	if (response.status === 404) return false;
 	if (!response.ok) return null;
 	return true;
@@ -54,14 +53,40 @@ async function getDiscordGuildMember(discordId: string): Promise<DiscordMember |
 	const guildId = discordGuildId();
 	if (!token || !guildId) return "missing-config";
 
-	const response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${discordId}`, {
-		headers: { authorization: `Bot ${token}` },
-		cache: "no-store",
-	});
+	const response = await fetchDiscordGuildMemberResponse(discordId, token, guildId);
 
+	if (!response) return "error";
 	if (response.status === 404) return "missing-member";
 	if (!response.ok) return "error";
 	return (await response.json().catch(() => null)) as DiscordMember | null;
+}
+
+async function fetchDiscordGuildMemberResponse(discordId: string, token: string, guildId: string): Promise<Response | null> {
+	for (let attempt = 1; attempt <= DISCORD_MEMBER_MAX_ATTEMPTS; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${discordId}`, {
+				headers: { authorization: `Bot ${token}` },
+				cache: "no-store",
+			});
+		} catch {
+			if (attempt === DISCORD_MEMBER_MAX_ATTEMPTS) return null;
+			await wait(250 * attempt);
+			continue;
+		}
+
+		if (response.status === 429 && attempt < DISCORD_MEMBER_MAX_ATTEMPTS) {
+			const body = (await response.clone().json().catch(() => null)) as { retry_after?: number } | null;
+			const retryAfterSeconds =
+				body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
+			await wait(Math.ceil(retryAfterSeconds * 1000) + 150);
+			continue;
+		}
+
+		return response;
+	}
+
+	return null;
 }
 
 export async function checkDiscordMemberRole(input: { discordId: string; roleId?: string }): Promise<DiscordRoleCheck> {
