@@ -14,7 +14,7 @@ export default async function PlayoffsPage() {
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto w-full max-w-7xl">
+			<section className="mx-auto w-full max-w-[1600px]">
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Playoffs und Finals</div>
 					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Acht Teams – Double Elimination.</h1>

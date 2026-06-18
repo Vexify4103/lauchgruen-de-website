@@ -8,6 +8,19 @@ import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function wait(milliseconds: number) {
+	return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function verifyCaptainRole(input: { discordId: string; roleId: string }) {
+	for (let attempt = 1; attempt <= 4; attempt += 1) {
+		const check = await checkDiscordMemberRole(input);
+		if (check.status === "synced") return check;
+		if (attempt < 4) await wait(500 * attempt);
+	}
+	return checkDiscordMemberRole(input);
+}
+
 export async function POST() {
 	const session = await auth();
 	const discordId = session?.user?.discordId;
@@ -22,21 +35,23 @@ export async function POST() {
 
 	const ctx = await getTournamentContext();
 	const captains = [...new Set(ctx.teams.map((team) => team.captainRef?.discordId).filter((id): id is string => Boolean(id)))];
-	const results = await Promise.all(
-		captains.map(async (captainId) => {
-			const before = await checkDiscordMemberRole({ discordId: captainId, roleId });
-			if (before.status === "synced") {
-				return { discordId: captainId, before, after: before, repaired: false };
-			}
-			const repair = await setDiscordMemberRole({
-				discordId: captainId,
-				roleId,
-				enabled: true,
-			});
-			const after = repair.ok ? await checkDiscordMemberRole({ discordId: captainId, roleId }) : { status: "error" as const, message: repair.message };
-			return { discordId: captainId, before, after, repaired: repair.ok };
-		})
-	);
+	const results = [];
+	for (const captainId of captains) {
+		const before = await checkDiscordMemberRole({ discordId: captainId, roleId });
+		if (before.status === "synced") {
+			results.push({ discordId: captainId, before, after: before, repaired: false });
+			continue;
+		}
+
+		const repair = await setDiscordMemberRole({
+			discordId: captainId,
+			roleId,
+			enabled: true,
+		});
+		const after = repair.ok ? await verifyCaptainRole({ discordId: captainId, roleId }) : { status: "error" as const, message: repair.message };
+		results.push({ discordId: captainId, before, after, repaired: repair.ok });
+		await wait(250);
+	}
 
 	await writeAuditLog({
 		action: "discord.captain_roles.repair",

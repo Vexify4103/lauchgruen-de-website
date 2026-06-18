@@ -141,7 +141,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 
 	return (
 		<div className="overflow-x-auto pb-2 -mx-2 px-2">
-			<div ref={containerRef} className="relative grid min-w-[88rem] gap-x-10" style={{ gridTemplateColumns: "minmax(0, 1fr) 14rem" }}>
+			<div ref={containerRef} className="relative grid min-w-[70rem] gap-x-6" style={{ gridTemplateColumns: "minmax(0, 1fr) 14rem" }}>
 				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
 					{paths.map((p, i) => (
 						<path
@@ -246,7 +246,7 @@ function BracketSection({
 	lookup: (id: string) => BracketMatch | undefined;
 }) {
 	const tone = accentClasses[accent];
-	const gridCols = `repeat(${columns}, minmax(11rem, 1fr))`;
+	const gridCols = `repeat(${columns}, minmax(9rem, 1fr))`;
 
 	return (
 		<section>
@@ -255,7 +255,7 @@ function BracketSection({
 				<span className="h-px flex-1 bg-current opacity-20" />
 			</div>
 
-			<div className="grid gap-x-12" style={{ gridTemplateColumns: gridCols }}>
+			<div className="grid gap-x-8" style={{ gridTemplateColumns: gridCols }}>
 				{columnLabels.map((columnLabel, i) => (
 					<div key={columnLabel + i} className="text-xs font-black uppercase tracking-[0.28em] text-emerald-100/52" style={{ gridColumn: i + 1 }}>
 						{columnLabel}
@@ -264,7 +264,7 @@ function BracketSection({
 			</div>
 
 			<div
-				className="mt-3 grid gap-x-12 gap-y-2"
+				className="mt-3 grid gap-x-8 gap-y-2"
 				style={{
 					gridTemplateColumns: gridCols,
 					gridTemplateRows: `repeat(${rows}, minmax(5.5rem, auto))`,

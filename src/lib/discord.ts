@@ -1,7 +1,9 @@
 const DISCORD_API = "https://discord.com/api/v10";
 const DISCORD_ROLE_MAX_ATTEMPTS = 5;
+const DISCORD_NICKNAME_MAX_ATTEMPTS = 5;
 
 let discordRoleMutationQueue: Promise<void> = Promise.resolve();
+let discordNicknameMutationQueue: Promise<void> = Promise.resolve();
 
 export const DISCORD_INVITE_URL = "https://discord.gg/GFYv7K3SKb";
 
@@ -14,6 +16,7 @@ function discordGuildId() {
 }
 
 type DiscordMember = {
+	nick?: string | null;
 	roles?: string[];
 };
 
@@ -101,31 +104,93 @@ export async function checkDiscordMemberRole(input: { discordId: string; roleId?
 	};
 }
 
-export async function setDiscordNickname(input: { discordId: string; displayName: string; riotId: string }): Promise<{ ok: true } | { ok: false; message: string }> {
+type DiscordNicknameResult = { ok: true; changed: boolean } | { ok: false; message: string };
+
+export async function setDiscordNickname(input: { discordId: string; displayName: string; riotId: string }): Promise<DiscordNicknameResult> {
+	const run = discordNicknameMutationQueue.then(
+		() => setDiscordNicknameWithRetry(input),
+		() => setDiscordNicknameWithRetry(input)
+	);
+	discordNicknameMutationQueue = run.then(
+		() => undefined,
+		() => undefined
+	);
+	return run;
+}
+
+async function setDiscordNicknameWithRetry(input: { discordId: string; displayName: string; riotId: string }): Promise<DiscordNicknameResult> {
 	const token = discordBotToken();
 	const guildId = discordGuildId();
 	if (!token || !guildId) {
-		return { ok: false, message: "Discord nickname sync skipped: bot token or guild ID missing." };
+		return { ok: false, message: "Discord-Nickname-Sync übersprungen: Bot-Token oder Guild-ID fehlt." };
 	}
 
 	const nickname = formatTournamentNickname(input.displayName, input.riotId);
-	const response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${input.discordId}`, {
-		method: "PATCH",
-		headers: {
-			authorization: `Bot ${token}`,
-			"content-type": "application/json",
-		},
-		body: JSON.stringify({ nick: nickname }),
-	});
+	const member = await getDiscordGuildMember(input.discordId);
+	if (member === "missing-config") {
+		return { ok: false, message: "Discord-Nickname-Sync übersprungen: Bot-Token oder Guild-ID fehlt." };
+	}
+	if (member === "missing-member") {
+		return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+	}
+	if (member === "error" || !member) {
+		return { ok: false, message: "Discord-Mitglied konnte vor dem Nickname-Sync nicht gelesen werden." };
+	}
+	if (member.nick === nickname) {
+		return { ok: true, changed: false };
+	}
 
-	if (!response.ok) {
+	for (let attempt = 1; attempt <= DISCORD_NICKNAME_MAX_ATTEMPTS; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${input.discordId}`, {
+				method: "PATCH",
+				headers: {
+					authorization: `Bot ${token}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ nick: nickname }),
+			});
+		} catch {
+			if (attempt === DISCORD_NICKNAME_MAX_ATTEMPTS) {
+				return { ok: false, message: "Discord-Nickname konnte wegen eines Netzwerkfehlers nicht geändert werden." };
+			}
+			await wait(300 * attempt);
+			continue;
+		}
+
+		if (response.ok) {
+			await wait(250);
+			return { ok: true, changed: true };
+		}
+
+		if (response.status === 429 && attempt < DISCORD_NICKNAME_MAX_ATTEMPTS) {
+			const body = (await response.json().catch(() => null)) as { retry_after?: number } | null;
+			const retryAfterSeconds =
+				body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
+			await wait(Math.ceil(retryAfterSeconds * 1000) + 250);
+			continue;
+		}
+
+		if (response.status === 404) {
+			return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+		}
+
+		if (response.status === 403) {
+			return {
+				ok: false,
+				message: "Discord-Nickname konnte nicht geändert werden (HTTP 403). Prüfe „Nicknames verwalten“ und ob die Bot-Rolle über den Rollen der Spieler steht.",
+			};
+		}
+
+		const detail = await response.text().catch(() => "");
 		return {
 			ok: false,
-			message: "Discord nickname could not be changed. Check Manage Nicknames and role hierarchy.",
+			message: `Discord-Nickname konnte nicht geändert werden (HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}).`,
 		};
 	}
 
-	return { ok: true };
+	return { ok: false, message: "Discord-Nickname konnte nach mehreren Versuchen nicht geändert werden." };
 }
 
 export async function setDiscordMemberRole(input: { discordId: string; roleId: string; enabled: boolean }): Promise<{ ok: true } | { ok: false; message: string }> {

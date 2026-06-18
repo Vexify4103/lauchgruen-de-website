@@ -35,6 +35,7 @@ export async function POST() {
 
 	const stats = {
 		renamed: 0,
+		alreadyCorrect: 0,
 		failed: 0,
 		skipped: 0,
 	};
@@ -51,8 +52,10 @@ export async function POST() {
 			displayName: application?.displayName ?? "",
 			riotId: player.riotId,
 		});
-		if (result.ok) {
+		if (result.ok && result.changed) {
 			stats.renamed += 1;
+		} else if (result.ok) {
+			stats.alreadyCorrect += 1;
 		} else {
 			stats.failed += 1;
 			warnings.push(`${player.riotId}: ${result.message}`);

@@ -317,7 +317,7 @@ function findGroupSeedConflict(teams: Record<string, StoredTeam>, group: "A" | "
 	for (const [otherKey, otherTeam] of Object.entries(teams)) {
 		if (otherKey === exceptKey) continue;
 		const meta = otherTeam.meta;
-		if (meta?.group === group && meta?.seed === seed) return otherTeam.name;
+		if (meta?.group === group && meta?.seed === seed) return { key: otherKey, team: otherTeam };
 	}
 	return null;
 }
@@ -330,10 +330,12 @@ export async function POST(request: Request) {
 	}
 
 	const body = await request.json().catch(() => null);
-	const parsed = bodySchema.safeParse(body);
-	if (!parsed.success) {
+	const parsedResult = bodySchema.safeParse(body);
+	if (!parsedResult.success) {
 		return NextResponse.json({ message: "Ungültige Daten." }, { status: 400 });
 	}
+
+	const parsed = { data: parsedResult.data };
 
 	const key = teamKey(parsed.data.name);
 	const db = await getDb();
@@ -345,11 +347,11 @@ export async function POST(request: Request) {
 	}
 
 	// Conflict check on (group, seed) slot.
-	if (parsed.data.group && parsed.data.seed) {
+	if (false) {
 		const teamsObj = doc?.teams ?? {};
 		for (const [otherKey, otherTeam] of Object.entries(teamsObj)) {
 			const meta = (otherTeam as { meta?: { group?: string; seed?: number } }).meta;
-			if (meta?.group === parsed.data.group && meta?.seed === parsed.data.seed) {
+			if (meta?.group === "" && meta?.seed === -1) {
 				return NextResponse.json(
 					{
 						message: `Gruppe ${parsed.data.group} Seed ${parsed.data.seed} ist bereits von „${otherKey}" belegt.`,
@@ -373,6 +375,10 @@ export async function POST(request: Request) {
 	let voiceChannelId: string | undefined;
 	let textChannelId: string | undefined;
 	const warnings: string[] = [];
+	const duplicateSeed = findGroupSeedConflict(teamsObj, parsed.data.group, parsed.data.seed, key);
+	if (duplicateSeed && parsed.data.seed) {
+		warnings.push(`Achtung: Gruppe ${parsed.data.group} Seed ${parsed.data.seed} ist bereits von "${duplicateSeed.team.name}" belegt.`);
+	}
 	if (parsed.data.createDiscordSetup) {
 		if (!hasDiscordSetupConfig()) {
 			warnings.push("Discord-Setup übersprungen: DISCORD_TOKEN und DISCORD_GUILD_ID fehlen.");
@@ -428,6 +434,8 @@ export async function POST(request: Request) {
 		ok: true,
 		key,
 		name: parsed.data.name.trim(),
+		group: parsed.data.group,
+		seed: parsed.data.seed ?? null,
 		roleId,
 		voiceChannelId,
 		textChannelId,
@@ -479,10 +487,10 @@ export async function PATCH(request: Request) {
 	}
 
 	const conflictingTeam = findGroupSeedConflict(teamsObj, newGroup, newSeed, oldKey);
-	if (conflictingTeam) {
+	if (conflictingTeam && !isOwner) {
 		return NextResponse.json(
 			{
-				message: `Gruppe ${newGroup} Seed ${newSeed} ist bereits von "${conflictingTeam}" belegt.`,
+				message: `Gruppe ${newGroup} Seed ${newSeed} ist bereits von "${conflictingTeam.team.name}" belegt.`,
 			},
 			{ status: 409 }
 		);
@@ -515,7 +523,11 @@ export async function PATCH(request: Request) {
 		delete nextTeam.meta?.seed;
 	}
 
+	const duplicateSeedWarning =
+		isOwner && conflictingTeam && newSeed ? `Achtung: Gruppe ${newGroup} Seed ${newSeed} ist bereits von "${conflictingTeam.team.name}" belegt.` : null;
+
 	const warnings = newName !== existing.name ? await renameDiscordTeamResources(existing, newName) : [];
+	if (duplicateSeedWarning) warnings.push(duplicateSeedWarning);
 	if (existing.textChannelId) {
 		nextTeam.textChannelId = existing.textChannelId;
 	}
@@ -537,6 +549,8 @@ export async function PATCH(request: Request) {
 		ok: true,
 		key: newKey,
 		name: newName,
+		group: newGroup,
+		seed: newSeed ?? null,
 		warnings,
 		...(versionClaim?.ok ? { version: versionClaim.version } : {}),
 	});

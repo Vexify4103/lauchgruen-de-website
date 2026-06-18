@@ -17,6 +17,7 @@ export function NicknameSyncButton() {
 		});
 		const result = (await response.json().catch(() => null)) as {
 			renamed?: number;
+			alreadyCorrect?: number;
 			failed?: number;
 			skipped?: number;
 			warnings?: string[];
@@ -32,7 +33,7 @@ export function NicknameSyncButton() {
 		}
 
 		const warnings = result?.warnings ?? [];
-		const summary = `Umbenannt: ${result?.renamed ?? 0} · Fehlgeschlagen: ${result?.failed ?? 0} · Übersprungen: ${result?.skipped ?? 0}`;
+		const summary = `Umbenannt: ${result?.renamed ?? 0} · Bereits korrekt: ${result?.alreadyCorrect ?? 0} · Fehlgeschlagen: ${result?.failed ?? 0} · Übersprungen: ${result?.skipped ?? 0}`;
 		setState({
 			status: warnings.length > 0 ? "error" : "success",
 			message: warnings.length > 0 ? `${summary}. ${warnings.slice(0, 3).join(" ")}` : summary,

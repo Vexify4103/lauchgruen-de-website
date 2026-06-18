@@ -29,12 +29,29 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 		setMessage("");
 		startTransition(async () => {
 			const response = await fetch("/api/tournament/discord-sync", { method: "POST" });
-			const json = (await response.json().catch(() => null)) as { message?: string } | null;
+			const json = (await response.json().catch(() => null)) as {
+				message?: string;
+				results?: Array<{
+					discordId: string;
+					after: { status: CaptainRoleStatus["status"]; message: string };
+				}>;
+			} | null;
 			if (!response.ok) {
 				setMessage(json?.message ?? "Discord Sync fehlgeschlagen.");
 				return;
 			}
-			setMessage("Captain-Rollen Repair ausgeführt.");
+			const results = json?.results ?? [];
+			const syncedAfterRepair = results.filter((entry) => entry.after.status === "synced").length;
+			const failed = results.filter((entry) => entry.after.status !== "synced");
+			const failedPreview = failed
+				.slice(0, 3)
+				.map((entry) => `${entry.discordId}: ${entry.after.message}`)
+				.join(" ");
+			setMessage(
+				failed.length > 0
+					? `Captain-Rollen Repair ausgeführt: ${syncedAfterRepair}/${results.length} synchronisiert. ${failedPreview}`
+					: `Captain-Rollen Repair ausgeführt: ${syncedAfterRepair}/${results.length} synchronisiert.`
+			);
 			router.refresh();
 		});
 	}

@@ -54,6 +54,15 @@ type State = {
 	manualPlayers: Map<string, RosterApplicant>;
 };
 
+type TeamMutationResponse = {
+	key: string;
+	name: string;
+	group?: "A" | "B";
+	seed?: number | null;
+	version?: number;
+	warnings?: string[];
+};
+
 function initialState(snapshot: RosterSnapshot): State {
 	const assignments = new Map<string, Assignment>();
 	for (const team of snapshot.teams) {
@@ -89,6 +98,17 @@ function serializeRosterState(state: State) {
 	});
 }
 
+function teamFromMutationResponse(response: TeamMutationResponse): RosterTeam {
+	return {
+		key: response.key,
+		name: response.name,
+		group: response.group,
+		seed: response.seed ?? undefined,
+		captainDiscordId: null,
+		players: [],
+	};
+}
+
 export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { snapshot: RosterSnapshot; initialVersion: number }) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
@@ -107,9 +127,10 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 	const [autoConfirm, setAutoConfirm] = useState(false);
 	const [autoRunning, setAutoRunning] = useState(false);
 	const [splitThreshold, setSplitThreshold] = useState(() => {
-		if (typeof window === "undefined") return 35;
+		if (typeof window === "undefined") return 22;
 		const stored = localStorage.getItem("roster-balance-threshold");
-		return stored ? Number(stored) || 35 : 35;
+		const parsed = stored ? Number(stored) : 22;
+		return Math.min(35, Math.max(10, parsed || 22));
 	});
 
 	useEffect(() => {
@@ -233,6 +254,52 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 		}
 		return [...grouped.entries()].map(([code, members]) => ({ code, members })).sort((a, b) => a.code.localeCompare(b.code));
 	}, [snapshot.applicants]);
+
+	const preferenceGroupSummary = useMemo(() => {
+		const rows = preferenceGroups.map(({ code, members }) => {
+			const teamCounts = new Map<string, number>();
+			let unassigned = 0;
+			for (const member of members) {
+				const teamKey = state.assignments.get(member.discordId)?.teamKey;
+				if (!teamKey) {
+					unassigned += 1;
+					continue;
+				}
+				teamCounts.set(teamKey, (teamCounts.get(teamKey) ?? 0) + 1);
+			}
+			const largestTogether = Math.max(0, ...teamCounts.values());
+			const assigned = members.length - unassigned;
+			const status =
+				assigned === 0
+					? "open"
+					: teamCounts.size === 1 && unassigned === 0
+						? "together"
+						: largestTogether >= 2
+							? "partial"
+							: "split";
+			return {
+				code,
+				total: members.length,
+				assigned,
+				unassigned,
+				largestTogether,
+				status,
+			};
+		});
+		const count = (status: (typeof rows)[number]["status"]) =>
+			rows.filter((row) => row.status === status).length;
+		const membersTogether = rows.reduce((total, row) => total + row.largestTogether, 0);
+		const totalMembers = rows.reduce((total, row) => total + row.total, 0);
+		return {
+			rows,
+			together: count("together"),
+			partial: count("partial"),
+			split: count("split"),
+			open: count("open"),
+			membersTogether,
+			totalMembers,
+		};
+	}, [preferenceGroups, state.assignments]);
 
 	const applicantEloSummary = useMemo(() => {
 		const eligibleApplicants = allApplicants.filter((applicant) => applicant.verified);
@@ -512,6 +579,19 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			return false;
 		}
 		if (typeof json?.version === "number") setVersion(json.version);
+		if (json?.key && json?.name) {
+			setSnapshot((current) => ({
+				...current,
+				teams: [
+					...current.teams,
+					teamFromMutationResponse(json as TeamMutationResponse),
+				],
+			}));
+			setState((current) => ({
+				...current,
+				captains: new Map(current.captains).set(json.key, null),
+			}));
+		}
 		setNewTeamName("");
 		setNewTeamGroup("");
 		setNewTeamSeed("");
@@ -578,6 +658,39 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			return false;
 		}
 		if (typeof json?.version === "number") setVersion(json.version);
+		const oldKey = editTeamTarget.key;
+		if (json?.key && json?.name) {
+			const nextKey = String(json.key);
+			setSnapshot((current) => ({
+				...current,
+				teams: current.teams.map((team) =>
+					team.key === oldKey
+						? {
+								...team,
+								key: nextKey,
+								name: String(json.name),
+								group: json.group,
+								seed: json.seed ?? undefined,
+							}
+						: team,
+				),
+			}));
+			if (nextKey !== oldKey) {
+				setState((current) => {
+					const assignments = new Map(current.assignments);
+					for (const [discordId, assignment] of assignments) {
+						if (assignment.teamKey === oldKey) {
+							assignments.set(discordId, { ...assignment, teamKey: nextKey });
+						}
+					}
+					const captains = new Map(current.captains);
+					const captain = captains.get(oldKey) ?? null;
+					captains.delete(oldKey);
+					captains.set(nextKey, captain);
+					return { ...current, assignments, captains };
+				});
+			}
+		}
 		setEditTeamTarget(null);
 		const updateWarnings = (json?.warnings as string[] | undefined) ?? [];
 		setMessage({
@@ -622,6 +735,10 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 			nextCaptains.delete(team.key);
 			return { ...prev, assignments: nextAssignments, captains: nextCaptains };
 		});
+		setSnapshot((current) => ({
+			...current,
+			teams: current.teams.filter((entry) => entry.key !== team.key),
+		}));
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
@@ -917,15 +1034,15 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 							<label
 								htmlFor="split-threshold"
 								className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
-								title="Maximale Abweichung des Gruppendurchschnitts vom Gesamtdurchschnitt. Gruppen, die zu stark oder zu schwach sind, werden aufgeteilt."
+								title="Maximale gewünschte Team-Abweichung. Wunschgruppen werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
 							>
-								Balance-Schwelle
+								Fairness-Schwelle
 							</label>
 							<input
 								id="split-threshold"
 								type="range"
-								min={15}
-								max={50}
+								min={10}
+								max={35}
 								step={5}
 								value={splitThreshold}
 								onChange={(event) => setSplitThreshold(Number(event.target.value))}
@@ -1040,7 +1157,13 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 									{balanceResult.splitGroups.map((group) => (
 										<div key={group.code} className="text-[11px] leading-4 text-amber-50/72">
 											<span className="font-bold text-amber-100">{group.code}</span>
-											{group.reason === "too_strong" ? (
+											{group.reason === "role_conflict" || group.reason === "capacity" ? (
+												<>
+													{" — "}
+													{group.reason === "role_conflict" ? "wegen Rollen-Konflikten" : "wegen Team-Kapazität"}
+													{`. ${group.kept.length} zusammengehalten, ${group.moved.length} verschoben.`}
+												</>
+											) : group.reason === "too_strong" ? (
 												<>
 													{" — Gruppendurchschnitt "}
 													<span className="font-bold">{Math.round(group.groupAverage)}</span>
@@ -1080,6 +1203,33 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 								{preferenceGroups.length} Gruppen
 							</span>
 						</div>
+						<div className="mt-4 grid gap-2 md:grid-cols-5">
+							<GroupSummaryTile
+								label="Komplett zusammen"
+								value={preferenceGroupSummary.together}
+								tone="ok"
+							/>
+							<GroupSummaryTile
+								label="Teilweise zusammen"
+								value={preferenceGroupSummary.partial}
+								tone="warn"
+							/>
+							<GroupSummaryTile
+								label="Getrennt"
+								value={preferenceGroupSummary.split}
+								tone="danger"
+							/>
+							<GroupSummaryTile
+								label="Noch offen"
+								value={preferenceGroupSummary.open}
+								tone="neutral"
+							/>
+							<GroupSummaryTile
+								label="Mit Wunschgruppe"
+								value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`}
+								tone="info"
+							/>
+						</div>
 						<div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
 							{preferenceGroups.map(({ code, members }) => {
 								const assignedTeamKeys = new Set(
@@ -1091,12 +1241,15 @@ export function RosterBuilder({ snapshot: initialSnapshot, initialVersion }: { s
 										: assignedTeamKeys.size === 1
 											? `Gemeinsam: ${teamByKey.get([...assignedTeamKeys][0])?.name ?? [...assignedTeamKeys][0]}`
 											: `Auf ${assignedTeamKeys.size} Teams verteilt`;
+								const groupSummary = preferenceGroupSummary.rows.find((row) => row.code === code);
 
 								return (
 									<div key={code} className="rounded-2xl border border-white/9 bg-black/18 p-3">
 										<div className="flex items-center justify-between gap-3">
 											<PreferenceGroupBadge code={code} />
-											<span className="text-[10px] font-black text-emerald-100/38">{members.length}/5</span>
+											<span className="text-[10px] font-black text-emerald-100/38">
+												{groupSummary?.largestTogether ?? 0}/{members.length} zusammen
+											</span>
 										</div>
 										<div className="mt-2 text-[10px] font-bold text-cyan-100/54">{placement}</div>
 										<div className="mt-2 flex flex-wrap gap-1">
@@ -1944,6 +2097,33 @@ function ApplicationDetailRow({ label, value }: { label: string; value: string }
 		<div className="grid gap-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
 			<span className="font-black uppercase tracking-[0.14em] text-lime-200/52">{label}</span>
 			<span className="min-w-0 break-words text-emerald-100/72">{value}</span>
+		</div>
+	);
+}
+
+function GroupSummaryTile({
+	label,
+	value,
+	tone,
+}: {
+	label: string;
+	value: number | string;
+	tone: "ok" | "warn" | "danger" | "neutral" | "info";
+}) {
+	const tones = {
+		ok: "border-lime-200/22 bg-lime-300/[0.08] text-lime-50",
+		warn: "border-amber-200/22 bg-amber-300/[0.08] text-amber-50",
+		danger: "border-red-300/22 bg-red-400/[0.08] text-red-100",
+		neutral: "border-white/10 bg-black/18 text-emerald-100/66",
+		info: "border-cyan-200/18 bg-cyan-300/[0.07] text-cyan-50",
+	} as const;
+
+	return (
+		<div className={`rounded-xl border px-3 py-2 ${tones[tone]}`}>
+			<div className="text-lg font-black tabular-nums">{value}</div>
+			<div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em] opacity-60">
+				{label}
+			</div>
 		</div>
 	);
 }
