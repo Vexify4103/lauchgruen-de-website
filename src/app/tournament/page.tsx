@@ -24,7 +24,7 @@ const formatSteps = [
 
 export default async function TournamentHomePage() {
 	const [{ teams, groupMatches }, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
-	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen);
+	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
 
 	return (
 		<div className="px-5 py-8 sm:py-12">

@@ -50,7 +50,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 			<UnsavedChangesProvider>
 				<TournamentChrome
 					navItems={navItems}
-					applicationsOpen={areTournamentApplicationsOpen(settings.applicationsOpen)}
+					applicationsOpen={areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)}
 					tournamentLive={settings.tournamentLive}
 					apexUrl={siteUrls.apex}
 					cleanUrls={cleanUrls}

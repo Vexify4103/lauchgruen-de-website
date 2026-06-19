@@ -143,6 +143,92 @@ export async function setDiscordNickname(input: { discordId: string; displayName
 	return run;
 }
 
+export async function clearDiscordNickname(discordId: string): Promise<DiscordNicknameResult> {
+	const run = discordNicknameMutationQueue.then(
+		() => clearDiscordNicknameWithRetry(discordId),
+		() => clearDiscordNicknameWithRetry(discordId)
+	);
+	discordNicknameMutationQueue = run.then(
+		() => undefined,
+		() => undefined
+	);
+	return run;
+}
+
+async function clearDiscordNicknameWithRetry(discordId: string): Promise<DiscordNicknameResult> {
+	const token = discordBotToken();
+	const guildId = discordGuildId();
+	if (!token || !guildId) {
+		return { ok: false, message: "Discord-Nickname-Reset übersprungen: Bot-Token oder Guild-ID fehlt." };
+	}
+
+	const member = await getDiscordGuildMember(discordId);
+	if (member === "missing-config") {
+		return { ok: false, message: "Discord-Nickname-Reset übersprungen: Bot-Token oder Guild-ID fehlt." };
+	}
+	if (member === "missing-member") {
+		return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+	}
+	if (member === "error" || !member) {
+		return { ok: false, message: "Discord-Mitglied konnte vor dem Nickname-Reset nicht gelesen werden." };
+	}
+	if (!member.nick) {
+		return { ok: true, changed: false };
+	}
+
+	for (let attempt = 1; attempt <= DISCORD_NICKNAME_MAX_ATTEMPTS; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${discordId}`, {
+				method: "PATCH",
+				headers: {
+					authorization: `Bot ${token}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ nick: null }),
+			});
+		} catch {
+			if (attempt === DISCORD_NICKNAME_MAX_ATTEMPTS) {
+				return { ok: false, message: "Discord-Nickname konnte wegen eines Netzwerkfehlers nicht zurückgesetzt werden." };
+			}
+			await wait(300 * attempt);
+			continue;
+		}
+
+		if (response.ok) {
+			await wait(250);
+			return { ok: true, changed: true };
+		}
+
+		if (response.status === 429 && attempt < DISCORD_NICKNAME_MAX_ATTEMPTS) {
+			const body = (await response.json().catch(() => null)) as { retry_after?: number } | null;
+			const retryAfterSeconds =
+				body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
+			await wait(Math.ceil(retryAfterSeconds * 1000) + 250);
+			continue;
+		}
+
+		if (response.status === 404) {
+			return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+		}
+
+		if (response.status === 403) {
+			return {
+				ok: false,
+				message: "Discord-Nickname konnte nicht zurückgesetzt werden (HTTP 403). Prüfe „Nicknames verwalten“ und ob die Bot-Rolle über den Rollen der Spieler steht.",
+			};
+		}
+
+		const detail = await response.text().catch(() => "");
+		return {
+			ok: false,
+			message: `Discord-Nickname konnte nicht zurückgesetzt werden (HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}).`,
+		};
+	}
+
+	return { ok: false, message: "Discord-Nickname konnte nach mehreren Versuchen nicht zurückgesetzt werden." };
+}
+
 async function setDiscordNicknameWithRetry(input: { discordId: string; displayName: string; riotId: string }): Promise<DiscordNicknameResult> {
 	const token = discordBotToken();
 	const guildId = discordGuildId();
@@ -256,7 +342,10 @@ async function setDiscordMemberRoleWithRetry(input: { discordId: string; roleId:
 			continue;
 		}
 
-		if (response.ok) return { ok: true };
+		if (response.ok) {
+			await wait(175);
+			return { ok: true };
+		}
 
 		if (response.status === 429 && attempt < DISCORD_ROLE_MAX_ATTEMPTS) {
 			const body = (await response.json().catch(() => null)) as { retry_after?: number } | null;

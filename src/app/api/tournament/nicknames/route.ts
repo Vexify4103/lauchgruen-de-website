@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { setDiscordNickname } from "@/lib/discord";
+import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS, listApplications } from "@/lib/tournament-storage";
 
@@ -33,38 +33,65 @@ export async function POST() {
 	const applicationByDiscordId = new Map(applications.map((application) => [application.discordId, application]));
 	const players = Object.values(botDoc?.teams ?? {}).flatMap((team) => (team.players ?? []).filter((player) => player.discordId));
 
-	const stats = {
-		renamed: 0,
-		alreadyCorrect: 0,
-		failed: 0,
-		skipped: 0,
-	};
-	const warnings: string[] = [];
+	let skipped = 0;
+	const operations: DiscordOperation[] = [];
 
 	for (const player of players) {
 		if (!player.discordId) {
-			stats.skipped += 1;
+			skipped += 1;
 			continue;
 		}
 		const application = applicationByDiscordId.get(player.discordId);
-		const result = await setDiscordNickname({
+		operations.push({
+			kind: "nickname-set",
 			discordId: player.discordId,
 			displayName: application?.displayName ?? "",
 			riotId: player.riotId,
+			label: `${player.riotId}: Nickname setzen`,
 		});
-		if (result.ok && result.changed) {
-			stats.renamed += 1;
-		} else if (result.ok) {
-			stats.alreadyCorrect += 1;
-		} else {
-			stats.failed += 1;
-			warnings.push(`${player.riotId}: ${result.message}`);
-		}
 	}
+	const job = await enqueueDiscordJob({
+		type: "nickname-sync",
+		title: "Turnier-Nicknames setzen",
+		operations,
+		actorLabel: session.user.discordHandle ?? discordId,
+	});
 
 	return NextResponse.json({
 		ok: true,
-		...stats,
-		warnings,
+		queued: operations.length,
+		skipped,
+		discordJobId: job?.id,
+	});
+}
+
+export async function DELETE() {
+	const session = await auth();
+	const discordId = session?.user?.discordId;
+	if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) {
+		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
+	}
+
+	const db = await getDb();
+	const botDoc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
+	const players = Object.values(botDoc?.teams ?? {}).flatMap((team) => (team.players ?? []).filter((player) => player.discordId));
+	const uniqueDiscordIds = [...new Set(players.map((player) => player.discordId).filter((id): id is string => Boolean(id)))];
+
+	const operations: DiscordOperation[] = uniqueDiscordIds.map((targetDiscordId) => ({
+		kind: "nickname-clear",
+		discordId: targetDiscordId,
+		label: `${targetDiscordId}: Nickname entfernen`,
+	}));
+	const job = await enqueueDiscordJob({
+		type: "nickname-clear",
+		title: "Turnier-Nicknames entfernen",
+		operations,
+		actorLabel: session.user.discordHandle ?? discordId,
+	});
+
+	return NextResponse.json({
+		ok: true,
+		queued: operations.length,
+		discordJobId: job?.id,
 	});
 }

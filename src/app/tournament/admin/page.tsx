@@ -9,6 +9,7 @@ import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState } from "@/lib/tournam
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState } from "@/lib/tournament-wheel";
 import { getAdminVersions } from "@/lib/admin-version";
+import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
 import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { DiscordSyncPanel, type CaptainRoleStatus } from "./DiscordSyncPanel";
@@ -26,8 +27,8 @@ export default async function TournamentAdminPage() {
 	const state = isOwner && ctx ? await readTournamentState(ctx.groupMatches) : null;
 	const wheel = isOwner ? await getTournamentWheelState() : null;
 	const settings = isOwner ? await getTournamentSettings() : null;
+	const applicationsOpen = settings ? areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline) : false;
 	const audit = isOwner ? await listAuditLog(5) : [];
-	const diagnostics = isOwner && ctx && state && wheel ? await buildReadinessDiagnostics(ctx, state, wheel) : null;
 
 	let adminMatches: AdminMatch[] = [];
 	let adminVersions: Record<string, number> = {};
@@ -104,14 +105,14 @@ export default async function TournamentAdminPage() {
 					<>
 						<div className="mt-8 grid gap-5 xl:grid-cols-2">
 							{settings ? <TournamentModePanel initialSettings={settings} initialVersion={adminVersions.settings ?? 0} /> : null}
-							<DiscordSyncPanel statuses={diagnostics?.captainRoleDetails ?? []} />
+							<DiscordSyncPanel statuses={[]} />
 						</div>
 						<div className="mt-8">
 							<ReadinessChecklist
 								teams={ctx?.teams ?? []}
 								matches={adminMatches}
-								diagnostics={diagnostics}
-								applicationsEnabled={settings?.applicationsOpen ?? false}
+								diagnostics={null}
+								applicationsEnabled={applicationsOpen}
 								hasActiveWheelDraw={Boolean(wheel.currentAssignment)}
 							/>
 						</div>
@@ -227,7 +228,8 @@ function ReadinessChecklist({
 			detail: hasActiveWheelDraw ? "Offener Draw vorhanden" : "Kein offener Draw",
 		},
 	];
-	checks.push(
+	if (diagnostics) {
+		checks.push(
 		{
 			label: "Captain roles synced",
 			ok: diagnostics?.captainRoleStatus.ok ?? false,
@@ -238,7 +240,8 @@ function ReadinessChecklist({
 			ok: (diagnostics?.missingPools.length ?? 1) === 0,
 			detail: diagnostics?.missingPools.length ? `${diagnostics.missingPools.length} Live-Match(es) ohne Pool` : "Alle Live-Matches haben Pools",
 		}
-	);
+		);
+	}
 	const warnings = diagnostics?.warnings ?? [];
 
 	return (
@@ -290,6 +293,8 @@ type ReadinessDiagnostics = {
 	warnings: string[];
 };
 
+// Kept only for the future full-readiness endpoint; do not call this during /admin render.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function buildReadinessDiagnostics(
 	ctx: Awaited<ReturnType<typeof getTournamentContext>>,
 	state: Awaited<ReturnType<typeof readTournamentState>>,

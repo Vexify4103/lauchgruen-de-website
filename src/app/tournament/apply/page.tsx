@@ -2,13 +2,13 @@ import { TournamentLink as Link } from "../TournamentLink";
 import { headers } from "next/headers";
 import { auth, signIn, signOut } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
-import { TOURNAMENT_APPLICATION_DEADLINE_LABEL, areTournamentApplicationsOpen, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { findApplicationByDiscordId, getVerifiedAccount } from "@/lib/tournament-storage";
 import { ApplicationForm } from "./ApplicationForm";
 
 const rules = [
-	`Bewerbungsschluss ist ${TOURNAMENT_APPLICATION_DEADLINE_LABEL}.`,
+	"Bewerbungsschluss ist der auf der Webseite angegebene Zeitpunkt.",
 	"Du meldest dich verbindlich für beide Tage an: Freitag, 19.06. um 18:00 Uhr und Samstag, 20.06. um 16:00 Uhr.",
 	"Gespielt wird mit gelosten A-Z Champion-Pools. Pro Runde sind nur Champions aus dem aktuellen Pool erlaubt.",
 	"Deine Riot-Verifizierung, Main Rolle und Wunschrollen werden fürs faire Team-Balancing genutzt.",
@@ -18,8 +18,10 @@ const rules = [
 
 export default async function ApplyPage() {
 	const settings = await getTournamentSettings();
-	const deadlinePassed = isTournamentApplicationDeadlinePassed();
-	if (!areTournamentApplicationsOpen(settings.applicationsOpen)) {
+	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
+	const deadlinePassed = isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
+	if (!applicationsOpen) {
 		return (
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-amber-200/16 bg-amber-200/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
@@ -29,7 +31,7 @@ export default async function ApplyPage() {
 					</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/72">
 						{deadlinePassed
-							? `Die Anmeldung war bis ${TOURNAMENT_APPLICATION_DEADLINE_LABEL} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
+							? `Die Anmeldung war bis ${deadlineLabel} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
 							: "Das A-Z Turnier findet am 19.06. und 20.06. abends statt. Wenn du grundsätzlich Interesse und Zeit hast, melde dich im Discord bei Luca oder dem Orga-Team, bis das Formular wieder offen ist."}
 					</p>
 					<Link
@@ -79,7 +81,7 @@ export default async function ApplyPage() {
 							Wir brauchen deine Angaben, um faire Teams zu bauen und das Bracket zu planen. Bitte trag direkt ein, wenn du an einem der beiden Abende unsicher bist.
 						</p>
 						<div className="mt-5 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-4 py-3 text-sm font-black text-amber-50">
-							Bewerbungsschluss: {TOURNAMENT_APPLICATION_DEADLINE_LABEL}
+							{settings.applicationDeadlineOverride ? "Notfall-Bewerbungen sind aktuell wieder geöffnet." : `Bewerbungsschluss: ${deadlineLabel}`}
 						</div>
 					</div>
 

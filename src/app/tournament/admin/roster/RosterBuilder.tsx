@@ -63,6 +63,17 @@ type TeamMutationResponse = {
 	warnings?: string[];
 };
 
+type DiscordJobStatus = {
+	id: string;
+	title: string;
+	status: "queued" | "running" | "completed" | "failed";
+	total: number;
+	completed: number;
+	failed: number;
+	current?: string;
+	warnings: string[];
+};
+
 function initialState(snapshot: RosterSnapshot): State {
 	const assignments = new Map<string, Assignment>();
 	for (const team of snapshot.teams) {
@@ -119,6 +130,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		role: PlayerRole;
 	}>(null);
 	const [saving, setSaving] = useState(false);
+	const [discordJob, setDiscordJob] = useState<DiscordJobStatus | null>(null);
 	const [message, setMessage] = useState<null | {
 		tone: "ok" | "error";
 		text: string;
@@ -135,6 +147,20 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	useEffect(() => {
 		localStorage.setItem("roster-balance-threshold", String(splitThreshold));
 	}, [splitThreshold]);
+
+	useEffect(() => {
+		if (!discordJob || discordJob.status === "completed" || discordJob.status === "failed") return;
+		let cancelled = false;
+		const timer = window.setInterval(async () => {
+			const response = await fetch(`/api/tournament/discord-jobs/${discordJob.id}`);
+			const json = (await response.json().catch(() => null)) as { job?: DiscordJobStatus } | null;
+			if (!cancelled && json?.job) setDiscordJob(json.job);
+		}, 1200);
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [discordJob]);
 	const [balanceResult, setBalanceResult] = useState<BalanceResult | null>(null);
 	const [editingRankId, setEditingRankId] = useState<string | null>(null);
 	const [editingRankTier, setEditingRankTier] = useState("");
@@ -816,7 +842,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		router.refresh();
 	}
 
-	const save = useCallback(async (): Promise<boolean> => {
+	const save = useCallback(async (repairDiscordRoles = false): Promise<boolean> => {
 		const stateBeingSaved = currentRosterState;
 		setSaving(true);
 		setMessage(null);
@@ -851,6 +877,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 				teamPlayers,
 				captains,
 				manualPlayers,
+				repairDiscordRoles,
 			}),
 		});
 		setSaving(false);
@@ -866,11 +893,31 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		}
 		setSavedRosterState(stateBeingSaved);
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
+		const discordJobId = typeof json?.discordJobId === "string" ? json.discordJobId : null;
+		if (discordJobId) {
+			setDiscordJob({
+				id: discordJobId,
+				title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
+				status: "queued",
+				total: 0,
+				completed: 0,
+				failed: 0,
+				warnings: [],
+			});
+		} else {
+			setDiscordJob(null);
+		}
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
 			text:
 				`Roster gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s).` +
-				(warnings.length === 0 ? " Discord-Rollen wurden synchronisiert." : "") +
+				(warnings.length === 0
+					? discordJobId
+						? repairDiscordRoles
+							? " Discord-Rollen-Reparatur wurde in die Queue gelegt."
+							: " Discord-Rollen-Sync wurde in die Queue gelegt."
+						: " Keine Discord-Rollenänderungen nötig."
+					: "") +
 				(warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
 		});
 		return true;
@@ -1001,6 +1048,24 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								{message.text}
 							</div>
 						) : null}
+						{discordJob ? (
+							<div
+								className={`rounded-xl border px-3 py-1.5 text-xs ${
+									discordJob.status === "failed"
+										? "border-red-300/30 bg-red-500/10 text-red-100"
+										: discordJob.status === "completed"
+											? "border-lime-200/30 bg-lime-200/10 text-lime-50"
+											: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
+								}`}
+							>
+								<span className="font-black">{discordJob.title}</span>
+								<span className="ml-2 tabular-nums">
+									{discordJob.completed}/{discordJob.total || "?"}
+								</span>
+								{discordJob.current ? <span className="ml-2 text-white/60">{discordJob.current}</span> : null}
+								{discordJob.failed > 0 ? <span className="ml-2 text-red-100">{discordJob.failed} Fehler</span> : null}
+							</div>
+						) : null}
 						<button
 							type="button"
 							onClick={() => setCreateOpen(true)}
@@ -1052,11 +1117,20 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						</button>
 						<button
 							type="button"
-							onClick={save}
+							onClick={() => void save()}
 							disabled={saving || autoRunning}
 							className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:opacity-60"
 						>
 							{saving ? "Speichern…" : "Roster speichern"}
+						</button>
+						<button
+							type="button"
+							onClick={() => void save(true)}
+							disabled={saving || autoRunning}
+							title="Repariert fehlende Turnier-, Team- und Captain-Rollen für das aktuelle Roster. Nur benutzen, wenn Discord-Rollen fehlen."
+							className="rounded-2xl border border-cyan-200/24 bg-cyan-300/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:border-cyan-200/44 hover:text-cyan-50 disabled:opacity-60"
+						>
+							Discord-Rollen reparieren
 						</button>
 						<div className="h-5 w-px bg-white/10" />
 						<button

@@ -7,7 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
-import { setDiscordMemberRole } from "@/lib/discord";
+import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
@@ -197,6 +197,8 @@ export type RosterSavePayload = {
 	teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>>;
 	/** Optional captain change per team (discordId or null to clear). */
 	captains?: Record<string, string | null>;
+	/** Force role PUTs for current members to repair missing Discord roles. */
+	repairDiscordRoles?: boolean;
 	/** Emergency substitutes entered by an admin without account verification. */
 	manualPlayers?: Record<
 		string,
@@ -219,6 +221,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	teamsUpdated: number;
 	errors: string[];
 	warnings: string[];
+	discordJobId?: string;
 }> {
 	const db = await getDb();
 	const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
@@ -358,48 +361,75 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 		await db.collection<BotStateDoc>("bot_state").updateOne({ _id: "default" }, update, { upsert: true });
 	}
 
-	const warnings = await syncDiscordTournamentRole(previousPlayerIds, new Set(allDiscordIds));
-	warnings.push(...(await syncDiscordTeamRoles(teamsObj, payload.teamPlayers)));
+	const repairDiscordRoles = Boolean(payload.repairDiscordRoles);
+	const warnings: string[] = [];
+	const operations: DiscordOperation[] = [];
+	const tournamentRolePlan = planDiscordTournamentRole(previousPlayerIds, new Set(allDiscordIds), repairDiscordRoles);
+	warnings.push(...tournamentRolePlan.warnings);
+	operations.push(...tournamentRolePlan.operations);
+	const teamRolePlan = planDiscordTeamRoles(teamsObj, payload.teamPlayers, repairDiscordRoles);
+	warnings.push(...teamRolePlan.warnings);
+	operations.push(...teamRolePlan.operations);
 	if (payload.captains) {
-		warnings.push(...(await syncDiscordCaptainRole(previousCaptainIds, payload.captains)));
+		const captainRolePlan = planDiscordCaptainRole(previousCaptainIds, payload.captains, repairDiscordRoles);
+		warnings.push(...captainRolePlan.warnings);
+		operations.push(...captainRolePlan.operations);
 	}
 
-	return { applied, teamsUpdated, errors: [], warnings };
+	const discordJob = await enqueueDiscordJob({
+		type: repairDiscordRoles ? "roster-role-repair" : "roster-role-sync",
+		title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
+		operations,
+	});
+
+	return { applied, teamsUpdated, errors: [], warnings, discordJobId: discordJob?.id };
 }
 
-async function syncDiscordTournamentRole(previousPlayerIds: Set<string>, nextPlayerIds: Set<string>): Promise<string[]> {
+function planDiscordTournamentRole(
+	previousPlayerIds: Set<string>,
+	nextPlayerIds: Set<string>,
+	repairExisting: boolean
+): { operations: DiscordOperation[]; warnings: string[] } {
 	const roleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	if (!roleId) {
-		return ["Turnierrolle nicht synchronisiert: DISCORD_TOURNAMENT_ROLE_ID fehlt."];
+		return { operations: [], warnings: ["Turnierrolle nicht synchronisiert: DISCORD_TOURNAMENT_ROLE_ID fehlt."] };
 	}
 
 	const warnings: string[] = [];
+	const operations: DiscordOperation[] = [];
 
-	// PUT is idempotent and repairs roles removed manually between roster saves.
 	for (const discordId of nextPlayerIds) {
-		const result = await setDiscordMemberRole({
+		if (!repairExisting && previousPlayerIds.has(discordId)) continue;
+		operations.push({
+			kind: "role",
 			discordId,
 			roleId,
 			enabled: true,
+			label: `${discordId}: Turnierrolle vergeben`,
 		});
-		if (!result.ok) warnings.push(result.message);
 	}
 
 	for (const discordId of previousPlayerIds) {
 		if (nextPlayerIds.has(discordId)) continue;
-		const result = await setDiscordMemberRole({
+		operations.push({
+			kind: "role",
 			discordId,
 			roleId,
 			enabled: false,
+			label: `${discordId}: Turnierrolle entfernen`,
 		});
-		if (!result.ok) warnings.push(result.message);
 	}
 
-	return warnings;
+	return { operations, warnings };
 }
 
-async function syncDiscordTeamRoles(teams: Record<string, BotTeam>, teamPlayers: RosterSavePayload["teamPlayers"]): Promise<string[]> {
+function planDiscordTeamRoles(
+	teams: Record<string, BotTeam>,
+	teamPlayers: RosterSavePayload["teamPlayers"],
+	repairExisting: boolean
+): { operations: DiscordOperation[]; warnings: string[] } {
 	const warnings: string[] = [];
+	const operations: DiscordOperation[] = [];
 
 	for (const [teamKey, nextSlots] of Object.entries(teamPlayers)) {
 		const team = teams[teamKey];
@@ -416,54 +446,55 @@ async function syncDiscordTeamRoles(teams: Record<string, BotTeam>, teamPlayers:
 			continue;
 		}
 
-		// Re-apply the role to every current player. Discord's PUT endpoint is
-		// idempotent and therefore also repairs roles removed manually.
 		for (const discordId of nextIds) {
-			const result = await setDiscordMemberRole({
+			if (!repairExisting && previousIds.has(discordId)) continue;
+			operations.push({
+				kind: "role",
 				discordId,
 				roleId,
 				enabled: true,
+				label: `${discordId}: Team-Rolle ${team.name} vergeben`,
 			});
-			if (!result.ok) {
-				warnings.push(`Team „${team.name}“: ${result.message}`);
-			}
 		}
 
 		for (const discordId of previousIds) {
 			if (nextIds.has(discordId)) continue;
-			const result = await setDiscordMemberRole({
+			operations.push({
+				kind: "role",
 				discordId,
 				roleId,
 				enabled: false,
+				label: `${discordId}: Team-Rolle ${team.name} entfernen`,
 			});
-			if (!result.ok) {
-				warnings.push(`Team „${team.name}“: ${result.message}`);
-			}
 		}
 	}
 
-	return warnings;
+	return { operations, warnings };
 }
 
-async function syncDiscordCaptainRole(previousCaptainIds: Set<string>, captains: Record<string, string | null>): Promise<string[]> {
+function planDiscordCaptainRole(
+	previousCaptainIds: Set<string>,
+	captains: Record<string, string | null>,
+	repairExisting: boolean
+): { operations: DiscordOperation[]; warnings: string[] } {
 	const roleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim() || process.env.CAPTAIN_ROLE_ID?.trim();
 	if (!roleId) {
-		return ["Captain-Rolle nicht synchronisiert: DISCORD_CAPTAINS_ROLE_ID fehlt."];
+		return { operations: [], warnings: ["Captain-Rolle nicht synchronisiert: DISCORD_CAPTAINS_ROLE_ID fehlt."] };
 	}
 
 	const nextCaptainIds = new Set(Object.values(captains).filter((discordId): discordId is string => !!discordId));
 	const warnings: string[] = [];
+	const operations: DiscordOperation[] = [];
 
 	for (const discordId of nextCaptainIds) {
-		const result = await setDiscordMemberRole({ discordId, roleId, enabled: true });
-		if (!result.ok) warnings.push(result.message);
+		if (!repairExisting && previousCaptainIds.has(discordId)) continue;
+		operations.push({ kind: "role", discordId, roleId, enabled: true, label: `${discordId}: Captain-Rolle vergeben` });
 	}
 
 	for (const discordId of previousCaptainIds) {
 		if (nextCaptainIds.has(discordId)) continue;
-		const result = await setDiscordMemberRole({ discordId, roleId, enabled: false });
-		if (!result.ok) warnings.push(result.message);
+		operations.push({ kind: "role", discordId, roleId, enabled: false, label: `${discordId}: Captain-Rolle entfernen` });
 	}
 
-	return warnings;
+	return { operations, warnings };
 }

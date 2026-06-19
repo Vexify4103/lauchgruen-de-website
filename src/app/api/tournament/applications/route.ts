@@ -4,7 +4,7 @@ import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
 import { writeAuditLog } from "@/lib/tournament-audit";
-import { TOURNAMENT_APPLICATION_DEADLINE_LABEL, areTournamentApplicationsOpen, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
@@ -45,11 +45,11 @@ function applicationId(puuid: string, discordId: string) {
 
 export async function POST(request: Request) {
 	const settings = await getTournamentSettings();
-	if (!areTournamentApplicationsOpen(settings.applicationsOpen)) {
+	if (!areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
 		return NextResponse.json(
 			{
-				message: isTournamentApplicationDeadlinePassed()
-					? `Der Bewerbungsschluss war am ${TOURNAMENT_APPLICATION_DEADLINE_LABEL}.`
+				message: isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)
+					? `Der Bewerbungsschluss war am ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}.`
 					: "Bewerbungen sind aktuell geschlossen.",
 			},
 			{ status: 403 }

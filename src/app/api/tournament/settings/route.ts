@@ -13,6 +13,8 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
 	expectedVersion: z.number().int().min(0),
 	applicationsOpen: z.boolean().optional(),
+	applicationDeadlineOverride: z.boolean().optional(),
+	applicationDeadline: z.iso.datetime({ offset: true }).optional(),
 	tournamentLive: z.boolean().optional(),
 	draftEnabled: z.boolean().optional(),
 });
@@ -46,6 +48,8 @@ export async function PATCH(request: Request) {
 	const settings = await updateTournamentSettings({
 		patch: {
 			applicationsOpen: parsed.data.applicationsOpen,
+			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
+			applicationDeadline: parsed.data.applicationDeadline,
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 		},
@@ -60,6 +64,8 @@ export async function PATCH(request: Request) {
 		actorLabel: session.user.discordHandle ?? discordId,
 		metadata: {
 			applicationsOpen: parsed.data.applicationsOpen,
+			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
+			applicationDeadline: parsed.data.applicationDeadline,
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 		},
@@ -71,6 +77,8 @@ export async function PATCH(request: Request) {
 		createdBy: session.user.discordHandle ?? discordId,
 		payload: {
 			applicationsOpen: parsed.data.applicationsOpen,
+			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
+			applicationDeadline: parsed.data.applicationDeadline,
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 		},
