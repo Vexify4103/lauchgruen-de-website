@@ -72,6 +72,7 @@ export function MatchControlRoomClient({
 	const [gameDuration, setGameDuration] = useState(formatGameDuration(match.gameDurationSeconds));
 	const [status, setStatus] = useState(match.status ?? "Scheduled");
 	const [blueSide, setBlueSide] = useState<"teamA" | "teamB">(match.blueSide);
+	const [isCasted, setIsCasted] = useState(Boolean(match.isCasted));
 	const [teamAChampions, setTeamAChampions] = useState(match.teamAChampions?.length ? match.teamAChampions : draftedPicks.teamA);
 	const [teamBChampions, setTeamBChampions] = useState(match.teamBChampions?.length ? match.teamBChampions : draftedPicks.teamB);
 	const [adminNote, setAdminNote] = useState(match.adminNote ?? "");
@@ -86,6 +87,7 @@ export function MatchControlRoomClient({
 			scoreB: match.scoreB?.toString() ?? "",
 			gameDuration: formatGameDuration(match.gameDurationSeconds),
 			blueSide: match.blueSide,
+			isCasted: Boolean(match.isCasted),
 			teamAChampions: match.teamAChampions?.length ? match.teamAChampions : draftedPicks.teamA,
 			teamBChampions: match.teamBChampions?.length ? match.teamBChampions : draftedPicks.teamB,
 			adminNote: match.adminNote ?? "",
@@ -96,6 +98,7 @@ export function MatchControlRoomClient({
 		scoreB,
 		gameDuration,
 		blueSide,
+		isCasted,
 		teamAChampions,
 		teamBChampions,
 		adminNote,
@@ -200,6 +203,7 @@ export function MatchControlRoomClient({
 				teamAChampions,
 				teamBChampions,
 				blueSide,
+				isCasted,
 				adminNote,
 			}),
 		});
@@ -431,6 +435,16 @@ export function MatchControlRoomClient({
 									{ value: "teamB", label: match.teamBLabel },
 								]}
 							/>
+						</label>
+						<label className="col-span-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/16 p-3 transition hover:border-cyan-200/24">
+							<span>
+								<span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/62">Live gecastet</span>
+								<span className="mt-1 block text-xs font-bold leading-5 text-emerald-100/54">Zeigt dieses Match im Zeitplan als Cast-Match an.</span>
+							</span>
+							<span className="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-white/10 bg-black/30 p-1">
+								<input type="checkbox" checked={isCasted} onChange={(event) => setIsCasted(event.target.checked)} className="peer sr-only" />
+								<span className="h-5 w-5 rounded-full bg-emerald-100/42 transition peer-checked:translate-x-5 peer-checked:bg-cyan-200 peer-checked:shadow-lg peer-checked:shadow-cyan-300/30" />
+							</span>
 						</label>
 					</div>
 					<div className="mt-3">

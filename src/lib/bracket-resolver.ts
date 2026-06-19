@@ -15,6 +15,7 @@ export type TeamStanding = {
 	headToHeadTimedWins: number;
 	headToHeadWinDurationSeconds: number;
 	avgWinTimeSeconds: number | null;
+	avgRecordedWinTimeSeconds: number | null;
 	rank: number;
 	tiebreakerRequired: boolean;
 };
@@ -78,6 +79,7 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 			headToHeadTimedWins: 0,
 			headToHeadWinDurationSeconds: 0,
 			avgWinTimeSeconds: null,
+			avgRecordedWinTimeSeconds: null,
 			rank: 0,
 			tiebreakerRequired: false,
 		}));
@@ -86,6 +88,7 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 		const matches: GroupMatch[] = groupMatches.filter((m) => m.group === group);
 		const h2h = new Map<string, Map<string, number>>(); // winnerName → loserName → wins
 		const h2hDurations = new Map<string, Map<string, number[]>>();
+		const winDurations = new Map<string, number[]>();
 
 		for (const match of matches) {
 			const stored = state[match.id];
@@ -110,6 +113,7 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 				addH2H(h2h, match.teamA, match.teamB);
 				if (stored.gameDurationSeconds !== undefined) {
 					addH2HDuration(h2hDurations, match.teamA, match.teamB, stored.gameDurationSeconds);
+					addWinDuration(winDurations, match.teamA, stored.gameDurationSeconds);
 				}
 			} else if (stored.scoreB > stored.scoreA) {
 				b.wins += 1;
@@ -117,6 +121,7 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 				addH2H(h2h, match.teamB, match.teamA);
 				if (stored.gameDurationSeconds !== undefined) {
 					addH2HDuration(h2hDurations, match.teamB, match.teamA, stored.gameDurationSeconds);
+					addWinDuration(winDurations, match.teamB, stored.gameDurationSeconds);
 				}
 			}
 		}
@@ -135,6 +140,9 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 			standing.headToHeadWinDurationSeconds = directWinDurations.reduce((total, seconds) => total + seconds, 0);
 			standing.avgWinTimeSeconds =
 				standing.headToHeadWins > 0 && standing.headToHeadTimedWins === standing.headToHeadWins ? standing.headToHeadWinDurationSeconds / standing.headToHeadWins : null;
+			const recordedWins = winDurations.get(standing.team.name) ?? [];
+			standing.avgRecordedWinTimeSeconds =
+				recordedWins.length > 0 ? recordedWins.reduce((total, seconds) => total + seconds, 0) / recordedWins.length : null;
 		}
 
 		standings.sort((a, b) => {
@@ -187,6 +195,12 @@ function addH2HDuration(table: Map<string, Map<string, number[]>>, winner: strin
 	const durations = row.get(loser) ?? [];
 	durations.push(durationSeconds);
 	row.set(loser, durations);
+}
+
+function addWinDuration(table: Map<string, number[]>, winner: string, durationSeconds: number) {
+	const durations = table.get(winner) ?? [];
+	durations.push(durationSeconds);
+	table.set(winner, durations);
 }
 
 /**

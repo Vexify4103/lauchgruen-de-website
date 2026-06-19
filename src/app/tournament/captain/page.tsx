@@ -58,6 +58,7 @@ export default async function CaptainPortalPage() {
 	const matches = ctx.matches.filter((match) => match.teamAName === team.name || match.teamBName === team.name);
 	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? matches[0] ?? null;
 	const isTeamA = nextMatch?.teamAName === team.name;
+	const draftPerspective = nextMatch?.blueSide === (isTeamA ? "teamA" : "teamB") ? "blue" : "red";
 	const assignedPool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
 	const allowedPool = assignedPool ? pools.find((pool) => pool.pool === assignedPool) : null;
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
@@ -134,7 +135,7 @@ export default async function CaptainPortalPage() {
 										Champ Select pausiert
 									</span>
 								)}
-								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} disabled={!settings.draftEnabled} />
+								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
 							</div>
 						</div>
 					) : null}

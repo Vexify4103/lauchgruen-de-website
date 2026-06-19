@@ -50,11 +50,12 @@ export default async function GroupsPage() {
 								</div>
 
 								<div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-									<div className="grid grid-cols-[2rem_1fr_3rem_3rem_5rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-200/62">
+									<div className="grid grid-cols-[2rem_1fr_3rem_3rem_4rem_5rem] gap-2 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-200/62">
 										<span>#</span>
 										<span>Team</span>
 										<span className="text-right">W-L</span>
 										<span className="text-right">DV</span>
+										<span className="text-right">Ø Sieg</span>
 										<span className="text-right">Ø DV-Sieg</span>
 									</div>
 									{groupStandings.map((standing) => {
@@ -66,7 +67,7 @@ export default async function GroupsPage() {
 													: "border-white/8 bg-black/8";
 										const rankTone = standing.rank === 1 ? "text-lime-100" : standing.rank === 4 ? "text-orange-200" : "text-emerald-100/72";
 										return (
-											<div key={standing.team.id} className={`grid grid-cols-[2rem_1fr_3rem_3rem_5rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}>
+											<div key={standing.team.id} className={`grid grid-cols-[2rem_1fr_3rem_3rem_4rem_5rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}>
 												<span className={`font-black ${rankTone}`}>{standing.rank}</span>
 												<span className="min-w-0">
 													<span className="block truncate font-bold text-emerald-50">{standing.team.name}</span>
@@ -84,11 +85,14 @@ export default async function GroupsPage() {
 													{standing.wins}-{standing.losses}
 												</span>
 												<span className="text-right font-bold text-emerald-100/70">{standing.headToHeadWins}</span>
+												<span className="text-right font-bold text-emerald-100/60" title="Durchschnitt aller gespeicherten Siegzeiten dieses Teams.">
+													{standing.avgRecordedWinTimeSeconds === null ? "–" : formatGameDuration(Math.round(standing.avgRecordedWinTimeSeconds))}
+												</span>
 												<span className="text-right font-bold text-emerald-100/60">
 													{standing.avgWinTimeSeconds === null ? "–" : formatGameDuration(Math.round(standing.avgWinTimeSeconds))}
 												</span>
 												{standing.tiebreakerRequired ? (
-													<span className="col-span-5 mt-1 rounded-xl border border-amber-200/18 bg-amber-200/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+													<span className="col-span-6 mt-1 rounded-xl border border-amber-200/18 bg-amber-200/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
 														Tiebreaker erforderlich
 													</span>
 												) : null}

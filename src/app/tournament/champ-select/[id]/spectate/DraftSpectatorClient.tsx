@@ -24,9 +24,12 @@ type TimerState = {
 	progress: number;
 };
 
+export type DraftViewerPerspective = "neutral" | "blue" | "red";
+
 export function DraftSpectatorClient({
 	match,
 	draft,
+	perspective,
 	blueTeamLabel,
 	redTeamLabel,
 	blueChampions,
@@ -35,6 +38,7 @@ export function DraftSpectatorClient({
 }: {
 	match: ControlMatch;
 	draft: TournamentDraftState;
+	perspective: DraftViewerPerspective;
 	blueTeamLabel: string;
 	redTeamLabel: string;
 	blueChampions: ChampionPool["champions"];
@@ -52,6 +56,7 @@ export function DraftSpectatorClient({
 	const usedChampions = new Set(state.actions.map((action) => action.champion));
 	const pendingSelection = state.pendingSelection;
 	const candidatePool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions) : [];
+	const activePoolMessage = currentTurn ? describeActivePool(currentTurn, perspective) : null;
 
 	useEffect(() => {
 		const interval = window.setInterval(() => setNow(Date.now()), 250);
@@ -84,6 +89,7 @@ export function DraftSpectatorClient({
 					currentTurn={currentTurn}
 					pendingSelection={pendingSelection}
 					ready={Boolean(state.readyBy.teamA)}
+					poolContext={poolContext("blue", perspective)}
 					tone="blue"
 				/>
 
@@ -99,16 +105,17 @@ export function DraftSpectatorClient({
 					currentTurn={currentTurn}
 					pendingSelection={pendingSelection}
 					ready={Boolean(state.readyBy.teamB)}
+					poolContext={poolContext("red", perspective)}
 					tone="red"
 				/>
 
 				<section className="rounded-[1.25rem] border border-white/8 bg-black/16 p-3 shadow-xl shadow-black/20 sm:p-4 xl:col-start-2">
 					<div className="flex flex-wrap items-end justify-between gap-3">
 						<div>
-							<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Aktueller Pool</div>
+							<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{viewerLabel(perspective)}</div>
 							<h2 className="mt-1 text-xl font-black text-emerald-50">
 								{currentTurn
-									? `${turnLabel(currentTurn)} · ${currentTurn.kind === "ban" ? "gegnerischer Pool" : "eigener Pool"}`
+									? `${turnLabel(currentTurn)} · ${activePoolMessage}`
 									: complete
 										? "Draft abgeschlossen"
 										: "Wartet auf Draft"}
@@ -304,6 +311,7 @@ function DraftLane({
 	currentTurn,
 	pendingSelection,
 	ready,
+	poolContext,
 	tone,
 }: {
 	side: DraftSide;
@@ -315,6 +323,7 @@ function DraftLane({
 	currentTurn: { side: DraftSide; kind: "ban" | "pick" } | null;
 	pendingSelection?: TournamentDraftState["pendingSelection"];
 	ready: boolean;
+	poolContext: string;
 	tone: "blue" | "red";
 }) {
 	const sideActions = actions.filter((action) => action.side === side);
@@ -344,7 +353,7 @@ function DraftLane({
 				<h2 className={isBlue ? "mt-2 break-words text-2xl font-black text-sky-50 2xl:text-3xl" : "mt-2 break-words text-2xl font-black text-red-50 2xl:text-3xl"}>
 					{title}
 				</h2>
-				<p className="mt-1 text-sm font-bold text-emerald-100/52">{pool ? `Pool ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen"}</p>
+				<p className="mt-1 text-sm font-bold text-emerald-100/52">{pool ? `${poolContext}: ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen"}</p>
 			</header>
 
 			<div className="mt-4">
@@ -486,6 +495,29 @@ function DraftOrder({ actions, sequence, extraBanSide }: { actions: DraftAction[
 			</div>
 		</div>
 	);
+}
+
+function poolContext(side: "blue" | "red", perspective: DraftViewerPerspective) {
+	if (perspective === "neutral") return `${side === "blue" ? "Blue" : "Red"} Champion-Pool`;
+	return perspective === side ? "Dein Champion-Pool" : "Champion-Pool des Gegners";
+}
+
+function viewerLabel(perspective: DraftViewerPerspective) {
+	if (perspective === "blue") return "Blue-Team-Ansicht";
+	if (perspective === "red") return "Red-Team-Ansicht";
+	return "Neutrale Zuschaueransicht";
+}
+
+function describeActivePool(turn: { side: DraftSide; kind: "ban" | "pick" }, perspective: DraftViewerPerspective) {
+	const activeSide = turn.side === "teamA" ? "blue" : "red";
+	if (perspective === "neutral") {
+		return turn.kind === "ban" ? "Bans stammen aus dem gegnerischen Pool" : "Picks stammen aus dem eigenen Pool";
+	}
+	const activeIsViewer = perspective === activeSide;
+	if (turn.kind === "ban") {
+		return activeIsViewer ? "Dein Team bannt aus dem gegnerischen Pool" : "Das Gegnerteam bannt aus deinem Pool";
+	}
+	return activeIsViewer ? "Dein Team pickt aus dem eigenen Pool" : "Das Gegnerteam pickt aus dem eigenen Pool";
 }
 
 function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, blueChampions: ChampionPool["champions"], redChampions: ChampionPool["champions"]) {

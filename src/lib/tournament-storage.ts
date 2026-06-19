@@ -90,6 +90,7 @@ export type StoredTournamentMatch = {
 	teamAChampions?: string[];
 	teamBChampions?: string[];
 	blueSide?: "teamA" | "teamB";
+	isCasted?: boolean;
 	status?: "Scheduled" | "Live" | "Finished" | "Locked" | "Pending";
 	winner?: string;
 	adminNote?: string;

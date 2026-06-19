@@ -32,6 +32,8 @@ type TeamMeta = {
 	group?: "A" | "B";
 	seed?: number;
 	accent?: string;
+	/** Stable public identifier for URLs such as the OBS browser source. */
+	overlayId?: string;
 	captain?: TeamCaptainRef;
 };
 
@@ -193,7 +195,9 @@ function makeTeam(stored: StoredTeam, group: "A" | "B", seed: number): Tournamen
 	const captainRef = resolveCaptainRef(stored);
 	const captainText = captainRef ? (captainRef.discordUsername ? `${captainRef.discordUsername} · ${captainRef.riotId}` : captainRef.riotId) : "Captain TBA";
 	return {
-		id: slugify(stored.name),
+		// Never derive public browser-source URLs from a mutable display name.
+		// Legacy teams fall back to their current slug until their next rename.
+		id: stored.meta?.overlayId ?? slugify(stored.name),
 		name: stored.name,
 		// Within-group seed (1–4). The overall cross-bracket seed (#1..#6) is a
 		// separate concept computed by the resolver from group standings.

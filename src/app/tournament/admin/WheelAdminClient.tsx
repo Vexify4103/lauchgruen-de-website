@@ -50,6 +50,10 @@ function compareGroupMatchOrder(a: AdminMatch, b: AdminMatch) {
 	return Number(aParts[3]) - Number(bParts[3]);
 }
 
+function assignmentForMatch(state: TournamentWheelState, matchId: string): WheelMatchAssignment | null {
+	return state.currentAssignment?.matchId === matchId ? state.currentAssignment : (state.history.find((entry) => entry.matchId === matchId) ?? null);
+}
+
 export function WheelAdminClient({ initialState, matches }: { initialState: TournamentWheelState; matches: AdminMatch[] }) {
 	const playableMatches = matches.filter((match) => isResolvableTeamName(match.teamA) && isResolvableTeamName(match.teamB));
 	const groupMatches = playableMatches.filter((match) => match.phase === "groups").sort(compareGroupMatchOrder);
@@ -65,8 +69,9 @@ export function WheelAdminClient({ initialState, matches }: { initialState: Tour
 	const [isPending, startTransition] = useTransition();
 
 	const selectedMatch = playableMatches.find((match) => match.id === selectedMatchId) ?? null;
-	const display = preview ?? state.currentAssignment;
-	const hasActiveDrawForSelected = Boolean(selectedMatch && state.currentAssignment?.matchId === selectedMatch.id);
+	const selectedAssignment = selectedMatch ? assignmentForMatch(state, selectedMatch.id) : null;
+	const display = preview ?? selectedAssignment;
+	const hasActiveDrawForSelected = Boolean(selectedMatch && selectedAssignment);
 	const selectedMatchCompleted = Boolean(selectedMatch && (selectedMatch.status === "Finished" || state.completedMatchIds.includes(selectedMatch.id)));
 
 	const teamARemaining = selectedMatch ? remainingPoolsForTeam(state, selectedMatch.teamA, poolHistoryScopeForMatchPhase(selectedMatch.phase)) : [];

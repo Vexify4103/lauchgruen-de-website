@@ -25,6 +25,12 @@ export type TournamentWheelState = {
 export function remainingPoolsForTeam(state: TournamentWheelState, teamName: string, scope: PoolHistoryScope = "groups"): string[] {
 	const source = scope === "playoffs" ? state.playoffUsedPoolsByTeam : state.usedPoolsByTeam;
 	const used = new Set(source[teamName] ?? []);
+	const assignments = [state.currentAssignment, ...state.history].filter((entry): entry is WheelMatchAssignment => Boolean(entry));
+	for (const assignment of assignments) {
+		if ((assignment.scope ?? "groups") !== scope) continue;
+		if (assignment.teamAName === teamName) used.add(assignment.teamAPool);
+		if (assignment.teamBName === teamName) used.add(assignment.teamBPool);
+	}
 	return azLetterPools.filter((pool) => !used.has(pool));
 }
 

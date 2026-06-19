@@ -20,6 +20,7 @@ export type ControlMatch = {
 	teamAChampions?: string[];
 	teamBChampions?: string[];
 	blueSide: "teamA" | "teamB";
+	isCasted?: boolean;
 	winner?: string;
 	adminNote?: string;
 	poolAssignment: WheelMatchAssignment | null;
@@ -52,6 +53,7 @@ function groupToControlMatch(match: GroupMatch, stored: StoredTournamentMatch | 
 		teamAChampions: stored?.teamAChampions ?? [],
 		teamBChampions: stored?.teamBChampions ?? [],
 		blueSide: stored?.blueSide ?? "teamA",
+		isCasted: stored?.isCasted ?? false,
 		winner: stored?.winner,
 		adminNote: stored?.adminNote,
 		poolAssignment: assignment,
@@ -75,6 +77,7 @@ function playoffToControlMatch(match: ResolvedPlayoffMatch, stored: StoredTourna
 		teamAChampions: stored?.teamAChampions ?? [],
 		teamBChampions: stored?.teamBChampions ?? [],
 		blueSide: stored?.blueSide ?? "teamA",
+		isCasted: stored?.isCasted ?? false,
 		winner: stored?.winner ?? match.winner ?? undefined,
 		adminNote: stored?.adminNote,
 		poolAssignment: assignment,

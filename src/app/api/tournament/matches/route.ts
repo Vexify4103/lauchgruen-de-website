@@ -21,6 +21,7 @@ const matchUpdateSchema = z.object({
 	teamAChampions: z.array(z.string().trim().min(1)).optional(),
 	teamBChampions: z.array(z.string().trim().min(1)).optional(),
 	blueSide: z.enum(["teamA", "teamB"]).optional(),
+	isCasted: z.boolean().optional(),
 	adminNote: z.string().trim().max(1000).optional(),
 });
 
@@ -90,6 +91,7 @@ export async function PATCH(request: Request) {
 		...(parsed.data.teamAChampions !== undefined ? { teamAChampions: parsed.data.teamAChampions } : {}),
 		...(parsed.data.teamBChampions !== undefined ? { teamBChampions: parsed.data.teamBChampions } : {}),
 		...(parsed.data.blueSide !== undefined ? { blueSide: parsed.data.blueSide } : {}),
+		...(parsed.data.isCasted !== undefined ? { isCasted: parsed.data.isCasted } : {}),
 		...(parsed.data.adminNote !== undefined ? { adminNote: parsed.data.adminNote } : {}),
 		status: nextStatus,
 		winner: winner ?? undefined,
@@ -112,6 +114,7 @@ export async function PATCH(request: Request) {
 			gameDurationSeconds,
 			status: nextStatus,
 			blueSide: parsed.data.blueSide,
+			isCasted: parsed.data.isCasted,
 			winner,
 			adminNote: parsed.data.adminNote,
 		},
@@ -127,6 +130,7 @@ export async function PATCH(request: Request) {
 			gameDurationSeconds,
 			status: nextStatus,
 			blueSide: parsed.data.blueSide,
+			isCasted: parsed.data.isCasted,
 			winner,
 			adminNote: parsed.data.adminNote,
 		},

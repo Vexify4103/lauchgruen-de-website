@@ -10,6 +10,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
@@ -36,6 +37,18 @@ function teamKey(name: string): string {
 	return name.trim().toLowerCase();
 }
 
+function legacyOverlayId(name: string): string {
+	return (
+		name
+			.toLowerCase()
+			.normalize("NFKD")
+			.replace(/[\u0300-\u036f]/g, "")
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/(^-|-$)/g, "")
+			.slice(0, 60) || "team"
+	);
+}
+
 type StoredTeam = {
 	name: string;
 	players?: unknown[];
@@ -47,9 +60,11 @@ type StoredTeam = {
 		group?: "A" | "B";
 		seed?: number;
 		accent?: string;
+		overlayId?: string;
 		captain?: {
 			discordId?: string;
 		};
+		lastCaptainRenameAt?: string;
 	};
 };
 
@@ -63,6 +78,7 @@ const READ_MESSAGE_HISTORY = 65536;
 const CONNECT = 1048576;
 const SPEAK = 2097152;
 const DISCORD_MAX_ATTEMPTS = 5;
+const CAPTAIN_TEAM_RENAME_COOLDOWN_MS = 10 * 60 * 1000;
 
 function discordToken() {
 	return process.env.DISCORD_TOKEN ?? process.env.DISCORD_BOT_TOKEN ?? "";
@@ -414,6 +430,7 @@ export async function POST(request: Request) {
 	meta.group = parsed.data.group;
 	if (parsed.data.seed) meta.seed = parsed.data.seed;
 	if (parsed.data.accent) meta.accent = parsed.data.accent;
+	meta.overlayId = randomUUID();
 	if (Object.keys(meta).length > 0) teamDoc.meta = meta;
 
 	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { [`teams.${key}`]: teamDoc } }, { upsert: true });
@@ -468,6 +485,23 @@ export async function PATCH(request: Request) {
 	}
 	const newGroup = isOwner ? (parsed.data.group ?? currentGroup) : currentGroup;
 	const newSeed = isOwner ? parsed.data.seed : existing.meta?.seed;
+	const nameChanged = newName !== existing.name;
+
+	if (nameChanged && isCaptain && !isOwner) {
+		const lastRenameAt = existing.meta?.lastCaptainRenameAt ? new Date(existing.meta.lastCaptainRenameAt).getTime() : 0;
+		const cooldownUntil = lastRenameAt + CAPTAIN_TEAM_RENAME_COOLDOWN_MS;
+		const now = Date.now();
+		if (lastRenameAt > 0 && now < cooldownUntil) {
+			const remainingMinutes = Math.ceil((cooldownUntil - now) / 60_000);
+			return NextResponse.json(
+				{
+					message: `Teamnamen können nur einmal alle 10 Minuten geändert werden. Bitte warte noch etwa ${remainingMinutes} Minute(n).`,
+					cooldownUntil: new Date(cooldownUntil).toISOString(),
+				},
+				{ status: 429 }
+			);
+		}
+	}
 
 	if (newKey !== oldKey && teamsObj[newKey]) {
 		return NextResponse.json({ message: `Team "${newName}" existiert bereits.` }, { status: 409 });
@@ -490,8 +524,11 @@ export async function PATCH(request: Request) {
 		playedChampions: existing.playedChampions ?? [],
 		meta: {
 			...existing.meta,
+			// Preserve old browser-source links when a legacy team is renamed.
+			overlayId: existing.meta?.overlayId ?? legacyOverlayId(existing.name),
 			group: newGroup,
 			...(newSeed ? { seed: newSeed } : {}),
+			...(nameChanged && isCaptain && !isOwner ? { lastCaptainRenameAt: new Date().toISOString() } : {}),
 		},
 	};
 	if (!newSeed) {
@@ -501,7 +538,7 @@ export async function PATCH(request: Request) {
 	const duplicateSeedWarning =
 		isOwner && conflictingTeam && newSeed ? `Achtung: Gruppe ${newGroup} Seed ${newSeed} ist bereits von "${conflictingTeam.team.name}" belegt.` : null;
 
-	const warnings = newName !== existing.name ? await renameDiscordTeamResources(existing, newName) : [];
+	const warnings = nameChanged ? await renameDiscordTeamResources(existing, newName) : [];
 	if (duplicateSeedWarning) warnings.push(duplicateSeedWarning);
 	if (existing.textChannelId) {
 		nextTeam.textChannelId = existing.textChannelId;
@@ -516,7 +553,7 @@ export async function PATCH(request: Request) {
 
 	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, update);
 
-	if (newName !== existing.name) {
+	if (nameChanged) {
 		await migrateStoredTeamName(db, existing.name, newName);
 	}
 

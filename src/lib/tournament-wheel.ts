@@ -14,6 +14,7 @@ export {
 
 const COLLECTION = "tournament_wheel";
 const DOC_ID = "az-2026";
+const HISTORY_LIMIT = 80;
 
 type WheelDoc = Partial<TournamentWheelState> & {
 	_id: string;
@@ -41,7 +42,7 @@ function sanitizePool(pool: unknown): string | null {
 
 function sanitizePools(pools: unknown): string[] {
 	if (!Array.isArray(pools)) return [];
-	return [...new Set(pools.map(sanitizePool).filter((pool): pool is string => !!pool))];
+	return [...new Set(pools.map(sanitizePool).filter((pool): pool is string => Boolean(pool)))];
 }
 
 function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
@@ -49,9 +50,8 @@ function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
 	const raw = value as Partial<WheelMatchAssignment>;
 	const teamAPool = sanitizePool(raw.teamAPool);
 	const teamBPool = sanitizePool(raw.teamBPool);
-	if (!raw.matchId || !raw.teamAName || !raw.teamBName || !teamAPool || !teamBPool || !raw.spunAt) {
-		return null;
-	}
+	if (!raw.matchId || !raw.teamAName || !raw.teamBName || !teamAPool || !teamBPool || !raw.spunAt) return null;
+
 	return {
 		matchId: raw.matchId,
 		scope: raw.scope === "playoffs" ? "playoffs" : "groups",
@@ -67,9 +67,8 @@ function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
 function stripMongoId(doc: WheelDoc): TournamentWheelState {
 	const usedPoolsByTeam = Object.fromEntries(Object.entries(doc.usedPoolsByTeam ?? {}).map(([teamName, pools]) => [teamName, sanitizePools(pools)]));
 	const playoffUsedPoolsByTeam = Object.fromEntries(Object.entries(doc.playoffUsedPoolsByTeam ?? {}).map(([teamName, pools]) => [teamName, sanitizePools(pools)]));
-
 	const currentAssignment = sanitizeAssignment(doc.currentAssignment);
-	const history = Array.isArray(doc.history) ? doc.history.map(sanitizeAssignment).filter((entry): entry is WheelMatchAssignment => !!entry) : [];
+	const history = Array.isArray(doc.history) ? doc.history.map(sanitizeAssignment).filter((entry): entry is WheelMatchAssignment => Boolean(entry)) : [];
 
 	return {
 		id: DOC_ID,
@@ -92,6 +91,10 @@ function pickRandom(options: string[]): string {
 	return options[Math.floor(Math.random() * options.length)];
 }
 
+function hasAssignmentForMatch(state: TournamentWheelState, matchId: string): boolean {
+	return state.currentAssignment?.matchId === matchId || state.history.some((entry) => entry.matchId === matchId);
+}
+
 export async function spinTournamentWheelForMatch(input: {
 	matchId: string;
 	teamAName: string;
@@ -101,13 +104,11 @@ export async function spinTournamentWheelForMatch(input: {
 }): Promise<TournamentWheelState> {
 	const current = await getTournamentWheelState();
 	const scope = input.scope ?? "groups";
-	if (current.currentAssignment && !current.completedMatchIds.includes(current.currentAssignment.matchId) && current.currentAssignment.matchId !== input.matchId) {
-		throw new Error(`Für ${current.currentAssignment.matchId} ist noch ein Pool offen. Speichere dieses Match zuerst als Finished.`);
-	}
+
 	if (current.completedMatchIds.includes(input.matchId)) {
 		throw new Error("Für dieses Match wurde bereits ein Pool gespielt.");
 	}
-	if (current.currentAssignment?.matchId === input.matchId) {
+	if (hasAssignmentForMatch(current, input.matchId)) {
 		throw new Error("Für dieses Match wurde bereits ein Pool gezogen.");
 	}
 
@@ -122,10 +123,13 @@ export async function spinTournamentWheelForMatch(input: {
 	}
 
 	const teamAPool = pickRandom(teamARemaining);
-	const teamBOptions = teamBRemaining.length > 1 ? teamBRemaining.filter((pool) => pool !== teamAPool) : teamBRemaining;
+	const teamBOptions = teamBRemaining.filter((pool) => pool !== teamAPool);
+	if (teamBOptions.length === 0) {
+		throw new Error("Beide Teams haben nur noch denselben Pool übrig. Bitte Orga-Reset oder manuelle Entscheidung nutzen.");
+	}
+
 	const teamBPool = pickRandom(teamBOptions);
 	const now = new Date().toISOString();
-
 	const assignment: WheelMatchAssignment = {
 		matchId: input.matchId,
 		scope,
@@ -143,7 +147,7 @@ export async function spinTournamentWheelForMatch(input: {
 		usedPoolsByTeam: current.usedPoolsByTeam,
 		playoffUsedPoolsByTeam: current.playoffUsedPoolsByTeam,
 		completedMatchIds: current.completedMatchIds,
-		history: [assignment, ...current.history].slice(0, 40),
+		history: [assignment, ...current.history].slice(0, HISTORY_LIMIT),
 		updatedAt: now,
 	};
 
@@ -157,7 +161,6 @@ export async function commitWheelAssignmentForMatch(matchId: string): Promise<To
 	if (current.completedMatchIds.includes(matchId)) return current;
 
 	const assignment = current.currentAssignment?.matchId === matchId ? current.currentAssignment : current.history.find((entry) => entry.matchId === matchId);
-
 	if (!assignment) return current;
 
 	const now = new Date().toISOString();

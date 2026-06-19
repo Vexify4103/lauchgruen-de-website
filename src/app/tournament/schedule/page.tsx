@@ -22,6 +22,7 @@ type ScheduleMatch = {
 	scoreA?: number;
 	scoreB?: number;
 	status: string;
+	isCasted?: boolean;
 	pool: WheelMatchAssignment | null;
 };
 
@@ -49,6 +50,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			scoreA: state.matches[match.id]?.scoreA,
 			scoreB: state.matches[match.id]?.scoreB,
 			status: state.matches[match.id]?.status ?? match.status,
+			isCasted: Boolean(state.matches[match.id]?.isCasted),
 			pool: poolFor(match.id),
 		}))
 		.sort(compareGroupMatches);
@@ -66,6 +68,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			scoreA: match.scoreA,
 			scoreB: match.scoreB,
 			status: match.status,
+			isCasted: Boolean(state.matches[match.id]?.isCasted),
 			pool: poolFor(match.id),
 		}))
 		.sort((a, b) => PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number]) - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number]));
@@ -191,6 +194,11 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 															{isLive ? (
 																<span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
 																	{isPreview ? "Live-Vorschau" : "Aktuelles Match"}
+																</span>
+															) : null}
+															{match.isCasted ? (
+																<span className="rounded-full border border-fuchsia-200/26 bg-fuchsia-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-50">
+																	Live gecastet
 																</span>
 															) : null}
 															{match.pool ? (
