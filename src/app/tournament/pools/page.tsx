@@ -1,9 +1,12 @@
 import { getChampionPools } from "@/lib/champion-pools";
+import { redirect } from "next/navigation";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { PoolBrowser } from "./PoolBrowser";
 
 export const dynamic = "force-dynamic";
 
 export default async function TournamentPoolsPage() {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=pools");
 	const pools = await getChampionPools();
 	const championCount = pools.reduce((sum, pool) => sum + pool.champions.length, 0);
 
@@ -39,8 +42,8 @@ export default async function TournamentPoolsPage() {
 							text: "Wenn das Match als Finished gespeichert wird, gilt der Pool als gespielt und verlässt das Team-Wheel.",
 						},
 						{
-							title: "4. Playoff-Reset",
-							text: "Zum zweiten Spieltag / Playoff-Tag werden die Pools wieder refreshed.",
+							title: "4. Final-Reset",
+							text: "Erst für die Teilnehmer von Upper Final und Lower Semi-Final beginnt ein frischer Pool-Zyklus. Frühe Playoff-Runden bleiben fearless.",
 						},
 					].map((item) => (
 						<div key={item.title} className="rounded-2xl border border-white/10 bg-black/18 p-4">

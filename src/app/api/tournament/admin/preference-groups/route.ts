@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const schema = z.discriminatedUnion("action", [
 	z.object({
 		action: z.literal("create"),
-		discordIds: z.array(z.string().trim().min(1)).min(1).max(5),
+		discordIds: z.array(z.string().trim().min(1)).min(1).max(2),
 		expectedVersion: z.number().int().min(0),
 	}),
 	z.object({
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 				action: "preference_group.created_by_admin",
 				targetType: "preference_group",
 				targetId: group.code,
-				summary: `Wunschgruppe ${group.code} mit ${group.memberDiscordIds.length} Personen erstellt.`,
+				summary: `Wunschduo ${group.code} mit ${group.memberDiscordIds.length} Personen erstellt.`,
 				actorDiscordId,
 				actorLabel: session.user.discordHandle ?? actorDiscordId,
 				metadata: { memberDiscordIds: group.memberDiscordIds },
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 			action: group ? "preference_group.member_moved_by_admin" : "preference_group.member_removed_by_admin",
 			targetType: "preference_group",
 			targetId: group?.code ?? parsed.data.discordId,
-			summary: group ? `Person wurde der Wunschgruppe ${group.code} zugewiesen.` : "Person wurde aus ihrer Wunschgruppe entfernt.",
+			summary: group ? `Person wurde dem Wunschduo ${group.code} zugewiesen.` : "Person wurde aus ihrem Wunschduo entfernt.",
 			actorDiscordId,
 			actorLabel: session.user.discordHandle ?? actorDiscordId,
 			metadata: {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 		const code = error instanceof Error ? error.message : "";
 		const responses: Record<string, { message: string; status: number }> = {
 			INVALID_GROUP_SIZE: {
-				message: "Eine Wunschgruppe braucht eine bis fünf Personen.",
+				message: "Ein Wunschduo braucht ein oder zwei Personen.",
 				status: 400,
 			},
 			APPLICATION_REQUIRED: {
@@ -92,15 +92,15 @@ export async function POST(request: Request) {
 				status: 400,
 			},
 			ALREADY_IN_GROUP: {
-				message: "Mindestens eine ausgewählte Person ist bereits in einer Wunschgruppe.",
+				message: "Mindestens eine ausgewählte Person ist bereits in einem Wunschduo.",
 				status: 409,
 			},
 			INVALID_GROUP_CODE: {
-				message: "Die ausgewählte Wunschgruppe existiert nicht.",
+				message: "Das ausgewählte Wunschduo existiert nicht.",
 				status: 404,
 			},
 			GROUP_FULL: {
-				message: "Die Zielgruppe ist bereits voll.",
+				message: "Das Ziel-Wunschduo ist bereits voll.",
 				status: 409,
 			},
 			CODE_GENERATION_FAILED: {

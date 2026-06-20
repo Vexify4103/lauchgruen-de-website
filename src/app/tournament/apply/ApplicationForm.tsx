@@ -262,7 +262,7 @@ export function ApplicationForm({
 							<Link href="/tournament/me" className="font-black text-cyan-100 underline decoration-cyan-200/40 underline-offset-4 hover:text-white">
 								Profilseite
 							</Link>{" "}
-							kannst du außerdem eine Wunschgruppe erstellen oder einem Code beitreten und optional deinen Twitch-Account verbinden.
+							kannst du außerdem ein Wunschduo erstellen oder einem Code beitreten und optional deinen Twitch-Account verbinden.
 						</div>
 					</div>
 				) : null}

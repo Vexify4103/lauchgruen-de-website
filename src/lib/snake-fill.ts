@@ -1,7 +1,7 @@
 /**
  * Group-aware auto-balance for the roster builder.
  *
- * The important rule is: keep Wunschgruppen together first, then split only
+ * The important rule is: keep Wunschduos together first, then split only
  * when the shared placement would create a clearly unfair team or force too
  * many players onto roles they did not ask for.
  */

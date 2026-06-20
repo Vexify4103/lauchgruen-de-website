@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 	const body = await request.json().catch(() => null);
 	const parsed = actionSchema.safeParse(body);
 	if (!parsed.success) {
-		return NextResponse.json({ message: "Ungültige Wunschgruppen-Aktion." }, { status: 400 });
+		return NextResponse.json({ message: "Ungültige Wunschduo-Aktion." }, { status: 400 });
 	}
 
 	try {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 			await leavePreferenceGroup(discordId);
 			return NextResponse.json({
 				group: null,
-				message: "Du hast die Wunschgruppe verlassen.",
+				message: "Du hast das Wunschduo verlassen.",
 			});
 		}
 
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({
 			group: publicGroup(group),
-			message: parsed.data.action === "create" ? "Dein Wunschgruppen-Code ist bereit." : "Du bist der Wunschgruppe beigetreten.",
+			message: parsed.data.action === "create" ? "Dein Wunschduo-Code ist bereit." : "Du bist dem Wunschduo beigetreten.",
 		});
 	} catch (error) {
 		const code = error instanceof Error ? error.message : "";
@@ -71,15 +71,15 @@ export async function POST(request: Request) {
 				status: 403,
 			},
 			INVALID_GROUP_CODE: {
-				message: "Dieser Wunschgruppen-Code ist ungültig.",
+				message: "Dieser Wunschduo-Code ist ungültig.",
 				status: 404,
 			},
 			ALREADY_IN_GROUP: {
-				message: "Du bist bereits in einer Wunschgruppe. Verlasse sie zuerst, um einem anderen Code beizutreten.",
+				message: "Du bist bereits in einem Wunschduo. Verlasse es zuerst, um einem anderen Code beizutreten.",
 				status: 409,
 			},
 			GROUP_FULL: {
-				message: "Diese Wunschgruppe hat bereits fünf Mitglieder.",
+				message: "Dieses Wunschduo hat bereits zwei Mitglieder.",
 				status: 409,
 			},
 			CODE_GENERATION_FAILED: {

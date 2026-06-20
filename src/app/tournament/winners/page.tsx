@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { pastTournamentWinners, tournament } from "@/lib/tournament-data";
+import { listTournamentArchives } from "@/lib/tournament-next";
 import { TournamentLink as Link } from "../TournamentLink";
 
 export const metadata: Metadata = {
-	title: "Hall of Fame | Lauchgruen Turnier",
-	description: "Vergangene Lauchgruen Turniersieger, Finalisten und besondere Turniermomente.",
+	title: "Archiv & Hall of Fame | Lauchgruen Turnier",
+	description: "Vergangene Lauchgruen Turniere, Sieger, Teams und besondere Turniermomente.",
 };
 
 const placementLabel = {
@@ -13,26 +14,42 @@ const placementLabel = {
 	Third: "Dritter Platz",
 } as const;
 
-export default function TournamentWinnersPage() {
-	const champions = pastTournamentWinners.filter((entry) => entry.placement === "Champion");
-	const podium = pastTournamentWinners.filter((entry) => entry.placement !== "Champion");
+export default async function TournamentWinnersPage() {
+	const archives = await listTournamentArchives();
+	const entries = [
+		...pastTournamentWinners,
+		...archives.map((archive) => ({
+			id: archive.id,
+			tournamentName: archive.title,
+			season: archive.season,
+			date: archive.dateLabel,
+			game: "League of Legends",
+			format: archive.format,
+			placement: "Champion" as const,
+			teamName: archive.championTeam,
+			roster: archive.championRoster,
+			note: [archive.note, archive.vodUrl ? `VOD: ${archive.vodUrl}` : "", archive.highlightUrl ? `Highlights: ${archive.highlightUrl}` : ""].filter(Boolean).join(" · "),
+		})),
+	];
+	const champions = entries.filter((entry) => entry.placement === "Champion");
+	const podium = entries.filter((entry) => entry.placement !== "Champion");
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
 			<section className="mx-auto w-full max-w-7xl">
 				<div className="overflow-hidden rounded-[2.4rem] border border-amber-200/16 bg-gradient-to-br from-amber-200/12 via-lime-300/8 to-cyan-300/8 p-6 shadow-2xl shadow-black/30 sm:p-8 lg:p-10">
 					<div className="inline-flex rounded-full border border-amber-200/24 bg-amber-200/10 px-4 py-2 text-xs font-black uppercase tracking-[0.32em] text-amber-100/84">
-						Hall of Fame
+						Archiv & Hall of Fame
 					</div>
-					<h1 className="mt-7 max-w-4xl text-5xl font-black leading-[0.94] tracking-tight text-emerald-50 sm:text-6xl">Die Lauchgruen Turnier-Champions.</h1>
+					<h1 className="mt-7 max-w-4xl text-5xl font-black leading-[0.94] tracking-tight text-emerald-50 sm:text-6xl">Vergangene Lauchgruen Turniere.</h1>
 					<div className="mt-8 grid gap-3 sm:grid-cols-3">
-						<Stat label="Turniere" value={String(new Set(pastTournamentWinners.map((entry) => entry.season)).size)} />
+						<Stat label="Turniere" value={String(new Set(entries.map((entry) => entry.season)).size)} />
 						<Stat label="Champions" value={String(champions.length)} />
 						<Stat label="Aktuell" value={tournament.season} />
 					</div>
 				</div>
 
-				{pastTournamentWinners.length === 0 ? (
+				{entries.length === 0 ? (
 					<div className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 shadow-xl shadow-black/20 sm:p-8">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Noch keine abgeschlossenen Turniere</div>
 						<h2 className="mt-3 text-3xl font-black text-emerald-50">Der erste Eintrag wartet auf den Gewinner von {tournament.season}.</h2>
@@ -55,7 +72,10 @@ export default function TournamentWinnersPage() {
 					<div className="mt-6 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
 						<section className="grid gap-4">
 							{champions.map((entry) => (
-								<WinnerCard key={entry.id} entry={entry} featured />
+								<div key={entry.id}>
+									<WinnerCard entry={entry} featured />
+									{archives.some((archive) => archive.id === entry.id && archive.snapshot) ? <Link href={`/tournament/archive/${entry.id}`} className="mt-3 inline-flex rounded-xl border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-lime-50">Vollständiges Turnier ansehen</Link> : null}
+								</div>
 							))}
 						</section>
 

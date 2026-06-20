@@ -1088,7 +1088,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 							<label
 								htmlFor="split-threshold"
 								className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
-								title="Maximale gewünschte Team-Abweichung. Wunschgruppen werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
+								title="Maximale gewünschte Team-Abweichung. Wunschduos werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
 							>
 								Fairness-Schwelle
 							</label>
@@ -1259,7 +1259,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 					<section className="rounded-[1.8rem] border border-cyan-200/14 bg-cyan-300/[0.035] p-4 shadow-xl shadow-black/16">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">Wunschgruppen</div>
+								<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">Wunschduos</div>
 								<p className="mt-1 text-xs leading-5 text-emerald-100/48">Gemeinsame Einteilung ist ein Wunsch und keine Garantie.</p>
 							</div>
 							<span className="rounded-full border border-cyan-200/16 bg-cyan-300/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50/66">
@@ -1288,7 +1288,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								tone="neutral"
 							/>
 							<GroupSummaryTile
-								label="Mit Wunschgruppe"
+								label="Mit Wunschduo"
 								value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`}
 								tone="info"
 							/>
@@ -2279,7 +2279,7 @@ function Picker({
 function PreferenceGroupBadge({ code }: { code: string }) {
 	return (
 		<span
-			title="Unverbindliche Wunschgruppe"
+			title="Unverbindliches Wunschduo"
 			className="inline-flex rounded-full border border-cyan-200/22 bg-cyan-300/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50/76"
 		>
 			Wunsch · {code}

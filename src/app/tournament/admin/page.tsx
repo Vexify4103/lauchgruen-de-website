@@ -96,6 +96,9 @@ export default async function TournamentAdminPage() {
 							>
 								Roster-Builder →
 							</Link>
+							<Link href="/tournament/admin/next" className="rounded-2xl border border-cyan-200/20 bg-cyan-300/8 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-100 transition hover:border-cyan-200/38">
+								Turnier-Werkstatt →
+							</Link>
 							<NicknameSyncButton />
 						</div>
 					) : null}

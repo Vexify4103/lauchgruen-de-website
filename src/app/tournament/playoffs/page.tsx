@@ -1,10 +1,13 @@
 import { readTournamentState } from "@/lib/tournament-storage";
+import { redirect } from "next/navigation";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState } from "@/lib/tournament-wheel";
 import { LivePlayoffs } from "@/components/LivePlayoffs";
 
 export default async function PlayoffsPage() {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=playoffs");
 	const ctx = await getTournamentContext();
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	const matches = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches).map((match) => ({

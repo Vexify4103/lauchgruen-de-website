@@ -22,12 +22,12 @@ export type TournamentWheelState = {
 	updatedAt: string;
 };
 
-export function remainingPoolsForTeam(state: TournamentWheelState, teamName: string, scope: PoolHistoryScope = "groups"): string[] {
-	const source = scope === "playoffs" ? state.playoffUsedPoolsByTeam : state.usedPoolsByTeam;
+export function remainingPoolsForTeam(state: TournamentWheelState, teamName: string, scope: PoolHistoryScope = "early"): string[] {
+	const source = scope === "finals" ? state.playoffUsedPoolsByTeam : state.usedPoolsByTeam;
 	const used = new Set(source[teamName] ?? []);
 	const assignments = [state.currentAssignment, ...state.history].filter((entry): entry is WheelMatchAssignment => Boolean(entry));
 	for (const assignment of assignments) {
-		if ((assignment.scope ?? "groups") !== scope) continue;
+		if ((assignment.scope ?? "early") !== scope) continue;
 		if (assignment.teamAName === teamName) used.add(assignment.teamAPool);
 		if (assignment.teamBName === teamName) used.add(assignment.teamBPool);
 	}

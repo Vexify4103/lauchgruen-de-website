@@ -1,4 +1,5 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
@@ -7,6 +8,7 @@ import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { CopyDraftSpectatorLinkButton } from "./CopyDraftSpectatorLinkButton";
 import { RenameTeamForm } from "./RenameTeamForm";
 import { TransferCaptainCard } from "./TransferCaptainCard";
+import { CaptainMatchActions } from "./CaptainMatchActions";
 
 function opggMultiSearchUrl(riotIds: string[]) {
 	const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -17,6 +19,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function CaptainPortalPage() {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament");
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 
@@ -137,6 +140,7 @@ export default async function CaptainPortalPage() {
 								)}
 								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
 							</div>
+							<CaptainMatchActions matchId={nextMatch.id} teamName={team.name} />
 						</div>
 					) : null}
 

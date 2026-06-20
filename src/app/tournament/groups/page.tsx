@@ -1,4 +1,6 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { redirect } from "next/navigation";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { computeGroupStandings } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -8,6 +10,7 @@ import { formatGameDuration } from "@/lib/match-duration";
 const groups = ["A", "B"] as const;
 
 export default async function GroupsPage() {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=groups");
 	const ctx = await getTournamentContext();
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);

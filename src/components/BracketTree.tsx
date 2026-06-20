@@ -141,7 +141,11 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 
 	return (
 		<div className="overflow-x-auto pb-2 -mx-2 px-2">
-			<div ref={containerRef} className="relative grid min-w-[70rem] gap-x-6" style={{ gridTemplateColumns: "minmax(0, 1fr) 14rem" }}>
+			<div
+				ref={containerRef}
+				className="relative grid min-w-[63rem] gap-x-6"
+				style={{ gridTemplateColumns: "minmax(42rem, 1fr) 14rem" }}
+			>
 				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
 					{paths.map((p, i) => (
 						<path
@@ -384,17 +388,17 @@ function TeamLine({
 	bottom?: boolean;
 }) {
 	return (
-		<div className={`flex items-center justify-between gap-2 px-3 py-2 ${bottom ? "" : "border-b border-white/6"} ${isWinner ? "bg-lime-200/12" : ""}`}>
-			<span className={`truncate text-sm font-black ${isWinner ? "text-lime-50" : resolved ? "text-emerald-50" : "italic text-emerald-100/40"}`} title={label}>
+		<div className={`relative flex items-center gap-2 px-3 py-2 ${bottom ? "" : "border-b border-white/6"} ${isWinner ? "bg-lime-200/12" : ""}`}>
+			<span className={`min-w-0 max-w-[44%] truncate text-sm font-black ${isWinner ? "text-lime-50" : resolved ? "text-emerald-50" : "italic text-emerald-100/40"}`} title={label}>
 				{label}
 			</span>
 			{pool ? (
-				<span className="shrink-0 rounded-md border border-lime-200/16 bg-lime-200/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-lime-50/78">
+				<span className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md border border-lime-200/16 bg-lime-200/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-lime-50/78">
 					{compactPoolLabel(pool)}
 				</span>
 			) : null}
 			<span
-				className={`shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-xs font-black ${
+				className={`ml-auto shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-xs font-black ${
 					hasScore ? (isWinner ? "bg-lime-200/14 text-lime-50" : "bg-black/24 text-emerald-100/68") : "bg-black/12 text-emerald-100/24"
 				}`}
 			>

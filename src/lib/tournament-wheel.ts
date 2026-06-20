@@ -54,7 +54,9 @@ function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
 
 	return {
 		matchId: raw.matchId,
-		scope: raw.scope === "playoffs" ? "playoffs" : "groups",
+		// Old records used "groups"/"playoffs". Both belong to the fearless
+		// early cycle; the new final cycle is explicitly stored as "finals".
+		scope: raw.scope === "finals" ? "finals" : "early",
 		teamAName: raw.teamAName,
 		teamBName: raw.teamBName,
 		teamAPool,
@@ -66,9 +68,14 @@ function sanitizeAssignment(value: unknown): WheelMatchAssignment | null {
 
 function stripMongoId(doc: WheelDoc): TournamentWheelState {
 	const usedPoolsByTeam = Object.fromEntries(Object.entries(doc.usedPoolsByTeam ?? {}).map(([teamName, pools]) => [teamName, sanitizePools(pools)]));
-	const playoffUsedPoolsByTeam = Object.fromEntries(Object.entries(doc.playoffUsedPoolsByTeam ?? {}).map(([teamName, pools]) => [teamName, sanitizePools(pools)]));
 	const currentAssignment = sanitizeAssignment(doc.currentAssignment);
 	const history = Array.isArray(doc.history) ? doc.history.map(sanitizeAssignment).filter((entry): entry is WheelMatchAssignment => Boolean(entry)) : [];
+	// Before the rule change, every playoff pool was stored in this field. It
+	// must not consume pools in the new final-only reset cycle.
+	const hasFinalCycleEntry = history.some((entry) => entry.scope === "finals") || currentAssignment?.scope === "finals";
+	const playoffUsedPoolsByTeam = hasFinalCycleEntry
+		? Object.fromEntries(Object.entries(doc.playoffUsedPoolsByTeam ?? {}).map(([teamName, pools]) => [teamName, sanitizePools(pools)]))
+		: {};
 
 	return {
 		id: DOC_ID,
@@ -103,7 +110,7 @@ export async function spinTournamentWheelForMatch(input: {
 	spunBy?: string;
 }): Promise<TournamentWheelState> {
 	const current = await getTournamentWheelState();
-	const scope = input.scope ?? "groups";
+	const scope = input.scope ?? "early";
 
 	if (current.completedMatchIds.includes(input.matchId)) {
 		throw new Error("Für dieses Match wurde bereits ein Pool gespielt.");
@@ -164,8 +171,8 @@ export async function commitWheelAssignmentForMatch(matchId: string): Promise<To
 	if (!assignment) return current;
 
 	const now = new Date().toISOString();
-	const scope = assignment.scope ?? "groups";
-	const target = scope === "playoffs" ? current.playoffUsedPoolsByTeam : current.usedPoolsByTeam;
+	const scope = assignment.scope ?? "early";
+	const target = scope === "finals" ? current.playoffUsedPoolsByTeam : current.usedPoolsByTeam;
 	const updatedTarget = {
 		...target,
 		[assignment.teamAName]: [...new Set([...(target[assignment.teamAName] ?? []), assignment.teamAPool])],
@@ -175,8 +182,8 @@ export async function commitWheelAssignmentForMatch(matchId: string): Promise<To
 	const next: TournamentWheelState = {
 		id: DOC_ID,
 		currentAssignment: current.currentAssignment?.matchId === matchId ? null : current.currentAssignment,
-		usedPoolsByTeam: scope === "groups" ? updatedTarget : current.usedPoolsByTeam,
-		playoffUsedPoolsByTeam: scope === "playoffs" ? updatedTarget : current.playoffUsedPoolsByTeam,
+		usedPoolsByTeam: scope === "early" ? updatedTarget : current.usedPoolsByTeam,
+		playoffUsedPoolsByTeam: scope === "finals" ? updatedTarget : current.playoffUsedPoolsByTeam,
 		completedMatchIds: [...new Set([...current.completedMatchIds, matchId])],
 		history: current.history,
 		updatedAt: now,
@@ -192,4 +199,9 @@ export async function resetTournamentWheel(): Promise<TournamentWheelState> {
 	const db = await getDb();
 	await db.collection<WheelDoc>(COLLECTION).updateOne({ _id: DOC_ID }, { $set: next }, { upsert: true });
 	return next;
+}
+
+export async function clearTournamentWheel(): Promise<void> {
+	const db = await getDb();
+	await db.collection<WheelDoc>(COLLECTION).deleteOne({ _id: DOC_ID });
 }

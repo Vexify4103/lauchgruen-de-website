@@ -18,6 +18,18 @@ const rules = [
 
 export default async function ApplyPage() {
 	const settings = await getTournamentSettings();
+	if (settings.activeTournament.mode === "teaser") {
+		return (
+			<div className="px-5 py-10 sm:py-14">
+				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-cyan-200/16 bg-cyan-300/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
+					<div className="text-xs font-black uppercase tracking-[0.3em] text-cyan-100/70">Ultimate Bravery</div>
+					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50">Die Bewerbung öffnet später.</h1>
+					<p className="mt-4 text-sm leading-7 text-emerald-100/72">Das nächste Turnier wird gerade vorbereitet. Deine Discord-Anmeldung und Riot-Verifizierung bleiben für die spätere Bewerbung erhalten, aber Termin, Teamgröße und Regeln werden erst noch bekanntgegeben.</p>
+					<Link href="/tournament" className="mt-6 inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100">Zurück zur Übersicht</Link>
+				</section>
+			</div>
+		);
+	}
 	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
 	const deadlinePassed = isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
 	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);

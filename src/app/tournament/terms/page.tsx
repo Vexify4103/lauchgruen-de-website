@@ -37,7 +37,7 @@ const ruleSections = [
 	},
 	{
 		title: "A-Z Champion-Pools",
-		text: "Für jedes Match wird pro Team ein A-Z Pool gelost. Ein Team darf in diesem Match nur Champions aus dem eigenen Pool picken. Bans richten sich gegen den gegnerischen Pool. Gespielte Pools verlassen für das jeweilige Team das Rad; zum zweiten Spieltag beziehungsweise Playoff-Tag wird der Pool-Verlauf zurückgesetzt.",
+		text: "Für jedes Match wird pro Team ein A-Z Pool gelost. Ein Team darf in diesem Match nur Champions aus dem eigenen Pool picken. Bans richten sich gegen den gegnerischen Pool. Gespielte Pools verlassen für das jeweilige Team das Rad; erst für die vier Teams im Upper Final und Lower Semi-Final beginnt ein frischer Final-Pool-Zyklus.",
 		list: [
 			"Jedes Team verfügt standardmäßig über 3 Bans pro Match",
 			"In Upper Bracket Runde 1 erhalten A #2 und B #2 jeweils einen zusätzlichen vierten Ban",
@@ -84,12 +84,12 @@ const ruleSections = [
 	},
 	{
 		title: "Rückzug, Forfeit und Team-Balance",
-		text: "Wunschgruppen sind nicht garantiert. Das Orga-Team darf Gruppen aus Fairness- und Balancing-Gründen aufteilen. Wer nach der finalen Teamzuteilung nicht mehr antreten möchte, muss das dem Orga-Team so früh wie möglich mitteilen.",
+		text: "Wunschduos sind nicht garantiert. Das Orga-Team darf Duos aus Fairness- und Balancing-Gründen aufteilen. Wer nach der finalen Teamzuteilung nicht mehr antreten möchte, muss das dem Orga-Team so früh wie möglich mitteilen.",
 		list: [
 			"Wenn ein Team wegen Rückzug, fehlenden Spielern oder verweigerter Teilnahme nicht spielbereit ist, kann das Orga-Team einzelne Matches als Forfeit werten",
 			"Ein Forfeit kann als Niederlage für das betroffene Team und als Sieg für den Gegner eingetragen werden",
 			"Wenn der Turnierablauf sonst gefährdet ist, darf das Orga-Team Ersatzspieler einsetzen oder Teams kurzfristig anpassen",
-			"Diskussionen über Wunschgruppen oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
+			"Diskussionen über Wunschduos oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
 		],
 		footer: "Ziel ist, dass das Turnier für alle Teams fair und planbar bleibt.",
 	},

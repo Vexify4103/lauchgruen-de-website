@@ -56,7 +56,7 @@ export type TournamentBlacklistEntry = {
 	createdBy?: string;
 };
 
-export const TOURNAMENT_PREFERENCE_GROUP_LIMIT = 5;
+export const TOURNAMENT_PREFERENCE_GROUP_LIMIT = 2;
 
 export type TournamentPreferenceGroup = {
 	code: string;

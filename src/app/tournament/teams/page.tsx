@@ -1,4 +1,6 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { redirect } from "next/navigation";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -27,6 +29,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=teams");
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
@@ -294,8 +297,8 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 											opponent: entry.teamAName === team.name ? entry.teamBName : entry.teamAName,
 											pool: entry.teamAName === team.name ? entry.teamAPool : entry.teamBPool,
 										}))}
-									groupRemaining={remainingPoolsForTeam(wheel, team.name, "groups").length}
-									playoffRemaining={remainingPoolsForTeam(wheel, team.name, "playoffs").length}
+									groupRemaining={remainingPoolsForTeam(wheel, team.name, "early").length}
+									playoffRemaining={remainingPoolsForTeam(wheel, team.name, "finals").length}
 								/>
 							</article>
 						);
@@ -329,11 +332,11 @@ function TeamPoolHistory({
 		<div className="mt-5 rounded-2xl border border-lime-200/12 bg-lime-200/[0.045] p-4">
 			<div className="flex items-center justify-between gap-3">
 				<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/60">Gespielte A-Z Pools von {teamName}</div>
-				<div className="text-xs font-black text-emerald-100/46">Reset ab Playoffs</div>
+				<div className="text-xs font-black text-emerald-100/46">Reset ab Upper Final / Lower Semi-Final</div>
 			</div>
 
-			<PoolHistoryRow label={`Gruppenphase · ${groupRemaining} übrig`} pools={groupPools} />
-			<PoolHistoryRow label={`Playoffs · ${playoffRemaining} übrig`} pools={playoffPools} />
+			<PoolHistoryRow label={`Bis Final-Reset · ${groupRemaining} übrig`} pools={groupPools} />
+			<PoolHistoryRow label={`Finalblock · ${playoffRemaining} übrig`} pools={playoffPools} />
 			{matchPools.length > 0 ? (
 				<div className="mt-4 grid gap-2">
 					<div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/42">Match-Historie</div>

@@ -3,6 +3,12 @@ import { TOURNAMENT_APPLICATION_DEADLINE } from "@/lib/tournament-application-de
 
 export type TournamentSettings = {
 	id: "default";
+	activeTournament: {
+		id: string;
+		name: string;
+		season: string;
+		mode: "active" | "teaser";
+	};
 	applicationsOpen: boolean;
 	applicationDeadlineOverride: boolean;
 	applicationDeadline: string;
@@ -26,6 +32,12 @@ function envFlag(name: string, fallback: boolean) {
 function defaultSettings(): TournamentSettings {
 	return {
 		id: DOC_ID,
+		activeTournament: {
+			id: "az-2026",
+			name: "Kunterbuntes A-Z Turnier",
+			season: "A-Z Turnier 2026",
+			mode: "active",
+		},
 		applicationsOpen: envFlag("TOURNAMENT_APPLICATIONS_ENABLED", true),
 		applicationDeadlineOverride: envFlag("TOURNAMENT_APPLICATION_DEADLINE_BYPASS", false),
 		applicationDeadline: TOURNAMENT_APPLICATION_DEADLINE,
@@ -43,6 +55,15 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 	return {
 		...defaults,
 		id: DOC_ID,
+		activeTournament:
+			rest.activeTournament &&
+			typeof rest.activeTournament === "object" &&
+			typeof rest.activeTournament.id === "string" &&
+			typeof rest.activeTournament.name === "string" &&
+			typeof rest.activeTournament.season === "string" &&
+			(rest.activeTournament.mode === "active" || rest.activeTournament.mode === "teaser")
+				? rest.activeTournament
+				: defaults.activeTournament,
 		applicationsOpen: typeof rest.applicationsOpen === "boolean" ? rest.applicationsOpen : defaults.applicationsOpen,
 		applicationDeadlineOverride: typeof rest.applicationDeadlineOverride === "boolean" ? rest.applicationDeadlineOverride : defaults.applicationDeadlineOverride,
 		applicationDeadline: deadline,
@@ -60,7 +81,7 @@ export async function getTournamentSettings(): Promise<TournamentSettings> {
 }
 
 export async function updateTournamentSettings(input: {
-	patch: Partial<Pick<TournamentSettings, "applicationsOpen" | "applicationDeadlineOverride" | "applicationDeadline" | "tournamentLive" | "draftEnabled">>;
+	patch: Partial<Pick<TournamentSettings, "activeTournament" | "applicationsOpen" | "applicationDeadlineOverride" | "applicationDeadline" | "tournamentLive" | "draftEnabled">>;
 	updatedBy?: string;
 }): Promise<TournamentSettings> {
 	const now = new Date().toISOString();
@@ -69,6 +90,7 @@ export async function updateTournamentSettings(input: {
 		updatedAt: now,
 		updatedBy: input.updatedBy,
 	};
+	if (input.patch.activeTournament !== undefined) $set.activeTournament = input.patch.activeTournament;
 	if (input.patch.applicationsOpen !== undefined) $set.applicationsOpen = input.patch.applicationsOpen;
 	if (input.patch.applicationDeadlineOverride !== undefined) $set.applicationDeadlineOverride = input.patch.applicationDeadlineOverride;
 	if (input.patch.applicationDeadline !== undefined) $set.applicationDeadline = input.patch.applicationDeadline;

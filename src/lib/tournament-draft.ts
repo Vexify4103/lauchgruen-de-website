@@ -140,6 +140,17 @@ export async function getDraftState(matchId: string): Promise<TournamentDraftSta
 	return doc ? strip(doc) : emptyDraftState(matchId);
 }
 
+export async function listDraftStates(): Promise<TournamentDraftState[]> {
+	const db = await getDb();
+	const docs = await db.collection<DraftDoc>(COLLECTION).find({}).toArray();
+	return docs.map(strip);
+}
+
+export async function clearDraftStates(): Promise<void> {
+	const db = await getDb();
+	await db.collection<DraftDoc>(COLLECTION).deleteMany({});
+}
+
 export async function markDraftReady(input: { matchId: string; side: DraftSide; readyBy?: string }): Promise<TournamentDraftState> {
 	const current = await getDraftState(input.matchId);
 	if (draftComplete(current)) {

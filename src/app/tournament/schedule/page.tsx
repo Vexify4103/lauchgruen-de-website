@@ -1,4 +1,6 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { redirect } from "next/navigation";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -29,6 +31,7 @@ type ScheduleMatch = {
 const PLAYOFF_ORDER = ["ub-r1-1", "ub-r1-2", "lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2", "lb-r2-1", "lb-r2-2", "ub-f", "lb-sf", "lb-f", "gf"] as const;
 
 export default async function TournamentSchedulePage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
+	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026");
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
@@ -91,7 +94,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 		},
 		{
 			title: "Spieltag 2",
-			description: "Alle 8 Teams spielen ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
+			description: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket. Upper R1 beginnt um 16:00 Uhr; Lower R1 und Upper R2 folgen parallel ab 17:00 Uhr.",
 			batches: playoffScheduleBatches(saturday),
 		},
 	];
@@ -252,13 +255,12 @@ function groupScheduleBatches(matches: ScheduleMatch[]) {
 
 function playoffScheduleBatches(matches: ScheduleMatch[]) {
 	const definitions = [
-		{ label: "Upper Runde 1 · A/B #2 mit viertem Ban", ids: ["ub-r1-1", "ub-r1-2"] },
-		{ label: "Lower Runde 1 · A/B #4 steigt ein", ids: ["lb-r1-1", "lb-r1-2"] },
-		{ label: "Upper Runde 2 · Gruppensieger steigen ein", ids: ["ub-r2-1", "ub-r2-2"] },
-		{ label: "Lower Runde 2", ids: ["lb-r2-1", "lb-r2-2"] },
-		{ label: "Upper Final und Lower-Halbfinale", ids: ["ub-f", "lb-sf"] },
-		{ label: "Lower Final", ids: ["lb-f"] },
-		{ label: "Grand Final", ids: ["gf"] },
+		{ label: "16:00 · Upper Runde 1 · A/B #2 mit viertem Ban", ids: ["ub-r1-1", "ub-r1-2"] },
+		{ label: "17:00 · Lower Runde 1 und Upper Runde 2", ids: ["lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2"] },
+		{ label: "18:00 · Upper Final und Lower Runde 2", ids: ["ub-f", "lb-r2-1", "lb-r2-2"] },
+		{ label: "19:00 · Lower-Halbfinale", ids: ["lb-sf"] },
+		{ label: "20:00 · Lower Final", ids: ["lb-f"] },
+		{ label: "21:00 · Grand Final", ids: ["gf"] },
 	];
 	const byId = new Map(matches.map((match) => [match.id, match]));
 	return definitions.map((definition, index) => ({

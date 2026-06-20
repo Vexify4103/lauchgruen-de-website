@@ -8,26 +8,31 @@ import { TournamentLink as Link, TournamentUrlProvider } from "./TournamentLink"
 type NavItem = {
 	href: string;
 	label: string;
+	disabled?: boolean;
 };
+
+type TournamentStatus = "Ankündigung" | "Anmeldung" | "Vorbereitung" | "Live";
 
 export function TournamentChrome({
 	children,
 	navItems,
 	applicationsOpen,
-	tournamentLive,
+	tournamentStatus,
 	apexUrl,
 	cleanUrls,
 	accountControl,
 	compactAccountControl,
+	footerTournamentLabel,
 }: {
 	children: ReactNode;
 	navItems: NavItem[];
 	applicationsOpen: boolean;
-	tournamentLive: boolean;
+	tournamentStatus: TournamentStatus;
 	apexUrl: string;
 	cleanUrls: boolean;
 	accountControl: ReactNode;
 	compactAccountControl: ReactNode;
+	footerTournamentLabel: string;
 }) {
 	const pathname = usePathname();
 	const focusedDraft = pathname.startsWith("/tournament/champ-select/") || pathname.includes("/champ-select/");
@@ -42,9 +47,9 @@ export function TournamentChrome({
 				</div>
 
 				{focusedDraft ? (
-					<FocusedDraftNavigation navItems={navItems} applicationsOpen={applicationsOpen} tournamentLive={tournamentLive} accountControl={compactAccountControl} />
+					<FocusedDraftNavigation navItems={navItems} applicationsOpen={applicationsOpen} tournamentStatus={tournamentStatus} accountControl={compactAccountControl} />
 				) : (
-					<FullTournamentHeader navItems={navItems} applicationsOpen={applicationsOpen} tournamentLive={tournamentLive} accountControl={accountControl} />
+					<FullTournamentHeader navItems={navItems} applicationsOpen={applicationsOpen} tournamentStatus={tournamentStatus} accountControl={accountControl} />
 				)}
 
 				<main className={`relative z-10 ${focusedDraft ? "pt-9" : ""}`}>{children}</main>
@@ -52,7 +57,7 @@ export function TournamentChrome({
 				{focusedDraft ? null : (
 					<footer className="relative z-10 border-t border-lime-200/10 px-5 py-8">
 						<div className="mx-auto flex w-full max-w-7xl flex-col gap-4 text-sm text-emerald-100/54 sm:flex-row sm:items-center sm:justify-between">
-							<p>Kunterbuntes A-Z Turnier ist Lucas Community-Turnier am 19.06. und 20.06.2026.</p>
+							<p>{footerTournamentLabel}</p>
 							<div className="flex flex-wrap gap-x-4 gap-y-2">
 								<Link href="/tournament/privacy" className="font-bold text-lime-200/80 hover:text-lime-100">
 									Datenschutz
@@ -61,7 +66,7 @@ export function TournamentChrome({
 									Teilnahmebedingungen
 								</Link>
 								<Link href="/tournament/winners" className="font-bold text-lime-200/80 hover:text-lime-100">
-									Hall of Fame
+									Archiv & Hall of Fame
 								</Link>
 								<a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
 									Zurück zu lauchgruen.de
@@ -78,12 +83,12 @@ export function TournamentChrome({
 function FocusedDraftNavigation({
 	navItems,
 	applicationsOpen,
-	tournamentLive,
+	tournamentStatus,
 	accountControl,
 }: {
 	navItems: NavItem[];
 	applicationsOpen: boolean;
-	tournamentLive: boolean;
+	tournamentStatus: TournamentStatus;
 	accountControl: ReactNode;
 }) {
 	return (
@@ -93,13 +98,7 @@ function FocusedDraftNavigation({
 					Navigation
 				</summary>
 				<div className="absolute left-1/2 top-full mt-2 w-72 -translate-x-1/2 rounded-2xl border border-white/12 bg-[#101613]/96 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
-					<div
-						className={`mb-2 rounded-xl border px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.18em] ${
-							tournamentLive ? "border-red-300/30 bg-red-500/14 text-red-100" : "border-amber-200/18 bg-amber-200/8 text-amber-100/72"
-						}`}
-					>
-						{tournamentLive ? "Live" : "Vorbereitung"}
-					</div>
+					<div className={`mb-2 rounded-xl border px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.18em] ${statusTone(tournamentStatus)}`}>{tournamentStatus}</div>
 					<nav className="grid gap-1">
 						{navItems.map((item) => (
 							<NavLinkItem key={item.href} item={item} applicationsOpen={applicationsOpen} compact />
@@ -115,12 +114,12 @@ function FocusedDraftNavigation({
 function FullTournamentHeader({
 	navItems,
 	applicationsOpen,
-	tournamentLive,
+	tournamentStatus,
 	accountControl,
 }: {
 	navItems: NavItem[];
 	applicationsOpen: boolean;
-	tournamentLive: boolean;
+	tournamentStatus: TournamentStatus;
 	accountControl: ReactNode;
 }) {
 	return (
@@ -137,14 +136,7 @@ function FullTournamentHeader({
 				</Link>
 
 				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 xl:justify-end">
-					<span
-						className={`shrink-0 rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] ${
-							tournamentLive ? "border-red-300/30 bg-red-500/14 text-red-100" : "border-amber-200/18 bg-amber-200/8 text-amber-100/72"
-						}`}
-						title={tournamentLive ? "Turniermodus ist live" : "Turniermodus ist Vorbereitung"}
-					>
-						{tournamentLive ? "Live" : "Vorbereitung"}
-					</span>
+					<span className={`shrink-0 rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] ${statusTone(tournamentStatus)}`} title={`Turniermodus: ${tournamentStatus}`}>{tournamentStatus}</span>
 					<div className="flex min-w-0 gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.04] p-1">
 						{navItems.map((item) => (
 							<NavLinkItem key={item.href} item={item} applicationsOpen={applicationsOpen} />
@@ -159,6 +151,9 @@ function FullTournamentHeader({
 
 function NavLinkItem({ item, applicationsOpen, compact = false }: { item: NavItem; applicationsOpen: boolean; compact?: boolean }) {
 	const isApply = item.href === "/tournament/apply";
+	if (item.disabled) {
+		return <span aria-disabled="true" title="Für dieses Turnier noch nicht verfügbar" className={`cursor-not-allowed whitespace-nowrap rounded-xl font-bold text-emerald-100/24 ${compact ? "px-3 py-2 text-sm" : "px-2.5 py-2 text-sm"}`}>{item.label}</span>;
+	}
 
 	if (isApply && !applicationsOpen) {
 		return (
@@ -195,4 +190,13 @@ function NavLinkItem({ item, applicationsOpen, compact = false }: { item: NavIte
 			{item.label}
 		</Link>
 	);
+}
+
+function statusTone(status: TournamentStatus) {
+	switch (status) {
+		case "Live": return "border-red-300/30 bg-red-500/14 text-red-100";
+		case "Anmeldung": return "border-lime-200/24 bg-lime-200/10 text-lime-100";
+		case "Ankündigung": return "border-cyan-200/20 bg-cyan-300/10 text-cyan-100";
+		default: return "border-amber-200/18 bg-amber-200/8 text-amber-100/72";
+	}
 }

@@ -1,13 +1,17 @@
 import type { DraftSide } from "@/lib/tournament-draft-shared";
 
-export type PoolHistoryScope = "groups" | "playoffs";
+/**
+ * Pools remain fearless through groups and the early playoff rounds. Only the
+ * four teams reaching Upper Final or Lower Semi-Final begin the final cycle.
+ */
+export type PoolHistoryScope = "early" | "finals";
 
 export function poolHistoryScopeForMatchPhase(phase: "groups" | "playoffs"): PoolHistoryScope {
-	return phase === "groups" ? "groups" : "playoffs";
+	return phase === "groups" ? "early" : "finals";
 }
 
 export function poolHistoryScopeForMatchId(matchId: string): PoolHistoryScope {
-	return /^[ab]-r\d+-\d+$/.test(matchId) ? "groups" : "playoffs";
+	return ["ub-f", "lb-sf", "lb-f", "gf", "gf-reset"].includes(matchId) ? "finals" : "early";
 }
 
 export function bonusBanSideForMatch(input: { id: string; blueSide: "teamA" | "teamB" }): DraftSide | null {

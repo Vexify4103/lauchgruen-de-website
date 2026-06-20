@@ -46,7 +46,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 				showConflict(json);
 				return false;
 			}
-			setMessage(json?.message ?? "Wunschgruppe konnte nicht geändert werden.");
+			setMessage(json?.message ?? "Wunschduo konnte nicht geändert werden.");
 			return false;
 		}
 		if (json?.version !== undefined) setVersion(json.version);
@@ -56,7 +56,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 	}
 
 	async function createGroup(): Promise<boolean> {
-		const saved = await request({ action: "create", discordIds: newMembers }, "Wunschgruppe erstellt.");
+		const saved = await request({ action: "create", discordIds: newMembers }, "Wunschduo erstellt.");
 		if (saved) {
 			setNewMembers([]);
 		}
@@ -72,7 +72,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 			},
 			targetCode
 				? `${selectedApplicantEntry?.displayName ?? "Person"} wurde ${targetCode} zugewiesen.`
-				: `${selectedApplicantEntry?.displayName ?? "Person"} wurde aus der Wunschgruppe entfernt.`
+				: `${selectedApplicantEntry?.displayName ?? "Person"} wurde aus dem Wunschduo entfernt.`
 		);
 		if (saved) {
 			setSelectedApplicant("");
@@ -83,12 +83,12 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 
 	useUnsavedChanges({
 		dirty: newMembers.length > 0,
-		label: "Neue Wunschgruppe",
+		label: "Neues Wunschduo",
 		save: createGroup,
 	});
 	useUnsavedChanges({
 		dirty: assignmentDirty,
-		label: "Wunschgruppen-Zuweisung",
+		label: "Wunschduo-Zuweisung",
 		save: saveAssignment,
 	});
 
@@ -96,10 +96,10 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 		<section className="mt-8 rounded-[2rem] border border-cyan-200/16 bg-cyan-300/[0.045] p-5 shadow-xl shadow-black/20">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/68">Wunschgruppen verwalten</div>
+					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/68">Wunschduos verwalten</div>
 					<h2 className="mt-2 text-2xl font-black text-emerald-50">Gemeinsam spielen – fair eingeteilt</h2>
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">
-						Hier könnt ihr Bewerber zu Wunschgruppen zusammenfassen oder ihre Gruppenzugehörigkeit anpassen. Der Auto-Balancer berücksichtigt diese Wünsche nach
+						Hier könnt ihr Bewerber zu Wunschduos zusammenfassen oder ihre Duo-Zugehörigkeit anpassen. Der Auto-Balancer berücksichtigt diese Wünsche nach
 						Möglichkeit, eine gemeinsame Einteilung ist jedoch nicht garantiert.
 					</p>
 				</div>
@@ -110,7 +110,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 
 			<div className="mt-5 grid gap-4 xl:grid-cols-2">
 				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
-					<div className="text-sm font-black text-emerald-50">Neue Wunschgruppe erstellen</div>
+					<div className="text-sm font-black text-emerald-50">Neues Wunschduo erstellen</div>
 					<p className="mt-1 text-xs leading-5 text-emerald-100/48">Wähle eine bis fünf Bewerber aus, die noch keiner Gruppe angehören.</p>
 					<div className="mt-4">
 						<ThemedMultiSelect
@@ -139,7 +139,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 
 				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
 					<div className="text-sm font-black text-emerald-50">Person zuweisen oder verschieben</div>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/48">„Keine Wunschgruppe“ entfernt die Person aus ihrer aktuellen Gruppe.</p>
+					<p className="mt-1 text-xs leading-5 text-emerald-100/48">„Kein Wunschduo“ entfernt die Person aus ihrem aktuellen Duo.</p>
 					<div className="mt-4 grid gap-3">
 						<ThemedSelect
 							value={selectedApplicant}
@@ -158,7 +158,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 							onChange={setTargetCode}
 							placeholder="Zielgruppe auswählen"
 							options={[
-								{ value: "", label: "Keine Wunschgruppe" },
+								{ value: "", label: "Kein Wunschduo" },
 								...groups.map((group) => ({
 									value: group.code,
 									label: `${group.code} · ${group.memberDiscordIds.length}/5`,

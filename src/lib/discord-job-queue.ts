@@ -41,15 +41,39 @@ export type DiscordJob = {
 type DiscordJobDoc = Omit<DiscordJob, "id"> & {
 	_id: string;
 	operations: DiscordOperation[];
+	expiresAt?: Date;
 };
 
 const COLLECTION = "discord_jobs";
+const COMPLETED_JOB_RETENTION_MS = 24 * 60 * 60 * 1000;
+const FAILED_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 let runnerActive = false;
+let indexesReady: Promise<void> | null = null;
 
 function publicJob(doc: DiscordJobDoc): DiscordJob {
 	const { _id, operations: _operations, ...rest } = doc;
 	void _operations;
 	return { id: _id, ...rest };
+}
+
+async function ensureDiscordJobIndexes() {
+	if (!indexesReady) {
+		indexesReady = (async () => {
+			const db = await getDb();
+			const jobs = db.collection<DiscordJobDoc>(COLLECTION);
+			await jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "discord_jobs_expiry" });
+
+			// Remove completed jobs created before expiry dates were introduced.
+			const now = Date.now();
+			await jobs.deleteMany({
+				$or: [
+					{ status: "completed", finishedAt: { $lt: new Date(now - COMPLETED_JOB_RETENTION_MS).toISOString() } },
+					{ status: "failed", finishedAt: { $lt: new Date(now - FAILED_JOB_RETENTION_MS).toISOString() } },
+				],
+			});
+		})();
+	}
+	return indexesReady;
 }
 
 export async function enqueueDiscordJob(input: {
@@ -76,6 +100,7 @@ export async function enqueueDiscordJob(input: {
 		actorLabel: input.actorLabel,
 	};
 	const db = await getDb();
+	await ensureDiscordJobIndexes();
 	await db.collection<DiscordJobDoc>(COLLECTION).insertOne(doc);
 	void startDiscordJobRunner();
 	return publicJob(doc);
@@ -92,6 +117,7 @@ async function startDiscordJobRunner() {
 	runnerActive = true;
 	try {
 		const db = await getDb();
+		await ensureDiscordJobIndexes();
 		const staleSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 		await db.collection<DiscordJobDoc>(COLLECTION).updateMany(
 			{ status: "running", updatedAt: { $lt: staleSince } },
@@ -142,6 +168,8 @@ async function runDiscordJob(job: DiscordJobDoc) {
 		);
 	}
 
+	const finishedAt = new Date();
+	const retentionMs = failed > 0 ? FAILED_JOB_RETENTION_MS : COMPLETED_JOB_RETENTION_MS;
 	await db.collection<DiscordJobDoc>(COLLECTION).updateOne(
 		{ _id: job._id },
 		{
@@ -152,7 +180,8 @@ async function runDiscordJob(job: DiscordJobDoc) {
 				failed,
 				warnings: warnings.slice(-20),
 				updatedAt: new Date().toISOString(),
-				finishedAt: new Date().toISOString(),
+				finishedAt: finishedAt.toISOString(),
+				expiresAt: new Date(finishedAt.getTime() + retentionMs),
 			},
 		}
 	);

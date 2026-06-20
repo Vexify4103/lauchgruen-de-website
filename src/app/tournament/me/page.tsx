@@ -62,6 +62,8 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const isTeamA = nextMatch?.teamAName === team?.name;
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
 	const pool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
+	const finishedMatches = matches.filter((match) => match.status === "Finished" && match.scoreA !== undefined && match.scoreB !== undefined);
+	const playerWins = finishedMatches.filter((match) => (match.teamAName === team?.name ? (match.scoreA ?? 0) > (match.scoreB ?? 0) : (match.scoreB ?? 0) > (match.scoreA ?? 0))).length;
 
 	const checks = [
 		{
@@ -184,6 +186,26 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 									</Link>
 								) : null}
 							</div>
+						</div>
+					) : null}
+
+					{team ? (
+						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Deine Turnierhistorie</div>
+							<div className="mt-4 grid gap-3 sm:grid-cols-3">
+								<Info label="Matches" value={String(finishedMatches.length)} />
+								<Info label="Siege" value={String(playerWins)} />
+								<Info label="Bilanz" value={`${playerWins}-${finishedMatches.length - playerWins}`} />
+							</div>
+							{finishedMatches.length ? (
+								<div className="mt-4 grid gap-2">
+									{finishedMatches.slice().reverse().slice(0, 5).map((match) => (
+										<Link key={match.id} href={`/tournament/matches/${match.id}`} className="rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-sm font-bold text-emerald-100/72 hover:text-lime-100">
+											{match.teamALabel} {match.scoreA}:{match.scoreB} {match.teamBLabel}
+										</Link>
+									))}
+								</div>
+							) : <p className="mt-4 text-sm text-emerald-100/48">Sobald eure ersten Ergebnisse feststehen, erscheint hier deine Bilanz.</p>}
 						</div>
 					) : null}
 				</div>
