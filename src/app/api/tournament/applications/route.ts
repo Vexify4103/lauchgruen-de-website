@@ -4,8 +4,15 @@ import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
 import { writeAuditLog } from "@/lib/tournament-audit";
-import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import {
+	areTournamentApplicationsOpen,
+	formatTournamentApplicationDeadlineLabel,
+	formatTournamentApplicationOpenLabel,
+	isTournamentApplicationDeadlinePassed,
+	isTournamentApplicationOpenDateReached,
+} from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getSummonerByPuuid } from "@/lib/riot";
 import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
 	deleteApplicationsByDiscordId,
@@ -13,6 +20,7 @@ import {
 	findBlacklistMatch,
 	getVerifiedAccount,
 	listApplications,
+	updateVerifiedSummonerLevel,
 	upsertApplication,
 	type TournamentApplication,
 } from "@/lib/tournament-storage";
@@ -45,12 +53,15 @@ function applicationId(puuid: string, discordId: string) {
 
 export async function POST(request: Request) {
 	const settings = await getTournamentSettings();
-	if (!areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
+	if (!areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline, settings.applicationOpenAt)) {
+		const now = new Date();
 		return NextResponse.json(
 			{
-				message: isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)
-					? `Der Bewerbungsschluss war am ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}.`
-					: "Bewerbungen sind aktuell geschlossen.",
+				message: !isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt)
+					? `Die Bewerbung öffnet am ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}.`
+					: isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline)
+						? `Der Bewerbungsschluss war am ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}.`
+						: "Bewerbungen sind aktuell geschlossen.",
 			},
 			{ status: 403 }
 		);
@@ -70,9 +81,29 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "Bitte tritt zuerst dem Lauchgruen Discord bei, bevor du dich bewirbst." }, { status: 403 });
 	}
 
-	const verified = await getVerifiedAccount(discordId);
+	let verified = await getVerifiedAccount(discordId);
 	if (!verified) {
 		return NextResponse.json({ message: "Verifiziere zuerst deinen Riot-Account, bevor du die Bewerbung absendest." }, { status: 412 });
+	}
+	if (verified.summonerLevel === undefined) {
+		try {
+			const summoner = await getSummonerByPuuid(verified.puuid);
+			await updateVerifiedSummonerLevel(discordId, summoner.summonerLevel);
+			verified = { ...verified, summonerLevel: summoner.summonerLevel };
+		} catch {
+			return NextResponse.json(
+				{ message: "Dein Account-Level konnte gerade nicht über Riot aktualisiert werden. Bitte versuche es gleich erneut; eine neue Verifizierung ist nicht nötig." },
+				{ status: 503 }
+			);
+		}
+	}
+	if ((verified.summonerLevel ?? 0) < settings.ultimateBravery.minimumSummonerLevel) {
+		return NextResponse.json(
+			{
+				message: `Dein League-Account muss mindestens Level ${settings.ultimateBravery.minimumSummonerLevel} sein. Aktuell erkannt: Level ${verified.summonerLevel ?? "unbekannt"}.`,
+			},
+			{ status: 403 }
+		);
 	}
 	const blacklistMatch = await findBlacklistMatch({
 		discordId,
@@ -109,6 +140,7 @@ export async function POST(request: Request) {
 		riotPuuid: verified.puuid,
 		riotVerifiedAt: verified.verifiedAt,
 		currentRankAuto: verified.currentRankAuto,
+		summonerLevel: verified.summonerLevel,
 		createdAt: existing?.createdAt ?? now,
 		updatedAt: now,
 	};

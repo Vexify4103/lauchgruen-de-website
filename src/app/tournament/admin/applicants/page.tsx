@@ -109,7 +109,7 @@ export default async function ApplicantsPage() {
 					<StatPill label="Gesamt" value={sorted.length.toString()} tone="neutral" />
 					<StatPill label="Zugewiesen" value={assignedCount.toString()} tone="ok" />
 					<StatPill label="Offen" value={unassignedCount.toString()} tone="warn" />
-					<RefreshRanksButton label="Alle Ränge aktualisieren" confirmBulk />
+					<RefreshRanksButton label="Alle Spielerdaten aktualisieren" confirmBulk />
 				</div>
 
 				<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} />
@@ -202,9 +202,10 @@ function ApplicantCard({ app, assignedTo, version }: { app: TournamentApplicatio
 				<Row label="Aktueller Rang">
 					<span className="flex flex-wrap items-center gap-2">
 						<span>{app.currentRankAuto ?? <span className="italic text-emerald-100/40">Unranked</span>}</span>
-						<RefreshRanksButton applicationId={app.id} label="Refresh" />
+						<RefreshRanksButton applicationId={app.id} label="Profil aktualisieren" />
 					</span>
 				</Row>
+				<Row label="Account-Level">{app.summonerLevel ?? <span className="italic text-amber-100/50">erneut verifizieren</span>}</Row>
 				<Row label="Main Rolle">{app.mainRole ?? <span className="italic text-emerald-100/40">nicht angegeben</span>}</Row>
 			</div>
 

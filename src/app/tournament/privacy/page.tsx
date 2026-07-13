@@ -12,7 +12,7 @@ const dataItems = [
 	},
 	{
 		title: "Riot-Account-Daten",
-		text: "Für die Riot-Verifizierung speichern wir Riot-ID, Game Name, Tagline, PUUID, Verifizierungszeitpunkt und deinen automatisch ermittelten Solo/Duo-Rang. Die PUUID bleibt stabil, damit Namensänderungen später korrekt zugeordnet werden können.",
+		text: "Für die Riot-Verifizierung speichern wir Riot-ID, Game Name, Tagline, PUUID, Verifizierungszeitpunkt, Summoner-Level und deinen automatisch ermittelten Solo/Duo-Rang. Die PUUID bleibt stabil, damit Namensänderungen später korrekt zugeordnet werden können.",
 	},
 	{
 		title: "Bewerbungsdaten",
@@ -20,11 +20,11 @@ const dataItems = [
 	},
 	{
 		title: "Turnierdaten",
-		text: "Während des Turniers speichern wir Teamzuweisungen, Captains, Gruppen, Seeds, Matchstatus, Scores, gezogene A-Z Pools, Draft-Bans/Picks, gespielte Champions, Admin-Notizen und Audit-/Event-Logs.",
+		text: "Während des Turniers speichern wir Teamzuweisungen, Captains, Seeds, Matchstatus, Scores, Ultimate-Bravery-Rolls, Reroll-Anträge, Admin-Notizen und Audit-/Event-Logs.",
 	},
 	{
 		title: "Öffentlich sichtbare Daten",
-		text: "Teamname, Roster, Riot-ID, Rollen, OP.GG-/DPM-Links, Gruppenstand, Matchstatus, gezogene Pools und Draft-/Matchinformationen können auf den öffentlichen Turnierseiten und OBS-Overlays sichtbar sein.",
+		text: "Teamname, Roster, Riot-ID, Rollen, OP.GG-/DPM-Links, Matchstatus und gespeicherte Roll-/Matchinformationen können auf den öffentlichen Turnierseiten und OBS-Overlays sichtbar sein.",
 	},
 ];
 

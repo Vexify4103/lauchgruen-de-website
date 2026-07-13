@@ -12,15 +12,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
+import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
 	name: z.string().trim().min(2).max(60),
-	group: z.enum(["A", "B"]),
+	group: z
+		.string()
+		.regex(/^[A-P]$/)
+		.optional(),
 	seed: z.coerce.number().int().min(1).max(4).optional(),
 	accent: z.string().trim().max(120).optional(),
 	createDiscordSetup: z.boolean().optional().default(false),
@@ -29,7 +34,11 @@ const bodySchema = z.object({
 const patchSchema = z.object({
 	key: z.string().trim().min(1),
 	name: z.string().trim().min(2).max(60),
-	group: z.enum(["A", "B"]).optional(),
+	group: z
+		.string()
+		.regex(/^[A-P]$/)
+		.nullable()
+		.optional(),
 	seed: z.coerce.number().int().min(1).max(4).optional(),
 });
 
@@ -57,7 +66,7 @@ type StoredTeam = {
 	voiceChannelId?: string;
 	textChannelId?: string;
 	meta?: {
-		group?: "A" | "B";
+		group?: string;
 		seed?: number;
 		accent?: string;
 		overlayId?: string;
@@ -68,265 +77,10 @@ type StoredTeam = {
 	};
 };
 
-const DISCORD_API = "https://discord.com/api/v10";
-const DISCORD_ROLE_TYPE = 0;
-const DISCORD_TEXT_CHANNEL_TYPE = 0;
-const DISCORD_VOICE_CHANNEL_TYPE = 2;
-const VIEW_CHANNEL = 1024;
-const SEND_MESSAGES = 2048;
-const READ_MESSAGE_HISTORY = 65536;
-const CONNECT = 1048576;
-const SPEAK = 2097152;
-const DISCORD_MAX_ATTEMPTS = 5;
 const CAPTAIN_TEAM_RENAME_COOLDOWN_MS = 10 * 60 * 1000;
 
-function discordToken() {
-	return process.env.DISCORD_TOKEN ?? process.env.DISCORD_BOT_TOKEN ?? "";
-}
-
-function discordGuildId() {
-	return process.env.DISCORD_GUILD_ID ?? "";
-}
-
-function teamVoiceCategoryId() {
-	return process.env.TEAM_VOICE_CATEGORY_ID ?? "";
-}
-
-function teamTextCategoryId() {
-	return process.env.TEAM_TEXT_CATEGORY_ID ?? teamVoiceCategoryId();
-}
-
-function hasDiscordSetupConfig() {
-	return Boolean(discordToken() && discordGuildId());
-}
-
-async function discordRequest<T>(path: string, init: Omit<RequestInit, "headers"> & { body?: string }): Promise<T> {
-	for (let attempt = 1; attempt <= DISCORD_MAX_ATTEMPTS; attempt += 1) {
-		const response = await fetch(`${DISCORD_API}${path}`, {
-			...init,
-			headers: {
-				authorization: `Bot ${discordToken()}`,
-				"content-type": "application/json",
-			},
-			cache: "no-store",
-		});
-
-		if (response.ok) {
-			if (response.status === 204) return undefined as T;
-			return (await response.json()) as T;
-		}
-
-		if (response.status === 429 && attempt < DISCORD_MAX_ATTEMPTS) {
-			const body = (await response.json().catch(() => null)) as { retry_after?: number } | null;
-			const retryAfterSeconds =
-				body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
-			await wait(Math.ceil(retryAfterSeconds * 1000) + 100);
-			continue;
-		}
-
-		const detail = await response.text().catch(() => "");
-		throw new Error(`Discord API ${response.status}${detail ? `: ${detail}` : ""}`);
-	}
-
-	throw new Error("Discord API request failed after multiple attempts.");
-}
-
-function parseRetryAfter(value: string | null): number | null {
-	if (!value) return null;
-	const parsed = Number.parseFloat(value);
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function wait(milliseconds: number) {
-	return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function createDiscordRole(name: string): Promise<string> {
-	const guildId = discordGuildId();
-	const role = await discordRequest<{ id: string }>(`/guilds/${guildId}/roles`, {
-		method: "POST",
-		body: JSON.stringify({
-			name,
-			reason: `LauchManager: auto-created for team "${name}"`,
-		}),
-	});
-	return role.id;
-}
-
-async function createDiscordVoiceChannel(name: string, roleId: string | null): Promise<string | null> {
-	const guildId = discordGuildId();
-	const parentId = teamVoiceCategoryId();
-	if (!parentId) return null;
-
-	const permissionOverwrites = [
-		{
-			id: guildId,
-			type: DISCORD_ROLE_TYPE,
-			deny: String(VIEW_CHANNEL),
-		},
-		...(roleId
-			? [
-					{
-						id: roleId,
-						type: DISCORD_ROLE_TYPE,
-						allow: String(VIEW_CHANNEL | CONNECT | SPEAK),
-					},
-				]
-			: []),
-	];
-
-	const channel = await discordRequest<{ id: string }>(`/guilds/${guildId}/channels`, {
-		method: "POST",
-		body: JSON.stringify({
-			name,
-			type: DISCORD_VOICE_CHANNEL_TYPE,
-			parent_id: parentId,
-			permission_overwrites: permissionOverwrites,
-		}),
-	});
-	return channel.id;
-}
-
-function discordTextChannelName(name: string) {
-	return (
-		name
-			.trim()
-			.toLocaleLowerCase("de-DE")
-			.normalize("NFKD")
-			.replace(/[\u0300-\u036f]/g, "")
-			.replace(/[^a-z0-9äöüß-]+/g, "-")
-			.replace(/-{2,}/g, "-")
-			.replace(/(^-|-$)/g, "")
-			.slice(0, 90) || "team"
-	);
-}
-
-async function createDiscordTextChannel(name: string, roleId: string | null): Promise<string | null> {
-	const guildId = discordGuildId();
-	const parentId = teamTextCategoryId();
-	if (!parentId) return null;
-
-	const permissionOverwrites = [
-		{
-			id: guildId,
-			type: DISCORD_ROLE_TYPE,
-			deny: String(VIEW_CHANNEL),
-		},
-		...(roleId
-			? [
-					{
-						id: roleId,
-						type: DISCORD_ROLE_TYPE,
-						allow: String(VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY),
-					},
-				]
-			: []),
-	];
-
-	const channel = await discordRequest<{ id: string }>(`/guilds/${guildId}/channels`, {
-		method: "POST",
-		body: JSON.stringify({
-			name: discordTextChannelName(name),
-			type: DISCORD_TEXT_CHANNEL_TYPE,
-			parent_id: parentId,
-			permission_overwrites: permissionOverwrites,
-		}),
-	});
-	return channel.id;
-}
-
-async function renameDiscordTeamResources(team: StoredTeam, name: string): Promise<string[]> {
-	if (!hasDiscordSetupConfig()) return [];
-	const warnings: string[] = [];
-	const guildId = discordGuildId();
-
-	if (team.roleId) {
-		try {
-			await discordRequest(`/guilds/${guildId}/roles/${team.roleId}`, {
-				method: "PATCH",
-				body: JSON.stringify({ name }),
-			});
-		} catch {
-			warnings.push("Discord-Rolle konnte nicht umbenannt werden.");
-		}
-	}
-
-	if (team.voiceChannelId) {
-		try {
-			await discordRequest(`/channels/${team.voiceChannelId}`, {
-				method: "PATCH",
-				body: JSON.stringify({ name }),
-			});
-		} catch {
-			warnings.push("Discord-Voice-Channel konnte nicht umbenannt werden.");
-		}
-	}
-
-	if (team.textChannelId) {
-		try {
-			await discordRequest(`/channels/${team.textChannelId}`, {
-				method: "PATCH",
-				body: JSON.stringify({ name: discordTextChannelName(name) }),
-			});
-		} catch {
-			warnings.push("Discord-Textkanal konnte nicht umbenannt werden.");
-		}
-	} else {
-		try {
-			const textChannelId = await createDiscordTextChannel(name, team.roleId ?? null);
-			if (textChannelId) {
-				team.textChannelId = textChannelId;
-			} else {
-				warnings.push("Discord-Textkanal konnte nicht erstellt werden: Es fehlt eine Team-Kategorie.");
-			}
-		} catch {
-			warnings.push("Discord-Textkanal konnte nicht erstellt werden.");
-		}
-	}
-
-	return warnings;
-}
-
-async function deleteDiscordTeamResources(team: StoredTeam): Promise<string[]> {
-	if (!hasDiscordSetupConfig()) return [];
-	const warnings: string[] = [];
-	const guildId = discordGuildId();
-
-	if (team.textChannelId) {
-		try {
-			await discordRequest(`/channels/${team.textChannelId}`, {
-				method: "DELETE",
-			});
-		} catch {
-			warnings.push("Discord-Textkanal konnte nicht gelöscht werden.");
-		}
-	}
-
-	if (team.voiceChannelId) {
-		try {
-			await discordRequest(`/channels/${team.voiceChannelId}`, {
-				method: "DELETE",
-			});
-		} catch {
-			warnings.push("Discord-Voice-Channel konnte nicht gelöscht werden.");
-		}
-	}
-
-	if (team.roleId) {
-		try {
-			await discordRequest(`/guilds/${guildId}/roles/${team.roleId}`, {
-				method: "DELETE",
-			});
-		} catch {
-			warnings.push("Discord-Rolle konnte nicht gelöscht werden.");
-		}
-	}
-
-	return warnings;
-}
-
-function findGroupSeedConflict(teams: Record<string, StoredTeam>, group: "A" | "B", seed: number | undefined, exceptKey: string) {
-	if (!seed) return null;
+function findGroupSeedConflict(teams: Record<string, StoredTeam>, group: string | undefined, seed: number | undefined, exceptKey: string) {
+	if (!group || !seed) return null;
 	for (const [otherKey, otherTeam] of Object.entries(teams)) {
 		if (otherKey === exceptKey) continue;
 		const meta = otherTeam.meta;
@@ -349,7 +103,6 @@ export async function POST(request: Request) {
 	}
 
 	const parsed = { data: parsedResult.data };
-
 	const key = teamKey(parsed.data.name);
 	const db = await getDb();
 	const doc = await db.collection<{ _id: string; teams?: Record<string, StoredTeam> }>("bot_state").findOne({ _id: "default" });
@@ -375,75 +128,34 @@ export async function POST(request: Request) {
 		}
 	}
 
-	let roleId: string | undefined;
-	let voiceChannelId: string | undefined;
-	let textChannelId: string | undefined;
 	const warnings: string[] = [];
-	const duplicateSeed = findGroupSeedConflict(teamsObj, parsed.data.group, parsed.data.seed, key);
-	if (duplicateSeed && parsed.data.seed) {
-		warnings.push(`Achtung: Gruppe ${parsed.data.group} Seed ${parsed.data.seed} ist bereits von "${duplicateSeed.team.name}" belegt.`);
-	}
-	if (parsed.data.createDiscordSetup) {
-		if (!hasDiscordSetupConfig()) {
-			warnings.push("Discord-Setup übersprungen: DISCORD_TOKEN und DISCORD_GUILD_ID fehlen.");
-		} else {
-			try {
-				roleId = await createDiscordRole(parsed.data.name.trim());
-			} catch {
-				return NextResponse.json(
-					{
-						message: "Discord-Rolle konnte nicht erstellt werden. Prüfe Bot-Rechte und Rollen-Hierarchie.",
-					},
-					{ status: 502 }
-				);
-			}
-
-			try {
-				voiceChannelId = (await createDiscordVoiceChannel(parsed.data.name.trim(), roleId)) ?? undefined;
-				if (!voiceChannelId) {
-					warnings.push("Voice-Channel übersprungen: TEAM_VOICE_CATEGORY_ID fehlt.");
-				}
-			} catch {
-				warnings.push("Discord-Voice-Channel konnte nicht erstellt werden.");
-			}
-
-			try {
-				textChannelId = (await createDiscordTextChannel(parsed.data.name.trim(), roleId)) ?? undefined;
-				if (!textChannelId) {
-					warnings.push("Textkanal übersprungen: TEAM_TEXT_CATEGORY_ID und TEAM_VOICE_CATEGORY_ID fehlen.");
-				}
-			} catch {
-				warnings.push("Discord-Textkanal konnte nicht erstellt werden.");
-			}
-		}
-	}
-
 	const teamDoc: Record<string, unknown> = {
 		name: parsed.data.name.trim(),
 		players: [],
 		playedChampions: [],
 	};
-	if (roleId) teamDoc.roleId = roleId;
-	if (voiceChannelId) teamDoc.voiceChannelId = voiceChannelId;
-	if (textChannelId) teamDoc.textChannelId = textChannelId;
 	const meta: Record<string, unknown> = {};
-	meta.group = parsed.data.group;
-	if (parsed.data.seed) meta.seed = parsed.data.seed;
 	if (parsed.data.accent) meta.accent = parsed.data.accent;
 	meta.overlayId = randomUUID();
 	if (Object.keys(meta).length > 0) teamDoc.meta = meta;
 
 	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { [`teams.${key}`]: teamDoc } }, { upsert: true });
+	const discordJob = parsed.data.createDiscordSetup
+		? await enqueueDiscordJob({
+				type: "team-provision",
+				title: `Discord-Team erstellen: ${parsed.data.name.trim()}`,
+				operations: [{ kind: "team-provision", teamKey: key, name: parsed.data.name.trim(), label: parsed.data.name.trim() }],
+				actorLabel: session.user.discordHandle ?? discordId,
+			})
+		: null;
 
 	return NextResponse.json({
 		ok: true,
 		key,
 		name: parsed.data.name.trim(),
-		group: parsed.data.group,
-		seed: parsed.data.seed ?? null,
-		roleId,
-		voiceChannelId,
-		textChannelId,
+		group: undefined,
+		seed: null,
+		discordJob,
 		warnings,
 	});
 }
@@ -479,12 +191,12 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
 	}
 
+	const settings = await getTournamentSettings();
+	const usesGroups = settings.ultimateBravery.dayOneFormat === "groups";
 	const currentGroup = existing.meta?.group;
-	if (!currentGroup) {
-		return NextResponse.json({ message: "Das Team hat noch keine gültige Gruppe." }, { status: 409 });
-	}
-	const newGroup = isOwner ? (parsed.data.group ?? currentGroup) : currentGroup;
-	const newSeed = isOwner ? parsed.data.seed : existing.meta?.seed;
+	const newGroup = usesGroups ? (isOwner ? (parsed.data.group ?? currentGroup) : currentGroup) : undefined;
+	if (usesGroups && !newGroup) return NextResponse.json({ message: "Für eine Gruppenphase muss eine Gruppe gewählt werden." }, { status: 400 });
+	const newSeed = usesGroups && isOwner ? parsed.data.seed : usesGroups ? existing.meta?.seed : undefined;
 	const nameChanged = newName !== existing.name;
 
 	if (nameChanged && isCaptain && !isOwner) {
@@ -526,11 +238,12 @@ export async function PATCH(request: Request) {
 			...existing.meta,
 			// Preserve old browser-source links when a legacy team is renamed.
 			overlayId: existing.meta?.overlayId ?? legacyOverlayId(existing.name),
-			group: newGroup,
+			...(newGroup ? { group: newGroup } : {}),
 			...(newSeed ? { seed: newSeed } : {}),
 			...(nameChanged && isCaptain && !isOwner ? { lastCaptainRenameAt: new Date().toISOString() } : {}),
 		},
 	};
+	if (!newGroup) delete nextTeam.meta?.group;
 	if (!newSeed) {
 		delete nextTeam.meta?.seed;
 	}
@@ -538,7 +251,7 @@ export async function PATCH(request: Request) {
 	const duplicateSeedWarning =
 		isOwner && conflictingTeam && newSeed ? `Achtung: Gruppe ${newGroup} Seed ${newSeed} ist bereits von "${conflictingTeam.team.name}" belegt.` : null;
 
-	const warnings = nameChanged ? await renameDiscordTeamResources(existing, newName) : [];
+	const warnings: string[] = [];
 	if (duplicateSeedWarning) warnings.push(duplicateSeedWarning);
 	if (existing.textChannelId) {
 		nextTeam.textChannelId = existing.textChannelId;
@@ -556,6 +269,24 @@ export async function PATCH(request: Request) {
 	if (nameChanged) {
 		await migrateStoredTeamName(db, existing.name, newName);
 	}
+	const discordJob = nameChanged
+		? await enqueueDiscordJob({
+				type: "team-rename",
+				title: `Discord-Team umbenennen: ${existing.name} → ${newName}`,
+				operations: [
+					{
+						kind: "team-rename",
+						teamKey: newKey,
+						name: newName,
+						roleId: existing.roleId,
+						voiceChannelId: existing.voiceChannelId,
+						textChannelId: existing.textChannelId,
+						label: newName,
+					},
+				],
+				actorLabel: session.user.discordHandle ?? discordId,
+			})
+		: null;
 
 	return NextResponse.json({
 		ok: true,
@@ -563,6 +294,7 @@ export async function PATCH(request: Request) {
 		name: newName,
 		group: newGroup,
 		seed: newSeed ?? null,
+		discordJob,
 		warnings,
 	});
 }
@@ -642,13 +374,27 @@ export async function DELETE(request: Request) {
 		return NextResponse.json({ message: "Team nicht gefunden." }, { status: 404 });
 	}
 
-	const warnings = await deleteDiscordTeamResources(team);
-
 	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $unset: { [`teams.${key}`]: "" } });
+	const discordJob = await enqueueDiscordJob({
+		type: "team-delete",
+		title: `Discord-Team löschen: ${team.name}`,
+		operations: [
+			{
+				kind: "team-delete",
+				teamKey: key,
+				roleId: team.roleId,
+				voiceChannelId: team.voiceChannelId,
+				textChannelId: team.textChannelId,
+				label: team.name,
+			},
+		],
+		actorLabel: session.user.discordHandle ?? discordId,
+	});
 
 	return NextResponse.json({
 		ok: true,
 		key,
-		warnings,
+		discordJob,
+		warnings: [],
 	});
 }

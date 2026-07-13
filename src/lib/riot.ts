@@ -81,6 +81,51 @@ export type RiotLeagueEntry = {
 	losses: number;
 };
 
+export type RiotMatchParticipant = {
+	puuid: string;
+	championId: number;
+	championName: string;
+	riotIdGameName?: string;
+	riotIdTagline?: string;
+	win: boolean;
+	kills: number;
+	deaths: number;
+	assists: number;
+	totalMinionsKilled: number;
+	neutralMinionsKilled: number;
+	goldEarned: number;
+	item0: number;
+	item1: number;
+	item2: number;
+	item3: number;
+	item4: number;
+	item5: number;
+	item6: number;
+};
+
+export type RiotMatch = {
+	metadata: {
+		matchId: string;
+		participants: string[];
+	};
+	info: {
+		gameVersion: string;
+		gameCreation: number;
+		gameStartTimestamp?: number;
+		gameEndTimestamp?: number;
+		gameDuration: number;
+		gameMode: string;
+		gameType: string;
+		queueId: number;
+		participants: RiotMatchParticipant[];
+	};
+};
+
+const riotCache = globalThis as unknown as {
+	__riotMatchCache?: Map<string, RiotMatch>;
+	__riotMatchRequests?: Map<string, Promise<RiotMatch>>;
+};
+
 export function parseRiotId(raw: string): { gameName: string; tagLine: string } {
 	const trimmed = raw.trim();
 	const hashIndex = trimmed.lastIndexOf("#");
@@ -121,6 +166,44 @@ export async function getLeagueEntriesByPuuid(puuid: string): Promise<RiotLeague
 	}
 }
 
+export async function getMatchIdsByPuuid(
+	puuid: string,
+	input: { startTime?: number; count?: number; type?: "ranked" | "normal" | "tourney" | "tutorial" } = {}
+): Promise<string[]> {
+	const params = new URLSearchParams({
+		start: "0",
+		count: String(Math.min(Math.max(input.count ?? 20, 1), 100)),
+	});
+	if (input.startTime) params.set("startTime", String(input.startTime));
+	if (input.type) params.set("type", input.type);
+	const url = `https://${region()}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`;
+	return riotGet<string[]>(url);
+}
+
+export async function getMatchById(matchId: string): Promise<RiotMatch> {
+	riotCache.__riotMatchCache ??= new Map();
+	riotCache.__riotMatchRequests ??= new Map();
+	const cached = riotCache.__riotMatchCache.get(matchId);
+	if (cached) return cached;
+	const pending = riotCache.__riotMatchRequests.get(matchId);
+	if (pending) return pending;
+
+	const url = `https://${region()}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
+	const request = riotGet<RiotMatch>(url)
+		.then((match) => {
+			riotCache.__riotMatchCache?.set(matchId, match);
+			// Matches are immutable; retain a useful bounded working set per process.
+			if ((riotCache.__riotMatchCache?.size ?? 0) > 250) {
+				const oldest = riotCache.__riotMatchCache?.keys().next().value;
+				if (oldest) riotCache.__riotMatchCache?.delete(oldest);
+			}
+			return match;
+		})
+		.finally(() => riotCache.__riotMatchRequests?.delete(matchId));
+	riotCache.__riotMatchRequests.set(matchId, request);
+	return request;
+}
+
 /**
  * Icons 0–28 are the original "default" summoner icons available to every account.
  * Safe to use as a verification challenge pool — every player can switch to any of them.
@@ -135,6 +218,15 @@ export function pickChallengeIcon(excludeIconId: number): number {
 export function profileIconUrl(iconId: number): string {
 	// Community Dragon serves any historical profile icon by ID without versioning.
 	return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${iconId}.jpg`;
+}
+
+export function championIconUrl(championId: number): string {
+	return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${championId}.png`;
+}
+
+export function itemIconUrl(itemId: number, gameVersion: string): string {
+	const version = `${gameVersion.split(".").slice(0, 2).join(".")}.1`;
+	return `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${itemId}.png`;
 }
 
 export function formatRank(entries: RiotLeagueEntry[]): string | null {

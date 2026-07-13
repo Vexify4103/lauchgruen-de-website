@@ -6,7 +6,7 @@ import { PoolBrowser } from "./PoolBrowser";
 export const dynamic = "force-dynamic";
 
 export default async function TournamentPoolsPage() {
-	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=pools");
+	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=pools");
 	const pools = await getChampionPools();
 	const championCount = pools.reduce((sum, pool) => sum + pool.champions.length, 0);
 

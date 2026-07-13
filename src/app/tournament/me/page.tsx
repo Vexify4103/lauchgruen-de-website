@@ -12,6 +12,7 @@ import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
 } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 import { PreferenceGroupCard } from "./PreferenceGroupCard";
 import { TwitchLinkCard } from "./TwitchLinkCard";
 
@@ -43,15 +44,18 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		);
 	}
 
-	const [verified, applications, member, ctx, preferenceGroup, twitchLink] = await Promise.all([
+	const [verified, applications, member, ctx, preferenceGroup, twitchLink, settings] = await Promise.all([
 		getVerifiedAccount(discordId),
 		listApplications(),
 		isDiscordGuildMember(discordId),
 		getMatchControlContext(),
 		getPreferenceGroupForDiscordId(discordId),
 		getTwitchLink(discordId),
+		getTournamentSettings(),
 	]);
 	const twitchStatus = (await searchParams).twitch;
+	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
+	const discordAvatarUrl = session.user.discordAvatar ?? "https://cdn.discordapp.com/embed/avatars/0.png";
 	const application = applications.find((entry) => entry.discordId === discordId) ?? null;
 	const team =
 		ctx.teams.find((entry) => entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase()) || entry.captainRef?.discordId === discordId) ??
@@ -63,7 +67,20 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
 	const pool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
 	const finishedMatches = matches.filter((match) => match.status === "Finished" && match.scoreA !== undefined && match.scoreB !== undefined);
-	const playerWins = finishedMatches.filter((match) => (match.teamAName === team?.name ? (match.scoreA ?? 0) > (match.scoreB ?? 0) : (match.scoreB ?? 0) > (match.scoreA ?? 0))).length;
+	const playerWins = finishedMatches.filter((match) =>
+		match.teamAName === team?.name ? (match.scoreA ?? 0) > (match.scoreB ?? 0) : (match.scoreB ?? 0) > (match.scoreA ?? 0)
+	).length;
+	const accountChecksComplete = [true, member !== false, Boolean(verified), Boolean(application)].filter(Boolean).length;
+	const tournamentModeLabel =
+		settings.activeTournament.mode === "registration"
+			? "Anmeldung geöffnet"
+			: settings.activeTournament.mode === "live"
+				? "Turnier läuft"
+				: settings.activeTournament.mode === "paused"
+					? "Turnier pausiert"
+					: settings.activeTournament.mode === "preparation"
+						? "Vorbereitung"
+						: "Ankündigung";
 
 	const checks = [
 		{
@@ -100,15 +117,62 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 
 	return (
 		<Shell>
-			<section className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+			<section className="mx-auto w-full max-w-6xl">
 				<div className="grid gap-6">
-					<div className="rounded-[2rem] border border-lime-200/12 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-xl shadow-black/24">
-						<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Status</div>
-						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">{application?.displayName ?? session.user.discordHandle ?? "Teilnehmer"}</h1>
-						<p className="mt-3 text-sm leading-7 text-emerald-100/68">
-							Dein persönlicher Turnier-Check: Bewerbung, Riot, Discord, Team und nächstes Match an einem Ort.
-						</p>
-						<div className="mt-5 flex flex-wrap gap-3">
+					<div className="relative overflow-hidden rounded-[2.4rem] border border-lime-200/12 bg-gradient-to-br from-lime-200/14 via-emerald-400/8 to-cyan-400/10 shadow-2xl shadow-black/24">
+						<div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-cyan-300/10 blur-3xl" />
+						<div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+							<div className="size-20 overflow-hidden rounded-[1.6rem] border border-lime-200/30 bg-[#09160d] shadow-lg shadow-lime-300/10">
+								{/* eslint-disable-next-line @next/next/no-img-element */}
+								<img src={discordAvatarUrl} alt={`Discord-Profilbild von ${session.user.discordHandle ?? "dir"}`} className="size-full object-cover" />
+							</div>
+							<div className="min-w-0">
+								<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Turnierkonto</div>
+								<h1 className="mt-2 truncate text-4xl font-black tracking-tight text-emerald-50">
+									{application?.displayName ?? session.user.discordHandle ?? "Teilnehmer"}
+								</h1>
+								<p className="mt-2 max-w-2xl text-sm leading-7 text-emerald-100/68">
+									Deine zentrale Stelle für Bewerbung, Riot-Account, Wunschduo, Twitch und spätere Match-Informationen.
+								</p>
+								<div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-emerald-100/58">
+									<span>
+										Discord: <strong className="text-emerald-50">{session.user.discordHandle ?? discordId}</strong>
+									</span>
+									<span>
+										Riot: <strong className="text-emerald-50">{verified?.riotId ?? "nicht verifiziert"}</strong>
+									</span>
+									{verified?.summonerLevel ? (
+										<span>
+											Level <strong className="text-emerald-50">{verified.summonerLevel}</strong>
+										</span>
+									) : null}
+								</div>
+							</div>
+							<div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/[0.08] px-4 py-3 text-center sm:text-right">
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/60">Ultimate Bravery</div>
+								<div className="mt-1 text-sm font-black text-cyan-50">{tournamentModeLabel}</div>
+							</div>
+						</div>
+						<div className="relative border-t border-white/8 bg-black/10 px-6 py-4 sm:px-8">
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<p className="text-sm font-bold text-emerald-100/64">
+									{application
+										? "Deine Bewerbung ist hinterlegt. Duo und Twitch kannst du unten jederzeit verwalten."
+										: settings.activeTournament.mode === "registration"
+											? "Die Anmeldung ist geöffnet. Vervollständige jetzt dein Turnierprofil."
+											: "Die Anmeldung startet, sobald Termin und Format feststehen."}
+								</p>
+								{!application && settings.activeTournament.mode === "registration" ? (
+									<Link
+										href="/tournament/apply"
+										className="rounded-xl bg-lime-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20"
+									>
+										Jetzt bewerben
+									</Link>
+								) : null}
+							</div>
+						</div>
+						<div className="relative flex flex-wrap gap-3 px-6 py-5 sm:px-8">
 							{isOwner ? (
 								<Link
 									href="/tournament/admin"
@@ -133,32 +197,49 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						</div>
 					</div>
 
-					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-						{checks.map((check) => (
-							<div key={check.label} className={`rounded-2xl border p-4 ${check.ok ? "border-lime-200/18 bg-lime-200/8" : "border-amber-200/18 bg-amber-200/8"}`}>
-								<div className={`text-[10px] font-black uppercase tracking-[0.2em] ${check.ok ? "text-lime-100/70" : "text-amber-100/70"}`}>
-									{check.ok ? "OK" : "Offen"}
-								</div>
-								<div className="mt-1 text-sm font-black text-emerald-50">{check.label}</div>
-								<div className="mt-1 text-xs leading-5 text-emerald-100/50">{check.detail}</div>
+					<section className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-xl shadow-black/18 sm:p-6">
+						<div className="flex flex-wrap items-end justify-between gap-3">
+							<div>
+								<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Konto-Fortschritt</div>
+								<h2 className="mt-2 text-2xl font-black text-emerald-50">Alles Wichtige auf einen Blick.</h2>
 							</div>
-						))}
+							<div className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-2 text-sm font-black text-lime-100">{accountChecksComplete}/4 bereit</div>
+						</div>
+						<div className="relative mt-5 grid gap-0 overflow-hidden rounded-[1.5rem] border border-white/9 bg-black/16 sm:grid-cols-2">
+							{checks.slice(0, 4).map((check) => (
+								<div
+									key={check.label}
+									className="flex items-center gap-4 border-b border-white/8 p-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r sm:[&:nth-last-child(-n+2)]:border-b-0"
+								>
+									<span
+										className={`grid size-9 shrink-0 place-items-center rounded-full border text-xs font-black ${check.ok ? "border-lime-200/24 bg-lime-200/12 text-lime-100" : "border-amber-200/24 bg-amber-200/10 text-amber-100"}`}
+									>
+										{check.ok ? "✓" : "!"}
+									</span>
+									<div className="min-w-0">
+										<div className="text-sm font-black text-emerald-50">{check.label}</div>
+										<div className="mt-0.5 truncate text-xs text-emerald-100/50">{check.detail}</div>
+									</div>
+								</div>
+							))}
+						</div>
+					</section>
+
+					<div className="grid gap-6">
+						<PreferenceGroupCard
+							hasApplication={Boolean(application)}
+							initialGroup={
+								preferenceGroup
+									? {
+											code: preferenceGroup.code,
+											memberCount: preferenceGroup.memberDiscordIds.length,
+											maxMembers: TOURNAMENT_PREFERENCE_GROUP_LIMIT,
+										}
+									: null
+							}
+						/>
+						<TwitchLinkCard initialLink={twitchLink} status={twitchStatus} isOwner={isOwner} />
 					</div>
-
-					<PreferenceGroupCard
-						hasApplication={Boolean(application)}
-						initialGroup={
-							preferenceGroup
-								? {
-										code: preferenceGroup.code,
-										memberCount: preferenceGroup.memberDiscordIds.length,
-										maxMembers: TOURNAMENT_PREFERENCE_GROUP_LIMIT,
-									}
-								: null
-						}
-					/>
-
-					<TwitchLinkCard initialLink={twitchLink} status={twitchStatus} isOwner={isOwner} />
 
 					{nextMatch ? (
 						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
@@ -169,10 +250,20 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							<div className="mt-4 grid gap-3 sm:grid-cols-3">
 								<Info label="Status" value={nextMatch.status ?? "Scheduled"} />
 								<Info label="Zeit" value={`${nextMatch.round} · ${nextMatch.time}`} />
-								<Info label="Dein Pool" value={pool ? compactPoolLabel(pool) : "Noch offen"} />
+								<Info
+									label={isUltimateBravery ? "Dein Roll" : "Dein Pool"}
+									value={isUltimateBravery ? "Auf der Match-Seite" : pool ? compactPoolLabel(pool) : "Noch offen"}
+								/>
 							</div>
 							<div className="mt-5 flex flex-wrap gap-2">
-								{pool ? (
+								{isUltimateBravery ? (
+									<Link
+										href={`/tournament/matches/${nextMatch.id}`}
+										className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+									>
+										Match & Roll öffnen
+									</Link>
+								) : pool ? (
 									<Link
 										href={`/tournament/champ-select/${nextMatch.id}/spectate`}
 										className="rounded-2xl border border-sky-200/20 bg-sky-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-50/82"
@@ -180,7 +271,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 										Spectator Draft
 									</Link>
 								) : null}
-								{isCaptain ? (
+								{isCaptain && !isUltimateBravery ? (
 									<Link href="/tournament/captain" className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950">
 										Captain Portal
 									</Link>
@@ -199,18 +290,28 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							</div>
 							{finishedMatches.length ? (
 								<div className="mt-4 grid gap-2">
-									{finishedMatches.slice().reverse().slice(0, 5).map((match) => (
-										<Link key={match.id} href={`/tournament/matches/${match.id}`} className="rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-sm font-bold text-emerald-100/72 hover:text-lime-100">
-											{match.teamALabel} {match.scoreA}:{match.scoreB} {match.teamBLabel}
-										</Link>
-									))}
+									{finishedMatches
+										.slice()
+										.reverse()
+										.slice(0, 5)
+										.map((match) => (
+											<Link
+												key={match.id}
+												href={`/tournament/matches/${match.id}`}
+												className="rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-sm font-bold text-emerald-100/72 hover:text-lime-100"
+											>
+												{match.teamALabel} {match.scoreA}:{match.scoreB} {match.teamBLabel}
+											</Link>
+										))}
 								</div>
-							) : <p className="mt-4 text-sm text-emerald-100/48">Sobald eure ersten Ergebnisse feststehen, erscheint hier deine Bilanz.</p>}
+							) : (
+								<p className="mt-4 text-sm text-emerald-100/48">Sobald eure ersten Ergebnisse feststehen, erscheint hier deine Bilanz.</p>
+							)}
 						</div>
 					) : null}
 				</div>
 
-				<aside className="grid content-start gap-4">
+				<aside className="mt-6 grid content-start gap-4">
 					{member === false ? (
 						<a
 							href={DISCORD_INVITE_URL}
@@ -224,7 +325,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					<div className="rounded-[2rem] border border-white/10 bg-black/18 p-5 shadow-xl shadow-black/24">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Team</div>
 						{team ? (
-							<div className="mt-4 grid gap-2">
+							<div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
 								<h2 className="text-2xl font-black text-emerald-50">{team.name}</h2>
 								{team.players.map((player) => (
 									<div key={player.riotId} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">

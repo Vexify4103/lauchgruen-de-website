@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { setDiscordMemberRole } from "@/lib/discord";
+import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { getMatchControlContext } from "@/lib/match-control";
 import { getDb } from "@/lib/mongo";
 import { getDraftState } from "@/lib/tournament-draft";
@@ -108,20 +108,6 @@ export async function POST(request: Request) {
 		);
 	}
 
-	const addRole = await setDiscordMemberRole({
-		discordId: parsed.data.targetDiscordId,
-		roleId,
-		enabled: true,
-	});
-	if (!addRole.ok) {
-		return NextResponse.json(
-			{
-				message: `Die neue Discord-Captain-Rolle konnte nicht vergeben werden. ${addRole.message}`,
-			},
-			{ status: 502 }
-		);
-	}
-
 	const applications = await listApplications();
 	const targetApplication = applications.find((application) => application.discordId === parsed.data.targetDiscordId);
 	const nextCaptain: StoredCaptain = {
@@ -144,11 +130,6 @@ export async function POST(request: Request) {
 		}
 	);
 	if (update.modifiedCount !== 1) {
-		await setDiscordMemberRole({
-			discordId: parsed.data.targetDiscordId,
-			roleId,
-			enabled: false,
-		});
 		return NextResponse.json(
 			{
 				message: "Die Captain-Zuordnung wurde zwischenzeitlich geändert. Bitte lade die Seite neu.",
@@ -160,14 +141,16 @@ export async function POST(request: Request) {
 	const refreshed = await collection.findOne({ _id: "default" });
 	const oldCaptainStillAssigned = Object.values(refreshed?.teams ?? {}).some((entry) => entry.meta?.captain?.discordId === currentDiscordId);
 	const warnings: string[] = [];
-	if (!oldCaptainStillAssigned) {
-		const removeRole = await setDiscordMemberRole({
-			discordId: currentDiscordId,
-			roleId,
-			enabled: false,
-		});
-		if (!removeRole.ok) warnings.push(removeRole.message);
-	}
+	const roleOperations: DiscordOperation[] = [
+		{ kind: "role", discordId: parsed.data.targetDiscordId, roleId, enabled: true, label: `${targetPlayer.riotId}: Captain-Rolle vergeben` },
+	];
+	if (!oldCaptainStillAssigned) roleOperations.push({ kind: "role", discordId: currentDiscordId, roleId, enabled: false, label: `${currentDiscordId}: Captain-Rolle entfernen` });
+	const discordJob = await enqueueDiscordJob({
+		type: "captain-transfer",
+		title: `Captain übertragen: ${team.name}`,
+		operations: roleOperations,
+		actorLabel: session.user.discordHandle ?? currentDiscordId,
+	});
 
 	try {
 		await writeAuditLog({
@@ -195,6 +178,7 @@ export async function POST(request: Request) {
 			discordId: nextCaptain.discordId,
 			displayName: targetApplication?.displayName ?? targetPlayer.riotId,
 		},
+		discordJob,
 		warnings,
 	});
 }

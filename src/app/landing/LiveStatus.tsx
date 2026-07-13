@@ -155,6 +155,8 @@ export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Pr
 								width={58}
 								height={58}
 								className="h-[58px] w-[58px] rounded-2xl border border-red-300/40 object-cover"
+								loading="eager"
+								priority
 								unoptimized
 							/>
 						) : (
@@ -217,6 +219,8 @@ export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Pr
 							width={58}
 							height={58}
 							className="size-[58px] shrink-0 rounded-2xl border border-emerald-300/18 object-cover grayscale"
+							loading="eager"
+							priority
 							unoptimized
 						/>
 					) : (

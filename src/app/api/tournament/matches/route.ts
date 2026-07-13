@@ -9,6 +9,8 @@ import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState, upsertMatch } from "@/lib/tournament-storage";
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getSwissStageState } from "@/lib/tournament-swiss";
 
 export const runtime = "nodejs";
 
@@ -54,8 +56,10 @@ export async function PATCH(request: Request) {
 	}
 
 	const updatedAt = new Date().toISOString();
-	const ctx = await getTournamentContext();
+	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const state = await readTournamentState(ctx.groupMatches);
+	const swiss = settings.ultimateBravery.dayOneFormat === "swiss" ? await getSwissStageState(settings.activeTournament.id) : null;
+	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === parsed.data.id && !pairing.bye);
 	const isGroupMatch = ctx.groupMatches.some((match) => match.id === parsed.data.id);
 	const currentStatus = state.matches[parsed.data.id]?.status ?? "Scheduled";
 	const hasAnyScore = parsed.data.scoreA !== undefined || parsed.data.scoreB !== undefined;
@@ -82,7 +86,12 @@ export async function PATCH(request: Request) {
 		return NextResponse.json(versionClaim.conflict, { status: 409 });
 	}
 
-	const winner = deriveWinner(parsed.data.id, parsed.data.scoreA, parsed.data.scoreB, state.matches, ctx.teams, ctx.groupMatches);
+	const winner =
+		hasFinalScore && swissPairing
+			? parsed.data.scoreA! > parsed.data.scoreB!
+				? swissPairing.teamAName
+				: swissPairing.teamBName
+			: deriveWinner(parsed.data.id, parsed.data.scoreA, parsed.data.scoreB, state.matches, ctx.teams, ctx.groupMatches);
 	const match = await upsertMatch(parsed.data.id, {
 		id: parsed.data.id,
 		scoreA: parsed.data.scoreA,

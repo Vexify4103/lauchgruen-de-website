@@ -17,7 +17,7 @@ type BulkApplicant = {
 
 export function RefreshRanksButton({
 	applicationId,
-	label = "Rang aktualisieren",
+	label = "Spielerdaten aktualisieren",
 	confirmBulk = false,
 	totalCount = 1,
 	applicantNames = [],
@@ -88,7 +88,7 @@ export function RefreshRanksButton({
 		return { response, json };
 	}
 
-	async function refreshRanks() {
+	async function refreshPlayerData() {
 		setBulkConfirmOpen(false);
 		setMessage("");
 		setProgressIndex(0);
@@ -99,7 +99,7 @@ export function RefreshRanksButton({
 				try {
 					const { response, json } = await refreshOne(applicationId);
 					if (!response.ok && response.status !== 429) {
-						setMessage(json?.message ?? "Rank-Refresh fehlgeschlagen.");
+						setMessage(json?.message ?? "Spielerdaten konnten nicht aktualisiert werden.");
 						return;
 					}
 					const ok = json?.okCount ?? 0;
@@ -107,7 +107,7 @@ export function RefreshRanksButton({
 					setMessage(failed > 0 ? `${ok} ok, ${failed} Fehler.` : `${ok} aktualisiert.`);
 					router.refresh();
 				} catch {
-					setMessage("Netzwerkfehler beim Rank-Refresh. Bitte erneut versuchen.");
+					setMessage("Netzwerkfehler beim Aktualisieren der Spielerdaten. Bitte erneut versuchen.");
 				}
 				return;
 			}
@@ -143,7 +143,9 @@ export function RefreshRanksButton({
 				}
 			}
 
-			setMessage(failed.length === 0 ? `${okCount} Ränge erfolgreich aktualisiert.` : `${okCount} aktualisiert, ${failed.length} fehlgeschlagen: ${failed.join(" · ")}`);
+			setMessage(
+				failed.length === 0 ? `${okCount} Riot-Profile erfolgreich aktualisiert.` : `${okCount} aktualisiert, ${failed.length} fehlgeschlagen: ${failed.join(" · ")}`
+			);
 			router.refresh();
 		});
 	}
@@ -160,7 +162,7 @@ export function RefreshRanksButton({
 						setBulkConfirmOpen(true);
 						return;
 					}
-					void refreshRanks();
+					void refreshPlayerData();
 				}}
 				className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-200/34 disabled:cursor-not-allowed disabled:opacity-60"
 			>
@@ -180,11 +182,11 @@ export function RefreshRanksButton({
 			<ConfirmDialog
 				open={bulkConfirmOpen}
 				title="Alle Riot-Daten aktualisieren?"
-				description="Alle Bewerbungs-Ränge und Riot-IDs werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten."
+				description="Riot-ID, aktueller Rang und Summoner-Level aller Bewerber werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten."
 				confirmLabel="Aktualisierung starten"
 				cancelLabel="Abbrechen"
 				onCancel={() => setBulkConfirmOpen(false)}
-				onConfirm={() => void refreshRanks()}
+				onConfirm={() => void refreshPlayerData()}
 			/>
 		</div>
 	);

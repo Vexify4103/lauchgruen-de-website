@@ -1,4 +1,5 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 const ruleSections = [
 	{
@@ -7,13 +8,14 @@ const ruleSections = [
 	},
 	{
 		title: "Verbindliche Anmeldung",
-		text: "Bewerbungsschluss ist Donnerstag, 18.06.2026 um 20:00 Uhr CEST. Mit dem Absenden der Bewerbung meldest du dich verbindlich für beide Turniertage an: Freitag, 19.06. um 18:00 Uhr CEST und Samstag, 20.06. um 16:00 Uhr CEST. Wenn du unsicher bist oder nur teilweise Zeit hast, musst du das in den Notizen angeben oder dem Orga-Team frühzeitig schreiben. Wer ohne vorherige Abmeldung nicht erscheint, wird vom nächsten Turnier ausgeschlossen.",
+		text: "Bewerbungsstart, Bewerbungsschluss und Turniertermine werden auf der Übersicht und im Bewerbungsformular veröffentlicht. Mit dem Absenden meldest du dich verbindlich für die angekündigten Termine an und bist mindestens 20 Minuten vor Start im Voice-Call. Wenn du unsicher bist, musst du das in den Notizen angeben oder dem Orga-Team frühzeitig schreiben. Wer ohne vorherige Abmeldung nicht erscheint, kann vom nächsten Turnier ausgeschlossen werden.",
 	},
 	{
 		title: "Discord und Riot-Account",
 		text: "Teilnahme ist nur mit Discord-Login, Mitgliedschaft im Lauchgruen-Discord und verifiziertem Riot-Account möglich.",
 		list: [
 			"Du darfst nur mit deinem eigenen Riot-Account teilnehmen",
+			"Dein Account muss mindestens 150 Champions besitzen",
 			"Account-Sharing ist verboten",
 			"Smurf-Verschleierung oder falsche Angaben können zum Ausschluss führen",
 			"Das Orga-Team kann bei Verdachtsfällen eine Verifizierung verlangen",
@@ -21,42 +23,44 @@ const ruleSections = [
 	},
 	{
 		title: "Verhalten",
-		text: "Das Turnier ist ein Spaß- und Community-Event. Alle Teilnehmer behandeln Mitspieler, Gegner, Zuschauer und Admins respektvoll.",
+		text: "Das Turnier ist ein Spaß- und Community-Event. Alle Teilnehmer behandeln Teammates, Gegner, Zuschauer und Admins respektvoll. Trashtalk, Herabwürdigung oder öffentliches Bloßstellen anderer Teams oder einzelner Spieler ist nicht erlaubt.",
 		list: [
 			"Keine Beleidigungen oder Belästigungen",
+			"Kein Trashtalk gegen Gegner, Teammates, Zuschauer oder Orga",
+			"Keine Schuldzuweisungen, öffentlichen Flaming-Diskussionen oder persönlichen Angriffe nach Games",
 			"Kein absichtliches Feeden oder Griefing",
 			"Kein Cheating oder Scripting",
 			"Kein Stream-Sniping",
 			"Keine unsportlichen Manipulationen des Turnierablaufs",
 		],
-		footer: "Verstöße können je nach Schwere mit Verwarnungen, Matchverlusten oder Ausschluss geahndet werden.",
+		footer: "Wenn es Probleme gibt, meldet sie ruhig und sachlich an die Orga oder später über das Feedback-Formular. Verstöße können je nach Schwere mit Verwarnungen, Matchverlusten oder Ausschluss geahndet werden.",
 	},
 	{
 		title: "Account-Änderungen",
 		text: "Die bei der Bewerbung angegebene Riot-ID muss korrekt sein. Änderungen nach der Anmeldung müssen dem Orga-Team vor Turnierbeginn mitgeteilt werden.",
 	},
 	{
-		title: "A-Z Champion-Pools",
-		text: "Für jedes Match wird pro Team ein A-Z Pool gelost. Ein Team darf in diesem Match nur Champions aus dem eigenen Pool picken. Bans richten sich gegen den gegnerischen Pool. Gespielte Pools verlassen für das jeweilige Team das Rad; erst für die vier Teams im Upper Final und Lower Semi-Final beginnt ein frischer Final-Pool-Zyklus.",
+		title: "Ultimate-Bravery-Rolls",
+		text: "Jeder Spieler würfelt auf der Match-Seite Champion, Item-Build, Runen und Summoner Spells. Pro Spieler und Match sind 2 Rerolls garantiert. Der final bestätigte Roll wird serverseitig gespeichert und ist verbindlich.",
 		list: [
-			"Jedes Team verfügt standardmäßig über 3 Bans pro Match",
-			"In Upper Bracket Runde 1 erhalten A #2 und B #2 jeweils einen zusätzlichen vierten Ban",
-			"Nach Upper Bracket Runde 1 gelten wieder die normalen 3 Bans pro Team",
+			"Jungle erhält garantiert Smite und ein Jungle-Startitem",
+			"Support erhält garantiert ein Support-Startitem",
+			"Der restliche Build und die übrigen Vorgaben werden zufällig aus gültigen Riot-Daten erzeugt",
 		],
 	},
 	{
-		title: "Draft und Captains",
-		text: "Nur Team-Captains oder berechtigte Admins dürfen im Champ Select ready klicken, Champions auswählen, bannen oder locken.",
+		title: "Reroll-Ausnahmen und Captains",
+		text: "Die 2 normalen Rerolls pro Spieler und Match sind garantiert. Eine zusätzliche Ausnahme ist nur möglich, wenn nach diesen Rerolls weiterhin kein besessener Champion dabei ist.",
 		list: [
-			"Captains sind für die Einhaltung der Pool-Regeln verantwortlich",
-			"Admins dürfen bei technischen Problemen eingreifen",
-			"Admins dürfen Drafts pausieren, zurücksetzen oder korrigieren",
+			"Der Captain beantragt die Ausnahme mit einer nachvollziehbaren Begründung",
+			"Die Orga genehmigt oder verwirft den Antrag",
+			"Missbrauch kann als automatische Niederlage oder Regelverstoß gewertet werden",
 		],
 	},
 	{
-		title: "Falsche Picks oder Bans",
-		text: "Wird ein Champion gepickt oder gebannt, der gegen die Turnierregeln verstößt, muss dies sofort gemeldet werden.",
-		footer: "Das Orga-Team entscheidet im Einzelfall über Draft-Neustart, Pick-Korrektur, Matchverlust oder weitere Maßnahmen.",
+		title: "Falsche Champions oder Builds",
+		text: "Abweichungen vom gespeicherten Roll müssen sofort gemeldet werden.",
+		footer: "Das Orga-Team entscheidet im Einzelfall über Korrektur, Neustart, Matchverlust oder weitere Maßnahmen.",
 	},
 	{
 		title: "Spectator Delay",
@@ -108,14 +112,13 @@ const ruleSections = [
 		footer: "Der Remake muss vom Orga-Team genehmigt werden. Wiederholte oder selbst verschuldete technische Probleme begründen keinen automatischen Anspruch auf ein Remake.",
 	},
 	{
-		title: "Gruppenphase",
-		text: "Jedes Team spielt zweimal gegen jedes andere Team seiner Gruppe, also sechs Gruppenspiele pro Team. Die Platzierung richtet sich zuerst nach der Sieg-Niederlagen-Bilanz.",
+		title: "Turnierformat",
+		text: "Alle Matches werden als Best of 1 gespielt. Der erste Spieltag ist die Gruppenphase. Am zweiten Spieltag finden die Playoffs im Double-Elimination-Bracket statt.",
 		list: [
-			"Anzahl der direkten Siege zwischen den gleichstehenden Teams",
-			"Niedrigere durchschnittliche Spielzeit der Siege im direkten Vergleich dieser Teams",
-			"Entscheidung durch das Orga-Team, falls weiterhin Gleichstand besteht",
+			"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
+			"Eine Niederlage im Lower Bracket beendet das Turnier",
+			"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
 		],
-		footer: "Fehlende Spielzeiten können nicht zugunsten eines Teams gewertet werden.",
 	},
 	{
 		title: "Ergebnismeldung",
@@ -123,9 +126,9 @@ const ruleSections = [
 		list: ["Screenshot des Endbildschirms beifügen", "Spielzeit im Format mm:ss angeben", "Ergebnis zeitnah melden", "Bei Streitfällen beide Screenshots bereithalten"],
 	},
 	{
-		title: "Playoff-Seeding",
-		text: "Alle acht Teams spielen am zweiten Turniertag weiter. Die Gruppensieger steigen erst in Upper Runde 2 ein. In Upper Runde 1 spielt A #2 mit vier Bans gegen B #3 und B #2 mit vier Bans gegen A #3.",
-		footer: "Danach wird das Turnier als Double-Elimination-Bracket fortgesetzt.",
+		title: "Bracket und Seeding",
+		text: "Seeds und erste Paarungen werden nach der Teamzusammenstellung durch die Orga festgelegt und vor Turnierbeginn im Zeitplan veröffentlicht.",
+		footer: "Bis zur finalen Veröffentlichung begründet der Arbeitsstand keinen Anspruch auf eine bestimmte Paarung.",
 	},
 	{
 		title: "Streaming",
@@ -144,7 +147,7 @@ const ruleSections = [
 	},
 	{
 		title: "Öffentliche Darstellung",
-		text: "Teamname, Roster, Riot-ID, Rollen, Scores, Pools, Draft-Informationen und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
+		text: "Teamname, Roster, Riot-ID, Rollen, Scores, Ultimate-Bravery-Rolls und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
 	},
 	{
 		title: "Admin-Entscheidungen",
@@ -153,18 +156,63 @@ const ruleSections = [
 	},
 ];
 
-export default function TournamentTermsPage() {
+export default async function TournamentTermsPage() {
+	const config = (await getTournamentSettings()).ultimateBravery;
+	const dayOne =
+		config.dayOneFormat === "swiss"
+			? `eine Swiss Stage mit ${config.swissRounds} Runden`
+			: config.dayOneFormat === "groups"
+				? `eine Gruppenphase mit ${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}`
+				: "ein noch nicht festgelegtes Stage-Format";
+	const playoffs =
+		config.format === "double-elimination"
+			? "Double-Elimination-Bracket"
+			: config.format === "single-elimination"
+				? "Single-Elimination-Bracket"
+				: "noch nicht festgelegten Playoff-Format";
+	const qualification =
+		config.advanceTeamCount === config.teamCount
+			? "Alle Teams erreichen den zweiten Spieltag."
+			: `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams erreichen die Playoffs.`;
+	const swissPairingRule =
+		config.dayOneFormat === "swiss" ? " Jede Swiss-Runde wird zufällig ausgelost. Bereits gespielte Paarungen dürfen im weiteren Swiss-Verlauf nicht erneut entstehen." : "";
+	const displayedRuleSections = ruleSections.map((section) =>
+		section.title === "Turnierformat"
+			? {
+					...section,
+					text: `Alle Matches werden als Best of 1 gespielt. Am ersten Spieltag folgt ${dayOne}.${swissPairingRule} Am zweiten Spieltag finden die Playoffs im ${playoffs} statt. ${qualification}`,
+					list:
+						config.format === "double-elimination"
+							? [
+									"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
+									"Eine Niederlage im Lower Bracket beendet das Turnier",
+									"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+								]
+							: config.format === "single-elimination"
+								? [
+										"Eine Niederlage in den Playoffs beendet das Turnier",
+										"Mögliche Freilose ergeben sich aus Seeding und Teamzahl",
+										"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+									]
+								: [
+										"Das Playoff-System wird anhand der finalen Teamzahl festgelegt",
+										"Seeding und mögliche Freilose werden rechtzeitig veröffentlicht",
+										"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+									],
+				}
+			: section
+	);
 	return (
 		<div className="px-5 py-10 sm:py-14">
 			<section className="mx-auto w-full max-w-5xl">
 				<div className="rounded-[2.4rem] border border-lime-200/14 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-2xl shadow-black/30 sm:p-8">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Teilnahmebedingungen</div>
-					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Regeln für das Kunterbunte A-Z Turnier.</h1>
+					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Regeln für Ultimate Bravery.</h1>
 					<p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/72">Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung bestätigst.</p>
 				</div>
 
 				<div className="mt-6 grid gap-4">
-					{ruleSections.map((section, index) => (
+					{displayedRuleSections.map((section, index) => (
 						<article key={section.title} className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
 							<div className="flex gap-4">
 								<span className="grid size-9 shrink-0 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/10 text-sm font-black text-lime-100">

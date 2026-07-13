@@ -47,6 +47,7 @@ export async function POST() {
 			tagLine: challenge.tagLine,
 			puuid: challenge.puuid,
 			currentRankAuto: formatRank(leagueEntries),
+			summonerLevel: summoner.summonerLevel,
 			verifiedAt: new Date().toISOString(),
 		};
 		await upsertVerifiedAccount(verified);

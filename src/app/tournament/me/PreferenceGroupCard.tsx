@@ -99,7 +99,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 			</div>
 
 			<p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-100/60">
-				Teile deinen privaten Code mit bis zu vier anderen Bewerbern. Die Orga sieht euren Wunsch beim Team-Building, eine gemeinsame Einteilung kann wegen der Balance aber
+				Teile deinen privaten Code mit genau einer weiteren Person. Die Orga sieht euren Wunsch beim Team-Building, eine gemeinsame Einteilung kann wegen der Balance aber
 				nicht garantiert werden.
 			</p>
 

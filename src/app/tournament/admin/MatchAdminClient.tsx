@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
 import { formatGameDuration } from "@/lib/match-duration";
+import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 
@@ -284,13 +285,7 @@ function NumberField({ short, team, value, onChange }: { short: string; team: st
 	return (
 		<label className="grid gap-2" title={`Score · ${team}`}>
 			<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Score {short}</span>
-			<input
-				type="number"
-				min="0"
-				value={value}
-				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-center text-sm font-black text-emerald-50 outline-none transition focus:border-lime-200/40"
-			/>
+			<ThemedNumberInput min={0} value={value} onChange={onChange} ariaLabel={`Score ${short} · ${team}`} />
 		</label>
 	);
 }

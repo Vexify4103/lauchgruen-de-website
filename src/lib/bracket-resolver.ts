@@ -141,8 +141,7 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 			standing.avgWinTimeSeconds =
 				standing.headToHeadWins > 0 && standing.headToHeadTimedWins === standing.headToHeadWins ? standing.headToHeadWinDurationSeconds / standing.headToHeadWins : null;
 			const recordedWins = winDurations.get(standing.team.name) ?? [];
-			standing.avgRecordedWinTimeSeconds =
-				recordedWins.length > 0 ? recordedWins.reduce((total, seconds) => total + seconds, 0) / recordedWins.length : null;
+			standing.avgRecordedWinTimeSeconds = recordedWins.length > 0 ? recordedWins.reduce((total, seconds) => total + seconds, 0) / recordedWins.length : null;
 		}
 
 		standings.sort((a, b) => {

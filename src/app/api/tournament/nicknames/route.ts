@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 type StoredPlayer = {
 	riotId: string;
 	discordId?: string;
+	discordUsername?: string;
+	displayName?: string;
 };
 
 type StoredTeam = {
@@ -45,14 +47,14 @@ export async function POST() {
 		operations.push({
 			kind: "nickname-set",
 			discordId: player.discordId,
-			displayName: application?.displayName ?? "",
+			displayName: application?.displayName ?? player.displayName ?? player.discordUsername ?? "",
 			riotId: player.riotId,
 			label: `${player.riotId}: Nickname setzen`,
 		});
 	}
 	const job = await enqueueDiscordJob({
 		type: "nickname-sync",
-		title: "Turnier-Nicknames setzen",
+		title: "Turnier-Nicknames prüfen und reparieren",
 		operations,
 		actorLabel: session.user.discordHandle ?? discordId,
 	});

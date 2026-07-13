@@ -6,6 +6,7 @@ import { compactPoolLabel, remainingPoolsForTeam, type TournamentWheelState, typ
 import { poolHistoryScopeForMatchId } from "@/lib/tournament-rules";
 import type { AdminMatch } from "./MatchAdminClient";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ThemedSelect, type SelectOption } from "@/components/ThemedSelect";
 
 const SPIN_DURATION_MS = 1900;
 const SEGMENT_DEGREES = 360 / azLetterPools.length;
@@ -165,19 +166,21 @@ export function WheelAdminClient({ initialState, matches }: { initialState: Tour
 			<div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
 				<label className="grid gap-2">
 					<span className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Match</span>
-					<select
+					<ThemedSelect
 						value={selectedMatchId}
-						onChange={(event) => {
-							setSelectedMatchId(event.target.value);
+						onChange={(value) => {
+							setSelectedMatchId(value);
 							setPreview(null);
 							setMessage(null);
 						}}
-						className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm font-bold text-emerald-50 outline-none"
-					>
-						<MatchOptions label="Gruppenphase · fortlaufende Pool-Historie" matches={groupMatches} state={state} />
-						<MatchOptions label="Frühe Playoffs · weiterhin dieselbe Pool-Historie" matches={earlyPlayoffMatches} state={state} />
-						<MatchOptions label="Finalblock · neuer Pool-Zyklus ab Upper Final / Lower Semi-Final" matches={finalCycleMatches} state={state} />
-					</select>
+						ariaLabel="Match für die Pool-Ziehung"
+						emptyMessage="Keine Matches für eine Pool-Ziehung verfügbar."
+						options={[
+							...matchOptions("Gruppenphase · fortlaufende Pool-Historie", groupMatches, state),
+							...matchOptions("Frühe Playoffs · dieselbe Pool-Historie", earlyPlayoffMatches, state),
+							...matchOptions("Finalblock · neuer Pool-Zyklus", finalCycleMatches, state),
+						]}
+					/>
 				</label>
 				<button
 					type="button"
@@ -263,27 +266,18 @@ export function WheelAdminClient({ initialState, matches }: { initialState: Tour
 	);
 }
 
-function MatchOptions({ label, matches, state }: { label: string; matches: AdminMatch[]; state: TournamentWheelState }) {
-	if (matches.length === 0) return null;
-	return (
-		<optgroup label={label}>
-			{matches.map((match) => {
-				const teamsResolved = isResolvableTeamName(match.teamA) && isResolvableTeamName(match.teamB);
-				return (
-				<option key={match.id} value={match.id} disabled={!teamsResolved} className="bg-emerald-950 disabled:text-emerald-100/40">
-					{match.id}: {match.teamA} vs {match.teamB}
-					{!teamsResolved
-						? " · wartet auf Teams"
-						: match.status === "Finished" || state.completedMatchIds.includes(match.id)
-						? " · abgeschlossen"
-						: state.currentAssignment?.matchId === match.id
-							? " · Pool gezogen"
-							: ""}
-				</option>
-				);
-			})}
-		</optgroup>
-	);
+function matchOptions(group: string, matches: AdminMatch[], state: TournamentWheelState): SelectOption[] {
+	return matches.map((match) => {
+		const teamsResolved = isResolvableTeamName(match.teamA) && isResolvableTeamName(match.teamB);
+		const status = !teamsResolved
+			? "wartet auf Teams"
+			: match.status === "Finished" || state.completedMatchIds.includes(match.id)
+				? "abgeschlossen"
+				: state.currentAssignment?.matchId === match.id
+					? "Pool gezogen"
+					: "bereit";
+		return { value: match.id, label: `${match.id}: ${match.teamA} vs ${match.teamB}`, description: status, group, disabled: !teamsResolved };
+	});
 }
 
 function TeamWheel({

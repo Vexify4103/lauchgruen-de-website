@@ -31,7 +31,7 @@ type ScheduleMatch = {
 const PLAYOFF_ORDER = ["ub-r1-1", "ub-r1-2", "lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2", "lb-r2-1", "lb-r2-2", "ub-f", "lb-sf", "lb-f", "gf"] as const;
 
 export default async function TournamentSchedulePage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
-	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026");
+	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));

@@ -114,11 +114,7 @@ export function DraftSpectatorClient({
 						<div>
 							<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{viewerLabel(perspective)}</div>
 							<h2 className="mt-1 text-xl font-black text-emerald-50">
-								{currentTurn
-									? `${turnLabel(currentTurn)} · ${activePoolMessage}`
-									: complete
-										? "Draft abgeschlossen"
-										: "Wartet auf Draft"}
+								{currentTurn ? `${turnLabel(currentTurn)} · ${activePoolMessage}` : complete ? "Draft abgeschlossen" : "Wartet auf Draft"}
 							</h2>
 						</div>
 						<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">

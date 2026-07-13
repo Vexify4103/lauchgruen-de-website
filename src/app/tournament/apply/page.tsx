@@ -2,49 +2,77 @@ import { TournamentLink as Link } from "../TournamentLink";
 import { headers } from "next/headers";
 import { auth, signIn, signOut } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
-import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import {
+	areTournamentApplicationsOpen,
+	formatTournamentApplicationDeadlineLabel,
+	formatTournamentApplicationOpenLabel,
+	isTournamentApplicationDeadlinePassed,
+	isTournamentApplicationOpenDateReached,
+} from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { findApplicationByDiscordId, getVerifiedAccount } from "@/lib/tournament-storage";
+import { findApplicationByDiscordId, getVerifiedAccount, updateVerifiedSummonerLevel } from "@/lib/tournament-storage";
+import { getSummonerByPuuid } from "@/lib/riot";
 import { ApplicationForm } from "./ApplicationForm";
 
 const rules = [
 	"Bewerbungsschluss ist der auf der Webseite angegebene Zeitpunkt.",
-	"Du meldest dich verbindlich für beide Tage an: Freitag, 19.06. um 18:00 Uhr und Samstag, 20.06. um 16:00 Uhr.",
-	"Gespielt wird mit gelosten A-Z Champion-Pools. Pro Runde sind nur Champions aus dem aktuellen Pool erlaubt.",
-	"Deine Riot-Verifizierung, Main Rolle und Wunschrollen werden fürs faire Team-Balancing genutzt.",
-	"Kein toxisches Verhalten, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
-	"Wenn du nur teilweise Zeit hast oder unsicher bist, schreib es bitte direkt in die Notizen.",
+	"Du meldest dich verbindlich für den angekündigten Turniertermin an.",
+	"Champion, Items, Runen und Summoner Spells werden pro Spieler und Match zufällig über die Webseite bestimmt.",
+	"Dein League-Account sollte mindestens 150 Champions besitzen, damit Ultimate Bravery fair spielbar bleibt.",
+	"Jeder Spieler hat pro Match 2 garantierte Rerolls. Wenn danach weiterhin kein besessener Champion dabei ist, kann der Captain eine Ausnahme bei der Orga anfragen.",
+	"Deine Riot-Verifizierung, dein Account-Level, deine Main Rolle und Wunschrollen werden für Teilnahme und Team-Balancing genutzt.",
+	"Kein toxisches Verhalten, kein Trashtalk gegen Gegner oder Teammates, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
+	"Wenn es Probleme gibt, meldet sie bitte ruhig an die Orga oder später über das Feedback-Formular.",
+	"Wenn du zeitlich unsicher bist, schreib es bitte direkt in die Notizen.",
 ];
 
 export default async function ApplyPage() {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.mode === "teaser") {
+	if (settings.activeTournament.mode !== "registration") {
 		return (
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-cyan-200/16 bg-cyan-300/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-cyan-100/70">Ultimate Bravery</div>
 					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50">Die Bewerbung öffnet später.</h1>
-					<p className="mt-4 text-sm leading-7 text-emerald-100/72">Das nächste Turnier wird gerade vorbereitet. Deine Discord-Anmeldung und Riot-Verifizierung bleiben für die spätere Bewerbung erhalten, aber Termin, Teamgröße und Regeln werden erst noch bekanntgegeben.</p>
-					<Link href="/tournament" className="mt-6 inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100">Zurück zur Übersicht</Link>
+					<p className="mt-4 text-sm leading-7 text-emerald-100/72">
+						Ultimate Bravery wird gerade vorbereitet. Deine Discord-Anmeldung und Riot-Verifizierung bleiben für die spätere Bewerbung erhalten. Den finalen Termin
+						veröffentlicht die Orga, sobald er bestätigt ist.
+					</p>
+					<Link
+						href="/tournament"
+						className="mt-6 inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+					>
+						Zurück zur Übersicht
+					</Link>
 				</section>
 			</div>
 		);
 	}
 	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
-	const deadlinePassed = isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
-	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const now = new Date();
+	const openReached = isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt);
+	const deadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const applicationsOpen = areTournamentApplicationsOpen(
+		settings.applicationsOpen,
+		new Date(),
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
 	if (!applicationsOpen) {
 		return (
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-amber-200/16 bg-amber-200/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-amber-100/70">Bewerbungen geschlossen</div>
 					<h1 className="mt-4 text-4xl font-black tracking-tight text-amber-50">
-						{deadlinePassed ? "Der Bewerbungsschluss ist vorbei." : "Bewerbungen öffnen in Kürze wieder."}
+						{!openReached ? "Die Bewerbung öffnet bald." : deadlinePassed ? "Der Bewerbungsschluss ist vorbei." : "Bewerbungen öffnen in Kürze wieder."}
 					</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/72">
-						{deadlinePassed
-							? `Die Anmeldung war bis ${deadlineLabel} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
-							: "Das A-Z Turnier findet am 19.06. und 20.06. abends statt. Wenn du grundsätzlich Interesse und Zeit hast, melde dich im Discord bei Luca oder dem Orga-Team, bis das Formular wieder offen ist."}
+						{!openReached
+							? `Die Anmeldung öffnet am ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}. Du kannst Discord und Riot später hier verbinden.`
+							: deadlinePassed
+								? `Die Anmeldung war bis ${deadlineLabel} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
+								: "Die Ultimate-Bravery-Anmeldung öffnet wieder, sobald die Orga den nächsten Bewerbungszeitraum freigibt."}
 					</p>
 					<Link
 						href="/tournament"
@@ -70,14 +98,25 @@ export default async function ApplyPage() {
 			: null;
 	const liveGuildMember = discordIdentity ? await isDiscordGuildMember(discordIdentity.id) : null;
 	const isGuildMember = liveGuildMember ?? session?.user.discordInGuild ?? !process.env.DISCORD_GUILD_ID;
-	const [verifiedAccount, existingApplication] = discordIdentity
+	const [verifiedAccountResult, existingApplication] = discordIdentity
 		? await Promise.all([getVerifiedAccount(discordIdentity.id), findApplicationByDiscordId(discordIdentity.id)])
 		: [null, null];
+	let verifiedAccount = verifiedAccountResult;
+	if (discordIdentity && verifiedAccount && verifiedAccount.summonerLevel === undefined) {
+		try {
+			const summoner = await getSummonerByPuuid(verifiedAccount.puuid);
+			await updateVerifiedSummonerLevel(discordIdentity.id, summoner.summonerLevel);
+			verifiedAccount = { ...verifiedAccount, summonerLevel: summoner.summonerLevel };
+		} catch (error) {
+			console.warn("[tournament-apply] Summoner-Level konnte nicht automatisch ergänzt werden.", error);
+		}
+	}
 	const initialVerified = verifiedAccount
 		? {
 				riotId: verifiedAccount.riotId,
 				puuid: verifiedAccount.puuid,
 				currentRankAuto: verifiedAccount.currentRankAuto,
+				summonerLevel: verifiedAccount.summonerLevel,
 				verifiedAt: verifiedAccount.verifiedAt,
 			}
 		: null;
@@ -88,12 +127,14 @@ export default async function ApplyPage() {
 				<aside className="grid content-start gap-4">
 					<div className="rounded-[2rem] border border-lime-200/14 bg-white/[0.045] p-6">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Bewerbung</div>
-						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">Beim A-Z Turnier verbindlich mitspielen.</h1>
+						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">Bei Ultimate Bravery verbindlich mitspielen.</h1>
 						<p className="mt-4 text-sm leading-7 text-emerald-100/70">
-							Wir brauchen deine Angaben, um faire Teams zu bauen und das Bracket zu planen. Bitte trag direkt ein, wenn du an einem der beiden Abende unsicher bist.
+							Wir brauchen deine Angaben, um faire Teams zu bauen und das Bracket zu planen. Bitte trag direkt ein, wenn du beim angekündigten Termin unsicher bist.
 						</p>
 						<div className="mt-5 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-4 py-3 text-sm font-black text-amber-50">
-							{settings.applicationDeadlineOverride ? "Notfall-Bewerbungen sind aktuell wieder geöffnet." : `Bewerbungsschluss: ${deadlineLabel}`}
+							{settings.applicationDeadlineOverride
+								? "Notfall-Bewerbungen sind aktuell wieder geöffnet."
+								: `Bewerbungszeitraum: ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)} bis ${deadlineLabel}`}
 						</div>
 					</div>
 
@@ -166,9 +207,25 @@ export default async function ApplyPage() {
 						discordInviteUrl={DISCORD_INVITE_URL}
 						initialVerified={initialVerified}
 						initialApplication={existingApplication}
+						minimumSummonerLevel={settings.ultimateBravery.minimumSummonerLevel}
+						announcedDate={formatUltimateBraveryDates(settings.ultimateBravery.startAt, settings.ultimateBravery.dayTwoStartAt)}
 					/>
 				</div>
 			</section>
 		</div>
 	);
+}
+
+function formatUltimateBraveryDates(startAt: string | null, dayTwoStartAt: string | null) {
+	const formatter = new Intl.DateTimeFormat("de-DE", {
+		weekday: "long",
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+		timeZone: "Europe/Berlin",
+	});
+	const dates = [startAt, dayTwoStartAt].filter((date): date is string => Boolean(date)).map((date) => formatter.format(new Date(date)));
+	return dates.length ? `${dates.join(" und ")}. Bitte mindestens 20 Minuten vorher im Voice-Call sein.` : "Termin wird noch angekündigt";
 }

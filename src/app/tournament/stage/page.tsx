@@ -6,12 +6,26 @@ import { computeGroupStandings } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
 import { formatGameDuration } from "@/lib/match-duration";
+import { GroupStagePlan, SwissStageBoard } from "@/components/SwissStageBoard";
+import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
+import { SwissLivePairings } from "@/components/SwissLivePairings";
 
 const groups = ["A", "B"] as const;
 
 export default async function GroupsPage() {
-	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=groups");
+	const settings = await getTournamentSettings();
+	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
+	if (settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "undecided") {
+		return <UndecidedStagePage />;
+	}
+	if (settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "swiss") {
+		const [swissState, swissTeams] = await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams()]);
+		return <SwissStagePage settings={settings} teamNames={swissTeams.map((team) => team.name)} swissState={swissState} />;
+	}
 	const ctx = await getTournamentContext();
+	if (settings.activeTournament.id === "ultimate-bravery" && settings.activeTournament.mode !== "live") {
+		return <GroupStagePlanningPage settings={settings} teamNames={ctx.teams.map((team) => team.name)} />;
+	}
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
 	const matchesWithScores = ctx.groupMatches.map((match) => ({
@@ -181,6 +195,87 @@ export default async function GroupsPage() {
 						);
 					})}
 				</div>
+			</section>
+		</div>
+	);
+}
+
+function UndecidedStagePage() {
+	return (
+		<div className="px-5 py-14 sm:py-20">
+			<section className="mx-auto max-w-3xl rounded-[2.4rem] border border-amber-200/16 bg-gradient-to-br from-amber-200/[0.07] via-white/[0.035] to-cyan-200/[0.035] p-8 text-center shadow-2xl shadow-black/30 sm:p-12">
+				<div className="text-xs font-black uppercase tracking-[0.3em] text-amber-100/64">Tag 1 · Planung</div>
+				<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Das Format steht noch nicht fest.</h1>
+				<p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-emerald-100/64 sm:text-base">
+					Ob Gruppenphase oder Swiss Stage gespielt wird, entscheidet die Orga anhand der finalen Teamzahl. Der vollständige Ablauf wird rechtzeitig vor dem Turnier
+					veröffentlicht.
+				</p>
+			</section>
+		</div>
+	);
+}
+
+function SwissStagePage({
+	settings,
+	teamNames,
+	swissState,
+}: {
+	settings: Awaited<ReturnType<typeof getTournamentSettings>>;
+	teamNames: string[];
+	swissState: Awaited<ReturnType<typeof getSwissStageState>>;
+}) {
+	const config = settings.ultimateBravery;
+	return (
+		<div className="px-5 py-10 sm:py-14">
+			<section className="mx-auto w-full max-w-[96rem]">
+				<div className="mx-auto max-w-4xl text-center">
+					<div className="text-xs font-black uppercase tracking-[0.32em] text-cyan-200/60">Tag 1 · Swiss Stage</div>
+					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-6xl">Jede Runde verändert den Weg.</h1>
+					<p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-emerald-100/64 sm:text-base">
+						Alle Paarungen werden pro Runde zufällig ausgelost. Ein Team kann während der gesamten Swiss Stage niemals ein zweites Mal auf denselben Gegner treffen.
+						Nach {config.swissRounds} Runden ziehen die besten {config.advanceTeamCount} von {config.teamCount} Teams in die Playoffs ein.
+					</p>
+				</div>
+				<div className="mt-9">
+					<SwissLivePairings initialState={swissState} configuredRounds={config.swissRounds} live={settings.tournamentLive} />
+				</div>
+				<div className="mt-6">
+					<SwissStageBoard config={config} teamNames={teamNames} />
+				</div>
+				{teamNames.length === 0 ? (
+					<div className="mx-auto mt-5 max-w-3xl rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] px-5 py-4 text-center text-sm font-bold leading-6 text-amber-50/76">
+						Die Grafik zeigt aktuell den geplanten Ablauf. Teamnamen und Paarungen erscheinen, sobald die Roster veröffentlicht und die jeweilige Runde freigegeben
+						wurde.
+					</div>
+				) : null}
+			</section>
+		</div>
+	);
+}
+
+function GroupStagePlanningPage({ settings, teamNames }: { settings: Awaited<ReturnType<typeof getTournamentSettings>>; teamNames: string[] }) {
+	const config = settings.ultimateBravery;
+	return (
+		<div className="px-5 py-10 sm:py-14">
+			<section className="mx-auto w-full max-w-7xl">
+				<div className="max-w-3xl">
+					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Tag 1 · Gruppenphase</div>
+					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
+						{config.groupCount} {config.groupCount === 1 ? "Gruppe" : "Gruppen"}. Ein gemeinsames Ziel.
+					</h1>
+					<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
+						{config.teamCount} Teams spielen {config.groupRoundRobinLegs === 2 ? "eine Hin- und Rückrunde" : "einmal gegeneinander"}. Die besten{" "}
+						{config.advanceTeamCount} Teams erreichen die Playoffs an Tag 2.
+					</p>
+				</div>
+				<div className="mt-8">
+					<GroupStagePlan config={config} teamNames={teamNames} />
+				</div>
+				{teamNames.length === 0 ? (
+					<div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] px-5 py-4 text-sm font-bold leading-6 text-amber-50/76">
+						Aktuelle Planung: Die Teamnamen werden nach Abschluss der Bewerbungen und Veröffentlichung der Roster eingesetzt.
+					</div>
+				) : null}
 			</section>
 		</div>
 	);

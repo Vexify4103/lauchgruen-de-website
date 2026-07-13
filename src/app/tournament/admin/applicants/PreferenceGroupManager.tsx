@@ -99,23 +99,23 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/68">Wunschduos verwalten</div>
 					<h2 className="mt-2 text-2xl font-black text-emerald-50">Gemeinsam spielen – fair eingeteilt</h2>
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">
-						Hier könnt ihr Bewerber zu Wunschduos zusammenfassen oder ihre Duo-Zugehörigkeit anpassen. Der Auto-Balancer berücksichtigt diese Wünsche nach
-						Möglichkeit, eine gemeinsame Einteilung ist jedoch nicht garantiert.
+						Hier könnt ihr Bewerber zu Wunschduos zusammenfassen oder ihre Duo-Zugehörigkeit anpassen. Der Auto-Balancer berücksichtigt diese Wünsche nach Möglichkeit,
+						eine gemeinsame Einteilung ist jedoch nicht garantiert.
 					</p>
 				</div>
 				<span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50/72">
-					{groups.length} Gruppen
+					{groups.length} Wunschduos
 				</span>
 			</div>
 
 			<div className="mt-5 grid gap-4 xl:grid-cols-2">
 				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
 					<div className="text-sm font-black text-emerald-50">Neues Wunschduo erstellen</div>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/48">Wähle eine bis fünf Bewerber aus, die noch keiner Gruppe angehören.</p>
+					<p className="mt-1 text-xs leading-5 text-emerald-100/48">Wähle genau zwei Bewerber aus, die noch keinem Wunschduo angehören.</p>
 					<div className="mt-4">
 						<ThemedMultiSelect
 							value={newMembers}
-							onChange={(values) => setNewMembers(values.slice(0, 5))}
+							onChange={(values) => setNewMembers(values.slice(0, 2))}
 							placeholder="Bewerber auswählen"
 							options={ungrouped.map((applicant) => ({
 								value: applicant.discordId,
@@ -125,7 +125,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 					</div>
 					<button
 						type="button"
-						disabled={isPending || newMembers.length === 0 || newMembers.length > 5}
+						disabled={isPending || newMembers.length !== 2}
 						onClick={() =>
 							startTransition(async () => {
 								await createGroup();
@@ -133,7 +133,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 						}
 						className="mt-4 rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-40"
 					>
-						{isPending ? "Wird gespeichert..." : `Gruppe mit ${newMembers.length} erstellen`}
+						{isPending ? "Wird gespeichert..." : `Wunschduo mit ${newMembers.length} Personen erstellen`}
 					</button>
 				</div>
 
@@ -161,7 +161,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 								{ value: "", label: "Kein Wunschduo" },
 								...groups.map((group) => ({
 									value: group.code,
-									label: `${group.code} · ${group.memberDiscordIds.length}/5`,
+									label: `${group.code} · ${group.memberDiscordIds.length}/2`,
 								})),
 							]}
 						/>
@@ -187,7 +187,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 						<article key={group.code} className="rounded-2xl border border-cyan-200/12 bg-black/18 p-4">
 							<div className="flex items-center justify-between gap-3">
 								<span className="font-mono text-sm font-black tracking-[0.12em] text-cyan-50">{group.code}</span>
-								<span className="text-[10px] font-black text-cyan-100/48">{group.memberDiscordIds.length}/5</span>
+								<span className="text-[10px] font-black text-cyan-100/48">{group.memberDiscordIds.length}/2</span>
 							</div>
 							<div className="mt-3 flex flex-wrap gap-1.5">
 								{group.memberDiscordIds.map((discordId) => {

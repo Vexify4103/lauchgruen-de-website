@@ -8,6 +8,9 @@ import { formatRankScore, parseRank } from "@/lib/rank-score";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
+import { ThemedSelect } from "@/components/ThemedSelect";
+import { ThemedNumberInput } from "@/components/ThemedNumberInput";
+import { GroupAssignmentBoard } from "./GroupAssignmentBoard";
 
 type SortMode = "rank-desc" | "rank-asc" | "role-available";
 
@@ -57,10 +60,11 @@ type State = {
 type TeamMutationResponse = {
 	key: string;
 	name: string;
-	group?: "A" | "B";
+	group?: string;
 	seed?: number | null;
 	version?: number;
 	warnings?: string[];
+	discordJob?: DiscordJobStatus | null;
 };
 
 type DiscordJobStatus = {
@@ -102,6 +106,7 @@ function serializeRosterState(state: State) {
 				discordId,
 				{
 					discordUsername: player.discordUsername ?? "",
+					displayName: player.displayName,
 					riotId: player.riotId,
 				},
 			])
@@ -120,7 +125,18 @@ function teamFromMutationResponse(response: TeamMutationResponse): RosterTeam {
 	};
 }
 
-export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterSnapshot; initialVersion: number }) {
+export function RosterBuilder({
+	snapshot: initialSnapshot,
+	dayOneFormat,
+	groupCount,
+	plannedTeamCount,
+}: {
+	snapshot: RosterSnapshot;
+	initialVersion: number;
+	dayOneFormat: "groups" | "swiss" | "undecided";
+	groupCount: number;
+	plannedTeamCount: number;
+}) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
 	const [snapshot, setSnapshot] = useState<RosterSnapshot>(initialSnapshot);
@@ -149,6 +165,11 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	}, [splitThreshold]);
 
 	useEffect(() => {
+		const frame = window.requestAnimationFrame(() => setSnapshot(initialSnapshot));
+		return () => window.cancelAnimationFrame(frame);
+	}, [initialSnapshot]);
+
+	useEffect(() => {
 		if (!discordJob || discordJob.status === "completed" || discordJob.status === "failed") return;
 		let cancelled = false;
 		const timer = window.setInterval(async () => {
@@ -173,28 +194,24 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	const [createOpen, setCreateOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [newTeamName, setNewTeamName] = useState("");
-	const [newTeamGroup, setNewTeamGroup] = useState<"A" | "B" | "">("");
-	const [newTeamSeed, setNewTeamSeed] = useState<number | "">("");
 	const [newTeamCreateDiscord, setNewTeamCreateDiscord] = useState(false);
 	const [editTeamTarget, setEditTeamTarget] = useState<RosterTeam | null>(null);
 	const [editingTeam, setEditingTeam] = useState(false);
 	const [editTeamName, setEditTeamName] = useState("");
-	const [editTeamGroup, setEditTeamGroup] = useState<"A" | "B" | "">("");
-	const [editTeamSeed, setEditTeamSeed] = useState<number | "">("");
 	const [deleteTeamTarget, setDeleteTeamTarget] = useState<RosterTeam | null>(null);
 	const [deletingTeam, setDeletingTeam] = useState(false);
 	const [manualSubOpen, setManualSubOpen] = useState(false);
 	const [manualSubDiscordId, setManualSubDiscordId] = useState("");
 	const [manualSubDiscordUsername, setManualSubDiscordUsername] = useState("");
+	const [manualSubDisplayName, setManualSubDisplayName] = useState("");
 	const [manualSubRiotId, setManualSubRiotId] = useState("");
 	const [manualSubTeamKey, setManualSubTeamKey] = useState("");
+	const usesGroups = dayOneFormat === "groups";
 	const [savedRosterState, setSavedRosterState] = useState(() => serializeRosterState(initialState(snapshot)));
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
-	const createTeamDirty = Boolean(createOpen && (newTeamName.trim() || newTeamGroup || newTeamSeed !== "" || newTeamCreateDiscord));
-	const editTeamDirty = Boolean(
-		editTeamTarget && (editTeamName !== editTeamTarget.name || editTeamGroup !== (editTeamTarget.group ?? "") || editTeamSeed !== (editTeamTarget.seed ?? ""))
-	);
+	const createTeamDirty = Boolean(createOpen && (newTeamName.trim() || newTeamCreateDiscord));
+	const editTeamDirty = Boolean(editTeamTarget && editTeamName !== editTeamTarget.name);
 
 	// Auto-dismiss "ok" toasts so they don't sit stuck after the next router
 	// refresh. Errors stay until manually replaced.
@@ -294,14 +311,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			}
 			const largestTogether = Math.max(0, ...teamCounts.values());
 			const assigned = members.length - unassigned;
-			const status =
-				assigned === 0
-					? "open"
-					: teamCounts.size === 1 && unassigned === 0
-						? "together"
-						: largestTogether >= 2
-							? "partial"
-							: "split";
+			const status = assigned === 0 ? "open" : teamCounts.size === 1 && unassigned === 0 ? "together" : largestTogether >= 2 ? "partial" : "split";
 			return {
 				code,
 				total: members.length,
@@ -311,8 +321,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 				status,
 			};
 		});
-		const count = (status: (typeof rows)[number]["status"]) =>
-			rows.filter((row) => row.status === status).length;
+		const count = (status: (typeof rows)[number]["status"]) => rows.filter((row) => row.status === status).length;
 		const membersTogether = rows.reduce((total, row) => total + row.largestTogether, 0);
 		const totalMembers = rows.reduce((total, row) => total + row.total, 0);
 		return {
@@ -422,6 +431,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			setManualSubTeamKey(teamKey || snapshot.teams[0]?.key || "");
 			setManualSubDiscordId("");
 			setManualSubDiscordUsername("");
+			setManualSubDisplayName("");
 			setManualSubRiotId("");
 			setManualSubOpen(true);
 		},
@@ -441,6 +451,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	function addManualSubstitute() {
 		const discordId = manualSubDiscordId.trim();
 		const discordUsername = manualSubDiscordUsername.replace(/^@+/, "").trim();
+		const displayName = manualSubDisplayName.trim();
 		const riotId = manualSubRiotId.trim();
 		const teamKey = manualSubTeamKey;
 
@@ -456,6 +467,10 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 				tone: "error",
 				text: "Bitte den Discord-Benutzernamen eingeben.",
 			});
+			return;
+		}
+		if (!displayName) {
+			setMessage({ tone: "error", text: "Bitte den gewünschten Discord-Nickname eingeben." });
 			return;
 		}
 		if (!/^.+#[^#]+$/.test(riotId)) {
@@ -493,7 +508,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			discordId,
 			discordHandle: `@${discordUsername}`,
 			discordUsername,
-			displayName: discordUsername,
+			displayName,
 			riotId,
 			puuid: `manual-${discordId}`,
 			currentRank: null,
@@ -520,7 +535,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		setManualSubOpen(false);
 		setMessage({
 			tone: "ok",
-			text: `${discordUsername} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte das Roster speichern.`,
+			text: `${displayName} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte das Roster speichern.`,
 		});
 	}
 
@@ -561,18 +576,22 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			text:
 				`Auto-Balance hat ${result.assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt.` +
 				(splitCount > 0
-					? ` ${splitCount} Freundesgruppe(n) aufgeteilt` + (tooStrong > 0 ? ` (${tooStrong} zu stark)` : "") + (tooWeak > 0 ? ` (${tooWeak} zu schwach)` : "") + "."
-					: " Freundesgruppen wurden zusammengehalten.") +
+					? ` ${splitCount} Wunschduo(s) aufgeteilt` + (tooStrong > 0 ? ` (${tooStrong} zu stark)` : "") + (tooWeak > 0 ? ` (${tooWeak} zu schwach)` : "") + "."
+					: " Wunschduos wurden zusammengehalten.") +
+				(result.imputedApplicants > 0 ? ` ${result.imputedApplicants} Spieler ohne verwertbaren Rang wurden neutral mit dem Bewerber-Median bewertet.` : "") +
+				(result.highEloPreferredAssignments.length > 0
+					? ` Achtung: ${result.highEloPreferredAssignments.length} Master+-Spieler wurden auf einer Main- oder Wunschrolle eingeplant.`
+					: "") +
 				" Prüfen und speichern, wenn alles passt.",
 		});
 	}
 
 	const createTeam = useCallback(async (): Promise<boolean> => {
 		const name = newTeamName.trim();
-		if (!name || !newTeamGroup) {
+		if (!name) {
 			setMessage({
 				tone: "error",
-				text: "Teamname und Gruppe müssen ausgefüllt sein.",
+				text: "Bitte einen Teamnamen eingeben.",
 			});
 			return false;
 		}
@@ -583,8 +602,6 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				name,
-				group: newTeamGroup,
-				seed: newTeamSeed === "" ? undefined : newTeamSeed,
 				createDiscordSetup: newTeamCreateDiscord,
 			}),
 		});
@@ -604,10 +621,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		if (json?.key && json?.name) {
 			setSnapshot((current) => ({
 				...current,
-				teams: [
-					...current.teams,
-					teamFromMutationResponse(json as TeamMutationResponse),
-				],
+				teams: [...current.teams, teamFromMutationResponse(json as TeamMutationResponse)],
 			}));
 			setState((current) => ({
 				...current,
@@ -615,24 +629,21 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			}));
 		}
 		setNewTeamName("");
-		setNewTeamGroup("");
-		setNewTeamSeed("");
 		setNewTeamCreateDiscord(false);
 		setCreateOpen(false);
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
+		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
-			text: [`Team "${json.name}" erstellt.`, ...warnings].join(" "),
+			text: [`Team "${json.name}" erstellt.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund erstellt." : "", ...warnings].filter(Boolean).join(" "),
 		});
 		router.refresh();
 		return true;
-	}, [newTeamName, newTeamGroup, newTeamSeed, newTeamCreateDiscord, router, showConflict]);
+	}, [newTeamName, newTeamCreateDiscord, router, showConflict]);
 
 	const openEditTeam = useCallback((team: RosterTeam) => {
 		setEditTeamTarget(team);
 		setEditTeamName(team.name);
-		setEditTeamGroup(team.group ?? "");
-		setEditTeamSeed(team.seed ?? "");
 	}, []);
 
 	const handleEditTeam = useCallback(
@@ -646,10 +657,10 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	const updateTeam = useCallback(async (): Promise<boolean> => {
 		if (!editTeamTarget) return true;
 		const name = editTeamName.trim();
-		if (!name || !editTeamGroup) {
+		if (!name) {
 			setMessage({
 				tone: "error",
-				text: "Teamname und Gruppe müssen ausgefüllt sein.",
+				text: "Bitte einen Teamnamen eingeben.",
 			});
 			return false;
 		}
@@ -661,8 +672,6 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			body: JSON.stringify({
 				key: editTeamTarget.key,
 				name,
-				group: editTeamGroup,
-				seed: editTeamSeed === "" ? undefined : editTeamSeed,
 			}),
 		});
 		setEditingTeam(false);
@@ -689,10 +698,8 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								...team,
 								key: nextKey,
 								name: String(json.name),
-								group: json.group,
-								seed: json.seed ?? undefined,
 							}
-						: team,
+						: team
 				),
 			}));
 			if (nextKey !== oldKey) {
@@ -713,13 +720,14 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		}
 		setEditTeamTarget(null);
 		const updateWarnings = (json?.warnings as string[] | undefined) ?? [];
+		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: updateWarnings.length > 0 ? "error" : "ok",
-			text: [`Team "${json.name}" aktualisiert.`, ...updateWarnings].join(" "),
+			text: [`Team "${json.name}" aktualisiert.`, json?.discordJob ? "Discord-Ressourcen werden im Hintergrund umbenannt." : "", ...updateWarnings].filter(Boolean).join(" "),
 		});
 		router.refresh();
 		return true;
-	}, [editTeamTarget, editTeamName, editTeamGroup, editTeamSeed, router, showConflict]);
+	}, [editTeamTarget, editTeamName, router, showConflict]);
 
 	async function performDeleteTeam() {
 		if (!deleteTeamTarget) return;
@@ -759,9 +767,10 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 			teams: current.teams.filter((entry) => entry.key !== team.key),
 		}));
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
+		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
-			text: [`Team "${team.name}" gelöscht.`, ...warnings].join(" "),
+			text: [`Team "${team.name}" gelöscht.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund entfernt." : "", ...warnings].filter(Boolean).join(" "),
 		});
 		router.refresh();
 	}
@@ -842,86 +851,90 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 		router.refresh();
 	}
 
-	const save = useCallback(async (repairDiscordRoles = false): Promise<boolean> => {
-		const stateBeingSaved = currentRosterState;
-		setSaving(true);
-		setMessage(null);
-		const teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>> = {};
-		for (const team of snapshot.teams) {
-			teamPlayers[team.key] = [];
-		}
-		for (const [discordId, assignment] of state.assignments) {
-			if (!assignment.teamKey) continue;
-			teamPlayers[assignment.teamKey]?.push({
-				discordId,
-				role: assignment.role,
+	const save = useCallback(
+		async (repairDiscordRoles = false): Promise<boolean> => {
+			const stateBeingSaved = currentRosterState;
+			setSaving(true);
+			setMessage(null);
+			const teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>> = {};
+			for (const team of snapshot.teams) {
+				teamPlayers[team.key] = [];
+			}
+			for (const [discordId, assignment] of state.assignments) {
+				if (!assignment.teamKey) continue;
+				teamPlayers[assignment.teamKey]?.push({
+					discordId,
+					role: assignment.role,
+				});
+			}
+			const captains: Record<string, string | null> = {};
+			for (const [teamKey, captainId] of state.captains) {
+				captains[teamKey] = captainId;
+			}
+			const manualPlayers = Object.fromEntries(
+				[...state.manualPlayers.entries()].map(([discordId, player]) => [
+					discordId,
+					{
+						discordUsername: player.discordUsername ?? player.discordHandle,
+						displayName: player.displayName,
+						riotId: player.riotId,
+					},
+				])
+			);
+			const response = await fetch("/api/tournament/roster", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					teamPlayers,
+					captains,
+					manualPlayers,
+					repairDiscordRoles,
+				}),
 			});
-		}
-		const captains: Record<string, string | null> = {};
-		for (const [teamKey, captainId] of state.captains) {
-			captains[teamKey] = captainId;
-		}
-		const manualPlayers = Object.fromEntries(
-			[...state.manualPlayers.entries()].map(([discordId, player]) => [
-				discordId,
-				{
-					discordUsername: player.discordUsername ?? player.discordHandle,
-					riotId: player.riotId,
-				},
-			])
-		);
-		const response = await fetch("/api/tournament/roster", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				teamPlayers,
-				captains,
-				manualPlayers,
-				repairDiscordRoles,
-			}),
-		});
-		setSaving(false);
-		const json = await response.json().catch(() => null);
-		if (!response.ok) {
-			if (isAdminVersionConflict(response, json)) {
-				showConflict(json);
+			setSaving(false);
+			const json = await response.json().catch(() => null);
+			if (!response.ok) {
+				if (isAdminVersionConflict(response, json)) {
+					showConflict(json);
+					return false;
+				}
+				const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
+				setMessage({ tone: "error", text: errs.join(" · ") });
 				return false;
 			}
-			const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
-			setMessage({ tone: "error", text: errs.join(" · ") });
-			return false;
-		}
-		setSavedRosterState(stateBeingSaved);
-		const warnings = (json?.warnings as string[] | undefined) ?? [];
-		const discordJobId = typeof json?.discordJobId === "string" ? json.discordJobId : null;
-		if (discordJobId) {
-			setDiscordJob({
-				id: discordJobId,
-				title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
-				status: "queued",
-				total: 0,
-				completed: 0,
-				failed: 0,
-				warnings: [],
+			setSavedRosterState(stateBeingSaved);
+			const warnings = (json?.warnings as string[] | undefined) ?? [];
+			const discordJobId = typeof json?.discordJobId === "string" ? json.discordJobId : null;
+			if (discordJobId) {
+				setDiscordJob({
+					id: discordJobId,
+					title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
+					status: "queued",
+					total: 0,
+					completed: 0,
+					failed: 0,
+					warnings: [],
+				});
+			} else {
+				setDiscordJob(null);
+			}
+			setMessage({
+				tone: warnings.length > 0 ? "error" : "ok",
+				text:
+					`Roster gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s).` +
+					(warnings.length === 0
+						? discordJobId
+							? repairDiscordRoles
+								? " Discord-Rollen-Reparatur wurde in die Queue gelegt."
+								: " Discord-Rollen-Sync wurde in die Queue gelegt."
+							: " Keine Discord-Rollenänderungen nötig."
+						: "") +
+					(warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
 			});
-		} else {
-			setDiscordJob(null);
-		}
-		setMessage({
-			tone: warnings.length > 0 ? "error" : "ok",
-			text:
-				`Roster gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s).` +
-				(warnings.length === 0
-					? discordJobId
-						? repairDiscordRoles
-							? " Discord-Rollen-Reparatur wurde in die Queue gelegt."
-							: " Discord-Rollen-Sync wurde in die Queue gelegt."
-						: " Keine Discord-Rollenänderungen nötig."
-					: "") +
-				(warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
-		});
-		return true;
-	}, [currentRosterState, state, snapshot.teams, showConflict]);
+			return true;
+		},
+		[currentRosterState, state, snapshot.teams, showConflict]
+	);
 
 	useUnsavedChanges({
 		dirty: rosterDirty,
@@ -940,14 +953,21 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 	});
 
 	return (
-		<div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
-			<aside className="flex flex-col rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/20 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start">
-				<div className="flex items-baseline justify-between">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">Nicht zugewiesen</div>
-					<div className="text-xs font-bold text-emerald-100/52">{unassigned.length}</div>
+		<div className="grid gap-5 xl:grid-cols-[23rem_minmax(0,1fr)]">
+			<aside className="flex flex-col overflow-hidden rounded-[2rem] border border-cyan-200/12 bg-[#08150f]/92 shadow-2xl shadow-black/24 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
+				<div className="border-b border-white/8 bg-gradient-to-br from-cyan-300/[0.07] via-transparent to-lime-200/[0.04] p-5">
+					<div className="flex items-start justify-between gap-3">
+						<div>
+							<div className="text-[9px] font-black uppercase tracking-[0.25em] text-cyan-100/44">Spieler-Pool</div>
+							<h2 className="mt-1 text-xl font-black text-emerald-50">Nicht zugewiesen</h2>
+						</div>
+						<div className="grid size-10 place-items-center rounded-xl border border-cyan-200/16 bg-cyan-300/[0.08] font-mono text-sm font-black text-cyan-50">
+							{unassigned.length}
+						</div>
+					</div>
 				</div>
 				<div
-					className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-cyan-200/16 bg-cyan-300/[0.07] px-3 py-2.5"
+					className="mx-4 mt-4 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-white/8 bg-black/22 px-3 py-2.5"
 					title={`Interner Vergleichswert: ${applicantEloSummary.average?.toLocaleString("de-DE") ?? "keine Wertung"}`}
 				>
 					<div className="row-span-2 text-lg font-black text-cyan-50">{formatRankScore(applicantEloSummary.average)}</div>
@@ -956,7 +976,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						{applicantEloSummary.rated}/{applicantEloSummary.total} gewertet
 					</div>
 				</div>
-				<div className="mt-3 flex flex-wrap gap-1">
+				<div className="mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl border border-white/8 bg-black/20 p-1">
 					{SORT_OPTIONS.map((opt) => {
 						const active = sortMode === opt.value;
 						return (
@@ -965,7 +985,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								type="button"
 								onClick={() => setSortMode(opt.value)}
 								title={opt.title}
-								className={`rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition ${
+								className={`rounded-lg border px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] transition ${
 									active
 										? "border-lime-200/40 bg-lime-200/14 text-lime-50"
 										: "border-white/10 bg-black/24 text-emerald-100/60 hover:border-lime-200/24 hover:text-lime-100"
@@ -976,7 +996,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						);
 					})}
 				</div>
-				<div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
+				<div className="themed-scrollbar mx-2 mb-2 mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto px-2 pb-2">
 					{unassigned.length === 0 ? (
 						<div className="rounded-xl border border-white/8 bg-black/24 p-3 text-xs text-emerald-100/52">Alle verfügbaren Spieler sind zugewiesen.</div>
 					) : (
@@ -1035,124 +1055,153 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 				</div>
 			</aside>
 
-			<main className="grid gap-4">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">Teams · {snapshot.teams.length}</div>
-					<div className="flex flex-wrap items-center gap-2">
-						{message ? (
-							<div
-								className={`rounded-xl border px-3 py-1.5 text-xs ${
-									message.tone === "ok" ? "border-lime-200/30 bg-lime-200/10 text-lime-50" : "border-red-300/30 bg-red-500/10 text-red-100"
-								}`}
-							>
-								{message.text}
+			<main className="grid min-w-0 content-start gap-5">
+				<section className="overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/[0.04] shadow-xl shadow-black/20">
+					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+						<div>
+							<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">Roster-Steuerung</div>
+							<div className="mt-1 text-[10px] font-bold text-emerald-100/42">
+								{snapshot.teams.length} Teams · {allApplicants.length} Spieler verfügbar
 							</div>
-						) : null}
-						{discordJob ? (
-							<div
-								className={`rounded-xl border px-3 py-1.5 text-xs ${
-									discordJob.status === "failed"
-										? "border-red-300/30 bg-red-500/10 text-red-100"
-										: discordJob.status === "completed"
-											? "border-lime-200/30 bg-lime-200/10 text-lime-50"
-											: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
-								}`}
-							>
-								<span className="font-black">{discordJob.title}</span>
-								<span className="ml-2 tabular-nums">
-									{discordJob.completed}/{discordJob.total || "?"}
-								</span>
-								{discordJob.current ? <span className="ml-2 text-white/60">{discordJob.current}</span> : null}
-								{discordJob.failed > 0 ? <span className="ml-2 text-red-100">{discordJob.failed} Fehler</span> : null}
-							</div>
-						) : null}
-						<button
-							type="button"
-							onClick={() => setCreateOpen(true)}
-							disabled={creating || autoRunning}
-							title="Neues Team direkt im Bot anlegen (alternativ zum /createteam-Slash-Command)"
-							className="rounded-xl border border-white/14 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100 disabled:opacity-50"
-						>
-							+ Team anlegen
-						</button>
-						<button
-							type="button"
-							onClick={() => openManualSubstituteDialog()}
-							disabled={saving || autoRunning || snapshot.teams.length === 0}
-							title="Einen Ersatzspieler ohne Website-Bewerbung manuell eintragen"
-							className="rounded-xl border border-amber-200/24 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 transition hover:border-amber-200/44 hover:text-amber-50 disabled:opacity-50"
-						>
-							+ Manueller Ersatzspieler
-						</button>
-						<div className="flex items-center gap-2 rounded-xl border border-lime-200/20 bg-lime-200/[0.06] px-3 py-2">
-							<label
-								htmlFor="split-threshold"
-								className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
-								title="Maximale gewünschte Team-Abweichung. Wunschduos werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
-							>
-								Fairness-Schwelle
-							</label>
-							<input
-								id="split-threshold"
-								type="range"
-								min={10}
-								max={35}
-								step={5}
-								value={splitThreshold}
-								onChange={(event) => setSplitThreshold(Number(event.target.value))}
-								disabled={autoRunning}
-								className="h-1 w-16 cursor-pointer accent-lime-300"
-							/>
-							<span suppressHydrationWarning className="min-w-[2.5rem] text-center text-[10px] font-black tabular-nums text-lime-200">
-								{splitThreshold}%
-							</span>
 						</div>
-						<button
-							type="button"
-							onClick={() => setAutoConfirm(true)}
-							disabled={autoRunning || saving}
-							className="rounded-xl border border-lime-200/30 bg-lime-200/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-lime-50 transition hover:border-lime-200/60 disabled:opacity-50"
-						>
-							{autoRunning ? "Auto-Balance läuft…" : "⚡ Auto-Balance"}
-						</button>
+						<div className="flex flex-wrap items-center justify-end gap-2">
+							{message ? (
+								<div
+									className={`rounded-xl border px-3 py-1.5 text-xs ${
+										message.tone === "ok" ? "border-lime-200/30 bg-lime-200/10 text-lime-50" : "border-red-300/30 bg-red-500/10 text-red-100"
+									}`}
+								>
+									{message.text}
+								</div>
+							) : null}
+							{discordJob ? (
+								<div
+									className={`rounded-xl border px-3 py-1.5 text-xs ${
+										discordJob.status === "failed"
+											? "border-red-300/30 bg-red-500/10 text-red-100"
+											: discordJob.status === "completed"
+												? "border-lime-200/30 bg-lime-200/10 text-lime-50"
+												: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
+									}`}
+								>
+									<span className="font-black">{discordJob.title}</span>
+									<span className="ml-2 tabular-nums">
+										{discordJob.completed}/{discordJob.total || "?"}
+									</span>
+									{discordJob.current ? <span className="ml-2 text-white/60">{discordJob.current}</span> : null}
+									{discordJob.failed > 0 ? <span className="ml-2 text-red-100">{discordJob.failed} Fehler</span> : null}
+								</div>
+							) : null}
+						</div>
+					</div>
+
+					<div className="grid gap-3 p-4 xl:grid-cols-[0.9fr_1.25fr_auto]">
+						<div className="rounded-2xl border border-white/8 bg-black/16 p-3">
+							<div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/42">Teams verwalten</div>
+							<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+								<button
+									type="button"
+									onClick={() => setCreateOpen(true)}
+									disabled={creating || autoRunning}
+									title="Neues Team direkt im Bot anlegen"
+									className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-cyan-200/28 hover:bg-cyan-300/[0.06] hover:text-cyan-50 disabled:opacity-45"
+								>
+									+ Team anlegen
+								</button>
+								<button
+									type="button"
+									onClick={() => openManualSubstituteDialog()}
+									disabled={saving || autoRunning || snapshot.teams.length === 0}
+									title="Einen Ersatzspieler ohne Website-Bewerbung manuell eintragen"
+									className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-amber-200/30 hover:bg-amber-200/[0.06] hover:text-amber-50 disabled:opacity-45"
+								>
+									+ Ersatzspieler
+								</button>
+							</div>
+						</div>
+
+						<div className="rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.035] p-3">
+							<div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/48">Teams ausgleichen</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<div className="flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+									<label
+										htmlFor="split-threshold"
+										className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
+										title="Maximale gewünschte Team-Abweichung. Wunschduos werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
+									>
+										Fairness-Schwelle
+									</label>
+									<input
+										id="split-threshold"
+										type="range"
+										min={10}
+										max={35}
+										step={5}
+										value={splitThreshold}
+										onChange={(event) => setSplitThreshold(Number(event.target.value))}
+										disabled={autoRunning}
+										className="h-1 w-16 cursor-pointer accent-lime-300"
+									/>
+									<span suppressHydrationWarning className="min-w-[2.5rem] text-center text-[10px] font-black tabular-nums text-lime-200">
+										{splitThreshold}%
+									</span>
+								</div>
+								<button
+									type="button"
+									onClick={() => setAutoConfirm(true)}
+									disabled={autoRunning || saving}
+									className="min-h-10 rounded-xl border border-cyan-200/24 bg-cyan-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50 transition hover:border-cyan-200/45 hover:bg-cyan-300/15 disabled:opacity-45"
+								>
+									{autoRunning ? "Auto-Balance läuft…" : "⚡ Auto-Balance"}
+								</button>
+							</div>
+						</div>
+
 						<button
 							type="button"
 							onClick={() => void save()}
 							disabled={saving || autoRunning}
-							className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:opacity-60"
+							className="min-h-[5.5rem] rounded-2xl bg-gradient-to-br from-lime-200 via-emerald-200 to-cyan-200 px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 hover:shadow-lime-300/30 disabled:translate-y-0 disabled:opacity-50"
 						>
 							{saving ? "Speichern…" : "Roster speichern"}
 						</button>
-						<button
-							type="button"
-							onClick={() => void save(true)}
-							disabled={saving || autoRunning}
-							title="Repariert fehlende Turnier-, Team- und Captain-Rollen für das aktuelle Roster. Nur benutzen, wenn Discord-Rollen fehlen."
-							className="rounded-2xl border border-cyan-200/24 bg-cyan-300/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:border-cyan-200/44 hover:text-cyan-50 disabled:opacity-60"
-						>
-							Discord-Rollen reparieren
-						</button>
-						<div className="h-5 w-px bg-white/10" />
-						<button
-							type="button"
-							onClick={seedTestData}
-							disabled={seeding || autoRunning}
-							title="40 Dummy-Bewerber + Dummy-Teams einfügen, sodass insgesamt 8 Teams existieren (echte Teams bleiben unangetastet)"
-							className="rounded-xl border border-white/14 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100 disabled:opacity-50"
-						>
-							{seeding ? "Wird angelegt…" : "+ Test-Daten"}
-						</button>
-						<button
-							type="button"
-							onClick={clearTestData}
-							disabled={clearing || autoRunning}
-							title="Alle mit isTestData:true markierten Bewerber + Teams löschen (echte Einträge bleiben)"
-							className="rounded-xl border border-white/14 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-rose-200/30 hover:text-rose-200 disabled:opacity-50"
-						>
-							{clearing ? "Wird gelöscht…" : "Test-Daten löschen"}
-						</button>
 					</div>
-				</div>
+
+					<details className="border-t border-white/8 bg-black/10 px-4 py-3">
+						<summary className="cursor-pointer select-none text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/48 transition hover:text-emerald-50">
+							Wartung & Testwerkzeuge
+						</summary>
+						<div className="mt-3 flex flex-wrap gap-2">
+							<button
+								type="button"
+								onClick={() => void save(true)}
+								disabled={saving || autoRunning}
+								title="Repariert fehlende Turnier-, Team- und Captain-Rollen für das aktuelle Roster. Nur benutzen, wenn Discord-Rollen fehlen."
+								className="rounded-xl border border-amber-200/22 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100 transition hover:border-amber-200/42 hover:text-amber-50 disabled:opacity-45"
+							>
+								Discord-Rollen reparieren
+							</button>
+							<button
+								type="button"
+								onClick={seedTestData}
+								disabled={seeding || autoRunning}
+								title="40 Dummy-Bewerber + Dummy-Teams einfügen, sodass insgesamt 8 Teams existieren (echte Teams bleiben unangetastet)"
+								className="rounded-xl border border-white/12 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-white/24 hover:text-emerald-50 disabled:opacity-45"
+							>
+								{seeding ? "Wird angelegt…" : "+ Test-Daten"}
+							</button>
+							<button
+								type="button"
+								onClick={clearTestData}
+								disabled={clearing || autoRunning}
+								title="Alle mit isTestData:true markierten Bewerber + Teams löschen (echte Einträge bleiben)"
+								className="rounded-xl border border-red-300/20 bg-red-500/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-100/78 transition hover:border-red-300/40 hover:bg-red-500/10 hover:text-red-50 disabled:opacity-45"
+							>
+								{clearing ? "Wird gelöscht…" : "Test-Daten löschen"}
+							</button>
+						</div>
+					</details>
+				</section>
 
 				{balanceResult && balanceResult.teamStrengths.length > 0 ? (
 					<section className="rounded-[1.8rem] border border-emerald-200/14 bg-emerald-300/[0.035] p-4 shadow-xl shadow-black/16">
@@ -1184,6 +1233,35 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								);
 							})()}
 						</div>
+						{balanceResult.imputedApplicants > 0 ? (
+							<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.07] px-3 py-2 text-[11px] font-bold leading-5 text-amber-50/76">
+								{balanceResult.imputedApplicants} Spieler ohne verwertbaren Solo/Duo-Rang wurden für die Balance mit dem Median aller gewerteten Bewerber berechnet.
+								Diese Spieler bitte manuell prüfen.
+							</div>
+						) : null}
+						{balanceResult.highEloPreferredAssignments.length > 0 ? (
+							<div className="mt-3 rounded-2xl border border-orange-300/28 bg-gradient-to-r from-orange-400/[0.11] to-red-400/[0.06] p-4 shadow-lg shadow-orange-950/20">
+								<div className="flex items-center gap-2">
+									<span className="grid size-7 place-items-center rounded-lg bg-orange-200 text-sm font-black text-orange-950">!</span>
+									<div>
+										<div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-100">Master+ auf Komfortrolle</div>
+										<div className="mt-0.5 text-[11px] font-bold text-orange-50/62">
+											Kann trotz rechnerisch ähnlicher Elo einen überproportionalen Einfluss auf Matches haben.
+										</div>
+									</div>
+								</div>
+								<div className="mt-3 grid gap-2 sm:grid-cols-2">
+									{balanceResult.highEloPreferredAssignments.map((entry) => (
+										<div key={entry.discordId} className="rounded-xl border border-orange-200/16 bg-black/20 px-3 py-2">
+											<div className="font-black text-orange-50">{entry.displayName}</div>
+											<div className="mt-0.5 text-[10px] font-bold text-orange-100/58">
+												{teamByKey.get(entry.teamKey)?.name ?? entry.teamKey} · {entry.role} · {entry.rank}
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						) : null}
 						<div
 							className="mt-3 grid gap-2"
 							style={{
@@ -1215,7 +1293,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						</div>
 						{balanceResult.splitGroups.length > 0 ? (
 							<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.06] p-3">
-								<div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Aufgeteilte Gruppen</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Aufgeteilte Wunschduos</div>
 								<div className="mt-2 space-y-1.5">
 									{balanceResult.splitGroups.map((group) => (
 										<div key={group.code} className="text-[11px] leading-4 text-amber-50/72">
@@ -1263,35 +1341,15 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								<p className="mt-1 text-xs leading-5 text-emerald-100/48">Gemeinsame Einteilung ist ein Wunsch und keine Garantie.</p>
 							</div>
 							<span className="rounded-full border border-cyan-200/16 bg-cyan-300/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50/66">
-								{preferenceGroups.length} Gruppen
+								{preferenceGroups.length} Wunschduos
 							</span>
 						</div>
 						<div className="mt-4 grid gap-2 md:grid-cols-5">
-							<GroupSummaryTile
-								label="Komplett zusammen"
-								value={preferenceGroupSummary.together}
-								tone="ok"
-							/>
-							<GroupSummaryTile
-								label="Teilweise zusammen"
-								value={preferenceGroupSummary.partial}
-								tone="warn"
-							/>
-							<GroupSummaryTile
-								label="Getrennt"
-								value={preferenceGroupSummary.split}
-								tone="danger"
-							/>
-							<GroupSummaryTile
-								label="Noch offen"
-								value={preferenceGroupSummary.open}
-								tone="neutral"
-							/>
-							<GroupSummaryTile
-								label="Mit Wunschduo"
-								value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`}
-								tone="info"
-							/>
+							<GroupSummaryTile label="Komplett zusammen" value={preferenceGroupSummary.together} tone="ok" />
+							<GroupSummaryTile label="Teilweise zusammen" value={preferenceGroupSummary.partial} tone="warn" />
+							<GroupSummaryTile label="Getrennt" value={preferenceGroupSummary.split} tone="danger" />
+							<GroupSummaryTile label="Noch offen" value={preferenceGroupSummary.open} tone="neutral" />
+							<GroupSummaryTile label="Mit Wunschduo" value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`} tone="info" />
 						</div>
 						<div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
 							{preferenceGroups.map(({ code, members }) => {
@@ -1331,15 +1389,17 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						</div>
 					</section>
 				) : null}
-
-				{snapshot.teams.length === 0 ? (
-					<div className="rounded-[1.8rem] border border-amber-200/24 bg-amber-200/[0.08] p-6 text-sm leading-7 text-amber-50">
-						Noch keine Teams im Bot. Lege oben über <strong className="font-black">„+ Team anlegen“</strong> dein erstes Team an oder erstelle sie via{" "}
-						<code className="rounded bg-black/40 px-1.5 py-0.5">/createteam</code> in Discord.
-					</div>
+				{usesGroups && snapshot.teams.length > 0 ? (
+					<GroupAssignmentBoard key={`${groupCount}-${plannedTeamCount}`} teams={snapshot.teams} groupCount={groupCount} plannedTeamCount={plannedTeamCount} />
 				) : null}
 
-				<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+				{snapshot.teams.length > 0 ? (
+					<div className="flex items-center gap-3 pt-1">
+						<div className="text-[10px] font-black uppercase tracking-[0.24em] text-lime-200/52">Team-Workbench</div>
+						<div className="h-px flex-1 bg-gradient-to-r from-lime-200/16 to-transparent" />
+					</div>
+				) : null}
+				<div className="grid gap-4 lg:grid-cols-2">
 					{snapshot.teams.map((team) => (
 						<TeamCard
 							key={team.key}
@@ -1387,17 +1447,12 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						<div className="mt-5 grid gap-3">
 							<label className="grid gap-1.5">
 								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Team</span>
-								<select
+								<ThemedSelect
 									value={manualSubTeamKey}
-									onChange={(event) => setManualSubTeamKey(event.target.value)}
-									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm font-bold text-emerald-50 outline-none focus:border-lime-200/40"
-								>
-									{snapshot.teams.map((team) => (
-										<option key={team.key} value={team.key} className="bg-emerald-950">
-											{team.name}
-										</option>
-									))}
-								</select>
+									onChange={setManualSubTeamKey}
+									ariaLabel="Team für den Ersatzspieler"
+									options={snapshot.teams.map((team) => ({ value: team.key, label: team.name }))}
+								/>
 							</label>
 							<div className="grid gap-3 sm:grid-cols-2">
 								<label className="grid gap-1.5">
@@ -1420,6 +1475,19 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 									/>
 								</label>
 							</div>
+							<label className="grid gap-1.5">
+								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Gewünschter Discord-Nickname</span>
+								<input
+									value={manualSubDisplayName}
+									onChange={(event) => setManualSubDisplayName(event.target.value)}
+									maxLength={32}
+									placeholder="So soll die Person heißen"
+									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+								/>
+								<span className="text-[10px] leading-4 text-emerald-100/36">
+									Wird für „Nickname | Riot-ID“ verwendet und muss nicht dem Discord- oder Riot-Namen entsprechen.
+								</span>
+							</label>
 							<label className="grid gap-1.5">
 								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Riot-ID</span>
 								<input
@@ -1472,8 +1540,8 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 				title="Roster automatisch ausbalancieren?"
 				description={
 					<>
-						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Freundesgruppen werden zusammengehalten, sofern der durchschnittliche Skill der Gruppe nicht
-						zu stark vom Gesamtdurchschnitt abweicht. Wunschrollen werden berücksichtigt, sofern der Slot frei ist.{" "}
+						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Wunschduos werden zusammengehalten, sofern ihr gemeinsamer Skill nicht zu stark vom
+						Gesamtdurchschnitt abweicht. Wunschrollen werden berücksichtigt, sofern der Slot frei ist.{" "}
 						<strong className="text-emerald-50">Captains werden zurückgesetzt.</strong> Du kannst danach manuell anpassen, bevor du speicherst.
 					</>
 				}
@@ -1505,33 +1573,9 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 								/>
 							</label>
 
-							<div className="grid grid-cols-2 gap-3">
-								<label className="grid gap-1">
-									<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Gruppe</span>
-									<select
-										value={newTeamGroup}
-										onChange={(e) => setNewTeamGroup(e.target.value as "A" | "B" | "")}
-										className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-									>
-										<option value="">—</option>
-										<option value="A">Gruppe A</option>
-										<option value="B">Gruppe B</option>
-									</select>
-								</label>
-								<label className="grid gap-1">
-									<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Seed (optional)</span>
-									<select
-										value={newTeamSeed}
-										onChange={(e) => setNewTeamSeed(e.target.value === "" ? "" : Number(e.target.value))}
-										className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-									>
-										<option value="">—</option>
-										<option value="1">Seed 1</option>
-										<option value="2">Seed 2</option>
-										<option value="3">Seed 3</option>
-										<option value="4">Seed 4</option>
-									</select>
-								</label>
+							<div className="rounded-xl border border-cyan-200/14 bg-cyan-300/[0.045] px-3 py-3 text-xs leading-5 text-cyan-50/64">
+								Teams werden immer neutral angelegt. Falls eine Gruppenphase gewählt ist, erfolgt die Einteilung anschließend gesammelt im Gruppenplaner des
+								Roster-Builders.
 							</div>
 							<label className="flex gap-3 rounded-xl border border-white/10 bg-black/18 px-3 py-3 text-xs leading-5 text-emerald-100/70">
 								<input
@@ -1555,7 +1599,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 							<button
 								type="button"
 								onClick={createTeam}
-								disabled={creating || !newTeamName.trim() || !newTeamGroup}
+								disabled={creating || !newTeamName.trim()}
 								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
 							>
 								{creating ? "Wird erstellt…" : "Team erstellen"}
@@ -1572,8 +1616,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Team bearbeiten</div>
 						<h2 className="mt-2 text-lg font-black text-emerald-50">{editTeamTarget.name}</h2>
 						<p className="mt-1 text-xs text-emerald-100/52">
-							Name, Gruppe und Seed werden direkt in bot_state.teams aktualisiert. Falls Rolle oder Voice-Channel existieren, versucht die Website sie ebenfalls
-							umzubenennen.
+							Ändert den Teamnamen sowie die zugehörigen Discord-Ressourcen. Gruppe und Seed werden zentral im Gruppenplaner verwaltet.
 						</p>
 
 						<div className="mt-4 grid gap-3">
@@ -1585,35 +1628,6 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 									className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
 								/>
 							</label>
-
-							<div className="grid grid-cols-2 gap-3">
-								<label className="grid gap-1">
-									<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Gruppe</span>
-									<select
-										value={editTeamGroup}
-										onChange={(e) => setEditTeamGroup(e.target.value as "A" | "B" | "")}
-										className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-									>
-										<option value="">-</option>
-										<option value="A">Gruppe A</option>
-										<option value="B">Gruppe B</option>
-									</select>
-								</label>
-								<label className="grid gap-1">
-									<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Seed (optional)</span>
-									<select
-										value={editTeamSeed}
-										onChange={(e) => setEditTeamSeed(e.target.value === "" ? "" : Number(e.target.value))}
-										className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-									>
-										<option value="">-</option>
-										<option value="1">Seed 1</option>
-										<option value="2">Seed 2</option>
-										<option value="3">Seed 3</option>
-										<option value="4">Seed 4</option>
-									</select>
-								</label>
-							</div>
 						</div>
 
 						<div className="mt-5 flex justify-end gap-2">
@@ -1627,7 +1641,7 @@ export function RosterBuilder({ snapshot: initialSnapshot }: { snapshot: RosterS
 							<button
 								type="button"
 								onClick={updateTeam}
-								disabled={editingTeam || !editTeamName.trim() || !editTeamGroup}
+								disabled={editingTeam || !editTeamName.trim()}
 								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
 							>
 								{editingTeam ? "Speichert…" : "Team speichern"}
@@ -1832,11 +1846,16 @@ const PlayerRow = memo(function PlayerRow({
 }) {
 	const discordUsername = applicant?.discordUsername?.replace(/^@+/, "").trim();
 	const playerLabel = discordUsername ? `@${discordUsername}` : applicant?.discordHandle?.trim() || applicant?.displayName?.trim() || discordId;
+	const masterPlusOnRequestedRole = Boolean(applicant && isMasterPlusOnRequestedRole(applicant, role));
 
 	return (
 		<div
 			className={`grid gap-2.5 rounded-xl border px-3 py-2.5 ${
-				isCaptain ? "border-lime-200/40 bg-lime-200/10" : "border-white/10 bg-black/24"
+				masterPlusOnRequestedRole
+					? "border-orange-300/38 bg-orange-300/[0.09] shadow-lg shadow-orange-950/15"
+					: isCaptain
+						? "border-lime-200/40 bg-lime-200/10"
+						: "border-white/10 bg-black/24"
 			} ${pulsing ? "roster-row-pulse" : ""}`}
 		>
 			<div className="min-w-0">
@@ -1847,6 +1866,14 @@ const PlayerRow = memo(function PlayerRow({
 					{isCaptain ? (
 						<span className="shrink-0 rounded-full border border-lime-200/28 bg-lime-200/12 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-lime-50">
 							Captain
+						</span>
+					) : null}
+					{masterPlusOnRequestedRole ? (
+						<span
+							className="shrink-0 rounded-full border border-orange-200/30 bg-orange-200/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.11em] text-orange-50"
+							title="Master+ auf Main- oder Wunschrolle: manuell auf Teamfairness prüfen"
+						>
+							Master+ Komfort
 						</span>
 					) : null}
 					{applicant?.verified === false ? (
@@ -1872,17 +1899,14 @@ const PlayerRow = memo(function PlayerRow({
 			<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
 				<label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
 					<span className="text-[9px] font-black uppercase tracking-[0.16em] text-lime-200/52">Rolle</span>
-					<select
+					<ThemedSelect
 						value={role}
-						onChange={(event) => onSetRole(discordId, event.target.value as PlayerRole)}
-						className="min-w-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100 outline-none transition focus:border-lime-200/40"
-					>
-						{ALL_ROLES.map((r) => (
-							<option key={r} value={r}>
-								{r}
-							</option>
-						))}
-					</select>
+						onChange={(value) => onSetRole(discordId, value as PlayerRole)}
+						ariaLabel={`Rolle von ${applicant?.displayName ?? discordId}`}
+						compact
+						className="font-black uppercase tracking-[0.12em] text-lime-100"
+						options={ALL_ROLES.map((entry) => ({ value: entry, label: entry }))}
+					/>
 				</label>
 
 				<div className="flex shrink-0 items-center gap-1">
@@ -1928,6 +1952,15 @@ const PlayerRow = memo(function PlayerRow({
 		</div>
 	);
 });
+
+function isMasterPlusOnRequestedRole(applicant: RosterApplicant, role: PlayerRole) {
+	if (!ROLES.includes(role)) return false;
+	const rank = applicant.manualRankOverride || applicant.currentRank;
+	if (!rank || parseRank(rank) < 2800) return false;
+	const mainRole = applicant.mainRole ? normalizeRoleName(applicant.mainRole) : null;
+	const preferredRoles = applicant.preferredRoles.map(normalizeRoleName);
+	return mainRole === role || preferredRoles.includes(role);
+}
 
 const RANK_TIERS = ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Master", "Grandmaster", "Challenger"] as const;
 const RANK_DIVISIONS = ["IV", "III", "II", "I"] as const;
@@ -1991,10 +2024,9 @@ function ApplicantCard({
 				{applicant.preferenceGroupCode ? <PreferenceGroupBadge code={applicant.preferenceGroupCode} /> : null}
 				{isEditing ? (
 					<div className="flex items-center gap-1">
-						<select
+						<ThemedSelect
 							value={editingTier}
-							onChange={(e) => {
-								const val = e.target.value;
+							onChange={(val) => {
 								if (val === "__reset__") {
 									onSaveRank(null);
 									return;
@@ -2006,47 +2038,40 @@ function ApplicantCard({
 									onLpChange("");
 								}
 							}}
-							autoFocus
-							className="rounded-lg border border-lime-200/40 bg-black/40 px-1.5 py-0.5 text-[10px] font-bold text-lime-100 outline-none"
-						>
-							<option value="__reset__">Auto (Riot)</option>
-							<option value="">Unranked</option>
-							{RANK_TIERS.map((tier) => (
-								<option key={tier} value={tier}>
-									{tier}
-								</option>
-							))}
-						</select>
+							ariaLabel={`Rang-Tier von ${applicant.displayName}`}
+							compact
+							className="font-bold text-lime-100"
+							options={[{ value: "__reset__", label: "Auto (Riot)" }, { value: "", label: "Unranked" }, ...RANK_TIERS.map((tier) => ({ value: tier, label: tier }))]}
+						/>
 						{editingTier && !APEX_TIERS.has(editingTier) ? (
-							<select
+							<ThemedSelect
 								value={editingDivision}
-								onChange={(e) => {
-									onDivisionChange(e.target.value);
-									onSaveRank(formatRankString(editingTier, e.target.value));
+								onChange={(value) => {
+									onDivisionChange(value);
+									onSaveRank(formatRankString(editingTier, value));
 								}}
-								className="rounded-lg border border-lime-200/40 bg-black/40 px-1.5 py-0.5 text-[10px] font-bold text-lime-100 outline-none"
-							>
-								{RANK_DIVISIONS.map((div) => (
-									<option key={div} value={div}>
-										{div}
-									</option>
-								))}
-							</select>
+								ariaLabel={`Rang-Division von ${applicant.displayName}`}
+								compact
+								className="font-bold text-lime-100"
+								options={RANK_DIVISIONS.map((division) => ({ value: division, label: division }))}
+							/>
 						) : null}
 						{editingTier && APEX_TIERS.has(editingTier) ? (
 							<>
-								<input
-									type="number"
+								<ThemedNumberInput
 									min={0}
 									max={999}
 									value={editingLp}
-									onChange={(e) => onLpChange(e.target.value)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter") onSaveRank(formatRankString(editingTier, undefined, Number(e.currentTarget.value) || undefined));
-										if (e.key === "Escape") onSaveRank(formatRankString(editingTier, undefined, Number(e.currentTarget.value) || undefined));
+									onChange={onLpChange}
+									onKeyDown={(event) => {
+										if (event.key === "Enter" || event.key === "Escape") {
+											onSaveRank(formatRankString(editingTier, undefined, Number(event.currentTarget.value) || undefined));
+										}
 									}}
 									placeholder="LP"
-									className="w-16 rounded-lg border border-lime-200/40 bg-black/40 px-1.5 py-0.5 text-[10px] font-bold text-lime-100 outline-none"
+									ariaLabel={`LP von ${applicant.displayName}`}
+									compact
+									className="w-28"
 								/>
 								<button
 									type="button"
@@ -2164,15 +2189,7 @@ function ApplicationDetailRow({ label, value }: { label: string; value: string }
 	);
 }
 
-function GroupSummaryTile({
-	label,
-	value,
-	tone,
-}: {
-	label: string;
-	value: number | string;
-	tone: "ok" | "warn" | "danger" | "neutral" | "info";
-}) {
+function GroupSummaryTile({ label, value, tone }: { label: string; value: number | string; tone: "ok" | "warn" | "danger" | "neutral" | "info" }) {
 	const tones = {
 		ok: "border-lime-200/22 bg-lime-300/[0.08] text-lime-50",
 		warn: "border-amber-200/22 bg-amber-300/[0.08] text-amber-50",
@@ -2184,9 +2201,7 @@ function GroupSummaryTile({
 	return (
 		<div className={`rounded-xl border px-3 py-2 ${tones[tone]}`}>
 			<div className="text-lg font-black tabular-nums">{value}</div>
-			<div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em] opacity-60">
-				{label}
-			</div>
+			<div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em] opacity-60">{label}</div>
 		</div>
 	);
 }

@@ -4,7 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
 	title: "Lauchgruen",
 	description: "Streams, Community-Events und Turniere auf lauchgruen.de",
-	icons: { icon: "/bear-logo.png", apple: "/bear-logo.png" },
+	icons: {
+		icon: [{ url: "/bear-logo.png", type: "image/png" }],
+		shortcut: "/bear-logo.png",
+		apple: "/bear-logo.png",
+	},
 };
 
 export default function RootLayout({

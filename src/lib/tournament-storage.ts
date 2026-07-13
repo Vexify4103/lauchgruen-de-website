@@ -2,7 +2,7 @@ import { playoffMatches, type GroupMatch } from "@/lib/tournament-data";
 import { getDb } from "@/lib/mongo";
 import { randomBytes } from "node:crypto";
 
-export const TOURNAMENT_OWNER_DISCORD_IDS = new Set(["337568120028004362", "411520867978313730", "311497927870775297"]);
+export const TOURNAMENT_OWNER_DISCORD_IDS = new Set(["337568120028004362", "411520867978313730", "311497927870775297", "438691351513530379"]);
 
 export type TournamentApplication = {
 	id: string;
@@ -11,6 +11,7 @@ export type TournamentApplication = {
 	riotPuuid: string;
 	riotVerifiedAt: string;
 	currentRankAuto: string | null;
+	summonerLevel?: number;
 	manualRankOverride?: string | null;
 	discordId: string;
 	discordHandle: string;
@@ -32,6 +33,7 @@ export type VerifiedRiotAccount = {
 	tagLine: string;
 	puuid: string;
 	currentRankAuto: string | null;
+	summonerLevel?: number;
 	verifiedAt: string;
 };
 
@@ -376,7 +378,7 @@ export async function adminMovePreferenceGroupMember(discordId: string, rawTarge
 		{
 			_id: targetCode,
 			memberDiscordIds: { $ne: discordId },
-			"memberDiscordIds.4": { $exists: false },
+			"memberDiscordIds.1": { $exists: false },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },
@@ -429,7 +431,7 @@ export async function joinPreferenceGroup(discordId: string, rawCode: string): P
 		{
 			_id: code,
 			memberDiscordIds: { $ne: discordId },
-			"memberDiscordIds.4": { $exists: false },
+			"memberDiscordIds.1": { $exists: false },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },
@@ -604,10 +606,16 @@ export async function updateVerifiedAccountSnapshot(
 		gameName: string;
 		tagLine: string;
 		currentRankAuto: string | null;
+		summonerLevel?: number;
 	}
 ): Promise<void> {
 	const col = await verifiedCollection();
 	await col.updateOne({ _id: discordId }, { $set: patch });
+}
+
+export async function updateVerifiedSummonerLevel(discordId: string, summonerLevel: number): Promise<void> {
+	const col = await verifiedCollection();
+	await col.updateOne({ _id: discordId }, { $set: { summonerLevel } });
 }
 
 export async function getVerifiedAccount(discordId: string): Promise<VerifiedRiotAccount | null> {

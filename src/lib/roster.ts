@@ -22,12 +22,13 @@ type BotStoredPlayer = {
 	puuid: string;
 	discordId?: string;
 	discordUsername?: string;
+	displayName?: string;
 	role?: PlayerRole;
 	verificationStatus?: "verified" | "manual";
 };
 
 type BotTeamMeta = {
-	group?: "A" | "B";
+	group?: string;
 	seed?: number;
 	accent?: string;
 	captain?: {
@@ -80,7 +81,7 @@ export type RosterTeam = {
 	/** lowercased team-name key (Mongo map key in bot_state.teams) */
 	key: string;
 	name: string;
-	group?: "A" | "B";
+	group?: string;
 	seed?: number;
 	/** Captain discordId, if assigned via /setteammeta. */
 	captainDiscordId: string | null;
@@ -163,11 +164,12 @@ function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): 
 function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
 	const now = new Date().toISOString();
 	const discordUsername = player.discordUsername?.replace(/^@+/, "").trim();
+	const displayName = player.displayName?.trim() || discordUsername || player.riotId.split("#")[0] || "Ersatzspieler";
 	return {
 		discordId: player.discordId ?? "",
 		discordHandle: discordUsername ? `@${discordUsername}` : (player.discordId ?? ""),
 		discordUsername,
-		displayName: discordUsername || player.riotId.split("#")[0] || "Ersatzspieler",
+		displayName,
 		riotId: player.riotId,
 		puuid: player.puuid,
 		currentRank: null,
@@ -204,6 +206,7 @@ export type RosterSavePayload = {
 		string,
 		{
 			discordUsername: string;
+			displayName: string;
 			riotId: string;
 		}
 	>;
@@ -273,6 +276,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 			{
 				discordId,
 				discordUsername: player.discordUsername.replace(/^@+/, "").trim(),
+				displayName: player.displayName.trim(),
 				riotId: player.riotId.trim(),
 				puuid: `manual-${discordId}`,
 			},
@@ -308,6 +312,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 				...(manual && !verified
 					? {
 							discordUsername: manual.discordUsername,
+							displayName: manual.displayName,
 							verificationStatus: "manual" as const,
 						}
 					: { verificationStatus: "verified" as const }),
@@ -385,11 +390,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	return { applied, teamsUpdated, errors: [], warnings, discordJobId: discordJob?.id };
 }
 
-function planDiscordTournamentRole(
-	previousPlayerIds: Set<string>,
-	nextPlayerIds: Set<string>,
-	repairExisting: boolean
-): { operations: DiscordOperation[]; warnings: string[] } {
+function planDiscordTournamentRole(previousPlayerIds: Set<string>, nextPlayerIds: Set<string>, repairExisting: boolean): { operations: DiscordOperation[]; warnings: string[] } {
 	const roleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	if (!roleId) {
 		return { operations: [], warnings: ["Turnierrolle nicht synchronisiert: DISCORD_TOURNAMENT_ROLE_ID fehlt."] };
@@ -409,16 +410,8 @@ function planDiscordTournamentRole(
 		});
 	}
 
-	for (const discordId of previousPlayerIds) {
-		if (nextPlayerIds.has(discordId)) continue;
-		operations.push({
-			kind: "role",
-			discordId,
-			roleId,
-			enabled: false,
-			label: `${discordId}: Turnierrolle entfernen`,
-		});
-	}
+	// The tournament role is persistent: former players retain access to
+	// feedback and archive channels after their team role is removed.
 
 	return { operations, warnings };
 }

@@ -79,7 +79,7 @@ export function NicknameSyncButton() {
 			});
 			setState({
 				status: "loading",
-				message: `Nickname-Job gestartet: ${result.queued ?? 0} Aktion(en) in der Queue. Übersprungen: ${result.skipped ?? 0}.`,
+				message: `Nickname-Prüfung gestartet: ${result.queued ?? 0} Person(en) in der Queue. Übersprungen: ${result.skipped ?? 0}.`,
 			});
 			return;
 		}
@@ -87,7 +87,7 @@ export function NicknameSyncButton() {
 		setJob(null);
 		setState({
 			status: "success",
-			message: `Keine Nickname-Änderungen nötig. Übersprungen: ${result?.skipped ?? 0}.`,
+			message: `Alle Nicknames sind bereits korrekt. Übersprungen: ${result?.skipped ?? 0}.`,
 		});
 	}
 
@@ -148,7 +148,7 @@ export function NicknameSyncButton() {
 					disabled={busy}
 					className="rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-amber-100 transition hover:border-amber-200/50 hover:text-amber-50 disabled:opacity-60"
 				>
-					{busy ? "Queue läuft..." : "Turnier-Nicknames setzen"}
+					{busy ? "Prüfung läuft..." : "Nicknames prüfen & reparieren"}
 				</button>
 				<button
 					type="button"

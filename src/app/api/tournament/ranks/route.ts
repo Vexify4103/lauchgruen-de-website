@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { formatRank, getAccountByPuuid, getLeagueEntriesByPuuid } from "@/lib/riot";
+import { formatRank, getAccountByPuuid, getLeagueEntriesByPuuid, getSummonerByPuuid } from "@/lib/riot";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
@@ -27,6 +27,7 @@ type RefreshResult = {
 	riotId: string;
 	previousRiotId?: string;
 	rank: string | null;
+	summonerLevel?: number;
 	ok: boolean;
 	message?: string;
 };
@@ -35,15 +36,16 @@ function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function refreshApplicationRank(app: TournamentApplication): Promise<RefreshResult> {
+async function refreshApplicationProfile(app: TournamentApplication): Promise<RefreshResult> {
 	try {
-		const [account, entries] = await Promise.all([getAccountByPuuid(app.riotPuuid), getLeagueEntriesByPuuid(app.riotPuuid)]);
+		const [account, entries, summoner] = await Promise.all([getAccountByPuuid(app.riotPuuid), getLeagueEntriesByPuuid(app.riotPuuid), getSummonerByPuuid(app.riotPuuid)]);
 		const currentRankAuto = formatRank(entries);
 		const riotId = `${account.gameName}#${account.tagLine}`;
 		const next: TournamentApplication = {
 			...app,
 			riotId,
 			currentRankAuto,
+			summonerLevel: summoner.summonerLevel,
 			updatedAt: new Date().toISOString(),
 		};
 		await Promise.all([
@@ -53,6 +55,7 @@ async function refreshApplicationRank(app: TournamentApplication): Promise<Refre
 				gameName: account.gameName,
 				tagLine: account.tagLine,
 				currentRankAuto,
+				summonerLevel: summoner.summonerLevel,
 			}),
 		]);
 		return {
@@ -61,6 +64,7 @@ async function refreshApplicationRank(app: TournamentApplication): Promise<Refre
 			riotId,
 			previousRiotId: app.riotId !== riotId ? app.riotId : undefined,
 			rank: currentRankAuto,
+			summonerLevel: summoner.summonerLevel,
 			ok: true,
 		};
 	} catch (error) {
@@ -70,7 +74,7 @@ async function refreshApplicationRank(app: TournamentApplication): Promise<Refre
 			riotId: app.riotId,
 			rank: app.currentRankAuto,
 			ok: false,
-			message: error instanceof Error ? error.message : "Rank konnte nicht aktualisiert werden.",
+			message: error instanceof Error ? error.message : "Riot-Profil konnte nicht aktualisiert werden.",
 		};
 	}
 }
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
 	const body = await request.json().catch(() => ({}));
 	const parsed = refreshSchema.safeParse(body);
 	if (!parsed.success) {
-		return NextResponse.json({ message: "Ungültige Rank-Refresh-Daten." }, { status: 400 });
+		return NextResponse.json({ message: "Ungültige Daten für die Profilaktualisierung." }, { status: 400 });
 	}
 
 	const applications = parsed.data.id ? [await findApplication(parsed.data.id)].filter((app): app is TournamentApplication => Boolean(app)) : await listApplications();
@@ -96,7 +100,7 @@ export async function POST(request: Request) {
 
 	const results: RefreshResult[] = [];
 	for (let index = 0; index < applications.length; index += 1) {
-		results.push(await refreshApplicationRank(applications[index]));
+		results.push(await refreshApplicationProfile(applications[index]));
 		if (index < applications.length - 1) {
 			await sleep(REFRESH_DELAY_MS);
 		}
@@ -107,16 +111,16 @@ export async function POST(request: Request) {
 	const renamedCount = results.filter((result) => result.previousRiotId).length;
 	try {
 		await writeAuditLog({
-			action: parsed.data.id ? "rank.refresh_one" : "rank.refresh_all",
+			action: parsed.data.id ? "riot_profile.refresh_one" : "riot_profile.refresh_all",
 			targetType: "applications",
 			targetId: parsed.data.id ?? "all",
-			summary: `Ranks/Riot-IDs aktualisiert: ${okCount} ok, ${failCount} Fehler, ${renamedCount} Name-Updates.`,
+			summary: `Riot-Profile aktualisiert: ${okCount} ok, ${failCount} Fehler, ${renamedCount} Name-Updates. Rang und Summoner-Level wurden synchronisiert.`,
 			actorDiscordId: discordId,
 			actorLabel: session.user.discordHandle ?? discordId,
 			metadata: { okCount, failCount, renamedCount, count: results.length },
 		});
 	} catch (error) {
-		console.error("[rank-refresh] Audit-Log konnte nicht geschrieben werden.", error);
+		console.error("[riot-profile-refresh] Audit-Log konnte nicht geschrieben werden.", error);
 	}
 
 	const rateLimited = results.some((result) => result.message?.includes("Rate-Limit"));

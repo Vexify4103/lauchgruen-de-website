@@ -141,11 +141,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 
 	return (
 		<div className="overflow-x-auto pb-2 -mx-2 px-2">
-			<div
-				ref={containerRef}
-				className="relative grid min-w-[63rem] gap-x-6"
-				style={{ gridTemplateColumns: "minmax(42rem, 1fr) 14rem" }}
-			>
+			<div ref={containerRef} className="relative grid min-w-[63rem] gap-x-6" style={{ gridTemplateColumns: "minmax(42rem, 1fr) 14rem" }}>
 				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
 					{paths.map((p, i) => (
 						<path
@@ -389,7 +385,10 @@ function TeamLine({
 }) {
 	return (
 		<div className={`relative flex items-center gap-2 px-3 py-2 ${bottom ? "" : "border-b border-white/6"} ${isWinner ? "bg-lime-200/12" : ""}`}>
-			<span className={`min-w-0 max-w-[44%] truncate text-sm font-black ${isWinner ? "text-lime-50" : resolved ? "text-emerald-50" : "italic text-emerald-100/40"}`} title={label}>
+			<span
+				className={`min-w-0 max-w-[44%] truncate text-sm font-black ${isWinner ? "text-lime-50" : resolved ? "text-emerald-50" : "italic text-emerald-100/40"}`}
+				title={label}
+			>
 				{label}
 			</span>
 			{pool ? (

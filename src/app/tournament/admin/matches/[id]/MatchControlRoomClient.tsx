@@ -10,6 +10,7 @@ import type { RosterSnapshot } from "@/lib/roster";
 import { createDraftSequence, draftComplete, draftReady, type DraftSide, type TournamentDraftState } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { formatGameDuration, parseGameDuration } from "@/lib/match-duration";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -616,13 +617,7 @@ function ScoreField({ label, value, onChange }: { label: string; value: string; 
 			<span className="min-w-0 truncate text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52" title={label}>
 				{label}
 			</span>
-			<input
-				value={value}
-				onChange={(event) => onChange(event.target.value)}
-				type="number"
-				min="0"
-				className="w-full rounded-lg border border-white/10 bg-black/24 px-3 py-2 text-center text-lg font-black text-emerald-50 outline-none focus:border-lime-200/40"
-			/>
+			<ThemedNumberInput value={value} onChange={onChange} min={0} ariaLabel={`Score ${label}`} />
 		</label>
 	);
 }

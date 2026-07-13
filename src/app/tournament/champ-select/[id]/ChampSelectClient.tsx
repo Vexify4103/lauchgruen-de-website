@@ -16,6 +16,7 @@ import {
 	type TournamentDraftState,
 } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
+import { playDraftCompleteSound, playDraftStartSound, unlockTournamentAudio } from "@/lib/tournament-sounds";
 
 type EditableSide = "teamA" | "teamB" | null;
 
@@ -47,6 +48,8 @@ export function ChampSelectClient({
 	const [isPending, startTransition] = useTransition();
 	const timeoutHandledRef = useRef("");
 	const lastBroadcastSelectionRef = useRef("");
+	const previousReadyRef = useRef(draftReady(draft));
+	const previousCompleteRef = useRef(draftComplete(draft, createDraftSequence(extraBanSide)));
 
 	const draftSequence = createDraftSequence(extraBanSide);
 	const currentTurn = nextDraftTurn(state, draftSequence);
@@ -64,6 +67,16 @@ export function ChampSelectClient({
 		const interval = window.setInterval(() => setNow(Date.now()), 250);
 		return () => window.clearInterval(interval);
 	}, []);
+
+	useEffect(() => {
+		if (!previousReadyRef.current && ready) playDraftStartSound();
+		previousReadyRef.current = ready;
+	}, [ready]);
+
+	useEffect(() => {
+		if (!previousCompleteRef.current && complete) playDraftCompleteSound();
+		previousCompleteRef.current = complete;
+	}, [complete]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -133,6 +146,7 @@ export function ChampSelectClient({
 	async function markReady() {
 		if (!editableSide || state.readyBy[editableSide]) return;
 		setMessage("");
+		await unlockTournamentAudio();
 		startTransition(async () => {
 			const response = await fetch("/api/tournament/draft", {
 				method: "POST",
@@ -202,6 +216,7 @@ export function ChampSelectClient({
 	async function adminAction(action: "forceReady" | "reset" | "undo") {
 		if (!isOwner || isPending) return;
 		setMessage("");
+		await unlockTournamentAudio();
 		startTransition(async () => {
 			const response = await fetch("/api/tournament/draft", {
 				method: "POST",

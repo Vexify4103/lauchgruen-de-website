@@ -6,10 +6,12 @@ import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { ChampSelectClient } from "./ChampSelectClient";
+import { redirect } from "next/navigation";
 
 export default async function ChampSelectPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	const [session, ctx, pools, draft, settings] = await Promise.all([auth(), getMatchControlContext(), getChampionPools(), getDraftState(id), getTournamentSettings()]);
+	if (settings.activeTournament.id === "ultimate-bravery") redirect("/tournament");
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) {
 		return (

@@ -17,9 +17,12 @@ function discordGuildId() {
 }
 
 type DiscordMember = {
+	user?: { id?: string };
 	nick?: string | null;
 	roles?: string[];
 };
+
+export type DiscordGuildMemberSummary = { id: string; roles: string[] };
 
 export type DiscordRoleCheck =
 	| { status: "missing-config"; message: string }
@@ -46,6 +49,48 @@ export async function isDiscordGuildMember(discordId: string): Promise<boolean |
 	if (response.status === 404) return false;
 	if (!response.ok) return null;
 	return true;
+}
+
+export async function listDiscordGuildMembers(): Promise<{ ok: true; members: DiscordGuildMemberSummary[] } | { ok: false; message: string }> {
+	const token = discordBotToken();
+	const guildId = discordGuildId();
+	if (!token || !guildId) return { ok: false, message: "Discord Bot Token oder Guild ID fehlt." };
+
+	const members: DiscordGuildMemberSummary[] = [];
+	let after = "0";
+	for (let page = 0; page < 100; page += 1) {
+		let response: Response | null = null;
+		for (let attempt = 1; attempt <= DISCORD_MEMBER_MAX_ATTEMPTS; attempt += 1) {
+			try {
+				response = await fetch(`${DISCORD_API}/guilds/${guildId}/members?limit=1000&after=${after}`, {
+					headers: { authorization: `Bot ${token}` },
+					cache: "no-store",
+				});
+			} catch {
+				if (attempt === DISCORD_MEMBER_MAX_ATTEMPTS) return { ok: false, message: "Discord-Mitglieder konnten wegen eines Netzwerkfehlers nicht geladen werden." };
+				await wait(250 * attempt);
+				continue;
+			}
+			if (response.status === 429 && attempt < DISCORD_MEMBER_MAX_ATTEMPTS) {
+				const body = (await response
+					.clone()
+					.json()
+					.catch(() => null)) as { retry_after?: number } | null;
+				await wait(Math.ceil((body?.retry_after ?? 1) * 1000) + 150);
+				continue;
+			}
+			break;
+		}
+		if (!response?.ok)
+			return { ok: false, message: `Discord-Mitglieder konnten nicht geladen werden (HTTP ${response?.status ?? "Netzwerkfehler"}). Prüfe den Server-Members-Intent.` };
+		const pageMembers = (await response.json()) as DiscordMember[];
+		for (const member of pageMembers) {
+			if (member.user?.id) members.push({ id: member.user.id, roles: member.roles ?? [] });
+		}
+		if (pageMembers.length < 1000) break;
+		after = pageMembers.at(-1)?.user?.id ?? after;
+	}
+	return { ok: true, members };
 }
 
 async function getDiscordGuildMember(discordId: string): Promise<DiscordMember | null | "missing-config" | "missing-member" | "error"> {
@@ -76,7 +121,10 @@ async function fetchDiscordGuildMemberResponse(discordId: string, token: string,
 		}
 
 		if (response.status === 429 && attempt < DISCORD_MEMBER_MAX_ATTEMPTS) {
-			const body = (await response.clone().json().catch(() => null)) as { retry_after?: number } | null;
+			const body = (await response
+				.clone()
+				.json()
+				.catch(() => null)) as { retry_after?: number } | null;
 			const retryAfterSeconds =
 				body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
 			await wait(Math.ceil(retryAfterSeconds * 1000) + 150);

@@ -74,7 +74,14 @@ export default async function TournamentWinnersPage() {
 							{champions.map((entry) => (
 								<div key={entry.id}>
 									<WinnerCard entry={entry} featured />
-									{archives.some((archive) => archive.id === entry.id && archive.snapshot) ? <Link href={`/tournament/archive/${entry.id}`} className="mt-3 inline-flex rounded-xl border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-lime-50">Vollständiges Turnier ansehen</Link> : null}
+									{archives.some((archive) => archive.id === entry.id && archive.snapshot) ? (
+										<Link
+											href={`/tournament/archive/${entry.id}`}
+											className="mt-3 inline-flex rounded-xl border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-lime-50"
+										>
+											Vollständiges Turnier ansehen
+										</Link>
+									) : null}
 								</div>
 							))}
 						</section>

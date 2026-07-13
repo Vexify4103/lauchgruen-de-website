@@ -89,8 +89,8 @@ export function proxy(req: NextRequest) {
 // Skip Next internals and static asset paths — they're host-independent and
 // running the proxy on them wastes cycles + risks breaking image loading.
 //
-// `/api/twitch/*` is also exempted: it's read-only public data (live status)
-// that the apex landing page calls via fetch().
+// `/api/twitch/*` and `/api/obs/*` are also exempted: they're read-only public
+// data endpoints used by landing/OBS surfaces and should not be host-routed.
 export const config = {
-	matcher: ["/((?!_next/|_vercel/|favicon\\.ico|bear-logo\\.png|tournament-bear-mark\\.png|api/health|api/twitch/|api/tournament/obs|obs/).*)"],
+	matcher: ["/((?!_next/|_vercel/|favicon\\.ico|bear-logo\\.png|tournament-bear-mark\\.png|api/health|api/twitch/|api/obs/|api/tournament/obs|obs/).*)"],
 };

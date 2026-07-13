@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { auth } from "@/lib/auth";
 import { getSiteUrls } from "@/lib/site-urls";
 import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
-import { tournament } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { isTournamentHost } from "@/lib/tournament-url";
@@ -21,8 +20,18 @@ const navItems = [
 	{ href: "/tournament/schedule", label: "Zeitplan" },
 	{ href: "/tournament/pools", label: "Pools" },
 	{ href: "/tournament/captain", label: "Captain" },
-	{ href: "/tournament/groups", label: "Gruppen" },
+	{ href: "/tournament/stage", label: "Gruppen" },
 	{ href: "/tournament/playoffs", label: "Playoffs" },
+];
+
+const ultimateBraveryNavItems = [
+	{ href: "/tournament", label: "Übersicht" },
+	{ href: "/tournament/apply", label: "Bewerben" },
+	{ href: "/tournament/teams", label: "Teams" },
+	{ href: "/tournament/live", label: "Live" },
+	{ href: "/tournament/schedule", label: "Zeitplan" },
+	{ href: "/tournament/stage", label: "Gruppen" },
+	{ href: "/tournament/playoffs", label: "Bracket" },
 ];
 
 const teaserNavItems = [
@@ -30,13 +39,23 @@ const teaserNavItems = [
 	{ href: "/tournament/teams", label: "Teams", disabled: true },
 	{ href: "/tournament/live", label: "Live", disabled: true },
 	{ href: "/tournament/schedule", label: "Zeitplan", disabled: true },
-	{ href: "/tournament/groups", label: "Gruppen", disabled: true },
-	{ href: "/tournament/playoffs", label: "Playoffs", disabled: true },
+	{ href: "/tournament/stage", label: "Gruppen" },
+	{ href: "/tournament/playoffs", label: "Playoffs" },
+];
+
+const registrationNavItems = [
+	{ href: "/tournament", label: "Übersicht" },
+	{ href: "/tournament/apply", label: "Bewerben" },
+	{ href: "/tournament/teams", label: "Teams", disabled: true },
+	{ href: "/tournament/live", label: "Live", disabled: true },
+	{ href: "/tournament/schedule", label: "Zeitplan", disabled: true },
+	{ href: "/tournament/stage", label: "Gruppen" },
+	{ href: "/tournament/playoffs", label: "Playoffs" },
 ];
 
 export const metadata: Metadata = {
-	title: `${tournament.name} | lauchgruen`,
-	description: "Kunterbuntes A-Z League-of-Legends-Turnier mit Bewerbung, Teams, Gruppenphase und Endbracket.",
+	title: "Ultimate Bravery | lauchgruen",
+	description: "Lauchgruen Ultimate-Bravery-Turnier mit zufälligen Champions, Builds, Runen und Summoner Spells.",
 };
 
 export default async function TournamentLayout({ children }: { children: ReactNode }) {
@@ -46,8 +65,23 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 	const cleanUrls = isTournamentHost(host);
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
-	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
-	const tournamentStatus = settings.tournamentLive ? "Live" : settings.activeTournament.mode === "teaser" ? "Ankündigung" : applicationsOpen ? "Anmeldung" : "Vorbereitung";
+	const applicationsOpen = areTournamentApplicationsOpen(
+		settings.applicationsOpen,
+		new Date(),
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
+	const tournamentStatus =
+		settings.activeTournament.mode === "live"
+			? "Live"
+			: settings.activeTournament.mode === "paused"
+				? "Pausiert"
+				: settings.activeTournament.mode === "registration"
+					? "Anmeldung"
+					: settings.activeTournament.mode === "teaser"
+						? "Ankündigung"
+						: "Vorbereitung";
 	const account = discordId
 		? {
 				discordHandle: session.user.discordHandle ?? session.user.name ?? "Discord",
@@ -56,12 +90,27 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 				isOwner,
 			}
 		: null;
+	const stageLabel = settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : settings.ultimateBravery.dayOneFormat === "groups" ? "Gruppen" : "Stage";
+	const selectedNavItems =
+		settings.activeTournament.mode === "live"
+			? settings.activeTournament.id === "ultimate-bravery"
+				? ultimateBraveryNavItems
+				: navItems
+			: settings.activeTournament.mode === "registration"
+				? registrationNavItems
+				: teaserNavItems;
+	const dynamicNavItems = selectedNavItems.map((item) => {
+		const itemDisabled = "disabled" in item ? item.disabled === true : false;
+		if (item.href === "/tournament/stage") return { ...item, label: stageLabel, disabled: itemDisabled || settings.ultimateBravery.dayOneFormat === "undecided" };
+		if (item.href === "/tournament/playoffs") return { ...item, disabled: itemDisabled || settings.ultimateBravery.format === "undecided" };
+		return item;
+	});
 
 	return (
 		<AdminConflictProvider>
 			<UnsavedChangesProvider>
 				<TournamentChrome
-					navItems={settings.activeTournament.mode === "teaser" ? teaserNavItems : navItems}
+					navItems={dynamicNavItems}
 					applicationsOpen={applicationsOpen}
 					tournamentStatus={tournamentStatus}
 					apexUrl={siteUrls.apex}
@@ -69,8 +118,8 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 					accountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} />}
 					compactAccountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} compact />}
 					footerTournamentLabel={
-						settings.activeTournament.mode === "teaser"
-							? "Ultimate Bravery ist das nächste Lauchgruen Community-Turnier. Details folgen."
+						settings.activeTournament.id === "ultimate-bravery"
+							? "Ultimate Bravery am 04.09. und 05.09.2026, jeweils ab 18:00 Uhr."
 							: "Kunterbuntes A-Z Turnier ist Lucas Community-Turnier am 19.06. und 20.06.2026."
 					}
 				>

@@ -4,9 +4,11 @@ import { getDraftState } from "@/lib/tournament-draft";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { DraftSpectatorClient, type DraftViewerPerspective } from "./spectate/DraftSpectatorClient";
+import { redirect } from "next/navigation";
 
 export async function DraftViewerPage({ id, perspective }: { id: string; perspective: DraftViewerPerspective }) {
 	const [ctx, pools, draft, settings] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(id), getTournamentSettings()]);
+	if (settings.activeTournament.id === "ultimate-bravery") redirect("/tournament");
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) {
 		return (

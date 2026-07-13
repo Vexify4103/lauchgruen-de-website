@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { setDiscordMemberRole } from "@/lib/discord";
+import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { getDb } from "@/lib/mongo";
 import { isPlayerRole, type PlayerRole } from "@/lib/roster";
 import { writeAuditLog } from "@/lib/tournament-audit";
@@ -92,39 +92,23 @@ export async function POST(request: Request) {
 	await botCol.updateOne({ _id: "default" }, { $set: { teams } }, { upsert: true });
 
 	const roleWarnings: string[] = [];
+	const roleOperations: DiscordOperation[] = [];
 	const tournamentRoleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	if (!tournamentRoleId) {
 		roleWarnings.push("Turnierrolle nicht synchronisiert: DISCORD_TOURNAMENT_ROLE_ID fehlt.");
 	} else {
-		const addRole = await setDiscordMemberRole({
-			discordId: verified.discordId,
-			roleId: tournamentRoleId,
-			enabled: true,
-		});
-		if (!addRole.ok) roleWarnings.push(addRole.message);
-
-		const outgoingDiscordId = parsed.data.outgoingDiscordId;
-		const outgoingStillAssigned = outgoingDiscordId && Object.values(teams).some((team) => team.players.some((player) => player.discordId === outgoingDiscordId));
-		if (outgoingDiscordId && !outgoingStillAssigned) {
-			const removeRole = await setDiscordMemberRole({
-				discordId: outgoingDiscordId,
-				roleId: tournamentRoleId,
-				enabled: false,
-			});
-			if (!removeRole.ok) roleWarnings.push(removeRole.message);
-		}
+		roleOperations.push({ kind: "role", discordId: verified.discordId, roleId: tournamentRoleId, enabled: true, label: `${verified.riotId}: Turnierrolle vergeben` });
 	}
 
 	const targetTeamRoleId = target.roleId?.trim();
 	if (targetTeamRoleId) {
-		const addTeamRole = await setDiscordMemberRole({
+		roleOperations.push({
+			kind: "role",
 			discordId: verified.discordId,
 			roleId: targetTeamRoleId,
 			enabled: true,
+			label: `${verified.riotId}: Teamrolle ${target.name} vergeben`,
 		});
-		if (!addTeamRole.ok) {
-			roleWarnings.push(`Team „${target.name}“: ${addTeamRole.message}`);
-		}
 	} else {
 		roleWarnings.push(`Team-Rolle für „${target.name}“ fehlt. Der Substitute wurde nur dem Roster zugewiesen.`);
 	}
@@ -133,27 +117,31 @@ export async function POST(request: Request) {
 		if (previous.teamKey === parsed.data.teamKey) continue;
 		const previousRoleId = previous.team.roleId?.trim();
 		if (!previousRoleId) continue;
-		const removeOldTeamRole = await setDiscordMemberRole({
+		roleOperations.push({
+			kind: "role",
 			discordId: verified.discordId,
 			roleId: previousRoleId,
 			enabled: false,
+			label: `${verified.riotId}: alte Teamrolle ${previous.team.name} entfernen`,
 		});
-		if (!removeOldTeamRole.ok) {
-			roleWarnings.push(`Altes Team „${previous.team.name}“: ${removeOldTeamRole.message}`);
-		}
 	}
 
 	const outgoingDiscordId = parsed.data.outgoingDiscordId;
 	if (outgoingDiscordId && targetTeamRoleId) {
-		const removeOutgoingTeamRole = await setDiscordMemberRole({
+		roleOperations.push({
+			kind: "role",
 			discordId: outgoingDiscordId,
 			roleId: targetTeamRoleId,
 			enabled: false,
+			label: `${outgoingDiscordId}: Teamrolle ${target.name} entfernen`,
 		});
-		if (!removeOutgoingTeamRole.ok) {
-			roleWarnings.push(`Team „${target.name}“: ${removeOutgoingTeamRole.message}`);
-		}
 	}
+	const discordJob = await enqueueDiscordJob({
+		type: "emergency-substitute",
+		title: `Notfall-Substitute: ${target.name}`,
+		operations: roleOperations,
+		actorLabel: session.user.discordHandle ?? discordId,
+	});
 	await writeAuditLog({
 		action: "team.substitute",
 		targetType: "team",
@@ -187,6 +175,7 @@ export async function POST(request: Request) {
 		incomingDiscordId: verified.discordId,
 		outgoingDiscordId: parsed.data.outgoingDiscordId || null,
 		role: parsed.data.role,
+		discordJob,
 		warnings: roleWarnings,
 	});
 }

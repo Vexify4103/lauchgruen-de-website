@@ -3,6 +3,8 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { readTournamentState, type StoredTournamentMatch } from "@/lib/tournament-storage";
 import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getSwissStageState } from "@/lib/tournament-swiss";
 
 export type ControlMatch = {
 	id: string;
@@ -85,8 +87,42 @@ function playoffToControlMatch(match: ResolvedPlayoffMatch, stored: StoredTourna
 }
 
 export async function getMatchControlContext(): Promise<MatchControlContext> {
-	const ctx = await getTournamentContext();
+	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
+	if (settings.activeTournament.id === "ultimate-bravery") {
+		if (settings.ultimateBravery.dayOneFormat !== "swiss") return { teams: ctx.teams, stored: state.matches, matches: [] };
+		const swiss = await getSwissStageState(settings.activeTournament.id);
+		const matches: ControlMatch[] = swiss.rounds.flatMap((round) =>
+			round.pairings.flatMap((pairing) => {
+				if (pairing.bye || !pairing.teamBName) return [];
+				const stored = state.matches[pairing.id];
+				return [
+					{
+						id: pairing.id,
+						phase: "groups" as const,
+						round: `Swiss Runde ${round.round}`,
+						time: "Rolling Schedule",
+						teamAName: pairing.teamAName,
+						teamBName: pairing.teamBName,
+						teamALabel: pairing.teamAName,
+						teamBLabel: pairing.teamBName,
+						status: stored?.status ?? "Scheduled",
+						scoreA: stored?.scoreA,
+						scoreB: stored?.scoreB,
+						gameDurationSeconds: stored?.gameDurationSeconds,
+						teamAChampions: stored?.teamAChampions ?? [],
+						teamBChampions: stored?.teamBChampions ?? [],
+						blueSide: stored?.blueSide ?? "teamA",
+						isCasted: stored?.isCasted ?? false,
+						winner: stored?.winner,
+						adminNote: stored?.adminNote,
+						poolAssignment: null,
+					},
+				];
+			})
+		);
+		return { teams: ctx.teams, stored: state.matches, matches };
+	}
 	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
 

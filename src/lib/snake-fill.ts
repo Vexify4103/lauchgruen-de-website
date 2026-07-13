@@ -16,8 +16,8 @@ const TEAM_CAPACITY = ALL_BALANCE_ROLES.length;
 export const MAX_AUTOBALANCE_FRIEND_GROUP_SIZE = 5;
 
 const ROLE_PENALTY = {
-	preferred: 0,
-	main: 1,
+	main: 0,
+	preferred: 1,
 	flexible: 3,
 	fillOverflow: 30,
 	substitute: 40,
@@ -59,6 +59,14 @@ export type BalanceResult = {
 	splitGroups: SplitGroupInfo[];
 	teamStrengths: Array<{ teamKey: string; strength: number }>;
 	overallAverage: number;
+	imputedApplicants: number;
+	highEloPreferredAssignments: Array<{
+		discordId: string;
+		displayName: string;
+		teamKey: string;
+		role: PlayerRole;
+		rank: string;
+	}>;
 };
 
 type TeamOpen = {
@@ -72,6 +80,7 @@ type TeamBalance = {
 	open: TeamOpen;
 	strength: number;
 	playerCount: number;
+	corePlayerCount: number;
 };
 
 type ApplicantUnit = {
@@ -87,6 +96,13 @@ type TeamPlan = {
 	maxDeviation: number;
 	averageDeviation: number;
 	score: number;
+};
+
+type RolePlan = {
+	assignments: Assignment[];
+	rolePenalty: number;
+	coreStrength: number;
+	corePlayerCount: number;
 };
 
 type SplitPlan = {
@@ -107,8 +123,31 @@ function normalizeRoleName(raw: string): PlayerRole | null {
 	return null;
 }
 
-function applicantStrength(applicant: RosterApplicant) {
-	return parseRank(applicant.manualRankOverride || applicant.currentRank);
+function rawApplicantRank(applicant: RosterApplicant) {
+	return applicant.manualRankOverride || applicant.currentRank;
+}
+
+function hasKnownRank(applicant: RosterApplicant) {
+	const raw = rawApplicantRank(applicant)?.trim().toUpperCase();
+	return Boolean(raw && raw !== "UNRANKED" && /^(IRON|BRONZE|SILVER|GOLD|PLATINUM|EMERALD|DIAMOND|MASTER|GRANDMASTER|CHALLENGER)\b/.test(raw));
+}
+
+function createStrengthMap(applicants: RosterApplicant[]) {
+	const knownScores = applicants
+		.filter(hasKnownRank)
+		.map((applicant) => parseRank(rawApplicantRank(applicant)))
+		.sort((a, b) => a - b);
+	const median =
+		knownScores.length === 0
+			? 1200
+			: knownScores.length % 2 === 1
+				? knownScores[Math.floor(knownScores.length / 2)]
+				: (knownScores[knownScores.length / 2 - 1] + knownScores[knownScores.length / 2]) / 2;
+	return new Map(applicants.map((applicant) => [applicant.discordId, hasKnownRank(applicant) ? parseRank(rawApplicantRank(applicant)) : median]));
+}
+
+function applicantStrength(applicant: RosterApplicant, strengthById: Map<string, number>) {
+	return strengthById.get(applicant.discordId) ?? 0;
 }
 
 function applicantPreferredCoreRoles(applicant: RosterApplicant): PlayerRole[] {
@@ -123,19 +162,15 @@ function applicantPreferredCoreRoles(applicant: RosterApplicant): PlayerRole[] {
 }
 
 function rolePenalty(applicant: RosterApplicant, role: PlayerRole): number {
-	const normalizedPreferred = applicant.preferredRoles
-		.map(normalizeRoleName)
-		.filter((value): value is PlayerRole => value !== null);
+	const normalizedPreferred = applicant.preferredRoles.map(normalizeRoleName).filter((value): value is PlayerRole => value !== null);
 	const mainRole = applicant.mainRole ? normalizeRoleName(applicant.mainRole) : null;
 	const preferredCore = normalizedPreferred.filter((value) => CORE_ROLES.includes(value));
-	const hasFillPreference =
-		normalizedPreferred.includes("Fill") || mainRole === "Fill";
-	const hasSubPreference =
-		normalizedPreferred.includes("Sub") || mainRole === "Sub";
+	const hasFillPreference = normalizedPreferred.includes("Fill") || mainRole === "Fill";
+	const hasSubPreference = normalizedPreferred.includes("Sub") || mainRole === "Sub";
 
 	if (CORE_ROLES.includes(role)) {
-		if (normalizedPreferred.includes(role)) return ROLE_PENALTY.preferred;
 		if (mainRole === role) return ROLE_PENALTY.main;
+		if (normalizedPreferred.includes(role)) return ROLE_PENALTY.preferred;
 		// "Fill" means: put me where a real team role is needed, not into the
 		// artificial Fill/Sub bucket while core slots are still open.
 		if (hasFillPreference && preferredCore.length === 0 && (!mainRole || mainRole === "Fill")) {
@@ -151,12 +186,15 @@ function rolePenalty(applicant: RosterApplicant, role: PlayerRole): number {
 		return hasSubPreference ? ROLE_PENALTY.preferred : ROLE_PENALTY.substitute;
 	}
 
-	const wantedCore = new Set(
-		[...normalizedPreferred, mainRole]
-			.filter((value): value is PlayerRole => value !== null)
-			.filter((value) => CORE_ROLES.includes(value)),
-	);
+	const wantedCore = new Set([...normalizedPreferred, mainRole].filter((value): value is PlayerRole => value !== null).filter((value) => CORE_ROLES.includes(value)));
 	return wantedCore.size === 0 ? ROLE_PENALTY.flexible : ROLE_PENALTY.offRole;
+}
+
+function isRequestedCoreRole(applicant: RosterApplicant, role: PlayerRole) {
+	if (!CORE_ROLES.includes(role)) return false;
+	const mainRole = applicant.mainRole ? normalizeRoleName(applicant.mainRole) : null;
+	const preferredRoles = applicant.preferredRoles.map(normalizeRoleName);
+	return mainRole === role || preferredRoles.includes(role);
 }
 
 function openRoleList(open: TeamOpen): PlayerRole[] {
@@ -175,7 +213,7 @@ function removeOpenRole(open: TeamOpen, role: PlayerRole) {
 	else open.overflow.delete(role);
 }
 
-function createApplicantUnits(applicants: RosterApplicant[]): ApplicantUnit[] {
+function createApplicantUnits(applicants: RosterApplicant[], strengthById: Map<string, number>): ApplicantUnit[] {
 	const grouped = new Map<string, RosterApplicant[]>();
 	const singles: RosterApplicant[] = [];
 
@@ -198,13 +236,11 @@ function createApplicantUnits(applicants: RosterApplicant[]): ApplicantUnit[] {
 	]
 		.map(({ applicants: unitApplicants, code }) => ({
 			applicants: [...unitApplicants].sort((a, b) => {
-				const wantedDiff =
-					applicantPreferredCoreRoles(a).length
-					- applicantPreferredCoreRoles(b).length;
+				const wantedDiff = applicantPreferredCoreRoles(a).length - applicantPreferredCoreRoles(b).length;
 				if (wantedDiff !== 0) return wantedDiff;
-				return applicantStrength(b) - applicantStrength(a);
+				return applicantStrength(b, strengthById) - applicantStrength(a, strengthById);
 			}),
-			strength: unitApplicants.reduce((total, applicant) => total + applicantStrength(applicant), 0),
+			strength: unitApplicants.reduce((total, applicant) => total + applicantStrength(applicant, strengthById), 0),
 			groupCode: code,
 		}))
 		.sort((a, b) => {
@@ -213,80 +249,66 @@ function createApplicantUnits(applicants: RosterApplicant[]): ApplicantUnit[] {
 		});
 }
 
-function deviationStats(
-	teams: TeamBalance[],
-	targetTeamStrength: number,
-	override?: { teamIndex: number; strength: number },
-) {
-	const target = Math.max(1, targetTeamStrength);
-	const deviations = teams.map((entry, index) =>
-		Math.abs((override?.teamIndex === index ? override.strength : entry.strength) - target) / target,
-	);
+function deviationStats(teams: TeamBalance[], targetPlayerStrength: number, override?: { teamIndex: number; strength: number; corePlayerCount: number }) {
+	const target = Math.max(1, targetPlayerStrength);
+	const deviations = teams.flatMap((entry, index) => {
+		const strength = override?.teamIndex === index ? override.strength : entry.strength;
+		const corePlayerCount = override?.teamIndex === index ? override.corePlayerCount : entry.corePlayerCount;
+		return corePlayerCount > 0 ? [Math.abs(strength / corePlayerCount - target) / target] : [];
+	});
+	if (deviations.length === 0) return { maxDeviation: 0, averageDeviation: 0 };
 	return {
 		maxDeviation: Math.max(...deviations),
 		averageDeviation: deviations.reduce((total, value) => total + value, 0) / deviations.length,
 	};
 }
 
-function roleAssignmentsForTeam(
-	unit: ApplicantUnit,
-	team: TeamBalance,
-): { assignments: Assignment[]; rolePenalty: number } | null {
+function roleAssignmentsForTeam(unit: ApplicantUnit, team: TeamBalance, strengthById: Map<string, number>): RolePlan | null {
 	if (TEAM_CAPACITY - team.playerCount < unit.applicants.length) return null;
 
-	const open = cloneOpen(team.open);
-	const assignments: Assignment[] = [];
-	let totalPenalty = 0;
+	let best: RolePlan | null = null;
+	function visit(index: number, open: TeamOpen, assignments: Assignment[], penalty: number, coreStrength: number, corePlayerCount: number) {
+		if (best && penalty >= best.rolePenalty) return;
+		if (index === unit.applicants.length) {
+			best = { assignments, rolePenalty: penalty, coreStrength, corePlayerCount };
+			return;
+		}
 
-	for (const applicant of unit.applicants) {
-		const role = openRoleList(open)
-			.map((candidate) => ({
-				role: candidate,
-				penalty: rolePenalty(applicant, candidate),
-				core: CORE_ROLES.includes(candidate),
-			}))
-			.sort((a, b) => {
-				if (a.penalty !== b.penalty) return a.penalty - b.penalty;
-				if (a.core !== b.core) return a.core ? -1 : 1;
-				return CORE_ROLES.indexOf(a.role) - CORE_ROLES.indexOf(b.role);
-			})[0];
-
-		if (!role) return null;
-		totalPenalty += role.penalty;
-		assignments.push({
-			discordId: applicant.discordId,
-			teamKey: team.team.key,
-			role: role.role,
-		});
-		removeOpenRole(open, role.role);
+		const applicant = unit.applicants[index];
+		const candidates = openRoleList(open).sort((a, b) => rolePenalty(applicant, a) - rolePenalty(applicant, b));
+		for (const role of candidates) {
+			const nextOpen = cloneOpen(open);
+			removeOpenRole(nextOpen, role);
+			const isCore = CORE_ROLES.includes(role);
+			visit(
+				index + 1,
+				nextOpen,
+				[...assignments, { discordId: applicant.discordId, teamKey: team.team.key, role }],
+				penalty + rolePenalty(applicant, role),
+				coreStrength + (isCore ? applicantStrength(applicant, strengthById) : 0),
+				corePlayerCount + (isCore ? 1 : 0)
+			);
+		}
 	}
 
-	return { assignments, rolePenalty: totalPenalty };
+	visit(0, cloneOpen(team.open), [], 0, 0, 0);
+	return best;
 }
 
-function bestTeamPlan(
-	unit: ApplicantUnit,
-	teams: TeamBalance[],
-	targetTeamStrength: number,
-	options: BalanceOptions,
-): TeamPlan | null {
+function bestTeamPlan(unit: ApplicantUnit, teams: TeamBalance[], targetPlayerStrength: number, options: BalanceOptions, strengthById: Map<string, number>): TeamPlan | null {
 	const plans = teams
 		.map((team, teamIndex): TeamPlan | null => {
-			const roles = roleAssignmentsForTeam(unit, team);
+			const roles = roleAssignmentsForTeam(unit, team, strengthById);
 			if (!roles) return null;
-			const projectedStrength = team.strength + unit.strength;
-			const stats = deviationStats(teams, targetTeamStrength, {
+			const projectedStrength = team.strength + roles.coreStrength;
+			const stats = deviationStats(teams, targetPlayerStrength, {
 				teamIndex,
 				strength: projectedStrength,
+				corePlayerCount: team.corePlayerCount + roles.corePlayerCount,
 			});
 			const thresholdExcess = Math.max(0, stats.maxDeviation - options.splitThreshold);
 			const score =
-				stats.averageDeviation * 15000
-				+ stats.maxDeviation * 8000
-				+ thresholdExcess * 18000
-				+ roles.rolePenalty * 260
-				+ team.playerCount * 30
-				+ team.index * 0.01;
+				stats.averageDeviation * 15000 + stats.maxDeviation * 8000 + thresholdExcess * 18000 + roles.rolePenalty * 260 + team.playerCount * 30 + team.index * 0.01;
 			return {
 				team,
 				assignments: roles.assignments,
@@ -308,48 +330,49 @@ function cloneTeams(teams: TeamBalance[]): TeamBalance[] {
 		open: cloneOpen(entry.open),
 		strength: entry.strength,
 		playerCount: entry.playerCount,
+		corePlayerCount: entry.corePlayerCount,
 	}));
 }
 
-function applyAssignments(
-	teams: TeamBalance[],
-	assignments: Assignment[],
-	applicantById: Map<string, RosterApplicant>,
-) {
+function applyAssignments(teams: TeamBalance[], assignments: Assignment[], applicantById: Map<string, RosterApplicant>, strengthById: Map<string, number>) {
 	for (const assignment of assignments) {
 		const team = teams.find((entry) => entry.team.key === assignment.teamKey);
 		const applicant = applicantById.get(assignment.discordId);
 		if (!team || !applicant) continue;
 		removeOpenRole(team.open, assignment.role);
 		team.playerCount += 1;
-		team.strength += applicantStrength(applicant);
+		if (CORE_ROLES.includes(assignment.role)) {
+			team.corePlayerCount += 1;
+			team.strength += applicantStrength(applicant, strengthById);
+		}
 	}
 }
 
 function simulateSplitPlan(
 	unit: ApplicantUnit,
 	teams: TeamBalance[],
-	targetTeamStrength: number,
+	targetPlayerStrength: number,
 	options: BalanceOptions,
 	applicantById: Map<string, RosterApplicant>,
+	strengthById: Map<string, number>
 ): SplitPlan | null {
 	const simulatedTeams = cloneTeams(teams);
 	const assignments: Assignment[] = [];
 	let rolePenaltyTotal = 0;
 
-	for (const applicant of [...unit.applicants].sort((a, b) => applicantStrength(b) - applicantStrength(a))) {
+	for (const applicant of [...unit.applicants].sort((a, b) => applicantStrength(b, strengthById) - applicantStrength(a, strengthById))) {
 		const singleUnit: ApplicantUnit = {
 			applicants: [applicant],
-			strength: applicantStrength(applicant),
+			strength: applicantStrength(applicant, strengthById),
 		};
-		const plan = bestTeamPlan(singleUnit, simulatedTeams, targetTeamStrength, options);
+		const plan = bestTeamPlan(singleUnit, simulatedTeams, targetPlayerStrength, options, strengthById);
 		if (!plan) return null;
 		assignments.push(...plan.assignments);
 		rolePenaltyTotal += plan.rolePenalty;
-		applyAssignments(simulatedTeams, plan.assignments, applicantById);
+		applyAssignments(simulatedTeams, plan.assignments, applicantById, strengthById);
 	}
 
-	const stats = deviationStats(simulatedTeams, targetTeamStrength);
+	const stats = deviationStats(simulatedTeams, targetPlayerStrength);
 	return {
 		assignments,
 		rolePenalty: rolePenaltyTotal,
@@ -358,12 +381,7 @@ function simulateSplitPlan(
 	};
 }
 
-function splitReason(
-	unit: ApplicantUnit,
-	intact: TeamPlan | null,
-	split: SplitPlan | null,
-	overallAverage: number,
-): SplitGroupInfo["reason"] {
+function splitReason(unit: ApplicantUnit, intact: TeamPlan | null, split: SplitPlan | null, overallAverage: number): SplitGroupInfo["reason"] {
 	if (!intact) return "capacity";
 	if (split && split.rolePenalty + ROLE_PENALTY.offRole < intact.rolePenalty) {
 		return "role_conflict";
@@ -372,23 +390,12 @@ function splitReason(
 	return groupAverage > overallAverage ? "too_strong" : "too_weak";
 }
 
-function recordSplitGroup(
-	unit: ApplicantUnit,
-	assignments: Assignment[],
-	overallAverage: number,
-	reason: SplitGroupInfo["reason"],
-): SplitGroupInfo {
+function recordSplitGroup(unit: ApplicantUnit, assignments: Assignment[], overallAverage: number, reason: SplitGroupInfo["reason"]): SplitGroupInfo {
 	const keptTeam = assignments[0]?.teamKey;
-	const kept = assignments
-		.filter((assignment) => assignment.teamKey === keptTeam)
-		.map((assignment) => assignment.discordId);
-	const moved = assignments
-		.filter((assignment) => assignment.teamKey !== keptTeam)
-		.map((assignment) => assignment.discordId);
+	const kept = assignments.filter((assignment) => assignment.teamKey === keptTeam).map((assignment) => assignment.discordId);
+	const moved = assignments.filter((assignment) => assignment.teamKey !== keptTeam).map((assignment) => assignment.discordId);
 	const groupAverage = unit.strength / unit.applicants.length;
-	const deviation = overallAverage > 0
-		? Math.abs(groupAverage - overallAverage) / overallAverage
-		: 0;
+	const deviation = overallAverage > 0 ? Math.abs(groupAverage - overallAverage) / overallAverage : 0;
 
 	return {
 		code: unit.groupCode!,
@@ -402,11 +409,7 @@ function recordSplitGroup(
 	};
 }
 
-function shouldSplitGroup(
-	intact: TeamPlan | null,
-	split: SplitPlan | null,
-	options: BalanceOptions,
-) {
+function shouldSplitGroup(intact: TeamPlan | null, split: SplitPlan | null, options: BalanceOptions) {
 	if (!split) return false;
 	if (!intact) return true;
 
@@ -416,25 +419,69 @@ function shouldSplitGroup(
 	return (intactTooUneven && splitMeaningfullyFairer) || splitMuchBetterRoles;
 }
 
-export function snakeFillAssignments(
-	applicants: RosterApplicant[],
-	teams: RosterTeam[],
-	options?: Partial<BalanceOptions>,
-): BalanceResult {
+function optimizeStarterSwaps(assignments: Assignment[], applicantById: Map<string, RosterApplicant>, strengthById: Map<string, number>, teamKeys: string[]) {
+	const teamStrengths = new Map(teamKeys.map((teamKey) => [teamKey, 0]));
+	for (const assignment of assignments) {
+		if (!CORE_ROLES.includes(assignment.role)) continue;
+		teamStrengths.set(assignment.teamKey, (teamStrengths.get(assignment.teamKey) ?? 0) + (strengthById.get(assignment.discordId) ?? 0));
+	}
+	const target = [...teamStrengths.values()].reduce((sum, strength) => sum + strength, 0) / Math.max(1, teamKeys.length);
+	const candidates = assignments.filter((assignment) => CORE_ROLES.includes(assignment.role) && !applicantById.get(assignment.discordId)?.preferenceGroupCode);
+
+	for (let pass = 0; pass < 50; pass += 1) {
+		let best: { left: Assignment; right: Assignment; improvement: number } | null = null;
+		for (let leftIndex = 0; leftIndex < candidates.length; leftIndex += 1) {
+			for (let rightIndex = leftIndex + 1; rightIndex < candidates.length; rightIndex += 1) {
+				const left = candidates[leftIndex];
+				const right = candidates[rightIndex];
+				if (left.teamKey === right.teamKey || left.role !== right.role) continue;
+				const leftStrength = strengthById.get(left.discordId) ?? 0;
+				const rightStrength = strengthById.get(right.discordId) ?? 0;
+				const leftTeamStrength = teamStrengths.get(left.teamKey) ?? 0;
+				const rightTeamStrength = teamStrengths.get(right.teamKey) ?? 0;
+				const before = (leftTeamStrength - target) ** 2 + (rightTeamStrength - target) ** 2;
+				const after = (leftTeamStrength - leftStrength + rightStrength - target) ** 2 + (rightTeamStrength - rightStrength + leftStrength - target) ** 2;
+				const improvement = before - after;
+				if (improvement > 0.01 && (!best || improvement > best.improvement)) best = { left, right, improvement };
+			}
+		}
+		if (!best) break;
+		const leftTeamKey = best.left.teamKey;
+		const rightTeamKey = best.right.teamKey;
+		const leftStrength = strengthById.get(best.left.discordId) ?? 0;
+		const rightStrength = strengthById.get(best.right.discordId) ?? 0;
+		teamStrengths.set(leftTeamKey, (teamStrengths.get(leftTeamKey) ?? 0) - leftStrength + rightStrength);
+		teamStrengths.set(rightTeamKey, (teamStrengths.get(rightTeamKey) ?? 0) - rightStrength + leftStrength);
+		best.left.teamKey = rightTeamKey;
+		best.right.teamKey = leftTeamKey;
+	}
+
+	return teamStrengths;
+}
+
+export function snakeFillAssignments(applicants: RosterApplicant[], teams: RosterTeam[], options?: Partial<BalanceOptions>): BalanceResult {
 	if (teams.length === 0 || applicants.length === 0) {
 		return {
 			assignments: [],
 			splitGroups: [],
 			teamStrengths: teams.map((team) => ({ teamKey: team.key, strength: 0 })),
 			overallAverage: 0,
+			imputedApplicants: 0,
+			highEloPreferredAssignments: [],
 		};
 	}
 
 	const opts = { ...DEFAULT_BALANCE_OPTIONS, ...options };
-	const totalStrength = applicants.reduce((sum, applicant) => sum + applicantStrength(applicant), 0);
+	const strengthById = createStrengthMap(applicants);
+	const totalStrength = applicants.reduce((sum, applicant) => sum + applicantStrength(applicant, strengthById), 0);
 	const overallAverage = totalStrength / applicants.length;
-	const targetTeamStrength = totalStrength / teams.length;
-	const units = createApplicantUnits(applicants);
+	const starterCount = Math.min(applicants.length, teams.length * CORE_ROLES.length);
+	const starterStrength = [...strengthById.values()]
+		.sort((a, b) => b - a)
+		.slice(0, starterCount)
+		.reduce((sum, strength) => sum + strength, 0);
+	const targetPlayerStrength = starterStrength / Math.max(1, starterCount);
+	const units = createApplicantUnits(applicants, strengthById);
 	const applicantById = new Map(applicants.map((applicant) => [applicant.discordId, applicant]));
 	const teamBalances: TeamBalance[] = teams.map((team, index) => ({
 		team,
@@ -445,29 +492,30 @@ export function snakeFillAssignments(
 		},
 		strength: 0,
 		playerCount: 0,
+		corePlayerCount: 0,
 	}));
 	const assignments: Assignment[] = [];
 	const splitGroups: SplitGroupInfo[] = [];
 
 	for (const unit of units) {
 		const isPreferenceGroup = Boolean(unit.groupCode && unit.applicants.length >= 2);
-		const intact = bestTeamPlan(unit, teamBalances, targetTeamStrength, opts);
+		const intact = bestTeamPlan(unit, teamBalances, targetPlayerStrength, opts, strengthById);
 
 		if (isPreferenceGroup && unit.applicants.length > MAX_AUTOBALANCE_FRIEND_GROUP_SIZE) {
-			const split = simulateSplitPlan(unit, teamBalances, targetTeamStrength, opts, applicantById);
+			const split = simulateSplitPlan(unit, teamBalances, targetPlayerStrength, opts, applicantById, strengthById);
 			if (split) {
 				assignments.push(...split.assignments);
-				applyAssignments(teamBalances, split.assignments, applicantById);
+				applyAssignments(teamBalances, split.assignments, applicantById, strengthById);
 				splitGroups.push(recordSplitGroup(unit, split.assignments, overallAverage, "capacity"));
 			}
 			continue;
 		}
 
 		if (isPreferenceGroup) {
-			const split = simulateSplitPlan(unit, teamBalances, targetTeamStrength, opts, applicantById);
+			const split = simulateSplitPlan(unit, teamBalances, targetPlayerStrength, opts, applicantById, strengthById);
 			if (shouldSplitGroup(intact, split, opts) && split) {
 				assignments.push(...split.assignments);
-				applyAssignments(teamBalances, split.assignments, applicantById);
+				applyAssignments(teamBalances, split.assignments, applicantById, strengthById);
 				splitGroups.push(recordSplitGroup(unit, split.assignments, overallAverage, splitReason(unit, intact, split, overallAverage)));
 				continue;
 			}
@@ -475,27 +523,49 @@ export function snakeFillAssignments(
 
 		if (intact) {
 			assignments.push(...intact.assignments);
-			applyAssignments(teamBalances, intact.assignments, applicantById);
+			applyAssignments(teamBalances, intact.assignments, applicantById, strengthById);
 			continue;
 		}
 
-		const split = simulateSplitPlan(unit, teamBalances, targetTeamStrength, opts, applicantById);
+		const split = simulateSplitPlan(unit, teamBalances, targetPlayerStrength, opts, applicantById, strengthById);
 		if (split) {
 			assignments.push(...split.assignments);
-			applyAssignments(teamBalances, split.assignments, applicantById);
+			applyAssignments(teamBalances, split.assignments, applicantById, strengthById);
 			if (isPreferenceGroup) {
 				splitGroups.push(recordSplitGroup(unit, split.assignments, overallAverage, "capacity"));
 			}
 		}
 	}
 
+	const optimizedStrengths = optimizeStarterSwaps(
+		assignments,
+		applicantById,
+		strengthById,
+		teams.map((team) => team.key)
+	);
+	const highEloPreferredAssignments = assignments.flatMap((assignment) => {
+		const applicant = applicantById.get(assignment.discordId);
+		const rank = applicant ? rawApplicantRank(applicant) : null;
+		if (!applicant || !rank || !hasKnownRank(applicant) || parseRank(rank) < 2800 || !isRequestedCoreRole(applicant, assignment.role)) return [];
+		return [
+			{
+				discordId: applicant.discordId,
+				displayName: applicant.displayName,
+				teamKey: assignment.teamKey,
+				role: assignment.role,
+				rank,
+			},
+		];
+	});
 	return {
 		assignments,
 		splitGroups,
 		teamStrengths: teamBalances.map((team) => ({
 			teamKey: team.team.key,
-			strength: team.strength,
+			strength: optimizedStrengths.get(team.team.key) ?? 0,
 		})),
 		overallAverage,
+		imputedApplicants: applicants.filter((applicant) => !hasKnownRank(applicant)).length,
+		highEloPreferredAssignments,
 	};
 }

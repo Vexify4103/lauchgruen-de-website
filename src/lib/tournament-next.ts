@@ -122,7 +122,9 @@ export async function upsertTournamentArchive(input: Omit<TournamentArchive, "id
 		id: input.id ?? randomUUID(),
 		createdAt: input.createdAt ?? new Date().toISOString(),
 	};
-	await (await getDb()).collection<TournamentArchive & { _id: string }>(ARCHIVES).replaceOne({ _id: archive.id }, { ...archive, _id: archive.id } as unknown as TournamentArchive & { _id: string }, { upsert: true });
+	await (await getDb())
+		.collection<TournamentArchive & { _id: string }>(ARCHIVES)
+		.replaceOne({ _id: archive.id }, { ...archive, _id: archive.id } as unknown as TournamentArchive & { _id: string }, { upsert: true });
 	return archive;
 }
 
@@ -175,13 +177,12 @@ function publicDrafts(drafts: TournamentDraftState[]): ArchivedDraft[] {
 
 function archiveRoleCleanupOperations(teams: TournamentTeam[]): DiscordOperation[] {
 	const operations: DiscordOperation[] = [];
-	const tournamentRoleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	const captainRoleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim();
 	for (const team of teams) {
 		for (const player of team.players) {
 			if (!player.discordId) continue;
-			if (tournamentRoleId) operations.push({ kind: "role", discordId: player.discordId, roleId: tournamentRoleId, enabled: false, label: `${player.name}: Turnierrolle entfernen` });
-			if (team.discordRoleId) operations.push({ kind: "role", discordId: player.discordId, roleId: team.discordRoleId, enabled: false, label: `${player.name}: Teamrolle entfernen` });
+			if (team.discordRoleId)
+				operations.push({ kind: "role", discordId: player.discordId, roleId: team.discordRoleId, enabled: false, label: `${player.name}: Teamrolle entfernen` });
 		}
 		if (captainRoleId && team.captainRef?.discordId) {
 			operations.push({ kind: "role", discordId: team.captainRef.discordId, roleId: captainRoleId, enabled: false, label: `${team.name}: Captain-Rolle entfernen` });
@@ -255,7 +256,12 @@ export async function archiveAzTournamentAndPrepareUltimateBravery(input: {
 		},
 		updatedBy: input.createdBy,
 	});
-	const discordJob = await enqueueDiscordJob({ type: "archive-az-role-cleanup", title: "A-Z-Turnierrollen entfernen", operations: cleanupOperations, actorLabel: input.createdBy });
+	const discordJob = await enqueueDiscordJob({
+		type: "archive-az-role-cleanup",
+		title: "A-Z-Turnierrollen entfernen",
+		operations: cleanupOperations,
+		actorLabel: input.createdBy,
+	});
 	return { archive, discordJobId: discordJob?.id, cleanupOperationCount: cleanupOperations.length };
 }
 
@@ -272,7 +278,9 @@ export async function upsertTournamentTemplate(input: Omit<TournamentTemplate, "
 		createdAt: input.createdAt ?? now,
 		updatedAt: now,
 	};
-	await (await getDb()).collection<TournamentTemplate & { _id: string }>(TEMPLATES).replaceOne({ _id: template.id }, { ...template, _id: template.id } as unknown as TournamentTemplate & { _id: string }, { upsert: true });
+	await (await getDb())
+		.collection<TournamentTemplate & { _id: string }>(TEMPLATES)
+		.replaceOne({ _id: template.id }, { ...template, _id: template.id } as unknown as TournamentTemplate & { _id: string }, { upsert: true });
 	return template;
 }
 
@@ -282,7 +290,11 @@ export async function getCaptainCheckIn(matchId: string, teamName: string): Prom
 }
 
 export async function upsertCaptainCheckIn(input: CaptainCheckIn) {
-	await (await getDb()).collection<CaptainCheckIn & { _id: string }>(CHECK_INS).replaceOne({ _id: `${input.matchId}|${input.teamName}` }, { ...input, _id: `${input.matchId}|${input.teamName}` } as unknown as CaptainCheckIn & { _id: string }, { upsert: true });
+	await (await getDb())
+		.collection<CaptainCheckIn & { _id: string }>(CHECK_INS)
+		.replaceOne({ _id: `${input.matchId}|${input.teamName}` }, { ...input, _id: `${input.matchId}|${input.teamName}` } as unknown as CaptainCheckIn & { _id: string }, {
+			upsert: true,
+		});
 	return input;
 }
 
@@ -311,6 +323,8 @@ export async function getFeedbackDashboard(): Promise<FeedbackDashboard> {
 
 export async function updateFeedbackDashboard(patch: Partial<Omit<FeedbackDashboard, "id" | "updatedAt">> & { updatedBy?: string }) {
 	const now = new Date().toISOString();
-	await (await getDb()).collection<FeedbackDashboard & { _id: string }>(FEEDBACK).updateOne({ _id: "default" }, { $set: { ...patch, id: "default", updatedAt: now } }, { upsert: true });
+	await (await getDb())
+		.collection<FeedbackDashboard & { _id: string }>(FEEDBACK)
+		.updateOne({ _id: "default" }, { $set: { ...patch, id: "default", updatedAt: now } }, { upsert: true });
 	return getFeedbackDashboard();
 }

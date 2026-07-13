@@ -29,7 +29,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
-	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament/archive/az-2026?view=teams");
+	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));

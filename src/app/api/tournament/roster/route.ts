@@ -24,6 +24,7 @@ const payloadSchema = z.object({
 			z.string(),
 			z.object({
 				discordUsername: z.string().trim().min(1).max(64),
+				displayName: z.string().trim().min(1).max(32),
 				riotId: z
 					.string()
 					.trim()

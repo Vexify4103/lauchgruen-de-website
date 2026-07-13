@@ -19,7 +19,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function CaptainPortalPage() {
-	if ((await getTournamentSettings()).activeTournament.mode === "teaser") redirect("/tournament");
+	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament");
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 

@@ -9,6 +9,7 @@
 import { getDb } from "@/lib/mongo";
 import { groupMatches as fallbackGroupMatches, teams as fallbackTeams, type GroupMatch, type TournamentPlayer, type TournamentTeam } from "@/lib/tournament-data";
 import { groupRollingTime } from "@/lib/tournament-schedule";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -275,8 +276,11 @@ function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
  * server-component work; we don't add explicit caching beyond that.
  */
 export async function getTournamentContext(): Promise<TournamentContext> {
-	const stored = await readBotTeams();
+	const [stored, settings] = await Promise.all([readBotTeams(), getTournamentSettings()]);
 	if (!stored || stored.length === 0) {
+		if (settings.activeTournament.id === "ultimate-bravery") {
+			return { teams: [], groupMatches: [], source: "bot" };
+		}
 		return {
 			teams: fallbackTeams,
 			groupMatches: fallbackGroupMatches,

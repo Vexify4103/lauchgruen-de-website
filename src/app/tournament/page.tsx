@@ -25,8 +25,14 @@ const formatSteps = [
 
 export default async function TournamentHomePage() {
 	const [{ teams, groupMatches }, settings, archives] = await Promise.all([getTournamentContext(), getTournamentSettings(), listTournamentArchives()]);
-	const applicationsOpen = areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
-	if (settings.activeTournament.mode === "teaser") return <UltimateBraveryTeaser archiveCount={archives.length} />;
+	const applicationsOpen = areTournamentApplicationsOpen(
+		settings.applicationsOpen,
+		new Date(),
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
+	if (settings.activeTournament.mode !== "live") return <UltimateBraveryOverview archiveCount={archives.length} settings={settings} applicationsOpen={applicationsOpen} />;
 
 	return (
 		<div className="px-5 py-8 sm:py-12">
@@ -102,7 +108,7 @@ export default async function TournamentHomePage() {
 													A<span className="text-emerald-100/22">→</span>Z
 												</div>
 												<p className="mt-3 max-w-xs text-sm leading-6 text-emerald-100/58">
-											Zwei Teams. Zwei gezogene Pools. Keine Wiederholung bis zum Final-Reset bei Upper Final und Lower Semi-Final.
+													Zwei Teams. Zwei gezogene Pools. Keine Wiederholung bis zum Final-Reset bei Upper Final und Lower Semi-Final.
 												</p>
 											</div>
 											<div className="hidden size-20 shrink-0 place-items-center rounded-full border border-dashed border-lime-200/24 bg-lime-200/[0.05] text-center text-[9px] font-black uppercase tracking-[0.16em] text-lime-100/64 sm:grid">
@@ -174,7 +180,8 @@ export default async function TournamentHomePage() {
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/60">A-Z Pools</div>
 						<h2 className="mt-3 text-3xl font-black tracking-tight text-emerald-50">Das Rad bestimmt dein Champion-Roster.</h2>
 						<p className="mt-3 text-sm leading-7 text-emerald-100/64">
-							Jeder Pool gilt nur für ein Team in einem Match. Gespielte Pools bleiben bis zum Final-Reset bei Upper Final und Lower Semi-Final aus diesem Team-Rad entfernt.
+							Jeder Pool gilt nur für ein Team in einem Match. Gespielte Pools bleiben bis zum Final-Reset bei Upper Final und Lower Semi-Final aus diesem Team-Rad
+							entfernt.
 						</p>
 						<Link
 							href="/tournament/pools"
@@ -202,7 +209,7 @@ export default async function TournamentHomePage() {
 				<section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 					<DashboardCard href="/tournament/teams" label="Teams" value={teams.length.toString()} title="Rosters" text="Spieler, Rollen und OP.GG Multisearch." />
 					<DashboardCard
-						href="/tournament/groups"
+						href="/tournament/stage"
 						label="Gruppen"
 						value={groupMatches.length.toString()}
 						title="Matches"
@@ -228,26 +235,135 @@ export default async function TournamentHomePage() {
 	);
 }
 
-function UltimateBraveryTeaser({ archiveCount }: { archiveCount: number }) {
+function UltimateBraveryOverview({
+	archiveCount,
+	settings,
+	applicationsOpen,
+}: {
+	archiveCount: number;
+	settings: Awaited<ReturnType<typeof getTournamentSettings>>;
+	applicationsOpen: boolean;
+}) {
+	const config = settings.ultimateBravery;
+	const dateLabels = formatTournamentDays(config.startAt, config.dayTwoStartAt);
+	const dayOneLabel =
+		config.dayOneFormat === "swiss"
+			? `Swiss Stage mit ${config.swissRounds} Runden`
+			: config.dayOneFormat === "groups"
+				? `${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}`
+				: "Format wird noch festgelegt";
+	const playoffLabel = config.format === "double-elimination" ? "Double Elimination" : config.format === "single-elimination" ? "Single Elimination" : null;
+	const qualificationLabel =
+		config.advanceTeamCount === config.teamCount ? "Alle Teams ziehen weiter." : `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams ziehen weiter.`;
 	return (
 		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto grid w-full max-w-7xl gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+			<section className="mx-auto grid w-full max-w-7xl gap-5 lg:grid-cols-[1.08fr_0.92fr]">
 				<div className="relative isolate overflow-hidden rounded-[2.5rem] border border-lime-200/14 bg-[#0a1a11]/92 p-7 shadow-2xl shadow-black/35 sm:p-10">
-					<div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full border border-cyan-200/14 bg-cyan-300/8 blur-2xl" />
+					<div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-cyan-300/10 blur-3xl" />
 					<div className="relative">
-						<div className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100">Nächstes Community-Turnier</div>
-						<h1 className="mt-7 text-5xl font-black leading-[0.9] tracking-[-0.055em] text-emerald-50 sm:text-7xl">Ultimate<br /><span className="bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">Bravery.</span></h1>
-						<p className="mt-6 max-w-2xl text-base leading-8 text-emerald-100/68 sm:text-lg">Zufälliger Champion. Zufälliger Item-Build. Sehr fragwürdige Entscheidungen. Details zu Termin, Teamgröße, Format und möglichen Zusatzregeln folgen noch.</p>
-						<div className="mt-8 flex flex-wrap gap-3"><span className="cursor-not-allowed rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/40">Bewerbung folgt</span><Link href="/tournament/winners" className="rounded-2xl border border-lime-200/20 bg-lime-200/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50">Vergangene Turniere ansehen</Link></div>
+						<div className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100">
+							Nächstes Community-Turnier
+						</div>
+						<h1 className="mt-7 text-5xl font-black leading-[0.9] tracking-[-0.055em] text-emerald-50 sm:text-7xl">
+							Ultimate
+							<br />
+							<span className="bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">Bravery.</span>
+						</h1>
+						<p className="mt-6 max-w-2xl text-base leading-8 text-emerald-100/68 sm:text-lg">
+							Zufälliger Champion, zufälliger Build, zufällige Runen und Summoner Spells. Jeder Spieler würfelt seine Vorgabe direkt auf der Match-Seite.
+						</p>
+						<div className="mt-7 grid gap-3 sm:grid-cols-2">
+							<TeaserFact number="Tag 1" title={dateLabels[0]} text={`${dayOneLabel} ab 18:00 Uhr. Bitte mindestens 20 Minuten vorher im Voice-Call sein.`} />
+							<TeaserFact
+								number="Tag 2"
+								title={dateLabels[1]}
+								text={
+									playoffLabel
+										? `Playoffs im ${playoffLabel}-Bracket. Start ebenfalls 18:00 Uhr.`
+										: "Das Playoff-Format wird noch festgelegt. Start ebenfalls 18:00 Uhr."
+								}
+							/>
+							<TeaserFact number="BO1" title="Alle Matches sind Best of 1" text="Jedes Spiel zählt direkt. Kein BO3, kein BO5, keine langen Serien." />
+							<TeaserFact
+								number="Format"
+								title={`Tag 1 ${config.dayOneFormat === "swiss" ? "Swiss" : config.dayOneFormat === "groups" ? "Gruppen" : "offen"} · Tag 2 Playoffs`}
+								text={`${qualificationLabel} ${playoffLabel ? `Danach folgt das ${playoffLabel}-Bracket.` : "Der genaue Playoff-Ablauf folgt nach Festlegung der Teamzahl."}`}
+							/>
+						</div>
+						<div className="mt-8 flex flex-wrap gap-3">
+							{applicationsOpen ? (
+								<Link
+									href="/tournament/apply"
+									className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+								>
+									Jetzt bewerben
+								</Link>
+							) : (
+								<span className="cursor-not-allowed rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/40">
+									Bewerbung folgt
+								</span>
+							)}
+							<Link
+								href="/tournament/winners"
+								className="rounded-2xl border border-lime-200/20 bg-lime-200/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50"
+							>
+								Archiv & Hall of Fame
+							</Link>
+						</div>
 					</div>
 				</div>
-				<aside className="rounded-[2.5rem] border border-amber-200/16 bg-amber-200/[0.06] p-7 shadow-xl shadow-black/20 sm:p-10"><div className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/72">Was bisher feststeht</div><div className="mt-7 grid gap-3"><TeaserFact number="01" title="Random Champion" text="Die Champion-Wahl wird nicht nach Komfortzone aussehen." /><TeaserFact number="02" title="Random Item-Build" text="Auch die Itemisierung wird euch aus den Gewohnheiten werfen." /><TeaserFact number="03" title="Regeln folgen" text="Fearless, Teams, Termin und Ablauf werden erst nach Lucas finaler Entscheidung veröffentlicht." /></div><div className="mt-8 rounded-2xl border border-white/10 bg-black/18 p-4 text-sm font-bold text-emerald-100/66">{archiveCount} {archiveCount === 1 ? "Turnier ist" : "Turniere sind"} bereits im Archiv gesichert.</div></aside>
+				<aside className="rounded-[2.5rem] border border-amber-200/16 bg-amber-200/[0.06] p-7 shadow-xl shadow-black/20 sm:p-10">
+					<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/72">Aktueller Regelstand</div>
+					<div className="mt-7 grid gap-3">
+						<TeaserFact number="01" title="Alle Spiele BO1" text="Jedes Match ist ein einzelnes Spiel. Ergebnisse zählen direkt für den weiteren Turnierverlauf." />
+						<TeaserFact number="02" title="Beide Tage einplanen" text="Mit der Bewerbung meldest du dich verbindlich für den 04.09. und 05.09. an." />
+						<TeaserFact
+							number="03"
+							title={`Account-Level ${config.minimumSummonerLevel}+`}
+							text="Das Mindestlevel reduziert offensichtliche Wegwerf-Accounts, ist aber kein vollständiger Smurf-Schutz."
+						/>
+						<TeaserFact
+							number="04"
+							title="Mindestens 150 Champions"
+							text="Dein League-Account sollte mindestens 150 Champions besitzen, damit Ultimate Bravery fair spielbar bleibt."
+						/>
+						<TeaserFact number="05" title="2 Rerolls pro Match" text="Jeder Spieler hat 2 garantierte Rerolls. Weitere Ausnahmen laufen nur über Captain und Orga." />
+					</div>
+					<div className="mt-5 rounded-2xl border border-amber-200/18 bg-black/18 p-4">
+						<div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Preispool</div>
+						<div className="mt-2 text-xl font-black text-amber-50">{config.prizePool}</div>
+					</div>
+					<div className="mt-5 text-xs font-bold text-emerald-100/54">
+						{archiveCount} {archiveCount === 1 ? "Turnier ist" : "Turniere sind"} im Archiv gesichert.
+					</div>
+				</aside>
 			</section>
 		</div>
 	);
 }
 
-function TeaserFact({ number, title, text }: { number: string; title: string; text: string }) { return <article className="rounded-2xl border border-white/10 bg-black/18 p-4"><div className="text-xs font-black text-lime-200/60">{number}</div><h2 className="mt-2 text-xl font-black text-emerald-50">{title}</h2><p className="mt-2 text-sm leading-6 text-emerald-100/60">{text}</p></article>; }
+function formatTournamentDays(startAt: string | null, dayTwoStartAt: string | null) {
+	const formatter = new Intl.DateTimeFormat("de-DE", {
+		weekday: "short",
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+		timeZone: "Europe/Berlin",
+	});
+	return [startAt, dayTwoStartAt].map((date) => (date ? formatter.format(new Date(date)) : "Termin wird noch angekündigt"));
+}
+
+function TeaserFact({ number, title, text }: { number: string; title: string; text: string }) {
+	return (
+		<article className="rounded-2xl border border-white/10 bg-black/18 p-4">
+			<div className="text-xs font-black text-lime-200/60">{number}</div>
+			<h2 className="mt-2 text-xl font-black text-emerald-50">{title}</h2>
+			<p className="mt-2 text-sm leading-6 text-emerald-100/60">{text}</p>
+		</article>
+	);
+}
 
 function HeroFact({ label, value }: { label: string; value: string }) {
 	return (
