@@ -53,4 +53,6 @@ next-env.d.ts
 /data/tournament-applications.json
 /data/tournament-state.json
 
+# Pterodactyl runtime
+.install/
 .deployed-commit
