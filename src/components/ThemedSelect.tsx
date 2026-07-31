@@ -173,6 +173,14 @@ function Checkmark({ selected }: { selected: boolean }) {
 	);
 }
 
+function SelectionOrder({ selected, order }: { selected: boolean; order: number }) {
+	return (
+		<span className={`grid size-6 shrink-0 place-items-center rounded-full border text-[10px] font-black transition ${selected ? "border-lime-200/55 bg-lime-200 text-emerald-950" : "border-white/12 bg-black/15 text-emerald-100/24"}`}>
+			{selected ? order : "–"}
+		</span>
+	);
+}
+
 function OptionRows({
 	idBase,
 	options,
@@ -181,6 +189,7 @@ function OptionRows({
 	onHighlight,
 	onSelect,
 	multi = false,
+	ordered = false,
 }: {
 	idBase: string;
 	options: SelectOption[];
@@ -189,10 +198,12 @@ function OptionRows({
 	onHighlight: (index: number) => void;
 	onSelect: (option: SelectOption) => void;
 	multi?: boolean;
+	ordered?: boolean;
 }) {
 	let previousGroup: string | undefined;
 	return options.map((option, index) => {
 		const selected = Array.isArray(value) ? value.includes(option.value) : option.value === value;
+		const selectionOrder = Array.isArray(value) ? value.indexOf(option.value) + 1 : 0;
 		const showGroup = option.group && option.group !== previousGroup;
 		previousGroup = option.group;
 		return (
@@ -223,7 +234,7 @@ function OptionRows({
 						<span className={`block truncate ${selected ? "font-black" : "font-bold"}`}>{option.label}</span>
 						{option.description ? <span className="mt-0.5 block truncate text-[11px] text-emerald-100/45">{option.description}</span> : null}
 					</span>
-					{multi || selected ? <Checkmark selected={selected} /> : null}
+					{multi && ordered ? <SelectionOrder selected={selected} order={selectionOrder} /> : multi || selected ? <Checkmark selected={selected} /> : null}
 				</button>
 			</div>
 		);
@@ -379,13 +390,23 @@ export function ThemedMultiSelect({
 	className,
 	emptyMessage = "Keine Optionen verfügbar.",
 	compact = false,
-}: CommonSelectProps & { value: string[]; onChange: (value: string[]) => void }) {
+	ordered = false,
+	exclusiveValues = [],
+}: CommonSelectProps & { value: string[]; onChange: (value: string[]) => void; ordered?: boolean; exclusiveValues?: string[] }) {
 	const id = useId();
 	const [open, setOpen] = useState(false);
 	const [highlight, setHighlight] = useState(() => firstEnabledIndex(options));
 	const { triggerRef, menuRef, position } = usePortalMenu(open);
-	const selected = options.filter((option) => value.includes(option.value));
-	const selectedText = selected.length === 0 ? placeholder : selected.length <= 2 ? selected.map((option) => option.label).join(", ") : `${selected.length} Optionen ausgewählt`;
+	const selected = ordered
+		? value.map((entry) => options.find((option) => option.value === entry)).filter((option): option is SelectOption => Boolean(option))
+		: options.filter((option) => value.includes(option.value));
+	const selectedText = selected.length === 0
+		? placeholder
+		: ordered
+			? selected.map((option, index) => `${index + 1}. ${option.label}`).join(" · ")
+			: selected.length <= 2
+				? selected.map((option) => option.label).join(", ")
+				: `${selected.length} Optionen ausgewählt`;
 
 	function close(restoreFocus = true) {
 		setOpen(false);
@@ -395,7 +416,15 @@ export function ThemedMultiSelect({
 
 	function toggle(option: SelectOption) {
 		if (option.disabled) return;
-		onChange(value.includes(option.value) ? value.filter((entry) => entry !== option.value) : [...value, option.value]);
+		if (value.includes(option.value)) {
+			onChange(value.filter((entry) => entry !== option.value));
+			return;
+		}
+		if (exclusiveValues.includes(option.value)) {
+			onChange([option.value]);
+			return;
+		}
+		onChange([...value.filter((entry) => !exclusiveValues.includes(entry)), option.value]);
 	}
 
 	function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -449,7 +478,7 @@ export function ThemedMultiSelect({
 				? createPortal(
 						<MenuShell menuRef={menuRef} position={position} labelledBy={id} multi>
 							{options.length ? (
-								<OptionRows idBase={id} options={options} value={value} highlight={highlight} onHighlight={setHighlight} onSelect={toggle} multi />
+								<OptionRows idBase={id} options={options} value={value} highlight={highlight} onHighlight={setHighlight} onSelect={toggle} multi ordered={ordered} />
 							) : (
 								<EmptyState>{emptyMessage}</EmptyState>
 							)}

@@ -1,6 +1,5 @@
 import { TournamentLink as Link } from "../TournamentLink";
-import { headers } from "next/headers";
-import { auth, signIn } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { computeGroupStandings, resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { checkDiscordMemberRole, isDiscordGuildMember } from "@/lib/discord";
 import { listAuditLog } from "@/lib/tournament-audit";
@@ -17,10 +16,9 @@ import { DiscordControlCenter } from "./DiscordControlCenter";
 import { TournamentModePanel } from "./TournamentModePanel";
 import { WheelAdminClient } from "./WheelAdminClient";
 import { getTournamentArchive } from "@/lib/tournament-next";
+import { DiscordSignInButton } from "../DiscordSignInButton";
 
 export default async function TournamentAdminPage() {
-	const host = (await headers()).get("host")?.toLowerCase() ?? "";
-	const isLocalSubdomain = host.endsWith(".localhost:3000") && host !== "localhost:3000";
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
@@ -88,7 +86,7 @@ export default async function TournamentAdminPage() {
 						{settings ? <AdminStatusGrid settings={settings} applicationsOpen={applicationsOpen} /> : null}
 					</div>
 					{isOwner ? (
-						<nav aria-label="Admin-Bereiche" className="grid border-t border-white/8 bg-black/14 sm:grid-cols-3">
+						<nav aria-label="Admin-Bereiche" className="grid border-t border-white/8 bg-black/14 sm:grid-cols-2 xl:grid-cols-4">
 							<AdminAreaLink
 								href="/tournament/admin/live"
 								eyebrow="Operativer Betrieb"
@@ -98,6 +96,7 @@ export default async function TournamentAdminPage() {
 							/>
 							<AdminAreaLink href="/tournament/admin/applicants" eyebrow="Teilnehmer" title="Bewerbungen" detail="Profile, Blacklist und Wunschduos" tone="cyan" />
 							<AdminAreaLink href="/tournament/admin/roster" eyebrow="Teambau" title="Roster-Builder" detail="Rollen, Balance und Discord-Sync" tone="lime" />
+							<AdminAreaLink href="/tournament/admin/status" eyebrow="Betrieb" title="Systemstatus" detail="APIs, Cache und Queue" tone="cyan" />
 						</nav>
 					) : null}
 				</header>
@@ -153,26 +152,15 @@ export default async function TournamentAdminPage() {
 						) : (
 							<div className="rounded-2xl border border-amber-200/24 bg-amber-200/10 p-5 text-sm leading-7 text-amber-50">
 								<p>Melde dich mit einem Owner-Discord-Account an, um Turniermatches zu bearbeiten.</p>
-								{isLocalSubdomain ? (
-									<Link
-										href="http://localhost:3000/tournament/admin"
-										className="mt-4 inline-flex rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950"
+								<div className="mt-4">
+									<DiscordSignInButton
+										redirectTo="/tournament/admin"
+										pendingLabel="Weiter zu Discord..."
+										className="rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 disabled:cursor-wait disabled:opacity-65"
 									>
-										Auf localhost weitermachen
-									</Link>
-								) : (
-									<form
-										className="mt-4"
-										action={async () => {
-											"use server";
-											await signIn("discord", { redirectTo: "/tournament/admin" });
-										}}
-									>
-										<button className="rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950">
-											Mit Discord anmelden
-										</button>
-									</form>
-								)}
+										Mit Discord anmelden
+									</DiscordSignInButton>
+								</div>
 							</div>
 						)}
 					</div>

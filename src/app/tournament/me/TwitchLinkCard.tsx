@@ -14,21 +14,35 @@ const statusMessages: Record<string, string> = {
 	failed: "Twitch konnte nicht verbunden werden. Bitte versuche es erneut.",
 };
 
-export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: TournamentTwitchLink | null; status?: string; isOwner: boolean }) {
+type TwitchSetting = "showWhenLive" | "showInCommunityOverlay";
+
+export function TwitchLinkCard({
+	initialLink,
+	status,
+	isOwner,
+	verifiedRiotId,
+	returnSource,
+}: {
+	initialLink: TournamentTwitchLink | null;
+	status?: string;
+	isOwner: boolean;
+	verifiedRiotId: string | null;
+	returnSource: "main" | "overlay" | "tournament";
+}) {
 	const router = useRouter();
 	const [link, setLink] = useState(initialLink);
 	const [busy, setBusy] = useState(false);
 	const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
 	const [message, setMessage] = useState(status ? statusMessages[status] : "");
 
-	async function updateVisibility(showWhenLive: boolean) {
+	async function updateSetting(setting: TwitchSetting, value: boolean) {
 		setBusy(true);
 		setMessage("");
 		try {
-			const response = await fetch("/api/tournament/twitch", {
+			const response = await fetch("/api/twitch/link", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ showWhenLive }),
+				body: JSON.stringify({ [setting]: value }),
 			});
 			const json = (await response.json()) as {
 				link?: TournamentTwitchLink;
@@ -38,7 +52,7 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 				throw new Error(json.message ?? "Einstellung konnte nicht gespeichert werden.");
 			}
 			setLink(json.link);
-			setMessage("Twitch-Anzeige gespeichert.");
+			setMessage(setting === "showInCommunityOverlay" ? "Community-Overlay-Freigabe gespeichert." : "Twitch-Anzeige gespeichert.");
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Speichern fehlgeschlagen.");
 		} finally {
@@ -51,7 +65,7 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 		setBusy(true);
 		setMessage("");
 		try {
-			const response = await fetch("/api/tournament/twitch", { method: "DELETE" });
+			const response = await fetch("/api/twitch/link", { method: "DELETE" });
 			const json = (await response.json()) as { message?: string };
 			if (!response.ok) {
 				throw new Error(json.message ?? "Twitch konnte nicht getrennt werden.");
@@ -67,13 +81,13 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-[#9146ff]/25 bg-[#9146ff]/[0.08] p-5 shadow-xl shadow-black/20">
+		<section id="streamer-overlay" className="scroll-mt-6 rounded-[2rem] border border-[#9146ff]/25 bg-[#9146ff]/[0.08] p-5 shadow-xl shadow-black/20">
 			<div className="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-[#c9a8ff]">Twitch</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">{link ? link.displayName : "Stream mit dem Turnier verbinden"}</h2>
+					<h2 className="mt-2 text-2xl font-black text-emerald-50">{link ? link.displayName : "Stream mit deinem Profil verbinden"}</h2>
 					<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/60">
-						Wenn dein Team ein Live-Match spielt und dein Kanal gerade online ist, können Zuschauer deinen Stream im Zeitplan und bei den Teams öffnen.
+						Deine Twitch-Verknüpfung kann sowohl für Turniermatches als auch freiwillig für das öffentliche League-Overlay verwendet werden.
 					</p>
 				</div>
 				{link?.profileImageUrl ? (
@@ -83,22 +97,28 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 			</div>
 
 			{link ? (
-				<div className="mt-5 grid gap-4">
-					<label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/18 p-4">
-						<input
-							type="checkbox"
-							checked={link.showWhenLive}
-							disabled={busy}
-							onChange={(event) => void updateVisibility(event.target.checked)}
-							className="mt-0.5 size-5 accent-[#9146ff]"
-						/>
-						<span>
-							<span className="block text-sm font-black text-emerald-50">Während meiner Turniermatches anzeigen</span>
-							<span className="mt-1 block text-xs leading-5 text-emerald-100/48">
-								Es erscheint nur dann ein Link, wenn dein Match den Status „Live“ hat und dein Twitch-Kanal tatsächlich live ist.
-							</span>
-						</span>
-					</label>
+				<div className="mt-5 grid gap-3">
+					<SettingToggle
+						checked={link.showWhenLive}
+						disabled={busy}
+						title="Während meiner Turniermatches anzeigen"
+						description="Ein Stream-Link erscheint nur, wenn dein Turniermatch live ist und dein Twitch-Kanal tatsächlich sendet."
+						onChange={(value) => void updateSetting("showWhenLive", value)}
+					/>
+					<SettingToggle
+						checked={Boolean(link.showInCommunityOverlay)}
+						disabled={busy || !verifiedRiotId}
+						title="Als Streamer in Community-Overlays erscheinen"
+						description={
+							verifiedRiotId
+								? `Wenn ${verifiedRiotId} in einem erkannten Live-Spiel auftaucht, dürfen Overlays deinen Twitch-Namen sichtbar und violett hervorheben.`
+								: "Dafür muss zuerst eine Riot-ID über das Profilbild-Verfahren verifiziert sein."
+						}
+						onChange={(value) => void updateSetting("showInCommunityOverlay", value)}
+					/>
+					<div className="rounded-2xl border border-[#c9a8ff]/15 bg-black/15 px-4 py-3 text-xs leading-5 text-emerald-100/48">
+						Die Freigabe zeigt nur deinen Twitch-Anzeigenamen, nicht deine Discord-ID. Du kannst sie hier jederzeit wieder ausschalten.
+					</div>
 					<div className="flex flex-wrap gap-2">
 						<a
 							href={`https://twitch.tv/${encodeURIComponent(link.login)}`}
@@ -109,7 +129,7 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 							Kanal öffnen
 						</a>
 						<a
-							href="/api/tournament/twitch/connect"
+							href={`/api/twitch/connect?from=${returnSource}`}
 							className="rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72"
 						>
 							Anderes Konto verbinden
@@ -134,10 +154,10 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 				</div>
 			) : (
 				<a
-					href="/api/tournament/twitch/connect"
+					href={`/api/twitch/connect?from=${returnSource}`}
 					className="mt-5 inline-flex rounded-2xl bg-[#9146ff] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-[#9146ff]/20 transition hover:-translate-y-0.5 hover:bg-[#a970ff]"
 				>
-					Twitch verbinden
+					Twitch-Konto verbinden
 				</a>
 			)}
 
@@ -145,7 +165,7 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 			<ConfirmDialog
 				open={disconnectConfirmOpen}
 				title="Twitch-Verknüpfung entfernen?"
-				description="Dein Twitch-Kanal wird vom Turnierprofil getrennt und erscheint nicht mehr bei Live-Matches."
+				description="Dein Twitch-Kanal wird vom Profil getrennt und erscheint weder bei Live-Matches noch in Community-Overlays."
 				confirmLabel="Verbindung trennen"
 				cancelLabel="Abbrechen"
 				tone="danger"
@@ -153,5 +173,35 @@ export function TwitchLinkCard({ initialLink, status, isOwner }: { initialLink: 
 				onConfirm={() => void disconnect()}
 			/>
 		</section>
+	);
+}
+
+function SettingToggle({
+	checked,
+	disabled,
+	title,
+	description,
+	onChange,
+}: {
+	checked: boolean;
+	disabled: boolean;
+	title: string;
+	description: string;
+	onChange: (value: boolean) => void;
+}) {
+	return (
+		<label className={`flex items-start gap-3 rounded-2xl border border-white/10 bg-black/18 p-4 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+			<input
+				type="checkbox"
+				checked={checked}
+				disabled={disabled}
+				onChange={(event) => onChange(event.target.checked)}
+				className="mt-0.5 size-5 accent-[#9146ff]"
+			/>
+			<span>
+				<span className="block text-sm font-black text-emerald-50">{title}</span>
+				<span className="mt-1 block text-xs leading-5 text-emerald-100/48">{description}</span>
+			</span>
+		</label>
 	);
 }

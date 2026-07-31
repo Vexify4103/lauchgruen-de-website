@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import type { SwissPairing, SwissStageState, SwissTeam } from "@/lib/tournament-swiss";
+import type { SwissAuditEntry, SwissPairing, SwissStageState, SwissTeam } from "@/lib/tournament-swiss";
 
 type Props = {
 	initialState: SwissStageState;
@@ -10,9 +10,10 @@ type Props = {
 	teams: string[];
 	testTeams?: SwissTeam[];
 	testMode?: boolean;
+	initialAudit?: SwissAuditEntry[];
 };
 
-export function SwissDrawControl({ initialState, configuredRounds, teams, testTeams = [], testMode = false }: Props) {
+export function SwissDrawControl({ initialState, configuredRounds, teams, testTeams = [], testMode = false, initialAudit = [] }: Props) {
 	const [state, setState] = useState(initialState);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
@@ -20,6 +21,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	const [drawing, setDrawing] = useState(false);
 	const [roulette, setRoulette] = useState<[string, string] | null>(null);
 	const [revealed, setRevealed] = useState(false);
+	const [audit, setAudit] = useState(initialAudit);
 	const lastRound = state.rounds.at(-1);
 	const finished = state.rounds.length >= configuredRounds && Boolean(lastRound?.complete);
 	const targetRound = lastRound && !lastRound.complete ? lastRound.round : state.rounds.length + 1;
@@ -62,6 +64,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 			setRoulette([json.pairing.teamAName, json.pairing.teamBName ?? "Freilos"]);
 			setRevealed(true);
 			setMessage(json.round?.complete ? `Runde ${json.round.round} ist vollständig enthüllt.` : "Nächste Paarung wurde veröffentlicht.");
+			void refreshAudit();
 			setDrawing(false);
 		})();
 	}
@@ -79,12 +82,21 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 			else {
 				setState(json.state);
 				setMessage("Alle Swiss-Paarungen wurden zurückgesetzt.");
+				void refreshAudit();
 			}
 			setResetOpen(false);
 			setRoulette(null);
 			setRevealed(false);
 			setDrawing(false);
 		})();
+	}
+
+	async function refreshAudit() {
+		if (testMode) return;
+		const response = await fetch("/api/tournament/swiss?audit=1", { cache: "no-store" });
+		if (!response.ok) return;
+		const result = (await response.json()) as { audit?: SwissAuditEntry[] };
+		if (result.audit) setAudit(result.audit);
 	}
 
 	function setWinner(pairingId: string, winnerTeamKey: string) {
@@ -163,6 +175,23 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 				>
 					{error || message}
 				</div>
+			) : null}
+			{!testMode && audit.length ? (
+				<details className="mx-4 mb-4 overflow-hidden rounded-2xl border border-white/9 bg-black/16">
+					<summary className="cursor-pointer px-4 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/58">Auslosungsprotokoll · {audit.length} Einträge</summary>
+					<div className="max-h-64 overflow-y-auto border-t border-white/8 p-3">
+						{audit.map((entry) => (
+							<div key={entry.id} className="border-b border-white/7 px-2 py-2.5 last:border-b-0">
+								<div className="flex flex-wrap items-center justify-between gap-2 text-[8px] font-black uppercase tracking-[0.13em] text-emerald-100/35">
+									<span>{entry.action} {entry.round ? `· Runde ${entry.round}` : ""}</span>
+									<time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString("de-DE")}</time>
+								</div>
+								<p className="mt-1 text-[11px] font-bold leading-5 text-emerald-50/70">{entry.detail}</p>
+								{entry.actor ? <div className="mt-1 text-[9px] text-cyan-100/40">Ausgeführt von {entry.actor}</div> : null}
+							</div>
+						))}
+					</div>
+				</details>
 			) : null}
 			<ConfirmDialog
 				open={resetOpen}

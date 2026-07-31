@@ -16,6 +16,7 @@ export default async function LauchgruenObsPage({ searchParams }: { searchParams
 		initial = {
 			online: false,
 			leagueLive: false,
+			liveQueueId: null,
 			streamTitle: null,
 			streamStartedAt: null,
 			streamDurationSeconds: 0,
@@ -27,6 +28,7 @@ export default async function LauchgruenObsPage({ searchParams }: { searchParams
 			sessionLosses: 0,
 			winRate: 0,
 			lastGames: [],
+			profileIconUrl: null,
 			riotId: "lauchgruentv#euw",
 			twitchLogin: "lauchgruen",
 			updatedAt: new Date().toISOString(),
@@ -34,7 +36,7 @@ export default async function LauchgruenObsPage({ searchParams }: { searchParams
 		};
 	}
 
-	return <LauchgruenPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/lauchgruen${preview ? "?test=1" : ""}`} />;
+	return <LauchgruenPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/lauchgruen${preview ? "?test=1" : ""}`} forceVisible={preview} />;
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {

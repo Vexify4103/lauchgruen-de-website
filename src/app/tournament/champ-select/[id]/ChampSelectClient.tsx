@@ -457,19 +457,6 @@ async function fetchDraft(matchId: string): Promise<TournamentDraftState | null>
 	return response.ok && json?.draft ? json.draft : null;
 }
 
-function ReadyRow({ label, ready }: { label: string; ready: boolean }) {
-	return (
-		<div className="flex items-center justify-between rounded-xl border border-white/8 bg-black/18 px-3 py-2">
-			<span className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/62">{label}</span>
-			<span
-				className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${ready ? "bg-lime-200/16 text-lime-100" : "bg-white/8 text-emerald-100/42"}`}
-			>
-				{ready ? "Ready" : "Wartet"}
-			</span>
-		</div>
-	);
-}
-
 function AdminDraftControls({
 	disabled,
 	selectedChampion,

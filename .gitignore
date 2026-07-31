@@ -52,3 +52,5 @@ next-env.d.ts
 # local tournament submissions
 /data/tournament-applications.json
 /data/tournament-state.json
+
+.deployed-commit

@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import { AkumaOverlay } from "@/components/obs/AkumaOverlay";
+import { N4cht4r4Overlay } from "@/components/obs/N4cht4r4Overlay";
+import { RankPortraitOverlay } from "@/components/obs/RankPortraitOverlay";
+import { NachtdienstOverlay } from "@/components/obs/NachtdienstOverlay";
 
 const POLL_INTERVAL_MS = 20_000;
 
@@ -10,11 +14,13 @@ export function LauchgruenPerformanceOverlay({
 	variant = "full",
 	endpoint = "/api/obs/lauchgruen",
 	layout = "default",
+	forceVisible = false,
 }: {
 	initial: LauchgruenObsResponse;
 	variant?: "full" | "small";
 	endpoint?: string;
-	layout?: "default" | "hippokrate";
+	layout?: "default" | "hippokrate" | "rankPortrait" | "nachtdienst" | "akuma" | "n4cht4r4";
+	forceVisible?: boolean;
 }) {
 	const [data, setData] = useState(initial);
 	const [pulseKey, setPulseKey] = useState(0);
@@ -65,9 +71,49 @@ export function LauchgruenPerformanceOverlay({
 	const lpTone = lpDelta > 0 ? "text-lime-200" : lpDelta < 0 ? "text-rose-300" : "text-emerald-100/70";
 	const title = data.rank ? `Road to ${tierName(data.rank.nextTierLabel.split(" ")[0])}` : "Road to Ranked";
 	const rankProgress = data.rank?.tierProgressPercent ?? 0;
+	const shouldHideForCategory = data.online && !data.leagueLive;
+	if (layout === "nachtdienst") {
+		const rankedQueueLive = data.liveQueueId === 420 || data.liveQueueId === 440;
+		if (!forceVisible && (!data.leagueLive || !rankedQueueLive)) return null;
+		return <NachtdienstOverlay key={pulseKey} data={data} />;
+	}
+	if (layout === "rankPortrait") {
+		if (!forceVisible && !data.leagueLive) return null;
+		return (
+			<RankPortraitOverlay
+				riotId={data.riotId}
+				profileIconUrl={data.profileIconUrl}
+				rank={
+					data.rank
+						? {
+								tier: data.rank.tier,
+								division: data.rank.rank,
+								leaguePoints: data.rank.leaguePoints,
+								wins: data.rank.wins,
+								losses: data.rank.losses,
+							}
+						: null
+				}
+				sessionWins={data.sessionWins}
+				sessionLosses={data.sessionLosses}
+			/>
+		);
+	}
+	if (layout === "akuma") {
+		if (!forceVisible && !data.leagueLive) return null;
+		return <AkumaOverlay key={pulseKey} data={data} />;
+	}
+	if (layout === "n4cht4r4") {
+		if (!forceVisible && !data.leagueLive) return null;
+		return <N4cht4r4Overlay key={pulseKey} data={data} />;
+	}
+
+	// Keep the OBS browser source transparent when Twitch is live in another
+	// category. Polling continues, so the overlay returns automatically for LoL.
+	if (!forceVisible && shouldHideForCategory) return null;
 
 	if (layout === "hippokrate") {
-		return <HippokrateOverlay data={data} lpDelta={lpDelta} lpTone={lpTone} />;
+		return <HippokrateOverlay key={data.streamStartedAt ?? "offline"} data={data} lpDelta={lpDelta} lpTone={lpTone} />;
 	}
 
 	if (variant === "small") {
@@ -181,16 +227,19 @@ export function LauchgruenPerformanceOverlay({
 
 function HippokrateOverlay({ data, lpDelta, lpTone }: { data: LauchgruenObsResponse; lpDelta: number; lpTone: string }) {
 	const [showLastGame, setShowLastGame] = useState(false);
+	const hasSessionGame = data.lastGames.length > 0;
+	const showLastGameScene = hasSessionGame && showLastGame;
 
 	useEffect(() => {
+		if (!hasSessionGame) return;
 		const timer = setInterval(() => setShowLastGame((current) => !current), 30_000);
 		return () => clearInterval(timer);
-	}, []);
+	}, [hasSessionGame]);
 
 	return (
 		<div className="min-h-screen bg-transparent p-4 text-white">
-			<div key={showLastGame ? "last-game" : "session"} className="hippo-scene w-[25rem] [text-shadow:0_2px_8px_rgba(0,0,0,0.95),0_1px_2px_rgba(0,0,0,1)]">
-				{showLastGame ? <HippokrateLastGame game={data.lastGames[0]} /> : <HippokrateSession data={data} lpDelta={lpDelta} lpTone={lpTone} />}
+			<div key={showLastGameScene ? "last-game" : "session"} className="hippo-scene w-[25rem] [text-shadow:0_2px_8px_rgba(0,0,0,0.95),0_1px_2px_rgba(0,0,0,1)]">
+				{showLastGameScene ? <HippokrateLastGame game={data.lastGames[0]} /> : <HippokrateSession data={data} lpDelta={lpDelta} lpTone={lpTone} />}
 			</div>
 			<style>{`
 				@keyframes hippo-scene-in {
@@ -240,7 +289,7 @@ function HippokrateSession({ data, lpDelta, lpTone }: { data: LauchgruenObsRespo
 }
 
 function HippokrateLastGame({ game }: { game?: LauchgruenObsResponse["lastGames"][number] }) {
-	if (!game) return <div className="text-xl font-black text-white/75">Noch kein Ranked-Game verfügbar.</div>;
+	if (!game) return null;
 	const minutes = Math.floor(game.durationSeconds / 60);
 	const seconds = game.durationSeconds % 60;
 	return (

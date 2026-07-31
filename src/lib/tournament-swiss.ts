@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
 
 const COLLECTION = "tournament_swiss_stages";
+const AUDIT_COLLECTION = "tournament_swiss_audit";
 
 export type SwissPairing = {
 	id: string;
@@ -24,6 +25,35 @@ type SwissStageDoc = Omit<SwissStageState, "rounds"> & { _id: string; rounds: Sw
 export type SwissTeam = { key: string; name: string };
 type BotStateDoc = { _id: string; teams?: Record<string, { name: string }> };
 type SwissMatchDoc = { _id: string; id: string; status: string; scoreA?: number; scoreB?: number };
+
+export type SwissAuditEntry = {
+	id: string;
+	tournamentId: string;
+	action: "round-created" | "pairing-revealed" | "result-set" | "reset";
+	createdAt: string;
+	actor?: string;
+	round?: number;
+	pairingId?: string;
+	detail: string;
+	metadata?: Record<string, unknown>;
+};
+
+type SwissAuditDoc = Omit<SwissAuditEntry, "id"> & { _id: string };
+
+async function writeSwissAudit(entry: Omit<SwissAuditEntry, "id" | "createdAt">) {
+	const document: SwissAuditDoc = { _id: crypto.randomUUID(), ...entry, createdAt: new Date().toISOString() };
+	await (await getDb()).collection<SwissAuditDoc>(AUDIT_COLLECTION).insertOne(document);
+}
+
+export async function listSwissAudit(tournamentId: string, limit = 30): Promise<SwissAuditEntry[]> {
+	const documents = await (await getDb())
+		.collection<SwissAuditDoc>(AUDIT_COLLECTION)
+		.find({ tournamentId })
+		.sort({ createdAt: -1 })
+		.limit(Math.max(1, Math.min(limit, 100)))
+		.toArray();
+	return documents.map(({ _id, ...entry }) => ({ id: _id, ...entry }));
+}
 
 function shuffle<T>(values: T[]) {
 	const result = [...values];
@@ -180,6 +210,15 @@ export async function drawNextSwissMatchup(input: {
 		await db.collection<SwissStageDoc>(COLLECTION).updateOne({ _id: input.tournamentId }, { $set: { rounds, updatedAt: now } });
 		if (input.persistMatches !== false && !pairing.bye)
 			await db.collection<SwissMatchDoc>("tournament_matches").updateOne({ _id: pairing.id }, { $setOnInsert: { id: pairing.id, status: "Scheduled" } }, { upsert: true });
+		await writeSwissAudit({
+			tournamentId: input.tournamentId,
+			action: "pairing-revealed",
+			actor: input.drawnBy,
+			round: activeRound.round,
+			pairingId: pairing.id,
+			detail: pairing.bye ? `${pairing.teamAName} erhält ein Freilos.` : `${pairing.teamAName} gegen ${pairing.teamBName} aufgedeckt.`,
+			metadata: { recordA: pairing.recordA, recordB: pairing.recordB, remainingReveals: pendingPairings.length },
+		});
 		return { state: await getSwissStageState(input.tournamentId), round: { ...activeRound, pendingPairings: undefined }, pairing };
 	}
 
@@ -230,6 +269,12 @@ export async function drawNextSwissMatchup(input: {
 		candidates = teams.filter((team) => team.key !== byeTeam?.key);
 	}
 	const records = recordsBeforeNextRound(teams, rounds);
+	const pairingContext = teams.map((team) => ({
+		teamKey: team.key,
+		teamName: team.name,
+		record: recordLabel(records.get(team.key)!),
+		previousOpponents: teams.filter((opponent) => previousOpponents.has(opponentKey(team.key, opponent.key))).map((opponent) => opponent.key),
+	}));
 	const matching = input.pairByRecord ? findRecordMatching(candidates, records, previousOpponents) : findRandomMatching(candidates, previousOpponents);
 	if (!matching) throw new Error("Für diese Runde existiert keine gültige zufällige Paarung mehr, ohne ein früheres Match zu wiederholen.");
 	const pairings: SwissPairing[] = matching.map(([teamA, teamB], index) => ({
@@ -277,6 +322,22 @@ export async function drawNextSwissMatchup(input: {
 		);
 	if (input.persistMatches !== false && !pairing.bye)
 		await db.collection<SwissMatchDoc>("tournament_matches").updateOne({ _id: pairing.id }, { $setOnInsert: { id: pairing.id, status: "Scheduled" } }, { upsert: true });
+	await writeSwissAudit({
+		tournamentId: input.tournamentId,
+		action: "round-created",
+		actor: input.drawnBy,
+		round: nextRound,
+		pairingId: pairing.id,
+		detail: input.pairByRecord
+			? `Runde ${nextRound} wurde nach gleicher beziehungsweise nächster Bilanz ohne Rematches gepaart.`
+			: `Runde ${nextRound} wurde zufällig und ohne Rematches gepaart.`,
+		metadata: {
+			pairByRecord: Boolean(input.pairByRecord),
+			teamPool: pairingContext,
+			selectedPairings: pairings.map((entry) => ({ id: entry.id, teamAKey: entry.teamAKey, teamBKey: entry.teamBKey, recordA: entry.recordA, recordB: entry.recordB })),
+			revealOrder: revealOrder.map((entry) => entry.id),
+		},
+	});
 	return { state: await getSwissStageState(input.tournamentId), round: { ...round, pendingPairings: undefined }, pairing };
 }
 
@@ -295,6 +356,14 @@ export async function setSwissPairingWinner(tournamentId: string, pairingId: str
 			{ $set: { "rounds.$[].pairings.$[pairing].winnerTeamKey": winnerTeamKey, updatedAt: new Date().toISOString() } },
 			{ arrayFilters: [{ "pairing.id": pairingId }] }
 		);
+	await writeSwissAudit({
+		tournamentId,
+		action: "result-set",
+		round: pairing.round,
+		pairingId,
+		detail: `${winnerTeamKey} als Sieger für ${pairingId} gespeichert.`,
+		metadata: { winnerTeamKey, teamAKey: pairing.teamAKey, teamBKey: pairing.teamBKey },
+	});
 	return getSwissStageState(tournamentId);
 }
 
@@ -305,4 +374,5 @@ export async function resetSwissStage(tournamentId: string, matchPrefix = "swiss
 		db.collection<SwissStageDoc>(COLLECTION).deleteOne({ _id: tournamentId }),
 		db.collection<SwissMatchDoc>("tournament_matches").deleteMany({ id: new RegExp(`^${escapedPrefix}-r\\d+-(?:m\\d+|bye)$`) }),
 	]);
+	await writeSwissAudit({ tournamentId, action: "reset", detail: `Swiss Stage und Matches mit Präfix ${matchPrefix} zurückgesetzt.` });
 }

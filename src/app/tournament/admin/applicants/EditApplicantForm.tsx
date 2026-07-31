@@ -95,6 +95,8 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						onChange={setPreferredRoles}
 						placeholder="Eine oder mehrere Rollen wählen"
 						options={roleOptions.map((role) => ({ value: role, label: role }))}
+						ordered
+						exclusiveValues={["Fill"]}
 					/>
 				</label>
 

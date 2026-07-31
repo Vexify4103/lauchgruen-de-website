@@ -6,8 +6,8 @@
  * be removed cleanly without touching real applicants.
  */
 
-import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/mongo";
+import type { Document } from "mongodb";
 
 const TEST_FLAG = "isTestData";
 
@@ -74,7 +74,7 @@ const NAMES = [
 	"Cilantro",
 ];
 
-const ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill"];
+const ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"];
 
 const TIERS = [
 	"IRON IV",
@@ -98,6 +98,7 @@ function rand<T>(arr: T[]): T {
 }
 
 function randomPreferredRoles(): string[] {
+	if (Math.random() < 0.12) return ["Fill"];
 	// 1–3 distinct roles, primary first.
 	const pool = [...ROLES].sort(() => Math.random() - 0.5);
 	const count = 1 + Math.floor(Math.random() * 3);
@@ -128,7 +129,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 
 	for (let i = 0; i < count; i += 1) {
 		const slot = String(i + 1).padStart(3, "0");
-		const baseName = rand(NAMES);
+		const baseName = NAMES[i % NAMES.length];
 		const username = `${baseName.toLowerCase()}${slot}`;
 		const tag = baseName.slice(0, 3).toUpperCase();
 		docs.push({
@@ -137,7 +138,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 			discordUsername: username,
 			displayName: `${baseName} ${slot}`,
 			riotId: `${baseName}${slot}#${tag}`,
-			puuid: `test-puuid-${randomUUID()}`,
+			puuid: `test-puuid-${slot}`,
 			preferredRoles: randomPreferredRoles(),
 			mainRole: ROLES[i % ROLES.length],
 			currentRank: randomRank(),
@@ -181,7 +182,18 @@ export async function seedTestApplicants(count: number): Promise<number> {
 	}));
 
 	type StringIdDoc = { _id: string } & Record<string, unknown>;
-	await Promise.all([db.collection<StringIdDoc>("verified_riot_accounts").insertMany(verifiedDocs), db.collection<StringIdDoc>("tournament_applications").insertMany(appDocs)]);
+	const verifiedCollection = db.collection<StringIdDoc>("verified_riot_accounts");
+	const applicationCollection = db.collection<StringIdDoc>("tournament_applications");
+
+	// Replace only explicitly marked test records. Stable IDs make this safely repeatable.
+	await Promise.all([
+		verifiedCollection.deleteMany({ [TEST_FLAG]: true }),
+		applicationCollection.deleteMany({ [TEST_FLAG]: true }),
+	]);
+	await Promise.all([
+		verifiedCollection.bulkWrite(verifiedDocs.map((document) => ({ replaceOne: { filter: { _id: document._id }, replacement: document, upsert: true } }))),
+		applicationCollection.bulkWrite(appDocs.map((document) => ({ replaceOne: { filter: { _id: document._id }, replacement: document, upsert: true } }))),
+	]);
 
 	return docs.length;
 }
@@ -332,4 +344,188 @@ export async function clearTestTeams(): Promise<{
 	}
 
 	return { teamsRemoved, playersStripped, teamKeysRemoved };
+}
+
+const TEST_STATE_COLLECTION = "tournament_test_state";
+const TEST_ROSTER_STATE_ID = "roster-builder";
+
+type TestStoredPlayer = StoredPlayerLike & {
+	[key: string]: unknown;
+};
+
+type TestStoredTeam = {
+	name?: string;
+	players?: TestStoredPlayer[];
+	playedChampions?: string[];
+	meta?: {
+		captain?: { discordId?: string; puuid?: string; [key: string]: unknown };
+		[key: string]: unknown;
+	};
+	isTestData?: boolean;
+	[key: string]: unknown;
+};
+
+type TestRosterState = {
+	_id: string;
+	teams: Record<string, TestStoredTeam>;
+	operationalData?: Record<string, Document[]>;
+	activatedAt: string;
+};
+
+const TEST_MODE_COLLECTIONS = [
+	"tournament_matches",
+	"tournament_drafts",
+	"tournament_swiss_stages",
+	"ultimate_bravery_rolls",
+	"tournament_captain_checkins",
+	"tournament_match_reports",
+] as const;
+
+async function readOperationalData(): Promise<Record<string, Document[]>> {
+	const db = await getDb();
+	return Object.fromEntries(await Promise.all(TEST_MODE_COLLECTIONS.map(async (collectionName) => [collectionName, await db.collection(collectionName).find({}).toArray()] as const)));
+}
+
+async function clearOperationalData() {
+	const db = await getDb();
+	await Promise.all(TEST_MODE_COLLECTIONS.map((collectionName) => db.collection(collectionName).deleteMany({})));
+}
+
+async function restoreOperationalData(data: Record<string, Document[]>) {
+	const db = await getDb();
+	for (const collectionName of TEST_MODE_COLLECTIONS) {
+		const collection = db.collection(collectionName);
+		await collection.deleteMany({});
+		const documents = data[collectionName] ?? [];
+		if (documents.length > 0) await collection.insertMany(documents);
+	}
+}
+
+function testIdentity(index: number) {
+	const slot = String(index + 1).padStart(3, "0");
+	const baseName = NAMES[index % NAMES.length];
+	const username = `${baseName.toLowerCase()}${slot}`;
+	const tag = baseName.slice(0, 3).toUpperCase();
+	return {
+		discordId: `test-${slot}`,
+		discordUsername: username,
+		displayName: `${baseName} ${slot}`,
+		riotId: `${baseName}${slot}#${tag}`,
+		puuid: `test-puuid-${slot}`,
+	};
+}
+
+function buildFullTestTeams(now: string): Record<string, TestStoredTeam> {
+	return Object.fromEntries(
+		TEST_TEAMS.map((team, teamIndex) => {
+			const players = ROLES.map((role, roleIndex) => ({
+				...testIdentity(teamIndex * ROLES.length + roleIndex),
+				role,
+				verificationStatus: "verified",
+			}));
+			const captain = players[0];
+			return [
+				teamKey(team.name),
+				{
+					name: team.name,
+					players,
+					playedChampions: [],
+					meta: {
+						group: team.group,
+						seed: team.seed,
+						accent: team.accent,
+						captain: {
+							discordId: captain.discordId,
+							discordUsername: captain.discordUsername,
+							riotId: captain.riotId,
+							puuid: captain.puuid,
+							assignedAt: now,
+						},
+					},
+					[TEST_FLAG]: true,
+				},
+			];
+		})
+	);
+}
+
+function withoutLegacyTestData(teams: Record<string, TestStoredTeam>): Record<string, TestStoredTeam> {
+	const cleanTeams: Record<string, TestStoredTeam> = {};
+	for (const [key, team] of Object.entries(teams)) {
+		if (team.isTestData === true) continue;
+		const players = (team.players ?? []).filter((player) => !isTestPlayer(player));
+		const meta = team.meta ? { ...team.meta } : undefined;
+		if (meta?.captain && isTestPlayer(meta.captain)) delete meta.captain;
+		cleanTeams[key] = { ...team, players, ...(meta ? { meta } : {}) };
+	}
+	return cleanTeams;
+}
+
+export async function isTestRosterModeActive(): Promise<boolean> {
+	const db = await getDb();
+	return Boolean(await db.collection<TestRosterState>(TEST_STATE_COLLECTION).findOne({ _id: TEST_ROSTER_STATE_ID }, { projection: { _id: 1 } }));
+}
+
+/** Saves the real roster once, then replaces it with eight complete dummy teams. */
+export async function startTestRosterMode(): Promise<{
+	teamsInserted: number;
+	playersInserted: number;
+	originalTeamsSaved: number;
+	alreadyActive: boolean;
+}> {
+	const db = await getDb();
+	const botCollection = db.collection<{ _id: string; teams?: Record<string, TestStoredTeam> }>("bot_state");
+	const stateCollection = db.collection<TestRosterState>(TEST_STATE_COLLECTION);
+	const [botState, existingState] = await Promise.all([botCollection.findOne({ _id: "default" }), stateCollection.findOne({ _id: TEST_ROSTER_STATE_ID })]);
+	const originalTeams = existingState?.teams ?? withoutLegacyTestData(botState?.teams ?? {});
+	const operationalData = existingState?.operationalData ?? (await readOperationalData());
+
+	await stateCollection.updateOne(
+		{ _id: TEST_ROSTER_STATE_ID },
+		{ $setOnInsert: { teams: originalTeams, operationalData, activatedAt: new Date().toISOString() } },
+		{ upsert: true }
+	);
+	await clearOperationalData();
+	await botCollection.updateOne({ _id: "default" }, { $set: { teams: buildFullTestTeams(new Date().toISOString()) } }, { upsert: true });
+
+	return {
+		teamsInserted: TEST_TEAMS.length,
+		playersInserted: TEST_TEAMS.length * ROLES.length,
+		originalTeamsSaved: Object.keys(originalTeams).length,
+		alreadyActive: Boolean(existingState),
+	};
+}
+
+/** Restores the exact team map saved before test mode was enabled. */
+export async function stopTestRosterMode(): Promise<{
+	teamsRemoved: number;
+	playersStripped: number;
+	teamKeysRemoved: string[];
+	restored: boolean;
+	restoredTeams: number;
+}> {
+	const db = await getDb();
+	const stateCollection = db.collection<TestRosterState>(TEST_STATE_COLLECTION);
+	const backup = await stateCollection.findOne({ _id: TEST_ROSTER_STATE_ID });
+	if (!backup) {
+		const legacy = await clearTestTeams();
+		return { ...legacy, restored: false, restoredTeams: 0 };
+	}
+
+	const botCollection = db.collection<{ _id: string; teams?: Record<string, TestStoredTeam> }>("bot_state");
+	const current = await botCollection.findOne({ _id: "default" });
+	const teamKeysRemoved = Object.entries(current?.teams ?? {})
+		.filter(([, team]) => team.isTestData === true)
+		.map(([key]) => key);
+
+	await botCollection.updateOne({ _id: "default" }, { $set: { teams: backup.teams } }, { upsert: true });
+	if (backup.operationalData) await restoreOperationalData(backup.operationalData);
+	await stateCollection.deleteOne({ _id: TEST_ROSTER_STATE_ID });
+	return {
+		teamsRemoved: teamKeysRemoved.length,
+		playersStripped: 0,
+		teamKeysRemoved,
+		restored: true,
+		restoredTeams: Object.keys(backup.teams).length,
+	};
 }

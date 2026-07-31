@@ -9,7 +9,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { TournamentLink as Link } from "../../TournamentLink";
-import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
+import { getSwissStageState, listSwissAudit, listSwissTeams } from "@/lib/tournament-swiss";
 import { SwissDrawControl } from "./SwissDrawControl";
 
 type LiveMatch = {
@@ -27,7 +27,7 @@ export default async function AdminLiveDashboardPage() {
 
 	const [ctx, settings] = await Promise.all([getMatchControlContext(), getTournamentSettings()]);
 	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
-	const swissData = settings.ultimateBravery.dayOneFormat === "swiss" ? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams()]) : null;
+	const swissData = settings.ultimateBravery.dayOneFormat === "swiss" ? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams(), listSwissAudit(settings.activeTournament.id, 12)]) : null;
 	const playable = ctx.matches.filter((match) => match.teamAName && match.teamBName);
 	const live = playable.filter((match) => match.status === "Live");
 	const waiting = playable.filter((match) => match.status === "Pending");
@@ -84,7 +84,7 @@ export default async function AdminLiveDashboardPage() {
 					</div>
 				</header>
 				{swissData ? (
-					<SwissDrawControl initialState={swissData[0]} configuredRounds={settings.ultimateBravery.swissRounds} teams={swissData[1].map((team) => team.name)} />
+					<SwissDrawControl initialState={swissData[0]} configuredRounds={settings.ultimateBravery.swissRounds} teams={swissData[1].map((team) => team.name)} initialAudit={swissData[2]} />
 				) : null}
 				<div className="mt-3 flex justify-end">
 					<Link

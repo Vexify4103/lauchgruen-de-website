@@ -9,6 +9,7 @@ import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { isTournamentHost } from "@/lib/tournament-url";
 import { TournamentAccountControl } from "./TournamentAccountControl";
 import { TournamentChrome } from "./TournamentChrome";
+import { MainAccountChrome } from "./MainAccountChrome";
 import { AdminConflictProvider } from "@/components/AdminConflictProvider";
 import { UnsavedChangesProvider } from "@/components/UnsavedChangesProvider";
 
@@ -54,14 +55,26 @@ const registrationNavItems = [
 ];
 
 export const metadata: Metadata = {
-	title: "Ultimate Bravery | lauchgruen",
+	title: "Ultimate Bravery",
 	description: "Lauchgruen Ultimate-Bravery-Turnier mit zufälligen Champions, Builds, Runen und Summoner Spells.",
+	openGraph: {
+		type: "website",
+		locale: "de_DE",
+		title: "Ultimate Bravery · Lauchgruen Community-Turnier",
+		description: "Zufällige Champions, Builds, Runen und Summoner Spells am 04. und 05. September 2026.",
+		url: "https://tournament.lauchgruen.de",
+		images: [{ url: "/bear-logo.png", width: 512, height: 512, alt: "Lauchgruen Ultimate Bravery" }],
+	},
 };
 
 export default async function TournamentLayout({ children }: { children: ReactNode }) {
 	const host = (await headers()).get("host");
-	const [settings, session] = await Promise.all([getTournamentSettings(), auth()]);
+	const hostname = (host ?? "").split(":")[0].toLowerCase();
 	const siteUrls = getSiteUrls(host);
+	if (["lauchgruen.de", "www.lauchgruen.de", "lauchgruen.localhost", "www.lauchgruen.localhost"].includes(hostname)) {
+		return <MainAccountChrome apexUrl={siteUrls.apex} tournamentUrl={siteUrls.tournament}>{children}</MainAccountChrome>;
+	}
+	const [settings, session] = await Promise.all([getTournamentSettings(), auth()]);
 	const cleanUrls = isTournamentHost(host);
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
@@ -109,14 +122,30 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 	return (
 		<AdminConflictProvider>
 			<UnsavedChangesProvider>
+				<script
+					type="application/ld+json"
+					dangerouslySetInnerHTML={{
+						__html: JSON.stringify({
+							"@context": "https://schema.org",
+							"@type": "SportsEvent",
+							name: "Lauchgruen Ultimate Bravery",
+							startDate: "2026-09-04T18:00:00+02:00",
+							endDate: "2026-09-05T23:59:00+02:00",
+							eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+							eventStatus: "https://schema.org/EventScheduled",
+							location: { "@type": "VirtualLocation", url: "https://tournament.lauchgruen.de" },
+							organizer: { "@type": "Person", name: "Lauchgruen", url: "https://lauchgruen.de" },
+						}),
+					}}
+				/>
 				<TournamentChrome
 					navItems={dynamicNavItems}
 					applicationsOpen={applicationsOpen}
 					tournamentStatus={tournamentStatus}
 					apexUrl={siteUrls.apex}
 					cleanUrls={cleanUrls}
-					accountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} />}
-					compactAccountControl={<TournamentAccountControl account={account} cleanUrls={cleanUrls} compact />}
+					accountControl={<TournamentAccountControl account={account} accountUrl={`${siteUrls.apex}/me?from=tournament`} />}
+					compactAccountControl={<TournamentAccountControl account={account} accountUrl={`${siteUrls.apex}/me?from=tournament`} compact />}
 					footerTournamentLabel={
 						settings.activeTournament.id === "ultimate-bravery"
 							? "Ultimate Bravery am 04.09. und 05.09.2026, jeweils ab 18:00 Uhr."

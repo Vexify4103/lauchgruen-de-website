@@ -1,5 +1,5 @@
 import { TournamentLink as Link } from "../../TournamentLink";
-import { auth, signIn } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS, listBlacklistEntries, listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { DeleteApplicantButton } from "./DeleteApplicantButton";
@@ -8,6 +8,7 @@ import { RefreshRanksButton } from "./RefreshRanksButton";
 import { BlacklistManager } from "./BlacklistManager";
 import { PreferenceGroupManager } from "./PreferenceGroupManager";
 import { getAdminVersions } from "@/lib/admin-version";
+import { DiscordSignInButton } from "../../DiscordSignInButton";
 
 export const dynamic = "force-dynamic";
 
@@ -60,15 +61,15 @@ export default async function ApplicantsPage() {
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-amber-200/24 bg-amber-200/10 p-6 text-sm leading-7 text-amber-50">
 					<p>Melde dich mit einem Owner-Discord-Account an, um Bewerbungen einzusehen.</p>
-					<form
-						className="mt-4"
-						action={async () => {
-							"use server";
-							await signIn("discord", { redirectTo: "/tournament/admin/applicants" });
-						}}
-					>
-						<button className="rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950">Mit Discord anmelden</button>
-					</form>
+					<div className="mt-4">
+						<DiscordSignInButton
+							redirectTo="/tournament/admin/applicants"
+							pendingLabel="Weiter zu Discord..."
+							className="rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 disabled:cursor-wait disabled:opacity-65"
+						>
+							Mit Discord anmelden
+						</DiscordSignInButton>
+					</div>
 				</section>
 			</div>
 		);
@@ -217,12 +218,12 @@ function ApplicantCard({ app, assignedTo, version }: { app: TournamentApplicatio
 					{app.preferredRoles.length === 0 ? (
 						<span className="text-xs italic text-emerald-100/40">keine angegeben</span>
 					) : (
-						app.preferredRoles.map((r) => (
+						app.preferredRoles.map((r, index) => (
 							<span
 								key={r}
 								className="rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100/72"
 							>
-								{r}
+								#{index + 1} · {r}
 							</span>
 						))
 					)}

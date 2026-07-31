@@ -28,7 +28,10 @@ type Challenge = {
 	expectedIconId: number;
 	expectedIconUrl: string;
 	currentIconId: number;
+	currentIconUrl?: string;
 	expiresAt: string;
+	checkedAt?: string;
+	revisionDate?: number;
 };
 
 type ExistingApplication = Pick<TournamentApplication, "displayName" | "mainRole" | "preferredRoles" | "availableAllDates" | "notes" | "acceptedRules" | "acceptedDataStorage">;
@@ -258,6 +261,9 @@ export function ApplicationForm({
 				}}
 				className={`grid gap-5 ${verified ? "" : "pointer-events-none opacity-50"}`}
 			>
+				<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] px-4 py-3">
+					<div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100/68">Schritt 3 von 3 · Bewerbung ausfüllen und senden</div>
+				</div>
 				{hasApplication ? (
 					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
 						<div>Du bist bereits angemeldet. Hier kannst du deine Bewerbung aktualisieren.</div>
@@ -295,13 +301,19 @@ export function ApplicationForm({
 
 				<div className="grid gap-2">
 					<label className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Wunschrollen</label>
+					<p className="text-xs leading-5 text-emerald-100/58">
+						Die Reihenfolge zählt beim Team-Balancing: Deine zuerst gewählte Rolle ist Wunsch #1, die nächste Wunsch #2 usw. Klicke die Rollen deshalb in deiner tatsächlichen Wunschreihenfolge an. <strong className="text-emerald-50">Fill</strong> bedeutet jede Rolle und kann nicht mit Einzelrollen kombiniert werden. Die Reihenfolge wird bestmöglich berücksichtigt, ist wegen fairer Teams aber keine Garantie.
+					</p>
 					<ThemedMultiSelect
 						name="preferredRoles"
 						value={preferredRoles}
 						onChange={setPreferredRoles}
 						placeholder="Eine oder mehrere Rollen wählen"
 						options={roleOptions.map((role) => ({ value: role, label: role }))}
+						ordered
+						exclusiveValues={["Fill"]}
 					/>
+					{preferredRoles.length ? <div className="flex flex-wrap gap-2">{preferredRoles.map((role, index) => <span key={role} className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100"><span className="mr-1.5 text-cyan-100">#{index + 1}</span>{role}</span>)}</div> : null}
 				</div>
 
 				<label className="grid gap-2">
@@ -383,7 +395,7 @@ function RiotVerifyPanel({
 		setConfirmOpen(false);
 		setDisconnecting(true);
 		setUnlinkError(null);
-		const response = await fetch("/api/tournament/riot/disconnect", { method: "POST" });
+		const response = await fetch("/api/riot/disconnect", { method: "POST" });
 		setDisconnecting(false);
 		if (!response.ok) {
 			setUnlinkError("Trennen fehlgeschlagen. Bitte erneut versuchen.");
@@ -397,8 +409,9 @@ function RiotVerifyPanel({
 			<div className="rounded-2xl border border-lime-200/24 bg-lime-200/10 p-5">
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<div className="text-xs font-black uppercase tracking-[0.2em] text-lime-100/68">Riot-Account verifiziert</div>
-						<div className="mt-2 grid gap-1">
+						<div className="text-xs font-black uppercase tracking-[0.2em] text-lime-100/68">Schritt 2 von 3 · abgeschlossen</div>
+						<div className="mt-2 text-sm font-black text-lime-50">Riot-Account verifiziert</div>
+						<div className="mt-1 grid gap-1">
 							<div className="text-lg font-black text-lime-50">{verified.riotId}</div>
 							<div className="text-xs text-lime-100/70">Aktueller Rang (von Riot): {verified.currentRankAuto ?? "Unranked"}</div>
 							<div className="text-xs text-lime-100/52">Verifiziert {new Date(verified.verifiedAt).toLocaleString("de-DE")}</div>
@@ -454,7 +467,7 @@ function RiotVerifyPanel({
 		event.preventDefault();
 		if (!riotIdInput.trim()) return;
 		setStatus({ kind: "loading", message: "Riot-Account wird gesucht..." });
-		const response = await fetch("/api/tournament/riot/start", {
+		const response = await fetch("/api/riot/start", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ riotId: riotIdInput.trim() }),
@@ -472,17 +485,23 @@ function RiotVerifyPanel({
 	}
 
 	async function verify() {
-		// Riot's summoner-v4 cache can lag behind a client relog by 30–90s, so
-		// instead of failing on the first mismatch we poll up to ~90s before
-		// giving up. Visible loading text updates so the user knows we're working.
-		const MAX_ATTEMPTS = 7;
-		const DELAY_MS = 8000;
+		if (!challenge) return;
+		if (new Date(challenge.expiresAt).getTime() <= Date.now()) {
+			setChallenge(null);
+			setStatus({ kind: "error", message: "Die Verifizierung ist abgelaufen. Starte bitte eine neue Challenge." });
+			return;
+		}
+
+		// Summoner-v4 can briefly lag behind the League client. Check frequently
+		// for a short window, then return control instead of blocking for a minute.
+		const MAX_ATTEMPTS = 5;
+		const DELAY_MS = 2500;
 
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-			const label = attempt === 1 ? "Icon wird geprüft..." : `Riot hat es noch nicht übernommen. Neuer Versuch... (${attempt}/${MAX_ATTEMPTS})`;
+			const label = attempt === 1 ? "Icon wird geprüft..." : `Riot synchronisiert noch · Versuch ${attempt}/${MAX_ATTEMPTS}`;
 			setStatus({ kind: "loading", message: label });
 
-			const response = await fetch("/api/tournament/riot/verify", { method: "POST" });
+			const response = await fetch("/api/riot/verify", { method: "POST", cache: "no-store" });
 			const result = (await response.json().catch(() => null)) as {
 				verified?: {
 					riotId: string;
@@ -492,6 +511,10 @@ function RiotVerifyPanel({
 					verifiedAt: string;
 				};
 				message?: string;
+				currentIconId?: number;
+				currentIconUrl?: string;
+				checkedAt?: string;
+				revisionDate?: number;
 			} | null;
 
 			if (response.ok && result?.verified) {
@@ -501,11 +524,34 @@ function RiotVerifyPanel({
 				return;
 			}
 
+			if (response.status === 404 || response.status === 410) {
+				setChallenge(null);
+				setStatus({
+					kind: "error",
+					message: result?.message ?? "Die Verifizierung ist nicht mehr aktiv. Starte bitte eine neue Challenge.",
+				});
+				return;
+			}
+
+			if (response.status === 409) {
+				setChallenge((current) =>
+					current
+						? {
+								...current,
+								currentIconId: result?.currentIconId ?? current.currentIconId,
+								currentIconUrl: result?.currentIconUrl ?? current.currentIconUrl,
+								checkedAt: result?.checkedAt ?? new Date().toISOString(),
+								revisionDate: result?.revisionDate,
+							}
+						: current
+				);
+			}
+
 			// Only retry on 409 (icon mismatch) — other failures stop immediately.
 			if (response.status !== 409 || attempt === MAX_ATTEMPTS) {
 				setStatus({
 					kind: "error",
-					message: result?.message ?? "Verifizierung fehlgeschlagen. Melde dich im League-Client ab und wieder an, dann erneut klicken.",
+					message: result?.message ?? "Das Icon ist noch nicht bei Riot sichtbar. Lass es eingestellt, warte kurz und prüfe dann erneut.",
 				});
 				return;
 			}
@@ -516,9 +562,9 @@ function RiotVerifyPanel({
 
 	return (
 		<div className="rounded-2xl border border-amber-200/24 bg-amber-200/[0.06] p-5">
-			<div className="text-xs font-black uppercase tracking-[0.2em] text-amber-100/72">Schritt 1 · Riot-Account verifizieren</div>
+			<div className="text-xs font-black uppercase tracking-[0.2em] text-amber-100/72">Schritt 2 von 3 · Riot-Account verifizieren</div>
 			<p className="mt-2 text-sm leading-6 text-emerald-100/72">
-				Beweise den Besitz deiner Riot-ID, indem du kurz dein League-Profilicon wechselst. Direkt danach kannst du es wieder zurückstellen.
+				Beweise den Besitz deiner Riot-ID, indem du dein League-Profilicon wechselst. Lass das Challenge-Icon eingestellt, bis die Webseite die Verifizierung bestätigt.
 			</p>
 
 			{!challenge ? (
@@ -539,40 +585,82 @@ function RiotVerifyPanel({
 					</button>
 				</form>
 			) : (
-				<div className="mt-4 grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-					<div className="flex flex-col items-center gap-1">
-						<Image
-							src={challenge.expectedIconUrl}
-							alt={`Profilicon ${challenge.expectedIconId}`}
-							width={88}
-							height={88}
-							unoptimized
-							className="size-22 rounded-2xl border border-amber-200/24"
-						/>
-						<span className="text-xs font-black text-amber-100/72">Icon ID {challenge.expectedIconId}</span>
-					</div>
-					<div className="grid gap-1 text-sm leading-6 text-emerald-100/76">
-						<div>Öffne im League-Client dein Profil und setze das gezeigte Icon.</div>
-						<div className="text-xs text-amber-100/70">
-							<strong className="font-black">Dann im League-Client ab- und wieder anmelden</strong> — Riots öffentliche API übernimmt Icon-Änderungen erst, wenn deine
-							Client-Session aktualisiert wird.
+				<div className="mt-4 rounded-2xl border border-amber-100/12 bg-black/14 p-4">
+					<div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+						<RiotIconState label="Benötigtes Icon" iconUrl={challenge.expectedIconUrl} iconId={challenge.expectedIconId} tone="expected" />
+						<div className="grid gap-1 text-sm leading-6 text-emerald-100/76">
+							<div>Öffne im League-Client dein Profil und setze das gezeigte Icon.</div>
+							<div className="text-xs text-amber-100/70">
+								<strong className="font-black">Lass dieses Icon aktiv und klicke dann auf „Jetzt prüfen“.</strong> Ein Logout ist nicht nötig. Falls Riot die Änderung noch nicht
+								anzeigt, warte kurz und prüfe erneut. Erst nach der grünen Bestätigung kannst du dein altes Icon zurückstellen.
+							</div>
+							<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE")}.</div>
 						</div>
-						<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE")}.</div>
+						<button
+							type="button"
+							onClick={verify}
+							disabled={status.kind === "loading"}
+							className="rounded-2xl bg-lime-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-60"
+						>
+							{status.kind === "loading" ? "Prüfe..." : "Jetzt prüfen"}
+						</button>
 					</div>
-					<button
-						type="button"
-						onClick={verify}
-						disabled={status.kind === "loading"}
-						className="rounded-2xl bg-lime-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-60"
-					>
-						{status.kind === "loading" ? "Prüfe..." : "Hab's gewechselt"}
-					</button>
+					{challenge.checkedAt && challenge.currentIconUrl ? (
+						<div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/8 pt-4">
+							<RiotIconState label="Von Riot gemeldet" iconUrl={challenge.currentIconUrl} iconId={challenge.currentIconId} tone="current" />
+							<div className="text-xs leading-5 text-emerald-100/52">
+								Letzte direkte Riot-Abfrage: <strong className="text-emerald-50">{formatRiotCheckTime(challenge.checkedAt)}</strong>
+								<br />
+								Wenn hier noch dein vorheriges Icon erscheint, hat Riot die Änderung serverseitig noch nicht übernommen.
+							</div>
+						</div>
+					) : null}
 				</div>
 			)}
 
+			{status.kind === "loading" ? (
+				<div className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] px-4 py-3 text-xs font-bold text-cyan-50">
+					<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" aria-hidden="true" />
+					{status.message}
+				</div>
+			) : null}
 			{status.kind === "error" ? <div className="mt-3 rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-2 text-xs text-red-100">{status.message}</div> : null}
 		</div>
 	);
+}
+
+function RiotIconState({
+	label,
+	iconUrl,
+	iconId,
+	tone,
+}: {
+	label: string;
+	iconUrl: string;
+	iconId: number;
+	tone: "expected" | "current";
+}) {
+	return (
+		<div className="flex items-center gap-3">
+			<Image
+				src={iconUrl}
+				alt={`Profilicon ${iconId}`}
+				width={88}
+				height={88}
+				unoptimized
+				className={`size-22 rounded-2xl border ${tone === "expected" ? "border-amber-200/28" : "border-cyan-200/28"}`}
+			/>
+			<div>
+				<div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/42">{label}</div>
+				<div className="mt-1 text-xs font-black text-emerald-50">Icon ID {iconId}</div>
+			</div>
+		</div>
+	);
+}
+
+function formatRiotCheckTime(value: string) {
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? "gerade eben" : date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function Field({ label, name, placeholder, defaultValue }: { label: string; name: string; placeholder: string; defaultValue?: string }) {

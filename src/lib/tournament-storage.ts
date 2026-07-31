@@ -1,6 +1,7 @@
 import { playoffMatches, type GroupMatch } from "@/lib/tournament-data";
 import { getDb } from "@/lib/mongo";
 import { randomBytes } from "node:crypto";
+import { normalizePreferredRoles } from "@/lib/role-preferences";
 
 export const TOURNAMENT_OWNER_DISCORD_IDS = new Set(["337568120028004362", "411520867978313730", "311497927870775297", "438691351513530379"]);
 
@@ -74,12 +75,19 @@ export type TournamentTwitchLink = {
 	displayName: string;
 	profileImageUrl: string;
 	showWhenLive: boolean;
+	showInCommunityOverlay?: boolean;
 	linkedAt: string;
 	updatedAt: string;
 };
 
+export type CommunityOverlayStreamer = {
+	login: string;
+	displayName: string;
+};
+
 export type TwitchLinkState = {
 	discordId: string;
+	returnSource?: "main" | "overlay" | "tournament";
 	createdAt: Date;
 	expiresAt: Date;
 };
@@ -113,7 +121,7 @@ const PREFERENCE_GROUPS = "tournament_preference_groups";
 const TWITCH_LINKS = "tournament_twitch_links";
 const TWITCH_LINK_STATES = "tournament_twitch_link_states";
 
-const VERIFICATION_TTL_MIN = 15;
+const VERIFICATION_TTL_MIN = 30;
 const TWITCH_LINK_STATE_TTL_MIN = 10;
 
 let ensuredIndexes = false;
@@ -136,6 +144,10 @@ async function ensureIndexes() {
 	await db
 		.collection(TWITCH_LINKS)
 		.createIndex({ twitchUserId: 1 }, { unique: true })
+		.catch(() => {});
+	await db
+		.collection(VERIFIED_RIOT)
+		.createIndex({ puuid: 1 })
 		.catch(() => {});
 }
 
@@ -185,8 +197,26 @@ function stripMongoId<T extends Record<string, unknown>>(doc: T): Omit<T, "_id">
 	return rest;
 }
 
+function normalizeApplication(app: TournamentApplication): TournamentApplication {
+	return { ...app, preferredRoles: normalizePreferredRoles(app.preferredRoles ?? []) };
+}
+
+function preferredRolesChanged(app: TournamentApplication) {
+	return JSON.stringify(app.preferredRoles ?? []) !== JSON.stringify(normalizePreferredRoles(app.preferredRoles ?? []));
+}
+
+async function normalizeApplicationDocs(docs: AppDoc[]) {
+	const changed = docs.filter((doc) => preferredRolesChanged(doc));
+	if (changed.length) {
+		const col = await applicationsCollection();
+		await col.bulkWrite(changed.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $set: { preferredRoles: normalizePreferredRoles(doc.preferredRoles ?? []) } } } })));
+	}
+	return docs.map((raw) => normalizeApplication(stripMongoId(raw) as TournamentApplication));
+}
+
 export async function readTournamentState(groupMatches: GroupMatch[]): Promise<TournamentState> {
 	const [apps, matches] = await Promise.all([(await applicationsCollection()).find({}, { sort: { createdAt: 1 } }).toArray(), (await matchesCollection()).find({}).toArray()]);
+	const normalizedApps = await normalizeApplicationDocs(apps);
 
 	const matchesMap = seededMatches(groupMatches);
 	for (const raw of matches) {
@@ -195,32 +225,37 @@ export async function readTournamentState(groupMatches: GroupMatch[]): Promise<T
 	}
 
 	return {
-		applications: apps.map((raw) => stripMongoId(raw) as TournamentApplication),
+		applications: normalizedApps,
 		matches: matchesMap,
 	};
 }
 
 export async function upsertApplication(app: TournamentApplication): Promise<void> {
 	const col = await applicationsCollection();
-	await col.replaceOne({ _id: app.id }, { ...app }, { upsert: true });
+	const normalized = normalizeApplication(app);
+	await col.replaceOne({ _id: normalized.id }, { ...normalized }, { upsert: true });
 }
 
 export async function findApplication(id: string): Promise<TournamentApplication | null> {
 	const col = await applicationsCollection();
 	const doc = await col.findOne({ _id: id });
-	return doc ? (stripMongoId(doc) as TournamentApplication) : null;
+	if (!doc) return null;
+	const [app] = await normalizeApplicationDocs([doc]);
+	return app;
 }
 
 export async function findApplicationByDiscordId(discordId: string): Promise<TournamentApplication | null> {
 	const col = await applicationsCollection();
 	const doc = await col.findOne({ discordId }, { sort: { updatedAt: -1 } });
-	return doc ? (stripMongoId(doc) as TournamentApplication) : null;
+	if (!doc) return null;
+	const [app] = await normalizeApplicationDocs([doc]);
+	return app;
 }
 
 export async function listApplications(): Promise<TournamentApplication[]> {
 	const col = await applicationsCollection();
 	const docs = await col.find({}, { sort: { createdAt: 1 } }).toArray();
-	return docs.map((raw) => stripMongoId(raw) as TournamentApplication);
+	return normalizeApplicationDocs(docs);
 }
 
 export async function deleteApplicationsByDiscordId(discordId: string): Promise<number> {
@@ -475,7 +510,7 @@ export async function leavePreferenceGroup(discordId: string): Promise<void> {
 	);
 }
 
-export async function createTwitchLinkState(state: string, discordId: string): Promise<void> {
+export async function createTwitchLinkState(state: string, discordId: string, returnSource?: TwitchLinkState["returnSource"]): Promise<void> {
 	const now = new Date();
 	const expiresAt = new Date(now.getTime() + TWITCH_LINK_STATE_TTL_MIN * 60 * 1000);
 	const col = await twitchLinkStatesCollection();
@@ -483,6 +518,7 @@ export async function createTwitchLinkState(state: string, discordId: string): P
 		{ _id: state },
 		{
 			discordId,
+			...(returnSource ? { returnSource } : {}),
 			createdAt: now,
 			expiresAt,
 		},
@@ -527,13 +563,16 @@ export async function listTwitchLinksForDiscordIds(discordIds: string[]): Promis
 	return docs.map((doc) => stripMongoId(doc) as TournamentTwitchLink);
 }
 
-export async function updateTwitchLinkVisibility(discordId: string, showWhenLive: boolean): Promise<TournamentTwitchLink | null> {
+export async function updateTwitchLinkSettings(
+	discordId: string,
+	settings: Partial<Pick<TournamentTwitchLink, "showWhenLive" | "showInCommunityOverlay">>
+): Promise<TournamentTwitchLink | null> {
 	const col = await twitchLinksCollection();
 	const doc = await col.findOneAndUpdate(
 		{ _id: discordId },
 		{
 			$set: {
-				showWhenLive,
+				...settings,
 				updatedAt: new Date().toISOString(),
 			},
 		},
@@ -627,12 +666,40 @@ export async function getVerifiedAccount(discordId: string): Promise<VerifiedRio
 	return rest as VerifiedRiotAccount;
 }
 
+export async function listCommunityOverlayStreamersByPuuid(puuids: string[]): Promise<Map<string, CommunityOverlayStreamer>> {
+	const uniquePuuids = [...new Set(puuids.filter(Boolean))];
+	if (uniquePuuids.length === 0) return new Map();
+
+	const verifiedDocs = await (await verifiedCollection()).find({ puuid: { $in: uniquePuuids } }).toArray();
+	if (verifiedDocs.length === 0) return new Map();
+
+	const discordIds = verifiedDocs.map((doc) => doc.discordId);
+	const twitchDocs = await (await twitchLinksCollection())
+		.find({
+			_id: { $in: discordIds },
+			showInCommunityOverlay: true,
+		})
+		.toArray();
+	const twitchByDiscordId = new Map(twitchDocs.map((doc) => [doc.discordId, doc]));
+
+	return new Map(
+		verifiedDocs.flatMap((verified) => {
+			const twitch = twitchByDiscordId.get(verified.discordId);
+			return twitch ? [[verified.puuid, { login: twitch.login, displayName: twitch.displayName }] as const] : [];
+		})
+	);
+}
+
 export async function clearRiotLink(discordId: string): Promise<void> {
 	const db = await getDb();
 	await Promise.all([
 		db.collection<VerifiedDoc>(VERIFIED_RIOT).deleteOne({ _id: discordId }),
 		db.collection<ChallengeDoc>(RIOT_CHALLENGES).deleteOne({ _id: discordId }),
 		db.collection<AppDoc>(APPLICATIONS).deleteMany({ discordId }),
+		db.collection<TwitchLinkDoc>(TWITCH_LINKS).updateOne(
+			{ _id: discordId },
+			{ $set: { showInCommunityOverlay: false, updatedAt: new Date().toISOString() } }
+		),
 		leavePreferenceGroup(discordId),
 	]);
 }

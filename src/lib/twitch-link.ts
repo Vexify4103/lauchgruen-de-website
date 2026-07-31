@@ -1,3 +1,5 @@
+import { getSiteUrls } from "@/lib/site-urls";
+
 const TWITCH_AUTHORIZE_URL = "https://id.twitch.tv/oauth2/authorize";
 const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const TWITCH_USERS_URL = "https://api.twitch.tv/helix/users";
@@ -13,8 +15,8 @@ export function getTwitchLinkRedirectUri(requestUrl?: string): string {
 	const configured = process.env.TWITCH_LINK_REDIRECT_URI?.trim();
 	if (configured) {
 		const redirect = new URL(configured);
-		if (redirect.pathname !== "/api/tournament/twitch/callback") {
-			throw new Error("TWITCH_LINK_REDIRECT_URI muss auf /api/tournament/twitch/callback enden.");
+		if (!["/api/twitch/callback", "/api/tournament/twitch/callback"].includes(redirect.pathname)) {
+			throw new Error("TWITCH_LINK_REDIRECT_URI muss auf /api/twitch/callback enden.");
 		}
 		return redirect.toString();
 	}
@@ -23,17 +25,17 @@ export function getTwitchLinkRedirectUri(requestUrl?: string): string {
 		const request = new URL(requestUrl);
 		if (request.hostname.endsWith(".localhost")) {
 			const port = request.port ? `:${request.port}` : "";
-			return `http://localhost${port}/api/tournament/twitch/callback`;
+			return `http://localhost${port}/api/twitch/callback`;
 		}
 	}
 
 	const authUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
 	if (authUrl) {
-		return `${authUrl.replace(/\/$/, "")}/api/tournament/twitch/callback`;
+		return `${authUrl.replace(/\/$/, "")}/api/twitch/callback`;
 	}
 
 	if (requestUrl) {
-		return new URL("/api/tournament/twitch/callback", requestUrl).toString();
+		return new URL("/api/twitch/callback", requestUrl).toString();
 	}
 
 	throw new Error("TWITCH_LINK_REDIRECT_URI oder AUTH_URL fehlt.");
@@ -111,11 +113,12 @@ export async function exchangeTwitchCode(input: { code: string; redirectUri: str
 	};
 }
 
-export function getTwitchLinkReturnUrl(requestUrl: string, status: string): URL {
+export function getTwitchLinkReturnUrl(requestUrl: string, status: string, returnSource?: "main" | "overlay" | "tournament"): URL {
 	const configuredAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
 	const configuredRedirectUri = process.env.TWITCH_LINK_REDIRECT_URI?.trim();
 	const publicOrigin = configuredAuthUrl ? new URL(configuredAuthUrl).origin : configuredRedirectUri ? new URL(configuredRedirectUri).origin : new URL(requestUrl).origin;
-	const url = new URL("/me", publicOrigin);
+	const url = new URL("/me", getSiteUrls(new URL(publicOrigin).host).apex);
 	url.searchParams.set("twitch", status);
+	if (returnSource) url.searchParams.set("from", returnSource);
 	return url;
 }

@@ -17,11 +17,11 @@ export const MAX_AUTOBALANCE_FRIEND_GROUP_SIZE = 5;
 
 const ROLE_PENALTY = {
 	main: 0,
-	preferred: 1,
+	preferenceStep: 4,
 	flexible: 3,
 	fillOverflow: 30,
 	substitute: 40,
-	offRole: 16,
+	offRole: 24,
 } as const;
 
 export type BalanceOptions = {
@@ -162,20 +162,24 @@ function applicantPreferredCoreRoles(applicant: RosterApplicant): PlayerRole[] {
 }
 
 function rolePenalty(applicant: RosterApplicant, role: PlayerRole): number {
-	const normalizedPreferred = applicant.preferredRoles.map(normalizeRoleName).filter((value): value is PlayerRole => value !== null);
+	const normalizedPreferred = applicant.preferredRoles
+		.map(normalizeRoleName)
+		.filter((value): value is PlayerRole => value !== null)
+		.filter((value, index, values) => values.indexOf(value) === index);
 	const mainRole = applicant.mainRole ? normalizeRoleName(applicant.mainRole) : null;
 	const preferredCore = normalizedPreferred.filter((value) => CORE_ROLES.includes(value));
-	const hasFillPreference = normalizedPreferred.includes("Fill") || mainRole === "Fill";
+	const fillPreferenceIndex = normalizedPreferred.indexOf("Fill");
+	const hasFillPreference = fillPreferenceIndex >= 0 || mainRole === "Fill";
 	const hasSubPreference = normalizedPreferred.includes("Sub") || mainRole === "Sub";
 
 	if (CORE_ROLES.includes(role)) {
-		if (mainRole === role) return ROLE_PENALTY.main;
-		if (normalizedPreferred.includes(role)) return ROLE_PENALTY.preferred;
+		const preferredIndex = normalizedPreferred.indexOf(role);
+		if (preferredIndex >= 0) return preferredIndex * ROLE_PENALTY.preferenceStep;
 		// "Fill" means: put me where a real team role is needed, not into the
 		// artificial Fill/Sub bucket while core slots are still open.
-		if (hasFillPreference && preferredCore.length === 0 && (!mainRole || mainRole === "Fill")) {
-			return ROLE_PENALTY.preferred;
-		}
+		if (fillPreferenceIndex >= 0) return fillPreferenceIndex * ROLE_PENALTY.preferenceStep + 1;
+		if (mainRole === role) return normalizedPreferred.length ? normalizedPreferred.length * ROLE_PENALTY.preferenceStep + 2 : ROLE_PENALTY.main;
+		if (hasFillPreference && preferredCore.length === 0 && (!mainRole || mainRole === "Fill")) return ROLE_PENALTY.flexible;
 	}
 
 	if (role === "Fill") {
@@ -183,7 +187,8 @@ function rolePenalty(applicant: RosterApplicant, role: PlayerRole): number {
 	}
 
 	if (role === "Sub") {
-		return hasSubPreference ? ROLE_PENALTY.preferred : ROLE_PENALTY.substitute;
+		const subIndex = normalizedPreferred.indexOf("Sub");
+		return subIndex >= 0 ? subIndex * ROLE_PENALTY.preferenceStep : hasSubPreference ? ROLE_PENALTY.flexible : ROLE_PENALTY.substitute;
 	}
 
 	const wantedCore = new Set([...normalizedPreferred, mainRole].filter((value): value is PlayerRole => value !== null).filter((value) => CORE_ROLES.includes(value)));

@@ -141,6 +141,7 @@ export function RosterBuilder({
 	const { showConflict } = useAdminConflict();
 	const [snapshot, setSnapshot] = useState<RosterSnapshot>(initialSnapshot);
 	const [state, setState] = useState<State>(() => initialState(snapshot));
+	const [savedRosterState, setSavedRosterState] = useState(() => serializeRosterState(initialState(snapshot)));
 	const [picker, setPicker] = useState<null | {
 		teamKey: string;
 		role: PlayerRole;
@@ -165,9 +166,17 @@ export function RosterBuilder({
 	}, [splitThreshold]);
 
 	useEffect(() => {
-		const frame = window.requestAnimationFrame(() => setSnapshot(initialSnapshot));
+		const modeChanged = snapshot.testModeActive !== initialSnapshot.testModeActive;
+		const frame = window.requestAnimationFrame(() => {
+			setSnapshot(initialSnapshot);
+			if (modeChanged) {
+				const nextState = initialState(initialSnapshot);
+				setState(nextState);
+				setSavedRosterState(serializeRosterState(nextState));
+			}
+		});
 		return () => window.cancelAnimationFrame(frame);
-	}, [initialSnapshot]);
+	}, [initialSnapshot, snapshot.testModeActive]);
 
 	useEffect(() => {
 		if (!discordJob || discordJob.status === "completed" || discordJob.status === "failed") return;
@@ -189,6 +198,7 @@ export function RosterBuilder({
 	const [editingRankLp, setEditingRankLp] = useState("");
 	const [seeding, setSeeding] = useState(false);
 	const [clearing, setClearing] = useState(false);
+	const [testDataAction, setTestDataAction] = useState<"seed" | "clear" | null>(null);
 	const [pulseId, setPulseId] = useState<string | null>(null);
 	const [sortMode, setSortMode] = useState<SortMode>("rank-desc");
 	const [createOpen, setCreateOpen] = useState(false);
@@ -207,7 +217,6 @@ export function RosterBuilder({
 	const [manualSubRiotId, setManualSubRiotId] = useState("");
 	const [manualSubTeamKey, setManualSubTeamKey] = useState("");
 	const usesGroups = dayOneFormat === "groups";
-	const [savedRosterState, setSavedRosterState] = useState(() => serializeRosterState(initialState(snapshot)));
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
 	const createTeamDirty = Boolean(createOpen && (newTeamName.trim() || newTeamCreateDiscord));
@@ -269,17 +278,17 @@ export function RosterBuilder({
 		} else if (sortMode === "rank-asc") {
 			sorted.sort((a, b) => parseRank(a.manualRankOverride || a.currentRank) - parseRank(b.manualRankOverride || b.currentRank));
 		} else {
-			// role-available: applicants whose preferred role has an open slot float first
+			// role-available: the earliest still-open preference wins.
 			sorted.sort((a, b) => {
-				const aHas = a.preferredRoles.some((r) => {
+				const aPriority = a.preferredRoles.findIndex((r) => {
 					const role = normalizeRoleName(r);
 					return role !== null && openRolesAnywhere.has(role);
 				});
-				const bHas = b.preferredRoles.some((r) => {
+				const bPriority = b.preferredRoles.findIndex((r) => {
 					const role = normalizeRoleName(r);
 					return role !== null && openRolesAnywhere.has(role);
 				});
-				if (aHas !== bHas) return aHas ? -1 : 1;
+				if (aPriority !== bPriority) return (aPriority < 0 ? Number.MAX_SAFE_INTEGER : aPriority) - (bPriority < 0 ? Number.MAX_SAFE_INTEGER : bPriority);
 				return parseRank(b.manualRankOverride || b.currentRank) - parseRank(a.manualRankOverride || a.currentRank);
 			});
 		}
@@ -776,12 +785,13 @@ export function RosterBuilder({
 	}
 
 	async function seedTestData() {
+		setTestDataAction(null);
 		setSeeding(true);
 		setMessage(null);
 		const response = await fetch("/api/tournament/test-data", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ count: 40 }),
+			body: JSON.stringify({ count: 40, confirmation: "TESTDATEN ANLEGEN" }),
 		});
 		setSeeding(false);
 		const json = await response.json().catch(() => null);
@@ -796,24 +806,17 @@ export function RosterBuilder({
 			});
 			return;
 		}
-		const parts: string[] = [];
-		if (json.applicants) parts.push(`${json.applicants} Bewerber`);
-		if (json.teamsInserted) parts.push(`${json.teamsInserted} Team(s) angelegt`);
-		if (json.teamsAlreadyFull) parts.push("Teams sind bereits voll (8)");
-		setMessage({
-			tone: "ok",
-			text: `Test-Daten gesetzt: ${parts.join(", ")}.`,
-		});
-		router.refresh();
+		window.location.reload();
 	}
 
 	async function clearTestData() {
+		setTestDataAction(null);
 		setClearing(true);
 		setMessage(null);
 		const response = await fetch("/api/tournament/test-data", {
 			method: "DELETE",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({}),
+			body: JSON.stringify({ confirmation: "TESTDATEN LÖSCHEN" }),
 		});
 		setClearing(false);
 		const json = await response.json().catch(() => null);
@@ -828,27 +831,7 @@ export function RosterBuilder({
 			});
 			return;
 		}
-		const removedTeamKeys = new Set<string>(json.teamKeysRemoved ?? []);
-		setState((previous) => {
-			const assignments = new Map<string, Assignment>();
-			for (const [discordId, assignment] of previous.assignments) {
-				if (discordId.startsWith("test-")) continue;
-				assignments.set(discordId, removedTeamKeys.has(assignment.teamKey) ? { teamKey: "", role: null } : assignment);
-			}
-			const captains = new Map<string, string | null>();
-			for (const [teamKey, discordId] of previous.captains) {
-				if (removedTeamKeys.has(teamKey)) continue;
-				captains.set(teamKey, discordId?.startsWith("test-") ? null : discordId);
-			}
-			return { ...previous, assignments, captains };
-		});
-		const parts: string[] = [`${json.applications} Bewerbung(en)`, `${json.teamsRemoved} Team(s)`];
-		if (json.playersStripped) parts.push(`${json.playersStripped} Dummy-Spieler aus echten Teams entfernt`);
-		setMessage({
-			tone: "ok",
-			text: `Gelöscht: ${parts.join(", ")}.`,
-		});
-		router.refresh();
+		window.location.reload();
 	}
 
 	const save = useCallback(
@@ -933,7 +916,7 @@ export function RosterBuilder({
 			});
 			return true;
 		},
-		[currentRosterState, state, snapshot.teams, showConflict]
+		[currentRosterState, state, snapshot.teams, showConflict, setSavedRosterState]
 	);
 
 	useUnsavedChanges({
@@ -954,6 +937,15 @@ export function RosterBuilder({
 
 	return (
 		<div className="grid gap-5 xl:grid-cols-[23rem_minmax(0,1fr)]">
+			{snapshot.testModeActive ? (
+				<div className="rounded-[1.6rem] border border-amber-200/28 bg-gradient-to-r from-amber-200/12 via-lime-200/[0.08] to-cyan-200/[0.06] px-5 py-4 shadow-xl shadow-amber-300/10 xl:col-span-2">
+					<div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Temporärer Testmodus aktiv</div>
+					<p className="mt-1 text-sm font-bold leading-6 text-amber-50/86">
+						Du arbeitest gerade mit acht vollständigen Dummy-Teams. Roster-Saves verändern nur die Testdaten und lösen keine Discord-Synchronisation aus. Mit
+						„Testmodus beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
+					</p>
+				</div>
+			) : null}
 			<aside className="flex flex-col overflow-hidden rounded-[2rem] border border-cyan-200/12 bg-[#08150f]/92 shadow-2xl shadow-black/24 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
 				<div className="border-b border-white/8 bg-gradient-to-br from-cyan-300/[0.07] via-transparent to-lime-200/[0.04] p-5">
 					<div className="flex items-start justify-between gap-3">
@@ -1183,21 +1175,21 @@ export function RosterBuilder({
 							</button>
 							<button
 								type="button"
-								onClick={seedTestData}
-								disabled={seeding || autoRunning}
-								title="40 Dummy-Bewerber + Dummy-Teams einfügen, sodass insgesamt 8 Teams existieren (echte Teams bleiben unangetastet)"
+								onClick={() => setTestDataAction("seed")}
+								disabled={seeding || autoRunning || snapshot.testModeActive}
+								title="Echten Roster sichern und temporär durch 8 vollständige Dummy-Teams ersetzen"
 								className="rounded-xl border border-white/12 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-white/24 hover:text-emerald-50 disabled:opacity-45"
 							>
-								{seeding ? "Wird angelegt…" : "+ Test-Daten"}
+								{seeding ? "Wird vorbereitet…" : snapshot.testModeActive ? "Testmodus aktiv" : "+ Testdaten"}
 							</button>
 							<button
 								type="button"
-								onClick={clearTestData}
+								onClick={() => setTestDataAction("clear")}
 								disabled={clearing || autoRunning}
-								title="Alle mit isTestData:true markierten Bewerber + Teams löschen (echte Einträge bleiben)"
+								title="Testdaten entfernen und den zuvor gesicherten echten Roster wiederherstellen"
 								className="rounded-xl border border-red-300/20 bg-red-500/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-100/78 transition hover:border-red-300/40 hover:bg-red-500/10 hover:text-red-50 disabled:opacity-45"
 							>
-								{clearing ? "Wird gelöscht…" : "Test-Daten löschen"}
+								{clearing ? "Wird wiederhergestellt…" : snapshot.testModeActive ? "Testmodus beenden" : "Testdaten bereinigen"}
 							</button>
 						</div>
 					</details>
@@ -1541,7 +1533,7 @@ export function RosterBuilder({
 				description={
 					<>
 						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Wunschduos werden zusammengehalten, sofern ihr gemeinsamer Skill nicht zu stark vom
-						Gesamtdurchschnitt abweicht. Wunschrollen werden berücksichtigt, sofern der Slot frei ist.{" "}
+						Gesamtdurchschnitt abweicht. Wunschrollen werden nach ihrer angegebenen Reihenfolge gewichtet: Wunsch #1 zählt deutlich stärker als #2, #3 usw.{" "}
 						<strong className="text-emerald-50">Captains werden zurückgesetzt.</strong> Du kannst danach manuell anpassen, bevor du speicherst.
 					</>
 				}
@@ -1549,6 +1541,38 @@ export function RosterBuilder({
 				cancelLabel="Abbrechen"
 				onConfirm={runAutoBalance}
 				onCancel={() => setAutoConfirm(false)}
+			/>
+
+			<ConfirmDialog
+				open={testDataAction === "seed"}
+				title="Testdaten wirklich anlegen?"
+				description={
+					<>
+						Der aktuelle echte Roster sowie Match-, Draft-, Swiss- und Ultimate-Bravery-Daten werden unverändert gesichert. Danach übernehmen
+						<strong className="text-emerald-50"> acht vollständige 5er-Teams</strong> und 40 Test-Bewerbungen. Damit kannst du Auto-Balance und den gesamten
+						Turnierablauf testen. Roster-Saves bleiben währenddessen rein in MongoDB; Discord-Rollen und Channels werden nicht verändert.
+					</>
+				}
+				confirmLabel="Testdaten anlegen"
+				cancelLabel="Abbrechen"
+				onConfirm={() => void seedTestData()}
+				onCancel={() => setTestDataAction(null)}
+			/>
+
+			<ConfirmDialog
+				open={testDataAction === "clear"}
+				title={snapshot.testModeActive ? "Testmodus beenden?" : "Testdaten wirklich löschen?"}
+				description={
+					<>
+						Die Dummy-Teams und Test-Bewerbungen werden entfernt. Anschließend werden der zuvor gespeicherte echte Roster sowie Match-, Draft-, Swiss- und
+						Ultimate-Bravery-Daten exakt wiederhergestellt. Es werden dabei keine Discord-Jobs ausgelöst.
+					</>
+				}
+				confirmLabel={snapshot.testModeActive ? "Testmodus beenden" : "Testdaten bereinigen"}
+				cancelLabel="Abbrechen"
+				tone="danger"
+				onConfirm={() => void clearTestData()}
+				onCancel={() => setTestDataAction(null)}
 			/>
 
 			{createOpen ? (
@@ -1847,6 +1871,7 @@ const PlayerRow = memo(function PlayerRow({
 	const discordUsername = applicant?.discordUsername?.replace(/^@+/, "").trim();
 	const playerLabel = discordUsername ? `@${discordUsername}` : applicant?.discordHandle?.trim() || applicant?.displayName?.trim() || discordId;
 	const masterPlusOnRequestedRole = Boolean(applicant && isMasterPlusOnRequestedRole(applicant, role));
+	const rolePreferenceIndex = applicant?.preferredRoles.findIndex((entry) => normalizeRoleName(entry) === role) ?? -1;
 
 	return (
 		<div
@@ -1866,6 +1891,11 @@ const PlayerRow = memo(function PlayerRow({
 					{isCaptain ? (
 						<span className="shrink-0 rounded-full border border-lime-200/28 bg-lime-200/12 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-lime-50">
 							Captain
+						</span>
+					) : null}
+					{rolePreferenceIndex >= 0 ? (
+						<span className="shrink-0 rounded-full border border-cyan-200/24 bg-cyan-200/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.11em] text-cyan-50">
+							Wunsch #{rolePreferenceIndex + 1}
 						</span>
 					) : null}
 					{masterPlusOnRequestedRole ? (
@@ -2120,9 +2150,9 @@ function ApplicantCard({
 						Main {applicant.mainRole}
 					</span>
 				) : null}
-				{applicant.preferredRoles.slice(0, 3).map((r) => (
+				{applicant.preferredRoles.map((r, index) => (
 					<span key={r} className="rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100/60">
-						{r}
+						#{index + 1} · {r}
 					</span>
 				))}
 			</div>
@@ -2158,7 +2188,7 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 				<ApplicationDetailRow
 					label="Rollen"
 					value={
-						[applicant.mainRole ? `Main: ${applicant.mainRole}` : "", applicant.preferredRoles.length > 0 ? `Wunsch: ${applicant.preferredRoles.join(", ")}` : ""]
+						[applicant.mainRole ? `Main: ${applicant.mainRole}` : "", applicant.preferredRoles.length > 0 ? `Wünsche: ${applicant.preferredRoles.map((role, index) => `#${index + 1} ${role}`).join(", ")}` : ""]
 							.filter(Boolean)
 							.join(" · ") || "Keine Angaben"
 					}
@@ -2219,16 +2249,18 @@ function Picker({
 	onCancel: () => void;
 	onPick: (discordId: string) => void;
 }) {
-	// Mark applicants who preferred this role.
+	// Rank applicants by the explicit order of their role preferences.
 	const decorated = useMemo(
 		() =>
 			candidates
 				.map((a) => ({
 					applicant: a,
-					preferred: a.preferredRoles.some((r) => r.toLowerCase() === role.toLowerCase()),
+					priority: a.preferredRoles.findIndex((r) => r.toLowerCase() === role.toLowerCase()),
 				}))
 				.sort((a, b) => {
-					if (a.preferred !== b.preferred) return a.preferred ? -1 : 1;
+					const aPriority = a.priority < 0 ? Number.MAX_SAFE_INTEGER : a.priority;
+					const bPriority = b.priority < 0 ? Number.MAX_SAFE_INTEGER : b.priority;
+					if (aPriority !== bPriority) return aPriority - bPriority;
 					// Fall back to alphabetical by display name
 					return (a.applicant.discordUsername ?? "").localeCompare(b.applicant.discordUsername ?? "");
 				}),
@@ -2247,7 +2279,9 @@ function Picker({
 						<div className="rounded-xl border border-white/10 bg-black/24 p-4 text-sm text-emerald-100/52">Keine verfügbaren verifizierten Bewerber mehr.</div>
 					) : (
 						<div className="grid gap-2">
-							{decorated.map(({ applicant, preferred }) => (
+							{decorated.map(({ applicant, priority }) => {
+								const preferred = priority >= 0;
+								return (
 								<button
 									key={applicant.discordId}
 									type="button"
@@ -2259,7 +2293,7 @@ function Picker({
 									<div className="min-w-0">
 										<div className="truncate text-sm font-black text-emerald-50">
 											{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}
-											{preferred ? <span className="ml-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime-200/72">👍 Wunschrolle</span> : null}
+											{preferred ? <span className="ml-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime-200/72">Wunsch #{priority + 1}</span> : null}
 										</div>
 										<div className="truncate text-[10px] text-emerald-100/52">
 											{applicant.riotId}
@@ -2272,7 +2306,8 @@ function Picker({
 										) : null}
 									</div>
 								</button>
-							))}
+								);
+							})}
 						</div>
 					)}
 				</div>

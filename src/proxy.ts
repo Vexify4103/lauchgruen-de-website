@@ -34,11 +34,29 @@ function quizHostFor(apexHost: string): string {
 	return `quiz.${bare}`;
 }
 
+const LEGACY_API_SUCCESSORS: Array<[prefix: string, successor: string]> = [
+	["/api/tournament/riot/", "/api/riot/"],
+	["/api/tournament/twitch/", "/api/twitch/"],
+];
+
+function legacyApiResponse(pathname: string) {
+	const match = LEGACY_API_SUCCESSORS.find(([prefix]) => pathname.startsWith(prefix));
+	if (!match) return null;
+
+	const [prefix, successor] = match;
+	const response = NextResponse.next();
+	response.headers.set("Deprecation", "true");
+	response.headers.set("Link", `<${pathname.replace(prefix, successor)}>; rel=\"successor-version\"`);
+	return response;
+}
+
 export function proxy(req: NextRequest) {
 	// `host` includes the port locally (e.g. "localhost:3000"), strip it.
 	const rawHost = req.headers.get("host") ?? "";
 	const host = rawHost.split(":")[0].toLowerCase();
 	const { pathname } = req.nextUrl;
+	const legacyResponse = legacyApiResponse(pathname);
+	if (legacyResponse) return legacyResponse;
 
 	if (TOURNAMENT_HOSTS.has(host)) {
 		if (pathname.startsWith("/api/")) {
@@ -63,6 +81,44 @@ export function proxy(req: NextRequest) {
 			const url = req.nextUrl.clone();
 			url.pathname = "/landing";
 			return NextResponse.rewrite(url);
+		}
+
+		// Public stream-tool workshop. OBS output itself lives below /obs/* and
+		// is excluded from this proxy matcher so it stays host-independent.
+		if (pathname === "/overlay" || pathname.startsWith("/overlay/")) {
+			return NextResponse.next();
+		}
+
+		if (
+			pathname.startsWith("/api/riot/") ||
+			pathname.startsWith("/api/overlay/") ||
+			pathname === "/api/tournament/preference-group"
+		) {
+			return NextResponse.next();
+		}
+
+		// The account center belongs to the main site. It reuses the existing
+		// account implementation internally without exposing the tournament path.
+		if (pathname === "/me") {
+			const url = req.nextUrl.clone();
+			url.pathname = "/tournament/me";
+			return NextResponse.rewrite(url);
+		}
+
+		// Auth.js may start on the apex account page while its configured OAuth
+		// callback remains on the tournament host. Shared parent-domain cookies
+		// keep that state flow intact.
+		if (pathname === "/api/auth" || pathname.startsWith("/api/auth/")) {
+			return NextResponse.next();
+		}
+
+		// Old explicit tournament links on the apex should reach the tournament
+		// host rather than accidentally falling through to the quiz subdomain.
+		if (pathname === "/tournament" || pathname.startsWith("/tournament/")) {
+			const url = req.nextUrl.clone();
+			url.hostname = `tournament.${host.replace(/^www\./, "")}`;
+			url.pathname = pathname === "/tournament" ? "/" : pathname.slice("/tournament".length);
+			return NextResponse.redirect(url, { status: 308 });
 		}
 
 		// Anything else on the apex → bounce to the same path on the quiz

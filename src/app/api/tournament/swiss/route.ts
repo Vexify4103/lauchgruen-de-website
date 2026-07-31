@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { drawNextSwissMatchup, getSwissStageState, listSwissTeams, resetSwissStage, setSwissPairingWinner } from "@/lib/tournament-swiss";
+import { drawNextSwissMatchup, getSwissStageState, listSwissAudit, listSwissTeams, resetSwissStage, setSwissPairingWinner } from "@/lib/tournament-swiss";
 import { buildSwissTestTeams, SWISS_TEST_ID } from "@/lib/tournament-swiss-test";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { writeAuditLog } from "@/lib/tournament-audit";
@@ -18,7 +18,15 @@ const actionSchema = z.object({
 	winnerTeamKey: z.string().optional(),
 });
 export async function GET(request: Request) {
-	const test = new URL(request.url).searchParams.get("test") === "1";
+	const searchParams = new URL(request.url).searchParams;
+	const test = searchParams.get("test") === "1";
+	if (searchParams.get("audit") === "1") {
+		const session = await auth();
+		const discordId = session?.user?.discordId;
+		if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
+		const settings = await getTournamentSettings();
+		return NextResponse.json({ audit: await listSwissAudit(settings.activeTournament.id, 30) });
+	}
 	if (test) {
 		const session = await auth();
 		const discordId = session?.user?.discordId;

@@ -9,6 +9,7 @@
 import { getDb } from "@/lib/mongo";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
+import { isTestRosterModeActive } from "@/lib/test-data";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
 export type PlayerRole = (typeof VALID_ROLES)[number];
@@ -95,17 +96,20 @@ export type RosterTeam = {
 export type RosterSnapshot = {
 	applicants: RosterApplicant[];
 	teams: RosterTeam[];
+	testModeActive: boolean;
 };
 
 /** Single read fetching everything the roster builder needs. */
 export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	const db = await getDb();
-	const [appsRaw, botDoc, preferenceGroups] = await Promise.all([
+	const [appsRaw, botDoc, preferenceGroups, testModeActive] = await Promise.all([
 		listApplications(),
 		db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
 		listPreferenceGroups(),
+		isTestRosterModeActive(),
 	]);
 
+	const visibleApplications = testModeActive ? appsRaw.filter((application) => application.discordId.startsWith("test-")) : appsRaw;
 	const teamsObj = botDoc?.teams ?? {};
 	const teams: RosterTeam[] = Object.entries(teamsObj).map(([key, t]) => ({
 		key,
@@ -121,7 +125,7 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	}));
 
 	const preferenceGroupByDiscordId = new Map(preferenceGroups.flatMap((group) => group.memberDiscordIds.map((discordId) => [discordId, group.code] as const)));
-	const applicants: RosterApplicant[] = appsRaw.map((application) => toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)));
+	const applicants: RosterApplicant[] = visibleApplications.map((application) => toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)));
 	const applicantIds = new Set(applicants.map((applicant) => applicant.discordId));
 
 	for (const team of Object.values(teamsObj)) {
@@ -134,7 +138,7 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 		}
 	}
 
-	return { applicants, teams };
+	return { applicants, teams, testModeActive };
 }
 
 function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): RosterApplicant {
@@ -227,7 +231,7 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	discordJobId?: string;
 }> {
 	const db = await getDb();
-	const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
+	const [doc, testModeActive] = await Promise.all([db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }), isTestRosterModeActive()]);
 	const teamsObj = doc?.teams ?? {};
 	const previousCaptainIds = new Set(
 		Object.values(teamsObj)
@@ -364,6 +368,14 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 
 	if (Object.keys(update).length > 0) {
 		await db.collection<BotStateDoc>("bot_state").updateOne({ _id: "default" }, update, { upsert: true });
+	}
+	if (testModeActive) {
+		return {
+			applied,
+			teamsUpdated,
+			errors: [],
+			warnings: ["Testmodus aktiv: Das Roster wurde nur in MongoDB gespeichert; Discord-Rollen wurden nicht synchronisiert."],
+		};
 	}
 
 	const repairDiscordRoles = Boolean(payload.repairDiscordRoles);

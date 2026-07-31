@@ -1,6 +1,9 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { auth, signIn, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import {
@@ -14,9 +17,37 @@ import {
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { PreferenceGroupCard } from "./PreferenceGroupCard";
+import { RiotVerificationCard } from "./RiotVerificationCard";
 import { TwitchLinkCard } from "./TwitchLinkCard";
+import { DiscordSignInButton } from "../DiscordSignInButton";
+import { AccountLogoutButton } from "./AccountLogoutButton";
+import { getSiteUrls } from "@/lib/site-urls";
+import { isTournamentHost } from "@/lib/tournament-url";
 
-export default async function TournamentMePage({ searchParams }: { searchParams: Promise<{ twitch?: string }> }) {
+export const metadata: Metadata = {
+	title: "Mein Lauchgruen-Konto",
+	description: "Verwalte Discord, Riot, Twitch, Community-Overlays und deine Turnierteilnahmen.",
+};
+
+export default async function TournamentMePage({ searchParams }: { searchParams: Promise<{ twitch?: string; from?: string }> }) {
+	const [requestHeaders, params] = await Promise.all([headers(), searchParams]);
+	const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+	const siteUrls = getSiteUrls(host);
+	if (isTournamentHost(host)) {
+		const destination = new URL("/me", siteUrls.apex);
+		if (params.twitch) destination.searchParams.set("twitch", params.twitch);
+		if (params.from) destination.searchParams.set("from", params.from);
+		redirect(destination.toString());
+	}
+	const tournamentHref = (path: string) => `${siteUrls.tournament}${path}`;
+	const source = params.from === "overlay" || params.from === "tournament" || params.from === "main" ? params.from : "main";
+	const returnTarget =
+		source === "overlay"
+			? { href: `${siteUrls.apex}/overlay`, label: "Zurück zum Overlay" }
+			: source === "tournament"
+				? { href: siteUrls.tournament, label: "Zurück zum Turnier" }
+				: { href: siteUrls.apex, label: "Zurück zur Hauptseite" };
+	const accountUrl = `${siteUrls.apex}/me?from=${source}`;
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
@@ -30,15 +61,15 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					<p className="mt-3 text-sm leading-7 text-emerald-100/64">
 						Danach zeigen wir dir, ob deine Bewerbung, Discord-Mitgliedschaft, Riot-Verifizierung und Teamzuweisung bereit sind.
 					</p>
-					<form
-						className="mt-5"
-						action={async () => {
-							"use server";
-							await signIn("discord", { redirectTo: "/tournament/me" });
-						}}
-					>
-						<button className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950">Mit Discord anmelden</button>
-					</form>
+					<div className="mt-5">
+						<DiscordSignInButton
+							redirectTo={accountUrl}
+							pendingLabel="Weiter zu Discord..."
+							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
+						>
+							Mit Discord anmelden
+						</DiscordSignInButton>
+					</div>
 				</section>
 			</Shell>
 		);
@@ -53,7 +84,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		getTwitchLink(discordId),
 		getTournamentSettings(),
 	]);
-	const twitchStatus = (await searchParams).twitch;
+	const twitchStatus = params.twitch;
 	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
 	const discordAvatarUrl = session.user.discordAvatar ?? "https://cdn.discordapp.com/embed/avatars/0.png";
 	const application = applications.find((entry) => entry.discordId === discordId) ?? null;
@@ -119,6 +150,16 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		<Shell>
 			<section className="mx-auto w-full max-w-6xl">
 				<div className="grid gap-6">
+					<nav aria-label="Kontobereich verlassen" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/9 bg-black/18 p-2.5 shadow-lg shadow-black/15">
+						<a href={returnTarget.href} className="rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-black text-emerald-50 transition hover:bg-white/[0.1]">
+							← {returnTarget.label}
+						</a>
+						<div className="flex flex-wrap gap-1.5">
+							<a href={siteUrls.apex} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100">Hauptseite</a>
+							<a href={`${siteUrls.apex}/overlay`} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-cyan-100">Overlay</a>
+							<a href={siteUrls.tournament} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100">Turnier</a>
+						</div>
+					</nav>
 					<div className="relative overflow-hidden rounded-[2.4rem] border border-lime-200/12 bg-gradient-to-br from-lime-200/14 via-emerald-400/8 to-cyan-400/10 shadow-2xl shadow-black/24">
 						<div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-cyan-300/10 blur-3xl" />
 						<div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
@@ -127,12 +168,12 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								<img src={discordAvatarUrl} alt={`Discord-Profilbild von ${session.user.discordHandle ?? "dir"}`} className="size-full object-cover" />
 							</div>
 							<div className="min-w-0">
-								<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Turnierkonto</div>
+								<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Lauchgruen-Konto</div>
 								<h1 className="mt-2 truncate text-4xl font-black tracking-tight text-emerald-50">
 									{application?.displayName ?? session.user.discordHandle ?? "Teilnehmer"}
 								</h1>
 								<p className="mt-2 max-w-2xl text-sm leading-7 text-emerald-100/68">
-									Deine zentrale Stelle für Bewerbung, Riot-Account, Wunschduo, Twitch und spätere Match-Informationen.
+									Deine zentrale Stelle für Discord, Riot, Twitch, Community-Overlays und Turnierteilnahmen.
 								</p>
 								<div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-emerald-100/58">
 									<span>
@@ -164,7 +205,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								</p>
 								{!application && settings.activeTournament.mode === "registration" ? (
 									<Link
-										href="/tournament/apply"
+										href={tournamentHref("/apply")}
 										className="rounded-xl bg-lime-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20"
 									>
 										Jetzt bewerben
@@ -175,25 +216,13 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						<div className="relative flex flex-wrap gap-3 px-6 py-5 sm:px-8">
 							{isOwner ? (
 								<Link
-									href="/tournament/admin"
+									href={tournamentHref("/admin")}
 									className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:-translate-y-0.5"
 								>
 									Admin öffnen
 								</Link>
 							) : null}
-							<form
-								action={async () => {
-									"use server";
-									await signOut({ redirectTo: "/tournament" });
-								}}
-							>
-								<button
-									type="submit"
-									className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/74 transition hover:border-red-200/30 hover:bg-red-500/10 hover:text-red-100"
-								>
-									Logout
-								</button>
-							</form>
+							<AccountLogoutButton returnUrl={returnTarget.href} />
 						</div>
 					</div>
 
@@ -238,7 +267,19 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 									: null
 							}
 						/>
-						<TwitchLinkCard initialLink={twitchLink} status={twitchStatus} isOwner={isOwner} />
+						<RiotVerificationCard
+							verified={
+								verified
+									? {
+											riotId: verified.riotId,
+											currentRankAuto: verified.currentRankAuto,
+											summonerLevel: verified.summonerLevel,
+											verifiedAt: verified.verifiedAt,
+										}
+									: null
+							}
+						/>
+						<TwitchLinkCard initialLink={twitchLink} status={twitchStatus} isOwner={isOwner} verifiedRiotId={verified?.riotId ?? null} returnSource={source} />
 					</div>
 
 					{nextMatch ? (
@@ -258,21 +299,21 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							<div className="mt-5 flex flex-wrap gap-2">
 								{isUltimateBravery ? (
 									<Link
-										href={`/tournament/matches/${nextMatch.id}`}
+										href={tournamentHref(`/matches/${nextMatch.id}`)}
 										className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
 									>
 										Match & Roll öffnen
 									</Link>
 								) : pool ? (
 									<Link
-										href={`/tournament/champ-select/${nextMatch.id}/spectate`}
+										href={tournamentHref(`/champ-select/${nextMatch.id}/spectate`)}
 										className="rounded-2xl border border-sky-200/20 bg-sky-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-50/82"
 									>
 										Spectator Draft
 									</Link>
 								) : null}
 								{isCaptain && !isUltimateBravery ? (
-									<Link href="/tournament/captain" className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950">
+									<Link href={tournamentHref("/captain")} className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950">
 										Captain Portal
 									</Link>
 								) : null}
@@ -297,7 +338,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 										.map((match) => (
 											<Link
 												key={match.id}
-												href={`/tournament/matches/${match.id}`}
+												href={tournamentHref(`/matches/${match.id}`)}
 												className="rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-sm font-bold text-emerald-100/72 hover:text-lime-100"
 											>
 												{match.teamALabel} {match.scoreA}:{match.scoreB} {match.teamBLabel}

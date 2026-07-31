@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { RiotDisclaimer } from "@/components/RiotDisclaimer";
 import { TournamentLink as Link, TournamentUrlProvider } from "./TournamentLink";
 
 type NavItem = {
@@ -40,6 +41,12 @@ export function TournamentChrome({
 	return (
 		<TournamentUrlProvider cleanUrls={cleanUrls}>
 			<div className="min-h-screen bg-[#07110c] text-emerald-50">
+				<a
+					href="#main-content"
+					className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950 shadow-xl transition focus:translate-y-0"
+				>
+					Zum Inhalt
+				</a>
 				<div className="pointer-events-none fixed inset-0 overflow-hidden">
 					<div className="absolute left-1/2 top-[-12rem] h-[34rem] w-[60rem] -translate-x-1/2 rounded-full bg-lime-300/10 blur-3xl" />
 					<div className="absolute bottom-[-14rem] left-[-10rem] h-[32rem] w-[32rem] rounded-full bg-cyan-400/10 blur-3xl" />
@@ -52,26 +59,29 @@ export function TournamentChrome({
 					<FullTournamentHeader navItems={navItems} applicationsOpen={applicationsOpen} tournamentStatus={tournamentStatus} accountControl={accountControl} />
 				)}
 
-				<main className={`relative z-10 ${focusedDraft ? "pt-9" : ""}`}>{children}</main>
+				<main id="main-content" tabIndex={-1} className={`relative z-10 ${focusedDraft ? "pt-9" : ""}`}>{children}</main>
 
 				{focusedDraft ? null : (
 					<footer className="relative z-10 border-t border-lime-200/10 px-5 py-8">
-						<div className="mx-auto flex w-full max-w-7xl flex-col gap-4 text-sm text-emerald-100/54 sm:flex-row sm:items-center sm:justify-between">
-							<p>{footerTournamentLabel}</p>
-							<div className="flex flex-wrap gap-x-4 gap-y-2">
-								<Link href="/tournament/privacy" className="font-bold text-lime-200/80 hover:text-lime-100">
-									Datenschutz
-								</Link>
-								<Link href="/tournament/terms" className="font-bold text-lime-200/80 hover:text-lime-100">
-									Teilnahmebedingungen
-								</Link>
-								<Link href="/tournament/winners" className="font-bold text-lime-200/80 hover:text-lime-100">
-									Archiv & Hall of Fame
-								</Link>
-								<a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
-									Zurück zu lauchgruen.de
-								</a>
+						<div className="mx-auto w-full max-w-7xl text-sm text-emerald-100/54">
+							<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+								<p>{footerTournamentLabel}</p>
+								<div className="flex flex-wrap gap-x-4 gap-y-2">
+									<Link href="/tournament/privacy" className="font-bold text-lime-200/80 hover:text-lime-100">
+										Datenschutz
+									</Link>
+									<Link href="/tournament/terms" className="font-bold text-lime-200/80 hover:text-lime-100">
+										Teilnahmebedingungen
+									</Link>
+									<Link href="/tournament/winners" className="font-bold text-lime-200/80 hover:text-lime-100">
+										Archiv & Hall of Fame
+									</Link>
+									<a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
+										Zurück zu lauchgruen.de
+									</a>
+								</div>
 							</div>
+							<RiotDisclaimer productName="Lauchgruen Tournament Hub" className="mt-5 max-w-5xl border-t border-white/8 pt-4 text-[10px] leading-5 text-emerald-100/35" />
 						</div>
 					</footer>
 				)}

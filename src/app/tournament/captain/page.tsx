@@ -1,6 +1,6 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -9,6 +9,7 @@ import { CopyDraftSpectatorLinkButton } from "./CopyDraftSpectatorLinkButton";
 import { RenameTeamForm } from "./RenameTeamForm";
 import { TransferCaptainCard } from "./TransferCaptainCard";
 import { CaptainMatchActions } from "./CaptainMatchActions";
+import { DiscordSignInButton } from "../DiscordSignInButton";
 
 function opggMultiSearchUrl(riotIds: string[]) {
 	const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -29,15 +30,15 @@ export default async function CaptainPortalPage() {
 				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-6">
 					<h1 className="text-3xl font-black text-emerald-50">Captain Portal</h1>
 					<p className="mt-3 text-sm leading-7 text-emerald-100/64">Melde dich mit Discord an, damit wir dein Captain-Team erkennen können.</p>
-					<form
-						className="mt-5"
-						action={async () => {
-							"use server";
-							await signIn("discord", { redirectTo: "/tournament/captain" });
-						}}
-					>
-						<button className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950">Mit Discord anmelden</button>
-					</form>
+					<div className="mt-5">
+						<DiscordSignInButton
+							redirectTo="/tournament/captain"
+							pendingLabel="Weiter zu Discord..."
+							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
+						>
+							Mit Discord anmelden
+						</DiscordSignInButton>
+					</div>
 				</section>
 			</div>
 		);

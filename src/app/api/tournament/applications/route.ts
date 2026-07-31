@@ -13,6 +13,7 @@ import {
 } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSummonerByPuuid } from "@/lib/riot";
+import { normalizePreferredRoles } from "@/lib/role-preferences";
 import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
 	deleteApplicationsByDiscordId,
@@ -131,6 +132,7 @@ export async function POST(request: Request) {
 
 	const nextApplication: TournamentApplication = {
 		...parsed.data,
+		preferredRoles: normalizePreferredRoles(parsed.data.preferredRoles),
 		id,
 		discordId,
 		discordHandle,
@@ -205,7 +207,7 @@ export async function PATCH(request: Request) {
 		...existing,
 		...(parsed.data.displayName !== undefined ? { displayName: parsed.data.displayName } : {}),
 		...(parsed.data.mainRole !== undefined ? { mainRole: parsed.data.mainRole } : {}),
-		...(parsed.data.preferredRoles !== undefined ? { preferredRoles: parsed.data.preferredRoles } : {}),
+		...(parsed.data.preferredRoles !== undefined ? { preferredRoles: normalizePreferredRoles(parsed.data.preferredRoles) } : {}),
 		...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
 		...(parsed.data.manualRankOverride !== undefined ? { manualRankOverride: parsed.data.manualRankOverride } : {}),
 		updatedAt: new Date().toISOString(),

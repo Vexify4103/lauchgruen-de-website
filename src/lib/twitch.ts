@@ -16,6 +16,7 @@ const USERS_URL = "https://api.twitch.tv/helix/users";
 const CLIPS_URL = "https://api.twitch.tv/helix/clips";
 
 const STREAM_CACHE_MS = 30_000; // poll Twitch at most once per 30s
+const STREAM_ERROR_RETRY_MS = 60_000;
 const USER_CACHE_MS = 60 * 60_000; // user info changes rarely — 1h
 const CLIPS_CACHE_MS = 10 * 60_000; // clips list refreshes every ~10 min
 
@@ -29,14 +30,19 @@ interface CachedStream<T> {
 	expiresAt: number;
 }
 
+export type TwitchCredentialScope = "default" | "overlay";
+
 // Stash on globalThis so `tsx watch` hot-reloads don't blow caches.
 const g = globalThis as unknown as {
 	__qd_twitch_token?: AppToken;
+	__qd_twitch_overlay_token?: AppToken;
 	__qd_twitch_stream?: Map<string, CachedStream<TwitchStream | null>>;
+	__qd_twitch_stream_requests?: Map<string, Promise<TwitchStream | null>>;
 	__qd_twitch_user?: Map<string, CachedStream<TwitchUser | null>>;
 	__qd_twitch_clips?: Map<string, CachedStream<TwitchClip[]>>;
 };
 g.__qd_twitch_stream ??= new Map();
+g.__qd_twitch_stream_requests ??= new Map();
 g.__qd_twitch_user ??= new Map();
 g.__qd_twitch_clips ??= new Map();
 const streamCache = g.__qd_twitch_stream!;
@@ -76,17 +82,24 @@ export interface TwitchUser {
 	description: string;
 }
 
-async function getAppToken(): Promise<string | null> {
-	const id = process.env.TWITCH_CLIENT_ID;
-	const secret = process.env.TWITCH_CLIENT_SECRET;
+function credentials(scope: TwitchCredentialScope) {
+	const id = scope === "overlay" ? process.env.TWITCH_OVERLAY_CLIENT_ID : process.env.TWITCH_CLIENT_ID;
+	const secret = scope === "overlay" ? process.env.TWITCH_OVERLAY_CLIENT_SECRET : process.env.TWITCH_CLIENT_SECRET;
+	return { id, secret };
+}
+
+async function getAppToken(scope: TwitchCredentialScope = "default"): Promise<string | null> {
+	const { id, secret } = credentials(scope);
 	if (!id || !secret) {
+		if (scope === "overlay") throw new Error("TWITCH_OVERLAY_CLIENT_ID oder TWITCH_OVERLAY_CLIENT_SECRET fehlt.");
 		console.warn("[twitch] missing TWITCH_CLIENT_ID/SECRET — skipping");
 		return null;
 	}
+	const tokenKey = scope === "overlay" ? "__qd_twitch_overlay_token" : "__qd_twitch_token";
 
 	// 60s buffer so we don't race the expiry.
-	if (g.__qd_twitch_token && g.__qd_twitch_token.expiresAt > Date.now() + 60_000) {
-		return g.__qd_twitch_token.accessToken;
+	if (g[tokenKey] && g[tokenKey].expiresAt > Date.now() + 60_000) {
+		return g[tokenKey].accessToken;
 	}
 
 	const body = new URLSearchParams({
@@ -100,7 +113,7 @@ async function getAppToken(): Promise<string | null> {
 		return null;
 	}
 	const json = (await r.json()) as { access_token: string; expires_in: number };
-	g.__qd_twitch_token = {
+	g[tokenKey] = {
 		accessToken: json.access_token,
 		expiresAt: Date.now() + json.expires_in * 1000,
 	};
@@ -108,24 +121,26 @@ async function getAppToken(): Promise<string | null> {
 }
 
 /** Fetch helper that injects auth headers. */
-async function helix(url: string): Promise<unknown | null> {
-	const token = await getAppToken();
+async function helix(url: string, scope: TwitchCredentialScope = "default"): Promise<unknown | null> {
+	const token = await getAppToken(scope);
 	if (!token) return null;
+	const { id } = credentials(scope);
 	const r = await fetch(url, {
 		headers: {
 			Authorization: `Bearer ${token}`,
-			"Client-Id": process.env.TWITCH_CLIENT_ID!,
+			"Client-Id": id!,
 		},
 	});
 	if (r.status === 401) {
 		// Token expired or revoked — drop cache + retry once.
-		g.__qd_twitch_token = undefined;
-		const retryToken = await getAppToken();
+		if (scope === "overlay") g.__qd_twitch_overlay_token = undefined;
+		else g.__qd_twitch_token = undefined;
+		const retryToken = await getAppToken(scope);
 		if (!retryToken) return null;
 		const r2 = await fetch(url, {
 			headers: {
 				Authorization: `Bearer ${retryToken}`,
-				"Client-Id": process.env.TWITCH_CLIENT_ID!,
+				"Client-Id": id!,
 			},
 		});
 		if (!r2.ok) return null;
@@ -142,42 +157,60 @@ async function helix(url: string): Promise<unknown | null> {
  * Returns the current live stream for `login`, or null if offline / error.
  * Result is cached for 30 seconds — safe to call from a hot endpoint.
  */
-export async function getStream(login: string): Promise<TwitchStream | null> {
-	const key = login.toLowerCase();
+export async function getStream(login: string, scope: TwitchCredentialScope = "default"): Promise<TwitchStream | null> {
+	const loginKey = login.toLowerCase();
+	const key = scope === "overlay" ? `overlay:${loginKey}` : loginKey;
 	const cached = streamCache.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
+	const pending = g.__qd_twitch_stream_requests?.get(key);
+	if (pending) return pending;
 
-	const json = (await helix(`${STREAMS_URL}?user_login=${encodeURIComponent(login)}`)) as {
-		data: Array<{
-			id: string;
-			user_name: string;
-			game_name: string;
-			title: string;
-			viewer_count: number;
-			started_at: string;
-			thumbnail_url: string;
-			language: string;
-		}>;
-	} | null;
+	const request = (async () => {
+		try {
+			const json = (await helix(`${STREAMS_URL}?user_login=${encodeURIComponent(login)}`, scope)) as {
+				data: Array<{
+					id: string;
+					user_name: string;
+					game_name: string;
+					title: string;
+					viewer_count: number;
+					started_at: string;
+					thumbnail_url: string;
+					language: string;
+				}>;
+			} | null;
 
-	let data: TwitchStream | null = null;
-	if (json?.data?.[0]) {
-		const s = json.data[0];
-		data = {
-			id: s.id,
-			userName: s.user_name,
-			gameName: s.game_name,
-			title: s.title,
-			viewerCount: s.viewer_count,
-			startedAt: s.started_at,
-			// Helix returns the URL with {width} / {height} placeholders.
-			thumbnailUrl: s.thumbnail_url.replace("{width}", "640").replace("{height}", "360"),
-			language: s.language,
-		};
-	}
+			let data: TwitchStream | null = null;
+			if (json?.data?.[0]) {
+				const s = json.data[0];
+				data = {
+					id: s.id,
+					userName: s.user_name,
+					gameName: s.game_name,
+					title: s.title,
+					viewerCount: s.viewer_count,
+					startedAt: s.started_at,
+					// Helix returns the URL with {width} / {height} placeholders.
+					thumbnailUrl: s.thumbnail_url.replace("{width}", "640").replace("{height}", "360"),
+					language: s.language,
+				};
+			}
 
-	streamCache.set(key, { data, expiresAt: Date.now() + STREAM_CACHE_MS });
-	return data;
+			streamCache.set(key, { data, expiresAt: Date.now() + STREAM_CACHE_MS });
+			return data;
+		} catch (error) {
+			// Keep OBS stable during short Twitch/CloudFront outages. An expired
+			// cached value is safer than flashing an active source on and off.
+			const stale = streamCache.get(key)?.data ?? null;
+			streamCache.set(key, { data: stale, expiresAt: Date.now() + STREAM_ERROR_RETRY_MS });
+			const reason = error instanceof Error ? error.message : String(error);
+			console.warn(`[twitch] Stream-Abfrage für ${loginKey} fehlgeschlagen; letzter Stand wird verwendet (${reason}).`);
+			return stale;
+		}
+	})().finally(() => g.__qd_twitch_stream_requests?.delete(key));
+
+	g.__qd_twitch_stream_requests?.set(key, request);
+	return request;
 }
 
 /**
@@ -246,12 +279,13 @@ export async function getStreams(logins: string[]): Promise<Map<string, TwitchSt
  * Returns Twitch user info (display name, avatar, bio) for `login`.
  * Cached for 1 hour.
  */
-export async function getUser(login: string): Promise<TwitchUser | null> {
-	const key = login.toLowerCase();
+export async function getUser(login: string, scope: TwitchCredentialScope = "default"): Promise<TwitchUser | null> {
+	const loginKey = login.toLowerCase();
+	const key = scope === "overlay" ? `overlay:${loginKey}` : loginKey;
 	const cached = userCache.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 
-	const json = (await helix(`${USERS_URL}?login=${encodeURIComponent(login)}`)) as {
+	const json = (await helix(`${USERS_URL}?login=${encodeURIComponent(login)}`, scope)) as {
 		data: Array<{
 			id: string;
 			login: string;

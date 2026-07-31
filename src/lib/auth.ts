@@ -30,27 +30,114 @@ type DiscordToken = {
 	discordInGuild?: boolean;
 };
 
+function isLauchgruenDomain(hostname: string) {
+	return hostname === "lauchgruen.de" || hostname.endsWith(".lauchgruen.de");
+}
+
+function isLocalLauchgruenDomain(hostname: string) {
+	return hostname === "lauchgruen.localhost" || hostname.endsWith(".lauchgruen.localhost");
+}
+
 function getAuthRedirectProxyUrl() {
 	const configured = process.env.AUTH_REDIRECT_PROXY_URL?.trim();
-	if (configured) return configured.replace(/\/$/, "");
-
-	const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
-	if (!publicAuthUrl) return undefined;
+	if (!configured) return "";
 
 	try {
-		const url = new URL(publicAuthUrl);
-		url.pathname = "/api/auth";
-		url.search = "";
-		url.hash = "";
-		return url.toString().replace(/\/$/, "");
+		const proxyUrl = new URL(configured);
+		const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+
+		// A redirect proxy is only useful when callbacks run through a different
+		// deployment. Pointing it at this app or another Lauchgruen subdomain adds
+		// a second state flow and can leave the callback with an unreadable cookie.
+		if (publicAuthUrl) {
+			const authUrl = new URL(publicAuthUrl);
+			if (proxyUrl.origin === authUrl.origin) return "";
+			if (isLauchgruenDomain(proxyUrl.hostname) && isLauchgruenDomain(authUrl.hostname)) return "";
+			if (isLocalLauchgruenDomain(proxyUrl.hostname) && isLocalLauchgruenDomain(authUrl.hostname)) return "";
+		}
+		return proxyUrl.toString().replace(/\/$/, "");
 	} catch {
-		return undefined;
+		return "";
 	}
+}
+
+function authStateCookieName() {
+	const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+	const secure = publicAuthUrl?.startsWith("https://") ?? false;
+	return `${secure ? "__Secure-" : ""}lauchgruen.authjs.state`;
+}
+
+function sharedStateCookie() {
+	const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+	const secure = publicAuthUrl?.startsWith("https://") ?? false;
+	let domain = process.env.AUTH_COOKIE_DOMAIN?.trim() || undefined;
+	if (!domain && publicAuthUrl) {
+		try {
+			const hostname = new URL(publicAuthUrl).hostname;
+			if (isLauchgruenDomain(hostname)) domain = ".lauchgruen.de";
+			if (isLocalLauchgruenDomain(hostname)) domain = ".lauchgruen.localhost";
+		} catch {
+			// Auth.js reports malformed public URLs separately.
+		}
+	}
+	return {
+		name: authStateCookieName(),
+		options: {
+			httpOnly: true,
+			sameSite: "lax" as const,
+			path: "/",
+			secure,
+			maxAge: 900,
+			...(domain ? { domain } : {}),
+		},
+	};
+}
+
+function isAllowedAccountRedirect(url: string, baseUrl: string) {
+	try {
+		const target = new URL(url, baseUrl);
+		const base = new URL(baseUrl);
+		if (target.origin === base.origin) return true;
+		const productionPair = isLauchgruenDomain(target.hostname) && isLauchgruenDomain(base.hostname);
+		const localPair = isLocalLauchgruenDomain(target.hostname) && isLocalLauchgruenDomain(base.hostname) && target.port === base.port;
+		return target.protocol === base.protocol && (productionPair || localPair);
+	} catch {
+		return false;
+	}
+}
+
+function sharedSessionCookie() {
+	const publicAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
+	const secure = publicAuthUrl?.startsWith("https://") ?? false;
+	let domain = process.env.AUTH_COOKIE_DOMAIN?.trim() || undefined;
+	if (!domain && publicAuthUrl) {
+		try {
+			const hostname = new URL(publicAuthUrl).hostname;
+			if (isLauchgruenDomain(hostname)) domain = ".lauchgruen.de";
+			if (isLocalLauchgruenDomain(hostname)) domain = ".lauchgruen.localhost";
+		} catch {
+			// Invalid AUTH_URL is reported by Auth.js; keep local cookie defaults here.
+		}
+	}
+	return {
+		name: `${secure ? "__Secure-" : ""}authjs.session-token`,
+		options: {
+			httpOnly: true,
+			sameSite: "lax" as const,
+			path: "/",
+			secure,
+			...(domain ? { domain } : {}),
+		},
+	};
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	trustHost: true,
 	redirectProxyUrl: getAuthRedirectProxyUrl(),
+	cookies: {
+		state: sharedStateCookie(),
+		sessionToken: sharedSessionCookie(),
+	},
 	providers: [
 		Discord({
 			clientId: process.env.DISCORD_CLIENT_ID,
@@ -66,7 +153,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			}
 
 			if (url.startsWith("/")) return `${baseUrl}${url}`;
-			return url.startsWith(baseUrl) ? url : baseUrl;
+			return isAllowedAccountRedirect(url, baseUrl) ? url : baseUrl;
 		},
 		async jwt({ token, profile, account }) {
 			const appToken = token as typeof token & DiscordToken;

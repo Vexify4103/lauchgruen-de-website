@@ -185,6 +185,25 @@ export async function listDiscordJobs(limit = 8): Promise<DiscordJob[]> {
 	return docs.map(publicJob);
 }
 
+export async function getDiscordQueueDiagnostics() {
+	const db = await getDb();
+	await ensureDiscordJobIndexes();
+	const [queued, running, completed, failed, lock] = await Promise.all([
+		db.collection<DiscordJobDoc>(COLLECTION).countDocuments({ status: "queued" }),
+		db.collection<DiscordJobDoc>(COLLECTION).countDocuments({ status: "running" }),
+		db.collection<DiscordJobDoc>(COLLECTION).countDocuments({ status: "completed" }),
+		db.collection<DiscordJobDoc>(COLLECTION).countDocuments({ status: "failed" }),
+		db.collection<{ _id: string; owner: string; expiresAt: Date }>(LOCK_COLLECTION).findOne({ _id: LOCK_ID }),
+	]);
+	return {
+		queued,
+		running,
+		completed,
+		failed,
+		workerLeaseActive: Boolean(lock && lock.expiresAt.getTime() > Date.now()),
+	};
+}
+
 export async function retryFailedDiscordJob(id: string, actorLabel?: string): Promise<DiscordJob | null> {
 	const db = await getDb();
 	const source = await db.collection<DiscordJobDoc>(COLLECTION).findOne({ _id: id });

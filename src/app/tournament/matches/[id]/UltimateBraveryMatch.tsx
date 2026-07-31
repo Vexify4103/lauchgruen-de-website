@@ -260,10 +260,12 @@ function PlayerRoll({
 function EnemyChampion({ roll }: { roll: UltimateBraveryRoll }) {
 	return (
 		<div className="mt-4 flex items-center gap-3 rounded-xl border border-red-200/12 bg-red-300/[0.04] p-3">
+			{/* Remote Data Dragon assets are already size-specific and do not benefit from Next image optimization here. */}
+			{/* eslint-disable-next-line @next/next/no-img-element */}
 			<img
 				src={roll.champion.imageUrl}
 				alt={roll.champion.name}
-				className="size-16 rounded-xl border border-white/12 object-cover" /* eslint-disable-line @next/next/no-img-element */
+				className="size-16 rounded-xl border border-white/12 object-cover"
 			/>
 			<div>
 				<div className="text-[9px] font-black uppercase tracking-[0.18em] text-red-100/48">Gegnerischer Champion</div>

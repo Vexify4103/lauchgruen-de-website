@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 interface ApiUser {
 	id: string;
@@ -36,209 +36,137 @@ interface Props {
 }
 
 function formatUptime(startedAtIso: string): string {
-	const started = new Date(startedAtIso).getTime();
-	const elapsed = Math.max(0, Date.now() - started);
-	const totalMin = Math.floor(elapsed / 60_000);
-	const hours = Math.floor(totalMin / 60);
-	const minutes = totalMin % 60;
-
-	if (hours > 0) {
-		return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
-	}
-
-	return `${minutes}m`;
+	const elapsed = Math.max(0, Date.now() - new Date(startedAtIso).getTime());
+	const totalMinutes = Math.floor(elapsed / 60_000);
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return hours ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
 }
 
-const cardClasses = "group flex min-h-[34rem] w-full flex-col overflow-hidden rounded-[1.95rem] border border-emerald-300/14 bg-[#041b14] shadow-2xl shadow-black/20";
-
-const mediaShellClasses = "relative aspect-video overflow-hidden rounded-[1.55rem] border border-white/10 bg-emerald-950";
+const shellClass = "group relative flex h-full min-h-[27rem] overflow-hidden rounded-[2.6rem] border border-white/10 bg-[#04140d] shadow-2xl shadow-black/30 sm:min-h-[30rem] lg:min-h-[32rem]";
 
 export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Props) {
 	const [data, setData] = useState<ApiResponse | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [, setTick] = useState(0);
 
 	useEffect(() => {
 		let cancelled = false;
-
-		const fetchStatus = async () => {
+		async function fetchStatus() {
 			try {
 				const response = await fetch(`/api/twitch/status?login=${encodeURIComponent(login)}`, { cache: "no-store" });
-				if (!response.ok) throw new Error(`${response.status}`);
-
-				const json = (await response.json()) as ApiResponse;
-				if (!cancelled) {
-					setData(json);
-					setLoading(false);
-				}
+				if (!response.ok) throw new Error(String(response.status));
+				const result = (await response.json()) as ApiResponse;
+				if (!cancelled) setData(result);
 			} catch {
+				if (!cancelled) setData(null);
+			} finally {
 				if (!cancelled) setLoading(false);
 			}
-		};
+		}
 
 		void fetchStatus();
-		const timer = setInterval(fetchStatus, pollIntervalMs);
-
+		const poller = window.setInterval(fetchStatus, pollIntervalMs);
 		return () => {
 			cancelled = true;
-			clearInterval(timer);
+			window.clearInterval(poller);
 		};
 	}, [login, pollIntervalMs]);
 
-	const [, setTick] = useState(0);
 	useEffect(() => {
-		const timer = setInterval(() => setTick((value) => value + 1), 60_000);
-		return () => clearInterval(timer);
+		const timer = window.setInterval(() => setTick((value) => value + 1), 60_000);
+		return () => window.clearInterval(timer);
 	}, []);
 
-	const twitchUrl = `https://twitch.tv/${login}`;
+	if (loading) return <LoadingState />;
+	if (data?.live && data.stream) return <LiveState data={data} login={login} />;
+	return <OfflineState user={data?.user ?? null} login={login} />;
+}
 
-	if (loading) {
-		return (
-			<div className={cardClasses}>
-				<div className="animate-pulse p-5 sm:p-6">
-					<div className={`${mediaShellClasses} bg-emerald-900/75`} />
-					<div className="mt-5 flex items-start gap-4">
-						<div className="h-14 w-14 rounded-2xl bg-emerald-900/75" />
-						<div className="min-w-0 flex-1 space-y-3">
-							<div className="h-4 w-2/3 rounded-full bg-emerald-900/75" />
-							<div className="h-3 w-1/2 rounded-full bg-emerald-900/55" />
-							<div className="h-10 w-32 rounded-2xl bg-emerald-900/55" />
-						</div>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
-	if (data?.live && data.stream) {
-		const stream = data.stream;
-
-		return (
-			<a href={twitchUrl} target="_blank" rel="noreferrer" className={cardClasses}>
-				<div className="p-5 sm:p-6">
-					<div className={mediaShellClasses}>
-						{/* eslint-disable-next-line @next/next/no-img-element */}
-						<img
-							src={stream.thumbnailUrl}
-							alt={stream.title}
-							className="absolute inset-0 h-full w-full scale-105 object-cover opacity-28 blur-2xl transition-transform duration-300 group-hover:scale-[1.08]"
-						/>
-						<div className="absolute inset-0 bg-gradient-to-b from-[#0b2d20]/30 via-[#04120d]/8 to-[#04120d]/72" />
-						<div className="absolute inset-4 overflow-hidden rounded-[1.25rem] border border-white/12 shadow-2xl shadow-black/45">
-							{/* eslint-disable-next-line @next/next/no-img-element */}
-							<img
-								src={stream.thumbnailUrl}
-								alt=""
-								aria-hidden="true"
-								className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-							/>
-						</div>
-
-						<div className="absolute left-4 top-4 rounded-full bg-red-500 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-white shadow-lg shadow-red-900/30">
-							Live
-						</div>
-						<div className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
-							{stream.viewerCount.toLocaleString("de-DE")} Zuschauer
-						</div>
-						<div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
-							Seit {formatUptime(stream.startedAt)}
-						</div>
-					</div>
-				</div>
-
-				<div className="flex flex-1 flex-col justify-between border-t border-emerald-300/10 bg-gradient-to-r from-emerald-950 to-emerald-900/95 p-5 sm:p-6">
-					<div className="flex items-start gap-4">
-						{data.user?.profileImageUrl ? (
-							<Image
-								src={data.user.profileImageUrl}
-								alt={data.user.displayName}
-								width={58}
-								height={58}
-								className="h-[58px] w-[58px] rounded-2xl border border-red-300/40 object-cover"
-								loading="eager"
-								priority
-								unoptimized
-							/>
-						) : (
-							<div className="h-[58px] w-[58px] rounded-2xl bg-emerald-900/75" />
-						)}
-
-						<div className="min-w-0 flex-1">
-							<div className="section-kicker text-red-200/78">Jetzt live</div>
-							<div className="mt-2 line-clamp-2 text-2xl font-black leading-tight text-emerald-50">{stream.title}</div>
-							<div className="mt-3 text-sm leading-6 text-emerald-100/72">
-								spielt <span className="font-bold text-lime-200">{stream.gameName}</span>
-							</div>
-						</div>
-					</div>
-
-					<div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-						<div className="text-xs uppercase tracking-[0.22em] text-emerald-300/54">twitch.tv/{login}</div>
-						<div className="inline-flex items-center justify-center rounded-2xl bg-red-500 px-5 py-3 text-sm font-black text-white transition-colors group-hover:bg-red-400">
-							Reinschauen
-						</div>
-					</div>
-				</div>
-			</a>
-		);
-	}
-
-	const user = data?.user;
-	const offlineImage = user?.offlineImageUrl || user?.profileImageUrl || null;
-
+function LoadingState() {
 	return (
-		<a href={twitchUrl} target="_blank" rel="noreferrer" className={cardClasses}>
-			<div className="p-5 sm:p-6">
-				<div className={mediaShellClasses}>
-					{offlineImage ? (
-						<>
-							{/* eslint-disable-next-line @next/next/no-img-element */}
-							<img src={offlineImage} alt="" aria-hidden="true" className="absolute inset-0 size-full scale-105 object-cover opacity-30 blur-2xl grayscale" />
-							<div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-950/40 to-emerald-950/85" />
-						</>
-					) : (
-						<div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-emerald-950 to-[#04120d]" />
-					)}
+		<div className={`${shellClass} animate-pulse`}>
+			<div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(6,78,59,0.45),rgba(2,11,7,0.92))]" />
+			<div className="relative mt-auto w-full p-6">
+				<div className="h-3 w-24 rounded-full bg-emerald-100/10" />
+				<div className="mt-4 h-7 w-4/5 rounded-full bg-emerald-100/10" />
+				<div className="mt-3 h-4 w-2/5 rounded-full bg-emerald-100/8" />
+			</div>
+		</div>
+	);
+}
 
-					<div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-emerald-100 backdrop-blur">
-						Offline
-					</div>
-
-					<div className="absolute inset-x-6 bottom-6 text-center">
-						<div className="text-xl font-black text-emerald-50 sm:text-2xl">Gerade nicht auf Sendung</div>
+function LiveState({ data, login }: { data: ApiResponse; login: string }) {
+	const stream = data.stream!;
+	return (
+		<a href={`https://twitch.tv/${login}`} target="_blank" rel="noreferrer" className={`${shellClass} flex-col`}>
+			<div className="relative aspect-video w-full shrink-0 overflow-hidden border-b border-white/10 bg-black">
+				{/* eslint-disable-next-line @next/next/no-img-element */}
+				<img src={stream.thumbnailUrl} alt={stream.title} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+				<div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,9,6,0.04),rgba(2,9,6,0.18)_65%,rgba(2,9,6,0.58))]" />
+				<div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:p-4">
+					<span className="inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-red-950/30">
+						<span className="size-1.5 animate-pulse rounded-full bg-white" /> Live
+					</span>
+					<div className="flex flex-wrap justify-end gap-2">
+						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">{stream.viewerCount.toLocaleString("de-DE")} Zuschauer</span>
+						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">{formatUptime(stream.startedAt)}</span>
 					</div>
 				</div>
+				<div className="absolute inset-x-0 bottom-0 h-1 bg-[#9146ff] shadow-[0_0_14px_rgba(145,70,255,0.6)]" />
 			</div>
 
-			<div className="flex flex-1 flex-col justify-between gap-6 border-t border-emerald-300/10 bg-gradient-to-r from-emerald-950 to-emerald-900/95 p-5 sm:p-6">
-				<div className="flex items-start gap-4">
-					{user?.profileImageUrl ? (
-						<Image
-							src={user.profileImageUrl}
-							alt={user.displayName}
-							width={58}
-							height={58}
-							className="size-[58px] shrink-0 rounded-2xl border border-emerald-300/18 object-cover grayscale"
-							loading="eager"
-							priority
-							unoptimized
-						/>
-					) : (
-						<div className="size-[58px] shrink-0 rounded-2xl bg-emerald-900/75" />
-					)}
-
+			<div className="relative flex min-h-0 flex-1 flex-col p-5 sm:p-6">
+				<div className="flex items-center gap-4">
+					{data.user?.profileImageUrl ? (
+						<Image src={data.user.profileImageUrl} alt={data.user.displayName} width={54} height={54} priority unoptimized className="size-[54px] shrink-0 rounded-2xl border-2 border-red-400/75 object-cover shadow-xl shadow-black/45" />
+					) : null}
 					<div className="min-w-0 flex-1">
-						<div className="section-kicker">Aktuell offline</div>
-						<div className="mt-2 truncate text-2xl font-black leading-tight text-emerald-50">{user?.displayName ?? "lauchgruen"}</div>
-						<p className="mt-2 text-sm leading-6 text-emerald-100/68">Folge auf Twitch, damit dir der nächste Stream nicht vorbeirutscht.</p>
+						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-lime-200/72">{stream.gameName}</div>
+						<div className="mt-1 truncate text-xs font-bold text-emerald-100/42">{data.user?.displayName ?? stream.userName}</div>
 					</div>
 				</div>
+				<h3 className="mt-5 line-clamp-2 text-xl font-black leading-tight text-white sm:text-2xl">{stream.title}</h3>
+				<div className="mt-auto flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+					<span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/48">twitch.tv/{login}</span>
+					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100 transition group-hover:translate-x-1">Jetzt ansehen →</span>
+				</div>
+			</div>
+		</a>
+	);
+}
 
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<div className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300/54">twitch.tv/{login}</div>
-					<div className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-emerald-950 transition-colors group-hover:from-lime-100 group-hover:to-cyan-100">
-						Twitch folgen
-					</div>
+function OfflineState({ user, login }: { user: ApiUser | null; login: string }) {
+	return (
+		<a href={`https://twitch.tv/${login}`} target="_blank" rel="noreferrer" className={shellClass}>
+			{user?.offlineImageUrl ? (
+				<>
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img src={user.offlineImageUrl} alt="" aria-hidden className="absolute inset-0 size-full object-cover opacity-22 grayscale transition duration-500 group-hover:scale-[1.035]" />
+					<div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,16,10,0.45),rgba(3,16,10,0.94))]" />
+				</>
+			) : (
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_65%_20%,rgba(163,230,53,0.12),transparent_35%),linear-gradient(145deg,#082218,#020b07)]" />
+			)}
+			<div aria-hidden className="absolute -right-20 top-12 size-72 rounded-full border border-lime-200/8" />
+			<div aria-hidden className="absolute -right-8 top-24 size-52 rounded-full border border-cyan-200/7" />
+
+			<div className="relative flex w-full flex-col justify-between p-6 sm:p-7">
+				<div className="flex items-center justify-between gap-3">
+					<span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/55">Aktuell offline</span>
+					<span className="size-2 rounded-full bg-emerald-100/20" />
+				</div>
+
+				<div className="my-auto py-10">
+					{user?.profileImageUrl ? <Image src={user.profileImageUrl} alt={user.displayName} width={72} height={72} priority unoptimized className="size-[72px] rounded-[1.4rem] border border-lime-200/18 object-cover grayscale shadow-2xl shadow-black/40" /> : null}
+					<div className="mt-6 text-[9px] font-black uppercase tracking-[0.28em] text-lime-200/50">Nächster Stream</div>
+					<h3 className="mt-3 max-w-sm text-3xl font-black leading-[0.98] tracking-[-0.035em]">Noch nichts live. Aber meistens nicht lange.</h3>
+					<p className="mt-4 max-w-sm text-sm leading-7 text-emerald-100/52">Auf Twitch folgen und die Benachrichtigung aktivieren, damit der nächste Abend nicht ohne dich startet.</p>
+				</div>
+
+				<div className="flex items-center justify-between gap-4 border-t border-white/8 pt-4">
+					<span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-100/35">twitch.tv/{login}</span>
+					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100 transition group-hover:translate-x-1">Kanal öffnen →</span>
 				</div>
 			</div>
 		</a>

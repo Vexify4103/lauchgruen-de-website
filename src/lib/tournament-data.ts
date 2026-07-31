@@ -395,7 +395,7 @@ export const playoffMatches: PlayoffMatch[] = [
 export const applicationSteps = [
 	"Melde dich mit Discord an und tritt dem Lauchgruen Discord bei.",
 	"Verifiziere deine Riot-ID über das Profilicon im League-Client.",
-	"Gib Anzeigename, Main Rolle und Wunschrollen an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
+	"Gib Anzeigename, Main Rolle und deine Wunschrollen in echter Prioritätsreihenfolge an. Deinen aktuellen Rang holen wir aus der Riot-Verifizierung.",
 	"Bestätige, dass du am 19.06. um 18:00 Uhr CEST und 20.06. um 16:00 Uhr CEST verbindlich Zeit hast.",
 	"Sende deine verbindliche Bewerbung spätestens am 18.06.2026 um 20:00 Uhr CEST ab.",
 	"Warte auf Teamzuteilung und weitere Infos im Discord.",

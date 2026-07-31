@@ -1,6 +1,5 @@
-import { signIn } from "@/lib/auth";
-import { cleanTournamentHref } from "@/lib/tournament-url";
 import { TournamentLink as Link } from "./TournamentLink";
+import { DiscordSignInButton } from "./DiscordSignInButton";
 
 export type TournamentAccount = {
 	discordHandle: string;
@@ -9,35 +8,25 @@ export type TournamentAccount = {
 	isOwner: boolean;
 };
 
-export function TournamentAccountControl({ account, cleanUrls, compact = false }: { account: TournamentAccount | null; cleanUrls: boolean; compact?: boolean }) {
-	const meHref = cleanTournamentHref("/tournament/me", cleanUrls);
-
+export function TournamentAccountControl({ account, accountUrl, compact = false }: { account: TournamentAccount | null; accountUrl: string; compact?: boolean }) {
 	if (!account) {
 		return (
-			<form
-				action={async () => {
-					"use server";
-					await signIn("discord", { redirectTo: meHref });
-				}}
-				className={compact ? "w-full" : "shrink-0"}
+			<DiscordSignInButton
+				redirectTo={accountUrl}
+				ariaLabel="Mit Discord anmelden"
+				title="Mit Discord anmelden"
+				className={`grid place-items-center rounded-full border border-[#E0E3FF]/40 bg-[#5865F2] text-white shadow-lg shadow-[#5865F2]/20 transition hover:scale-105 hover:border-[#E0E3FF]/70 hover:bg-[#4752C4] disabled:cursor-wait disabled:opacity-65 ${
+					compact ? "mx-auto size-11" : "size-12 shrink-0"
+				}`}
 			>
-				<button
-					type="submit"
-					aria-label="Mit Discord anmelden"
-					title="Mit Discord anmelden"
-					className={`grid place-items-center rounded-full border border-[#E0E3FF]/40 bg-[#5865F2] text-white shadow-lg shadow-[#5865F2]/20 transition hover:scale-105 hover:border-[#E0E3FF]/70 hover:bg-[#4752C4] ${
-						compact ? "mx-auto size-11" : "size-12"
-					}`}
-				>
-					<DiscordIcon />
-				</button>
-			</form>
+				<DiscordIcon />
+			</DiscordSignInButton>
 		);
 	}
 
 	return (
 		<Link
-			href="/tournament/me"
+			href={accountUrl}
 			aria-label={`Mein Status: ${account.discordHandle}`}
 			title={`${account.discordHandle}${account.isOwner ? " · Admin" : ""}`}
 			className={`relative grid shrink-0 place-items-center rounded-full border border-lime-200/20 bg-lime-300/10 shadow-lg shadow-lime-400/10 transition hover:scale-105 hover:border-lime-200/44 ${

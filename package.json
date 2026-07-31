@@ -6,10 +6,13 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"dev": "next dev",
+		"prebuild": "node scripts/clean-next-dev-types.mjs",
 		"build": "next build",
 		"start": "next start",
 		"lint": "eslint",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",
+		"test:smoke": "node --test tests/public-routes.smoke.mjs"
 	},
 	"dependencies": {
 		"@auth/core": "^0.34.3",

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
-import { clearTestApplicants, clearTestTeams, seedTestApplicants, seedTestTeams } from "@/lib/test-data";
+import { clearTestApplicants, seedTestApplicants, startTestRosterMode, stopTestRosterMode } from "@/lib/test-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,26 +22,34 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
 	}
 
-	const body = (await request.json().catch(() => null)) as { count?: number } | null;
-	const count = Math.max(1, Math.min(80, body?.count ?? 40));
-	const [appsInserted, teamsResult] = await Promise.all([seedTestApplicants(count), seedTestTeams()]);
+	const body = (await request.json().catch(() => null)) as { count?: number; confirmation?: string } | null;
+	if (body?.confirmation !== "TESTDATEN ANLEGEN") {
+		return NextResponse.json({ message: "Bestätigung für das Anlegen der Testdaten fehlt." }, { status: 400 });
+	}
+	const count = 40;
+	const [appsInserted, rosterResult] = await Promise.all([seedTestApplicants(count), startTestRosterMode()]);
 
 	return NextResponse.json({
 		ok: true,
 		applicants: appsInserted,
-		teamsInserted: teamsResult.inserted,
-		teamsSkipped: teamsResult.skipped,
-		teamsAlreadyFull: teamsResult.alreadyFull,
+		teamsInserted: rosterResult.teamsInserted,
+		playersInserted: rosterResult.playersInserted,
+		originalTeamsSaved: rosterResult.originalTeamsSaved,
+		alreadyActive: rosterResult.alreadyActive,
 	});
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
 	const owner = await requireOwner();
 	if (!owner.ok) {
 		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
 	}
+	const body = (await request.json().catch(() => null)) as { confirmation?: string } | null;
+	if (body?.confirmation !== "TESTDATEN LÖSCHEN") {
+		return NextResponse.json({ message: "Bestätigung für das Löschen der Testdaten fehlt." }, { status: 400 });
+	}
 
-	const [apps, teams] = await Promise.all([clearTestApplicants(), clearTestTeams()]);
+	const [apps, teams] = await Promise.all([clearTestApplicants(), stopTestRosterMode()]);
 
 	return NextResponse.json({
 		ok: true,
@@ -50,5 +58,7 @@ export async function DELETE() {
 		teamsRemoved: teams.teamsRemoved,
 		playersStripped: teams.playersStripped,
 		teamKeysRemoved: teams.teamKeysRemoved,
+		restored: teams.restored,
+		restoredTeams: teams.restoredTeams,
 	});
 }

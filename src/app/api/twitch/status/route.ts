@@ -13,16 +13,18 @@
  */
 
 import { NextResponse } from "next/server";
+import { normalizeTwitchLogin } from "@/lib/community-overlay-config";
 import { getStream, getUser } from "@/lib/twitch";
 
 const DEFAULT_LOGIN = "lauchgruen";
 
 export async function GET(req: Request) {
 	const url = new URL(req.url);
-	const login = (url.searchParams.get("login") ?? DEFAULT_LOGIN).toLowerCase();
+	const login = normalizeTwitchLogin(url.searchParams.get("login") ?? DEFAULT_LOGIN) || DEFAULT_LOGIN;
+	const scope = url.searchParams.get("scope") === "overlay" ? "overlay" : "default";
 
 	// Run both calls in parallel.
-	const [stream, user] = await Promise.all([getStream(login), getUser(login)]);
+	const [stream, user] = await Promise.all([getStream(login, scope), getUser(login, scope)]);
 
 	return NextResponse.json(
 		{
