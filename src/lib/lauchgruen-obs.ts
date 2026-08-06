@@ -28,7 +28,7 @@ const RANKED_QUEUE_IDS = new Set([420, 440]);
 const SNAPSHOT_CACHE_MS = 60_000;
 const ACCOUNT_CACHE_MS = 24 * 60 * 60_000;
 const RANK_CACHE_MS = 60_000;
-const HISTORY_CACHE_MS = 90_000;
+const HISTORY_CACHE_MS = 45_000;
 const LIVE_QUEUE_CACHE_MS = 60_000;
 const LIVE_QUEUE_STALE_MS = 10 * 60_000;
 const EUW_ROUTE = riotRoute("euw1");
@@ -512,19 +512,18 @@ async function cachedRankEntries(puuid: string, routing: RiotRoute): Promise<Rio
 	return request;
 }
 
-async function cachedMatchIds(puuid: string, routing: RiotRoute, startedAt?: string): Promise<string[]> {
+async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId?: number | null): Promise<string[]> {
 	g.__streamerObsMatchIds ??= new Map();
 	g.__streamerObsMatchIdRequests ??= new Map();
-	const startedSeconds = startedAt ? Math.max(0, Math.floor(new Date(startedAt).getTime() / 1000) - 300) : undefined;
-	const key = `${routing.overlayKeyId}:${puuid}:${startedSeconds ?? "latest"}`;
+	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:${puuid}:${queueId ?? "ranked"}`;
 	const cached = g.__streamerObsMatchIds.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__streamerObsMatchIdRequests.get(key);
 	if (pending) return pending;
 
 	const request = getMatchIdsByPuuidForRoute(puuid, routing, {
-		...(startedSeconds === undefined ? {} : { startTime: startedSeconds }),
-		count: 8,
+		...(queueId ? { queue: queueId } : {}),
+		count: 12,
 		type: "ranked",
 	})
 		.then((data) => {
@@ -537,14 +536,19 @@ async function cachedMatchIds(puuid: string, routing: RiotRoute, startedAt?: str
 }
 
 async function loadSessionGames(puuid: string, routing: RiotRoute, startedAt?: string, queueId?: number | null): Promise<LauchgruenObsGame[]> {
-	const matchIds = await cachedMatchIds(puuid, routing, startedAt);
+	const matchIds = await cachedMatchIds(puuid, routing, queueId);
 	const matches = await Promise.all(matchIds.map((matchId) => getMatchByIdForRoute(matchId, routing)));
+	const sessionStartedAt = startedAt ? new Date(startedAt).getTime() : null;
 	return matches
 		.map((match) => {
 			if (isRiotMatchRemake(match)) return null;
 			const participant = match.info.participants.find((entry) => entry.puuid === puuid);
 			if (!participant || !RANKED_QUEUE_IDS.has(match.info.queueId) || (queueId && match.info.queueId !== queueId)) return null;
-			const endedAt = new Date(match.info.gameEndTimestamp ?? match.info.gameStartTimestamp ?? match.info.gameCreation).toISOString();
+			const endedAtTimestamp = match.info.gameEndTimestamp ?? match.info.gameStartTimestamp ?? match.info.gameCreation;
+			// Match-v5 startTime filters by game start. A stream may begin while a
+			// match is already running, so session membership must use its end time.
+			if (sessionStartedAt !== null && endedAtTimestamp < sessionStartedAt) return null;
+			const endedAt = new Date(endedAtTimestamp).toISOString();
 			const itemIds = [participant.item0, participant.item1, participant.item2, participant.item3, participant.item4, participant.item5].filter((itemId) => itemId > 0);
 			return {
 				matchId: match.metadata.matchId,
