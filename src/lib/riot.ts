@@ -269,6 +269,7 @@ export function getRiotOverlayDiagnostics() {
 type RiotGetOptions = {
 	forceFresh?: boolean;
 	operation?: string;
+	expectedStatuses?: readonly number[];
 };
 
 async function riotGet<T>(url: string, credential: RiotApiCredential, options: RiotGetOptions = {}): Promise<T> {
@@ -320,15 +321,19 @@ async function riotGet<T>(url: string, credential: RiotApiCredential, options: R
 		state.blockedUntil = Math.max(state.blockedUntil, Date.now() + retryAfterSeconds * 1_000);
 	}
 
-	console.error("[riot] request failed", {
-		operation: options.operation ?? "unknown",
-		credential,
-		status: response.status,
-		statusText: response.statusText,
-		endpoint: requestUrl.toString(),
-		detail,
-		rawBody,
-	});
+	const expectedStatus = options.expectedStatuses?.includes(response.status) ?? false;
+
+	if (!expectedStatus) {
+		console.error("[riot] request failed", {
+			operation: options.operation ?? "unknown",
+			credential,
+			status: response.status,
+			statusText: response.statusText,
+			endpoint: requestUrl.toString(),
+			detail,
+			rawBody,
+		});
+	}
 
 	const decryptFailure = response.status === 400 && detail.toLowerCase().includes("decrypt");
 
@@ -623,12 +628,18 @@ export async function getMatchByIdForRoute(matchId: string, routing: RiotRoute):
 }
 
 export async function getActiveGameByPuuidForRoute(puuid: string, routing: RiotRoute): Promise<RiotActiveGame | null> {
-	const url = `https://${routing.platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(puuid)}`;
+	const url = `https://${routing.platform}.api.riotgames.com` + `/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(puuid)}`;
 
 	try {
-		return await riotGet<RiotActiveGame>(url, routing.credential, { operation: "getActiveGameByPuuidForRoute" });
+		return await riotGet<RiotActiveGame>(url, routing.credential, {
+			operation: "getActiveGameByPuuidForRoute",
+			expectedStatuses: [404],
+		});
 	} catch (error) {
-		if (error instanceof RiotApiError && error.status === 404) return null;
+		if (error instanceof RiotApiError && error.status === 404) {
+			return null;
+		}
+
 		throw error;
 	}
 }
