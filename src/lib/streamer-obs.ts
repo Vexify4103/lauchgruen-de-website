@@ -367,9 +367,7 @@ async function cachedAccount(config: StreamerConfig, accountConfig: StreamerRiot
 	// A PUUID may only be reused with the credential that originally resolved it.
 	// Legacy documents without a credential are re-resolved from the Riot ID.
 	const puuidCacheKey = `${routing.credential}:${storageId}`;
-	const puuid =
-		g.__streamerObsPuuids.get(puuidCacheKey) ||
-		(stored?.credential === routing.credential ? stored.puuid : "");
+	const puuid = g.__streamerObsPuuids.get(puuidCacheKey) || (stored?.credential === routing.credential ? stored.puuid : "");
 	if (puuid) g.__streamerObsPuuids.set(puuidCacheKey, puuid);
 
 	const resolveByRiotId = async () => {
