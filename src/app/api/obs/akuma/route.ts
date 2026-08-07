@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStreamerObsSnapshot } from "@/lib/lauchgruen-obs";
+import { getStreamerObsSnapshot } from "@/lib/streamer-obs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

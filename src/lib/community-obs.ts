@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { getDb } from "@/lib/mongo";
 import {
-	bindOverlayRiotRoute,
 	championIconUrl,
 	getAccountByPuuidForRoute,
 	getAccountByRiotIdForRoute,
@@ -14,15 +13,17 @@ import {
 	getSummonerByPuuidForRoute,
 	isRiotMatchRemake,
 	itemIconUrl,
+	obsRiotRoute,
 	parseRiotId,
 	profileIconUrl,
-	riotRoute,
 	RiotApiError,
 	type RiotAccount,
 	type RiotLeagueEntry,
 	type RiotApexLeague,
 	type RiotActiveGame,
 	type RiotMatchParticipant,
+	type ObsOverlayName,
+	type RiotApiCredential,
 	type RiotRoute,
 } from "@/lib/riot";
 import { listCommunityOverlayStreamersByPuuid, type CommunityOverlayStreamer } from "@/lib/tournament-storage";
@@ -41,6 +42,19 @@ const NEW_SNAPSHOT_LIMIT = 3;
 const KNOWN_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
 const DIVISION_ORDER = ["IV", "III", "II", "I"] as const;
+
+const OBS_OVERLAY_BY_STREAMER = {
+	lauchgruen: "lauchgruen",
+	akuma: "akuma",
+	happygiganto: "happygiganto",
+	hippokrate: "hippokrate",
+	n4cht4r4: "n4cht4r4",
+	nachtdienst: "nachtdienst",
+} as const satisfies Record<string, ObsOverlayName>;
+
+function obsOverlayForStreamer(streamer: string): ObsOverlayName {
+	return OBS_OVERLAY_BY_STREAMER[streamer as keyof typeof OBS_OVERLAY_BY_STREAMER] ?? "public";
+}
 
 export type CommunityObsRank = {
 	queueId: 420 | 440;
@@ -137,6 +151,8 @@ type CommunityObsAccount = {
 	gameName: string;
 	tagLine: string;
 	puuid: string;
+	credential?: RiotApiCredential;
+	/** Legacy field from the former rotating-key system. */
 	overlayKeyId?: string;
 	updatedAt: string;
 };
@@ -207,8 +223,7 @@ export function getCommunityObsDiagnostics() {
 const APEX_CACHE_MS = 5 * 60 * 1000;
 const MASTER_SCORE = TIER_ORDER.indexOf("MASTER") * 400;
 const LIVE_ROLE_ORDER: LiveGameRole[] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-const COMMUNITY_DRAGON_CHAMPIONS =
-	"https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-summary.json";
+const COMMUNITY_DRAGON_CHAMPIONS = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-summary.json";
 
 let championRoleTagsPromise: Promise<Map<number, ChampionRoleTag[]>> | null = null;
 
@@ -223,7 +238,7 @@ function trimMap<K, V>(map: Map<K, V>, maxSize: number) {
 async function cachedAccount(gameName: string, tagLine: string, routing: RiotRoute) {
 	globalCache.__communityObsAccountCache ??= new Map();
 	globalCache.__communityObsAccountRequests ??= new Map();
-	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:${gameName.toLowerCase()}:${tagLine.toLowerCase()}`;
+	const key = `${routing.credential}:${routing.region}:${gameName.toLowerCase()}:${tagLine.toLowerCase()}`;
 	const cached = globalCache.__communityObsAccountCache.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.account;
 	const pending = globalCache.__communityObsAccountRequests.get(key);
@@ -242,7 +257,7 @@ async function cachedAccount(gameName: string, tagLine: string, routing: RiotRou
 async function cachedAccountByPuuid(puuid: string, routing: RiotRoute) {
 	globalCache.__communityObsAccountCache ??= new Map();
 	globalCache.__communityObsAccountRequests ??= new Map();
-	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:puuid:${puuid}`;
+	const key = `${routing.credential}:${routing.region}:puuid:${puuid}`;
 	const cached = globalCache.__communityObsAccountCache.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.account;
 	const pending = globalCache.__communityObsAccountRequests.get(key);
@@ -270,9 +285,10 @@ async function persistCommunityAccount(id: string, region: string, account: Riot
 				gameName: account.gameName,
 				tagLine: account.tagLine,
 				puuid: account.puuid,
-				overlayKeyId: routing.overlayKeyId,
+				credential: routing.credential,
 				updatedAt: new Date().toISOString(),
 			},
+			$unset: { overlayKeyId: "" },
 			...(legacyId ? { $addToSet: { legacyIds: legacyId } } : {}),
 		},
 		{ upsert: true }
@@ -282,11 +298,18 @@ async function persistCommunityAccount(id: string, region: string, account: Riot
 async function ensureCommunityAccountIndex() {
 	globalCache.__communityObsAccountIndex ??= (async () => {
 		const collection = (await getDb()).collection<CommunityObsAccount>(ACCOUNT_COLLECTION);
-		return collection.createIndex({ region: 1, puuid: 1 }, { unique: true, name: "unique_region_puuid" });
+		const indexes = await collection.indexes();
+
+		if (indexes.some((index) => index.name === "unique_region_puuid")) {
+			await collection.dropIndex("unique_region_puuid");
+		}
+
+		return collection.createIndex({ credential: 1, region: 1, puuid: 1 }, { unique: true, name: "unique_credential_region_puuid" });
 	})().catch((error) => {
 		globalCache.__communityObsAccountIndex = undefined;
 		throw error;
 	});
+
 	await globalCache.__communityObsAccountIndex;
 }
 
@@ -299,9 +322,11 @@ async function findOrCreateCommunityAccount(region: string, account: RiotAccount
 	const collection = (await getDb()).collection<CommunityObsAccount>(ACCOUNT_COLLECTION);
 	const riotIdLower = `${account.gameName}#${account.tagLine}`.toLocaleLowerCase("en-US");
 	const existing = await collection.findOne({
+		credential: routing.credential,
 		region,
 		$or: [{ puuid: account.puuid }, { riotIdLower }],
 	});
+
 	if (existing) {
 		await persistCommunityAccount(existing._id, region, account, routing, legacyId);
 		return existing._id;
@@ -313,7 +338,11 @@ async function findOrCreateCommunityAccount(region: string, account: RiotAccount
 		return accountId;
 	} catch (error) {
 		if (!isDuplicateKeyError(error)) throw error;
-		const concurrent = await collection.findOne({ region, puuid: account.puuid });
+		const concurrent = await collection.findOne({
+			credential: routing.credential,
+			region,
+			puuid: account.puuid,
+		});
 		if (!concurrent) throw error;
 		await persistCommunityAccount(concurrent._id, region, account, routing, legacyId);
 		return concurrent._id;
@@ -329,42 +358,48 @@ async function resolveCommunityAccount(input: {
 	const collection = (await getDb()).collection<CommunityObsAccount>(ACCOUNT_COLLECTION);
 
 	if (input.accountId) {
+		const storedForCredential = await collection.findOne({
+			credential: input.routing.credential,
+			$or: [{ _id: input.accountId }, { legacyIds: input.accountId }],
+		});
 		const stored =
+			storedForCredential ??
 			(await collection.findOne({ _id: input.accountId })) ??
 			(input.accountId.length > 64 ? await collection.findOne({ legacyIds: input.accountId }) : null);
+
 		if (stored) {
-			const accountRouting = bindOverlayRiotRoute(input.routing, stored._id, stored.overlayKeyId);
-			let account: RiotAccount;
-			if (stored.overlayKeyId && stored.overlayKeyId === accountRouting.overlayKeyId) {
+			if (stored.credential === input.routing.credential) {
+				let account: RiotAccount;
+
 				try {
-					account = await cachedAccountByPuuid(stored.puuid, accountRouting);
+					account = await cachedAccountByPuuid(stored.puuid, input.routing);
 				} catch (error) {
 					if (!(error instanceof RiotApiError) || (error.status !== 400 && error.status !== 404)) throw error;
-					account = await cachedAccount(stored.gameName, stored.tagLine, accountRouting);
+					account = await cachedAccount(stored.gameName, stored.tagLine, input.routing);
 				}
-			} else {
-				// Legacy documents predate key affinity. Re-resolve their Riot ID with
-				// the newly assigned key instead of reusing another app's PUUID.
-				account = await cachedAccount(stored.gameName, stored.tagLine, accountRouting);
+
+				await persistCommunityAccount(stored._id, input.region, account, input.routing);
+				return { accountId: stored._id, account, routing: input.routing };
 			}
-			await persistCommunityAccount(stored._id, input.region, account, accountRouting);
-			return { accountId: stored._id, account, routing: accountRouting };
+
+			// The stored PUUID belongs to a different Riot API credential, or to
+			// the legacy rotating-key system. Resolve the Riot ID with the fixed
+			// credential assigned to this overlay and store a credential-scoped record.
+			const account = await cachedAccount(stored.gameName, stored.tagLine, input.routing);
+			const resolvedId = await findOrCreateCommunityAccount(input.region, account, input.routing, input.accountId);
+			return { accountId: resolvedId, account, routing: input.routing };
 		}
 
 		// Migrate the briefly shipped raw-PUUID URLs through the verified account
-		// record. Tournament and overlay API apps can encrypt PUUIDs differently.
+		// record. Tournament and OBS API apps can encrypt PUUIDs differently.
 		if (input.accountId.length > 64) {
-			const verified = await (await getDb())
-				.collection<{ puuid: string; riotId: string }>("verified_riot_accounts")
-				.findOne({ puuid: input.accountId });
+			const verified = await (await getDb()).collection<{ puuid: string; riotId: string }>("verified_riot_accounts").findOne({ puuid: input.accountId });
+
 			if (verified?.riotId) {
 				const legacyRiotId = parseRiotId(verified.riotId);
-				const riotIdLower = `${legacyRiotId.gameName}#${legacyRiotId.tagLine}`.toLocaleLowerCase("en-US");
-				const existing = await collection.findOne({ region: input.region, riotIdLower });
-				const accountRouting = bindOverlayRiotRoute(input.routing, existing?._id ?? riotIdLower, existing?.overlayKeyId);
-				const account = await cachedAccount(legacyRiotId.gameName, legacyRiotId.tagLine, accountRouting);
-				const resolvedId = await findOrCreateCommunityAccount(input.region, account, accountRouting, input.accountId);
-				return { accountId: resolvedId, account, routing: accountRouting };
+				const account = await cachedAccount(legacyRiotId.gameName, legacyRiotId.tagLine, input.routing);
+				const resolvedId = await findOrCreateCommunityAccount(input.region, account, input.routing, input.accountId);
+				return { accountId: resolvedId, account, routing: input.routing };
 			}
 		}
 
@@ -373,17 +408,24 @@ async function resolveCommunityAccount(input: {
 
 	const riotId = parseRiotId(input.ingame);
 	const riotIdLower = `${riotId.gameName}#${riotId.tagLine}`.toLocaleLowerCase("en-US");
-	const existing = await collection.findOne({ region: input.region, riotIdLower });
-	const accountRouting = bindOverlayRiotRoute(input.routing, existing?._id ?? riotIdLower, existing?.overlayKeyId);
-	const account = await cachedAccount(riotId.gameName, riotId.tagLine, accountRouting);
-	const resolvedId = await findOrCreateCommunityAccount(input.region, account, accountRouting);
-	return { accountId: resolvedId, account, routing: accountRouting };
+	const existing = await collection.findOne({
+		credential: input.routing.credential,
+		region: input.region,
+		riotIdLower,
+	});
+	const account = await cachedAccount(riotId.gameName, riotId.tagLine, input.routing);
+	const resolvedId = existing?._id ?? (await findOrCreateCommunityAccount(input.region, account, input.routing));
+	if (existing) {
+		await persistCommunityAccount(existing._id, input.region, account, input.routing);
+	}
+
+	return { accountId: resolvedId, account, routing: input.routing };
 }
 
 async function cachedRankEntries(puuid: string, routing: RiotRoute, maxAgeMs: number) {
 	globalCache.__communityObsRankCache ??= new Map();
 	globalCache.__communityObsRankRequests ??= new Map();
-	const key = `${routing.platform}:${routing.overlayKeyId ?? "rotating"}:${puuid}`;
+	const key = `${routing.credential}:${routing.platform}:${puuid}`;
 	const cached = globalCache.__communityObsRankCache.get(key);
 	if (cached && Date.now() - cached.fetchedAt < maxAgeMs) return cached.entries;
 	const pending = globalCache.__communityObsRankRequests.get(key);
@@ -402,7 +444,7 @@ async function cachedRankEntries(puuid: string, routing: RiotRoute, maxAgeMs: nu
 async function cachedProfileIconUrl(puuid: string, routing: RiotRoute) {
 	globalCache.__communityObsSummonerCache ??= new Map();
 	globalCache.__communityObsSummonerRequests ??= new Map();
-	const key = `${routing.platform}:${routing.overlayKeyId ?? "rotating"}:${puuid}`;
+	const key = `${routing.credential}:${routing.platform}:${puuid}`;
 	const cached = globalCache.__communityObsSummonerCache.get(key);
 	if (cached && Date.now() - cached.fetchedAt < 5 * 60_000) return cached.profileIconUrl;
 	const pending = globalCache.__communityObsSummonerRequests.get(key);
@@ -446,7 +488,13 @@ function queueLabel(queueId: number, gameMode: string) {
 		1700: "Arena",
 		1710: "Arena",
 	};
-	return labels[queueId] ?? gameMode.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase());
+	return (
+		labels[queueId] ??
+		gameMode
+			.replaceAll("_", " ")
+			.toLowerCase()
+			.replace(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
+	);
 }
 
 async function championRoleTags() {
@@ -457,7 +505,9 @@ async function championRoleTags() {
 			return new Map(
 				champions.map((champion) => [
 					champion.id,
-					(champion.roles ?? []).map((role) => role.toLowerCase()).filter((role): role is ChampionRoleTag => ["assassin", "fighter", "mage", "marksman", "support", "tank"].includes(role)),
+					(champion.roles ?? [])
+						.map((role) => role.toLowerCase())
+						.filter((role): role is ChampionRoleTag => ["assassin", "fighter", "mage", "marksman", "support", "tank"].includes(role)),
 				])
 			);
 		})
@@ -480,10 +530,7 @@ function permutations<T>(values: T[]): T[][] {
 	return values.flatMap((value, index) => permutations([...values.slice(0, index), ...values.slice(index + 1)]).map((rest) => [value, ...rest]));
 }
 
-function inferTeamRoles(
-	participants: RiotActiveGame["participants"],
-	tagsByChampion: Map<number, ChampionRoleTag[]>
-) {
+function inferTeamRoles(participants: RiotActiveGame["participants"], tagsByChampion: Map<number, ChampionRoleTag[]>) {
 	const assigned = new Map<string, LiveGameRole>();
 	const jungler = participants.find((participant) => participant.spell1Id === 11 || participant.spell2Id === 11);
 	if (jungler) assigned.set(jungler.puuid, "JUNGLE");
@@ -528,22 +575,19 @@ function liveGamePreview(showStreamerParticipants: boolean): NonNullable<Communi
 function regionalApexCutoff(league: RiotApexLeague) {
 	const sorted = [...league.entries].sort((a, b) => b.leaguePoints - a.leaguePoints);
 	const standardSlotCounts = [50, 100, 200, 300, 500, 700];
-	const slots = standardSlotCounts.reduce((best, candidate) =>
-		Math.abs(candidate - sorted.length) < Math.abs(best - sorted.length) ? candidate : best
-	);
+	const slots = standardSlotCounts.reduce((best, candidate) => (Math.abs(candidate - sorted.length) < Math.abs(best - sorted.length) ? candidate : best));
 	return sorted[Math.min(sorted.length, slots) - 1]?.leaguePoints ?? null;
 }
 
-async function apexGoalScores(regionKey: string): Promise<CommunityObsApexGoals> {
+async function apexGoalScores(routing: RiotRoute): Promise<CommunityObsApexGoals> {
 	globalCache.__communityObsApexCache ??= new Map();
 	globalCache.__communityObsApexRequests ??= new Map();
-	const cacheKey = `slots-v2:${regionKey}`;
+	const cacheKey = `slots-v3:${routing.credential}:${routing.platform}`;
 	const cached = globalCache.__communityObsApexCache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) return cached.goals;
 	const pending = globalCache.__communityObsApexRequests.get(cacheKey);
 	if (pending) return pending;
 
-	const routing = riotRoute(regionKey);
 	const request = Promise.all([getGrandmasterLeagueForRoute(routing), getChallengerLeagueForRoute(routing)])
 		.then(([grandmaster, challenger]) => {
 			const grandmasterCutoff = regionalApexCutoff(grandmaster);
@@ -559,6 +603,7 @@ async function apexGoalScores(regionKey: string): Promise<CommunityObsApexGoals>
 		})
 		.catch(() => null)
 		.finally(() => globalCache.__communityObsApexRequests?.delete(cacheKey));
+
 	globalCache.__communityObsApexRequests.set(cacheKey, request);
 	return request;
 }
@@ -596,7 +641,7 @@ function rankSnapshot(entries: RiotLeagueEntry[], preferredQueueId?: 420 | 440 |
 	const preferredQueueType = preferredQueueId === 440 ? "RANKED_FLEX_SR" : preferredQueueId === 420 ? "RANKED_SOLO_5x5" : null;
 	const entry = preferredQueueType
 		? entries.find((item) => item.queueType === preferredQueueType)
-		: entries.find((item) => item.queueType === "RANKED_SOLO_5x5") ?? entries.find((item) => item.queueType === "RANKED_FLEX_SR");
+		: (entries.find((item) => item.queueType === "RANKED_SOLO_5x5") ?? entries.find((item) => item.queueType === "RANKED_FLEX_SR"));
 	if (!entry) return null;
 	const queueId = entry.queueType === "RANKED_SOLO_5x5" ? 420 : 440;
 	const tierIndex = Math.max(0, TIER_ORDER.indexOf(entry.tier.toUpperCase() as (typeof TIER_ORDER)[number]));
@@ -657,7 +702,7 @@ async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId: 420 | 
 	const startTime = startedAt ? Math.max(0, Math.floor(new Date(startedAt).getTime() / 1000) - 300) : undefined;
 	globalCache.__communityObsMatchIdCache ??= new Map();
 	globalCache.__communityObsMatchIdRequests ??= new Map();
-	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:${puuid}:${queueId}:${startTime ?? "all"}`;
+	const key = `${routing.credential}:${routing.region}:${puuid}:${queueId}:${startTime ?? "all"}`;
 	const cached = globalCache.__communityObsMatchIdCache.get(key);
 	if (cached && Date.now() - cached.fetchedAt < maxAgeMs) return cached.ids;
 	const pending = globalCache.__communityObsMatchIdRequests.get(key);
@@ -713,10 +758,7 @@ async function sessionBaseline(streamer: string, streamId: string, startedAt: st
 
 async function rememberedSessionQueue(streamer: string, streamId: string) {
 	const collection = (await getDb()).collection<CommunitySession>(SESSION_COLLECTION);
-	const session = await collection.findOne(
-		{ streamer: streamer.toLowerCase(), streamId, "baselineRank.queueId": { $in: [420, 440] } },
-		{ sort: { createdAt: -1 } }
-	);
+	const session = await collection.findOne({ streamer: streamer.toLowerCase(), streamId, "baselineRank.queueId": { $in: [420, 440] } }, { sort: { createdAt: -1 } });
 	return rankedQueueId(session?.baselineRank?.queueId);
 }
 
@@ -736,7 +778,7 @@ export async function getCommunityObsSnapshot(input: {
 	preview?: boolean;
 }): Promise<CommunityObsSnapshot> {
 	const streamer = input.streamer.trim().replace(/^@/, "").toLowerCase();
-	const baseRouting = riotRoute(input.region);
+	const baseRouting = obsRiotRoute(input.region, obsOverlayForStreamer(streamer));
 	const accountId = /^[a-z\d_-]{12,128}$/i.test(input.accountId ?? "") ? input.accountId! : "";
 	const riotId = accountId ? null : parseRiotId(input.ingame);
 	const count = Math.max(0, Math.min(15, input.historyCount));
@@ -780,7 +822,7 @@ export async function getCommunityObsSnapshot(input: {
 		const [entries, liveGame, apexGoals, currentProfileIconUrl] = await Promise.all([
 			cachedRankEntries(account.puuid, routing, leagueLive ? LIVE_RANK_CACHE_MS : OFFLINE_RANK_CACHE_MS),
 			fetchLiveGame ? getActiveGameByPuuidForRoute(account.puuid, routing).catch(() => null) : Promise.resolve(null),
-			input.includeApexGoals ? apexGoalScores(input.region) : Promise.resolve(null),
+			input.includeApexGoals ? apexGoalScores(routing) : Promise.resolve(null),
 			input.includeProfileIcon ? cachedProfileIconUrl(account.puuid, routing).catch(() => null) : Promise.resolve(null),
 		]);
 		const activeRankQueueId = rankedQueueId(liveGame?.gameQueueConfigId);
@@ -800,7 +842,12 @@ export async function getCommunityObsSnapshot(input: {
 		const tagsByChampion = liveGame ? await championRoleTags() : new Map<number, ChampionRoleTag[]>();
 		const liveRoles = liveGame
 			? new Map(
-					[100, 200].flatMap((teamId) => [...inferTeamRoles(liveGame.participants.filter((participant) => participant.teamId === teamId), tagsByChampion)])
+					[100, 200].flatMap((teamId) => [
+						...inferTeamRoles(
+							liveGame.participants.filter((participant) => participant.teamId === teamId),
+							tagsByChampion
+						),
+					])
 				)
 			: new Map<string, LiveGameRole>();
 		const streamersByPuuid =
@@ -810,33 +857,30 @@ export async function getCommunityObsSnapshot(input: {
 		const sessionWins = games.filter((game) => game.win).length;
 		const sessionLosses = games.length - sessionWins;
 		const lpDeltaAvailable = Boolean(
-			session &&
-			rank &&
-			baselineRank &&
-			!input.preview &&
-			!games.some((game) => new Date(game.endedAt).getTime() <= new Date(session.createdAt).getTime())
+			session && rank && baselineRank && !input.preview && !games.some((game) => new Date(game.endedAt).getTime() <= new Date(session.createdAt).getTime())
 		);
-		const resolvedLiveGame: CommunityObsLiveGame = input.includeLiveGame && liveGame
-			? {
-					gameLength: liveGame.gameLength,
-					observedAt: new Date().toISOString(),
-					queueId: liveGame.gameQueueConfigId,
-					queueLabel: queueLabel(liveGame.gameQueueConfigId, liveGame.gameMode),
-					gameMode: liveGame.gameMode,
-					participants: liveGame.participants
-						.map((participant, index) => ({
-							name: participant.riotId || `Spieler ${index + 1}`,
-							championIconUrl: championIconUrl(participant.championId),
-							teamId: participant.teamId,
-							role: liveRoles.get(participant.puuid) ?? LIVE_ROLE_ORDER[index % LIVE_ROLE_ORDER.length],
-							isTrackedPlayer: participant.puuid === account.puuid,
-							streamer: streamersByPuuid.get(participant.puuid) ?? null,
-						}))
-						.sort((left, right) => left.teamId - right.teamId || LIVE_ROLE_ORDER.indexOf(left.role) - LIVE_ROLE_ORDER.indexOf(right.role)),
-				}
-			: input.previewLiveGame
-				? liveGamePreview(input.includeStreamerParticipants)
-				: null;
+		const resolvedLiveGame: CommunityObsLiveGame =
+			input.includeLiveGame && liveGame
+				? {
+						gameLength: liveGame.gameLength,
+						observedAt: new Date().toISOString(),
+						queueId: liveGame.gameQueueConfigId,
+						queueLabel: queueLabel(liveGame.gameQueueConfigId, liveGame.gameMode),
+						gameMode: liveGame.gameMode,
+						participants: liveGame.participants
+							.map((participant, index) => ({
+								name: participant.riotId || `Spieler ${index + 1}`,
+								championIconUrl: championIconUrl(participant.championId),
+								teamId: participant.teamId,
+								role: liveRoles.get(participant.puuid) ?? LIVE_ROLE_ORDER[index % LIVE_ROLE_ORDER.length],
+								isTrackedPlayer: participant.puuid === account.puuid,
+								streamer: streamersByPuuid.get(participant.puuid) ?? null,
+							}))
+							.sort((left, right) => left.teamId - right.teamId || LIVE_ROLE_ORDER.indexOf(left.role) - LIVE_ROLE_ORDER.indexOf(right.role)),
+					}
+				: input.previewLiveGame
+					? liveGamePreview(input.includeStreamerParticipants)
+					: null;
 		const response: CommunityObsSnapshot = {
 			streamer,
 			riotId: `${account.gameName}#${account.tagLine}`,
@@ -857,7 +901,13 @@ export async function getCommunityObsSnapshot(input: {
 			liveGame: resolvedLiveGame,
 			apexGoals,
 			updatedAt: new Date().toISOString(),
-			...(!streamer ? { message: "Kein Twitch-Kanal hinterlegt." } : !stream ? { message: `${streamer} ist gerade offline.` } : !leagueLive ? { message: "Stream ist live, aber nicht in League of Legends." } : {}),
+			...(!streamer
+				? { message: "Kein Twitch-Kanal hinterlegt." }
+				: !stream
+					? { message: `${streamer} ist gerade offline.` }
+					: !leagueLive
+						? { message: "Stream ist live, aber nicht in League of Legends." }
+						: {}),
 		};
 		globalCache.__communityObsCache!.set(key, { data: response, expiresAt: Date.now() + SNAPSHOT_CACHE_MS });
 		const diagnostics = diagnosticsState();

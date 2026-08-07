@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export function AkumaOverlay({ data }: { data: LauchgruenObsResponse }) {
 	const gameName = data.riotId.split("#")[0]?.trim() || "Aoi Akuma";
@@ -24,7 +24,10 @@ export function AkumaOverlay({ data }: { data: LauchgruenObsResponse }) {
 	return (
 		<div className="pointer-events-none min-h-screen overflow-hidden bg-transparent p-4 text-white">
 			<section className="akuma-hud relative h-[202px] w-[640px] overflow-visible [text-shadow:0_1px_2px_#000,0_2px_7px_#000,0_0_14px_rgba(0,0,0,.96)]">
-				<div aria-hidden className="absolute left-[164px] top-[27px] h-[150px] w-px bg-gradient-to-b from-transparent via-[#8eeaff]/90 to-transparent shadow-[0_0_8px_#8eeaff]" />
+				<div
+					aria-hidden
+					className="absolute left-[164px] top-[27px] h-[150px] w-px bg-gradient-to-b from-transparent via-[#8eeaff]/90 to-transparent shadow-[0_0_8px_#8eeaff]"
+				/>
 				<div aria-hidden className="akuma-signal absolute left-[181px] right-3 top-[93px] h-px bg-gradient-to-r from-[#8eeaff] via-[#8eeaff]/35 to-transparent" />
 
 				<RankPortrait gameName={gameName} profileIconUrl={data.profileIconUrl} rankFrameUrl={rankFrameUrl} />
@@ -131,7 +134,11 @@ function SessionScene({
 					<div className="flex gap-2">
 						{[0, 1, 2, 3, 4].map((index) => {
 							const game = games[index];
-							return game ? <GameResult key={game.matchId} game={game} /> : <div key={index} className="size-[48px] rounded-[10px] border border-white/30 bg-black/20 shadow-[0_4px_12px_rgba(0,0,0,.55)]" />;
+							return game ? (
+								<GameResult key={game.matchId} game={game} />
+							) : (
+								<div key={index} className="size-[48px] rounded-[10px] border border-white/30 bg-black/20 shadow-[0_4px_12px_rgba(0,0,0,.55)]" />
+							);
 						})}
 					</div>
 				</div>
@@ -178,7 +185,9 @@ function LastGameScene({ game }: { game: LauchgruenObsResponse["lastGames"][numb
 			</div>
 
 			<div className="mt-5 grid grid-cols-[82px_1fr] items-center gap-4">
-				<div className={`relative size-[82px] overflow-hidden rounded-2xl border-[3px] shadow-[0_7px_20px_rgba(0,0,0,.75)] ${game.win ? "border-[#8eeaff] shadow-[0_0_18px_rgba(105,220,255,.72)]" : "border-white/80 grayscale-[.45]"}`}>
+				<div
+					className={`relative size-[82px] overflow-hidden rounded-2xl border-[3px] shadow-[0_7px_20px_rgba(0,0,0,.75)] ${game.win ? "border-[#8eeaff] shadow-[0_0_18px_rgba(105,220,255,.72)]" : "border-white/80 grayscale-[.45]"}`}
+				>
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={game.championIconUrl} alt={game.championName} className="size-full object-cover" />
 				</div>
@@ -213,15 +222,7 @@ function LastGameMetric({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function RankPortrait({
-	gameName,
-	profileIconUrl,
-	rankFrameUrl,
-}: {
-	gameName: string;
-	profileIconUrl: string | null;
-	rankFrameUrl: string | null;
-}) {
+function RankPortrait({ gameName, profileIconUrl, rankFrameUrl }: { gameName: string; profileIconUrl: string | null; rankFrameUrl: string | null }) {
 	return (
 		<div className="absolute left-0 top-1/2 size-[150px] -translate-y-1/2">
 			<div aria-hidden className="akuma-profile-aura absolute inset-[12px] rounded-full bg-[#7de8ff]/35 blur-2xl" />
@@ -318,5 +319,5 @@ function rankFrame(tier?: string | null) {
 		GRANDMASTER: "/overlay/Grand.png",
 		CHALLENGER: "/overlay/Challenger.png",
 	};
-	return tier ? frames[tier.toUpperCase()] ?? null : null;
+	return tier ? (frames[tier.toUpperCase()] ?? null) : null;
 }

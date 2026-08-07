@@ -13,8 +13,9 @@ import {
 	itemIconUrl,
 	parseRiotId,
 	profileIconUrl,
-	riotRoute,
+	obsRiotRoute,
 	RiotApiError,
+	type ObsRiotCredential,
 	type RiotAccount,
 	type RiotLeagueEntry,
 	type RiotSummoner,
@@ -31,7 +32,6 @@ const RANK_CACHE_MS = 60_000;
 const HISTORY_CACHE_MS = 45_000;
 const LIVE_QUEUE_CACHE_MS = 60_000;
 const LIVE_QUEUE_STALE_MS = 10 * 60_000;
-const EUW_ROUTE = riotRoute("euw1");
 
 const TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
 const DIVISION_ORDER = ["IV", "III", "II", "I"] as const;
@@ -67,7 +67,7 @@ type StreamerAccountDoc = {
 	_id: string;
 	puuid: string;
 	riotId: string;
-	overlayKeyId?: string;
+	credential?: ObsRiotCredential;
 	selectedAccountKey?: string;
 	selectedAccountStreamId?: string;
 	selectedQueueId?: 420 | 440;
@@ -87,7 +87,6 @@ type ResolvedStreamerAccount = {
 
 type StreamerRiotAccountConfig = {
 	key: string;
-	puuid: string;
 	riotGameName: string;
 	riotTagLine: string;
 };
@@ -96,7 +95,6 @@ type StreamerConfig = {
 	slug: "lauchgruen" | "hippokrate" | "happygiganto" | "nachtdienst" | "akuma" | "n4cht4r4";
 	displayName: string;
 	twitchLogin: string;
-	puuid: string;
 	riotGameName: string;
 	riotTagLine: string;
 	alternateAccounts?: StreamerRiotAccountConfig[];
@@ -109,12 +107,10 @@ function alternateAccounts(prefix: string, fallbackRiotIds: string[] = []): Stre
 		.map((riotId) => riotId.trim())
 		.filter(Boolean);
 	const riotIds = configuredRiotIds?.length ? configuredRiotIds : fallbackRiotIds;
-	const puuids = (process.env[`${prefix}_OBS_ALT_RIOT_PUUIDS`] ?? "").split(",").map((puuid) => puuid.trim());
-
 	return riotIds.flatMap((riotId, index) => {
 		try {
 			const parsed = parseRiotId(riotId);
-			return [{ key: `alt-${index + 1}`, puuid: puuids[index] ?? "", riotGameName: parsed.gameName, riotTagLine: parsed.tagLine }];
+			return [{ key: `alt-${index + 1}`, riotGameName: parsed.gameName, riotTagLine: parsed.tagLine }];
 		} catch {
 			console.warn(`[${prefix.toLowerCase()}-obs] Ignoriere ungültige alternative Riot-ID: ${riotId}`);
 			return [];
@@ -127,7 +123,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "lauchgruen",
 		displayName: "Lauchgruen",
 		twitchLogin: process.env.LAUCHGRUEN_OBS_TWITCH_LOGIN?.trim() || "lauchgruen",
-		puuid: process.env.LAUCHGRUEN_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.LAUCHGRUEN_OBS_RIOT_GAME_NAME?.trim() || "lauchgruentv",
 		riotTagLine: process.env.LAUCHGRUEN_OBS_RIOT_TAG_LINE?.trim() || "euw",
 		alternateAccounts: alternateAccounts("LAUCHGRUEN"),
@@ -136,7 +131,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "hippokrate",
 		displayName: "Hippokrate",
 		twitchLogin: process.env.HIPPOKRATE_OBS_TWITCH_LOGIN?.trim() || "hippokrate",
-		puuid: process.env.HIPPOKRATE_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.HIPPOKRATE_OBS_RIOT_GAME_NAME?.trim() || "Hìppokrate",
 		riotTagLine: process.env.HIPPOKRATE_OBS_RIOT_TAG_LINE?.trim() || "7758",
 		alternateAccounts: alternateAccounts("HIPPOKRATE"),
@@ -145,7 +139,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "happygiganto",
 		displayName: "HappyGiganto",
 		twitchLogin: process.env.HAPPYGIGANTO_OBS_TWITCH_LOGIN?.trim() || "happygiganto",
-		puuid: process.env.HAPPYGIGANTO_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.HAPPYGIGANTO_OBS_RIOT_GAME_NAME?.trim() || "cutie patootie",
 		riotTagLine: process.env.HAPPYGIGANTO_OBS_RIOT_TAG_LINE?.trim() || "happy",
 		alternateAccounts: alternateAccounts("HAPPYGIGANTO", ["baby princess#twin"]),
@@ -154,7 +147,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "nachtdienst",
 		displayName: "Nachtdienst",
 		twitchLogin: process.env.NACHTDIENST_OBS_TWITCH_LOGIN?.trim() || "nachtdienst",
-		puuid: process.env.NACHTDIENST_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.NACHTDIENST_OBS_RIOT_GAME_NAME?.trim() || "Nacktdienst",
 		riotTagLine: process.env.NACHTDIENST_OBS_RIOT_TAG_LINE?.trim() || "LoL",
 		alternateAccounts: alternateAccounts("NACHTDIENST"),
@@ -164,7 +156,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "akuma",
 		displayName: "Aoi Akuma",
 		twitchLogin: process.env.AKUMA_OBS_TWITCH_LOGIN?.trim() || "akuma_flo",
-		puuid: process.env.AKUMA_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.AKUMA_OBS_RIOT_GAME_NAME?.trim() || "Aoi Akuma",
 		riotTagLine: process.env.AKUMA_OBS_RIOT_TAG_LINE?.trim() || "EUW",
 		alternateAccounts: alternateAccounts("AKUMA"),
@@ -173,7 +164,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		slug: "n4cht4r4",
 		displayName: "N4cht4r4",
 		twitchLogin: process.env.N4CHT4R4_OBS_TWITCH_LOGIN?.trim() || "n4cht4r4",
-		puuid: process.env.N4CHT4R4_OBS_RIOT_PUUID?.trim() || "",
 		riotGameName: process.env.N4CHT4R4_OBS_RIOT_GAME_NAME?.trim() || "N4cht4r4",
 		riotTagLine: process.env.N4CHT4R4_OBS_RIOT_TAG_LINE?.trim() || "cute",
 		alternateAccounts: alternateAccounts("N4CHT4R4"),
@@ -348,7 +338,7 @@ async function getOrCreateSession(config: StreamerConfig, streamId: string, star
 }
 
 function configuredRiotAccounts(config: StreamerConfig): StreamerRiotAccountConfig[] {
-	return [{ key: "main", puuid: config.puuid, riotGameName: config.riotGameName, riotTagLine: config.riotTagLine }, ...(config.alternateAccounts ?? [])];
+	return [{ key: "main", riotGameName: config.riotGameName, riotTagLine: config.riotTagLine }, ...(config.alternateAccounts ?? [])];
 }
 
 function accountStorageId(config: StreamerConfig, accountConfig: StreamerRiotAccountConfig) {
@@ -367,17 +357,20 @@ async function cachedAccount(config: StreamerConfig, accountConfig: StreamerRiot
 	const collection = (await getDb()).collection<StreamerAccountDoc>(ACCOUNT_COLLECTION);
 	const storageId = accountStorageId(config, accountConfig);
 	const stored = await collection.findOne({ _id: storageId });
-	// Fixed overlays may rotate through every configured overlay key. PUUIDs are
-	// account identifiers and do not depend on which Riot API key resolved them.
-	const routing = EUW_ROUTE;
-	const cacheKey = storageId;
+	const routing = obsRiotRoute("euw1", config.slug);
+	const cacheKey = `${routing.credential}:${storageId}`;
 	const cachedAccount = g.__streamerObsAccounts.get(cacheKey);
 	if (cachedAccount && cachedAccount.expiresAt > Date.now()) return cachedAccount.data;
 	const pendingAccount = g.__streamerObsAccountRequests.get(cacheKey);
 	if (pendingAccount) return pendingAccount;
 
-	const puuid = g.__streamerObsPuuids.get(storageId) || stored?.puuid || accountConfig.puuid || "";
-	if (puuid) g.__streamerObsPuuids.set(storageId, puuid);
+	// A PUUID may only be reused with the credential that originally resolved it.
+	// Legacy documents without a credential are re-resolved from the Riot ID.
+	const puuidCacheKey = `${routing.credential}:${storageId}`;
+	const puuid =
+		g.__streamerObsPuuids.get(puuidCacheKey) ||
+		(stored?.credential === routing.credential ? stored.puuid : "");
+	if (puuid) g.__streamerObsPuuids.set(puuidCacheKey, puuid);
 
 	const resolveByRiotId = async () => {
 		const fallback = stored?.riotId?.includes("#") ? stored.riotId : `${accountConfig.riotGameName}#${accountConfig.riotTagLine}`;
@@ -394,12 +387,17 @@ async function cachedAccount(config: StreamerConfig, accountConfig: StreamerRiot
 			selectedQueueId: stored?.selectedQueueId,
 			selectedQueueStreamId: stored?.selectedQueueStreamId,
 		} satisfies ResolvedStreamerAccount;
-		g.__streamerObsPuuids?.set(storageId, account.puuid);
+		g.__streamerObsPuuids?.set(puuidCacheKey, account.puuid);
 		g.__streamerObsAccounts?.set(cacheKey, { data: resolved, expiresAt: Date.now() + ACCOUNT_CACHE_MS });
 		await collection.updateOne(
 			{ _id: storageId },
 			{
-				$set: { puuid: account.puuid, riotId: `${account.gameName}#${account.tagLine}`, updatedAt: new Date().toISOString() },
+				$set: {
+					puuid: account.puuid,
+					riotId: `${account.gameName}#${account.tagLine}`,
+					credential: routing.credential,
+					updatedAt: new Date().toISOString(),
+				},
 				$unset: { overlayKeyId: "" },
 			},
 			{ upsert: true }
@@ -477,7 +475,7 @@ async function clearStreamerSelection(config: StreamerConfig, accounts: Resolved
 async function cachedSummoner(puuid: string, routing: RiotRoute): Promise<RiotSummoner> {
 	g.__streamerObsSummoners ??= new Map();
 	g.__streamerObsSummonerRequests ??= new Map();
-	const key = `${routing.overlayKeyId}:${puuid}`;
+	const key = `${routing.credential}:${puuid}`;
 	const cached = g.__streamerObsSummoners.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__streamerObsSummonerRequests.get(key);
@@ -496,7 +494,7 @@ async function cachedSummoner(puuid: string, routing: RiotRoute): Promise<RiotSu
 async function cachedRankEntries(puuid: string, routing: RiotRoute): Promise<RiotLeagueEntry[]> {
 	g.__streamerObsRanks ??= new Map();
 	g.__streamerObsRankRequests ??= new Map();
-	const key = `${routing.overlayKeyId}:${puuid}`;
+	const key = `${routing.credential}:${puuid}`;
 	const cached = g.__streamerObsRanks.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__streamerObsRankRequests.get(key);
@@ -515,7 +513,7 @@ async function cachedRankEntries(puuid: string, routing: RiotRoute): Promise<Rio
 async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId?: number | null): Promise<string[]> {
 	g.__streamerObsMatchIds ??= new Map();
 	g.__streamerObsMatchIdRequests ??= new Map();
-	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:${puuid}:${queueId ?? "ranked"}`;
+	const key = `${routing.credential}:${routing.region}:${puuid}:${queueId ?? "ranked"}`;
 	const cached = g.__streamerObsMatchIds.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__streamerObsMatchIdRequests.get(key);
@@ -575,7 +573,7 @@ async function loadSessionGames(puuid: string, routing: RiotRoute, startedAt?: s
 
 async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing: RiotRoute): Promise<number | null> {
 	g.__streamerObsLiveQueues ??= new Map();
-	const cacheKey = `${config.slug}:${puuid}`;
+	const cacheKey = `${routing.credential}:${config.slug}:${puuid}`;
 	const cached = g.__streamerObsLiveQueues.get(cacheKey);
 	if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_CACHE_MS) return cached.queueId;
 	try {

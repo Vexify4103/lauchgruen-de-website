@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export function N4cht4r4Overlay({ data }: { data: LauchgruenObsResponse }) {
 	const gameName = data.riotId.split("#")[0]?.trim() || "N4cht4r4";

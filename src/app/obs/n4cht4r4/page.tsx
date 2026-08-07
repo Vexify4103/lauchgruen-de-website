@@ -1,5 +1,5 @@
 import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
-import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
 

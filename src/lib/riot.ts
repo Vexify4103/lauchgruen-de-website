@@ -1,23 +1,44 @@
 /**
- * Minimal Riot API helpers for tournament-application Riot ID verification.
- * Only the endpoints we actually need: account-v1, summoner-v4, league-v4.
+ * Minimal Riot API helpers for tournament verification and OBS overlays.
+ *
+ * Important: Riot PUUID values are credential scoped. Resolve a Riot ID and
+ * consume the returned PUUID with the same RiotApiCredential.
  */
 
 export class RiotApiError extends Error {
-	constructor(
-		public readonly status: number,
-		public readonly endpoint: string,
-		message: string
-	) {
+	public readonly status: number;
+	public readonly endpoint: string;
+	public readonly credential: RiotApiCredential;
+	public readonly detail: string;
+
+	constructor(status: number, endpoint: string, message: string, credential: RiotApiCredential = "tournament", detail = "") {
 		super(message);
 		this.name = "RiotApiError";
+		this.status = status;
+		this.endpoint = endpoint;
+		this.credential = credential;
+		this.detail = detail;
 	}
 }
 
-type RiotApiCredential = "tournament" | "overlay";
+export type RiotApiCredential = "tournament" | "obs_public" | "obs_lauchgruen" | "obs_akuma" | "obs_happygiganto" | "obs_hippokrate" | "obs_n4cht4r4" | "obs_nachtdienst";
 
-type OverlayKeyState = {
-	requestTimestamps: number[]; // rolling log of request times, for sliding-window limits
+export type ObsRiotCredential = Exclude<RiotApiCredential, "tournament">;
+
+export const OBS_RIOT_CREDENTIALS = {
+	public: "obs_public",
+	lauchgruen: "obs_lauchgruen",
+	akuma: "obs_akuma",
+	happygiganto: "obs_happygiganto",
+	hippokrate: "obs_hippokrate",
+	n4cht4r4: "obs_n4cht4r4",
+	nachtdienst: "obs_nachtdienst",
+} as const satisfies Record<string, ObsRiotCredential>;
+
+export type ObsOverlayName = keyof typeof OBS_RIOT_CREDENTIALS;
+
+type RiotKeyState = {
+	requestTimestamps: number[];
 	blockedUntil: number;
 };
 
@@ -25,179 +46,160 @@ const SHORT_WINDOW_MS = 1_000;
 const SHORT_WINDOW_LIMIT = 20;
 const LONG_WINDOW_MS = 120_000;
 const LONG_WINDOW_LIMIT = 100;
-const MAX_OVERLAY_WAIT_MS = 5_000;
-const OVERLAY_RATE_STATE_VERSION = 2;
+const MAX_RATE_LIMIT_WAIT_MS = 5_000;
+const RIOT_RATE_STATE_VERSION = 3;
 
-const overlayRateState = globalThis as unknown as {
-	__riotOverlayGates?: Map<string, Promise<void>>;
-	__riotOverlayKeyState?: Map<string, OverlayKeyState>;
-	__riotOverlayRateStateVersion?: number;
+const riotRateState = globalThis as unknown as {
+	__riotCredentialGates?: Map<RiotApiCredential, Promise<void>>;
+	__riotCredentialKeyState?: Map<RiotApiCredential, RiotKeyState>;
+	__riotRateStateVersion?: number;
 };
 
-if (overlayRateState.__riotOverlayRateStateVersion !== OVERLAY_RATE_STATE_VERSION) {
-	overlayRateState.__riotOverlayGates = new Map();
-	overlayRateState.__riotOverlayKeyState = new Map();
-	overlayRateState.__riotOverlayRateStateVersion = OVERLAY_RATE_STATE_VERSION;
+if (riotRateState.__riotRateStateVersion !== RIOT_RATE_STATE_VERSION) {
+	riotRateState.__riotCredentialGates = new Map();
+	riotRateState.__riotCredentialKeyState = new Map();
+	riotRateState.__riotRateStateVersion = RIOT_RATE_STATE_VERSION;
 }
 
-function delay(ms: number) {
-	return new Promise<void>((resolve) => setTimeout(resolve, ms));
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getOverlayKeyState(key: string): OverlayKeyState {
-	overlayRateState.__riotOverlayKeyState ??= new Map();
-	let state = overlayRateState.__riotOverlayKeyState.get(key);
+function isObsCredential(credential: RiotApiCredential): credential is ObsRiotCredential {
+	return credential.startsWith("obs_");
+}
+
+function getCredentialState(credential: RiotApiCredential): RiotKeyState {
+	riotRateState.__riotCredentialKeyState ??= new Map();
+
+	let state = riotRateState.__riotCredentialKeyState.get(credential);
 	if (!state) {
 		state = { requestTimestamps: [], blockedUntil: 0 };
-		overlayRateState.__riotOverlayKeyState.set(key, state);
+		riotRateState.__riotCredentialKeyState.set(credential, state);
 	}
+
 	return state;
 }
 
-async function paceOverlayRequest(key: string) {
-	overlayRateState.__riotOverlayGates ??= new Map();
-	const gates = overlayRateState.__riotOverlayGates;
-	const previous = gates.get(key) ?? Promise.resolve();
-	const gate = previous.then(async () => {
-		const state = getOverlayKeyState(key);
+async function paceObsRequest(credential: ObsRiotCredential): Promise<void> {
+	riotRateState.__riotCredentialGates ??= new Map();
+	const gates = riotRateState.__riotCredentialGates;
+	const previous = gates.get(credential) ?? Promise.resolve();
 
-		// Wait out any active block (429/401/403 cooldown) first.
-		const now0 = Date.now();
-		if (state.blockedUntil > now0) {
-			const waitMs = state.blockedUntil - now0;
-			if (waitMs > MAX_OVERLAY_WAIT_MS) {
-				throw new RiotApiError(429, "riot://overlay-rate-limit", "Alle Riot-Overlay-Keys sind vorübergehend ausgelastet. Bitte gleich erneut versuchen.");
+	const gate = previous.then(async () => {
+		const state = getCredentialState(credential);
+		const nowBeforeBlock = Date.now();
+
+		if (state.blockedUntil > nowBeforeBlock) {
+			const waitMs = state.blockedUntil - nowBeforeBlock;
+
+			if (waitMs > MAX_RATE_LIMIT_WAIT_MS) {
+				throw new RiotApiError(
+					429,
+					`riot://${credential}/rate-limit`,
+					`Das Riot-Rate-Limit für "${credential}" ist gerade ausgelastet. Bitte gleich erneut versuchen.`,
+					credential
+				);
 			}
+
 			await delay(waitMs);
 		}
 
-		// Drop timestamps outside the long window — they no longer count against either limit.
 		let now = Date.now();
-		state.requestTimestamps = state.requestTimestamps.filter((t) => now - t < LONG_WINDOW_MS);
+		state.requestTimestamps = state.requestTimestamps.filter((timestamp) => now - timestamp < LONG_WINDOW_MS);
 
-		// Check both windows; wait for whichever is currently the binding constraint.
 		for (;;) {
 			now = Date.now();
-			const withinShort = state.requestTimestamps.filter((t) => now - t < SHORT_WINDOW_MS);
-			const withinLong = state.requestTimestamps; // already pruned to long window
-
+			const withinShort = state.requestTimestamps.filter((timestamp) => now - timestamp < SHORT_WINDOW_MS);
+			const withinLong = state.requestTimestamps;
 			let waitMs = 0;
+
 			if (withinShort.length >= SHORT_WINDOW_LIMIT) {
 				waitMs = Math.max(waitMs, SHORT_WINDOW_MS - (now - withinShort[0]));
 			}
+
 			if (withinLong.length >= LONG_WINDOW_LIMIT) {
 				waitMs = Math.max(waitMs, LONG_WINDOW_MS - (now - withinLong[0]));
 			}
 
 			if (waitMs <= 0) break;
-			if (waitMs > MAX_OVERLAY_WAIT_MS) {
-				throw new RiotApiError(429, "riot://overlay-rate-limit", "Das Riot-Overlay-Limit ist gerade ausgelastet. Bitte gleich erneut versuchen.");
+
+			if (waitMs > MAX_RATE_LIMIT_WAIT_MS) {
+				throw new RiotApiError(
+					429,
+					`riot://${credential}/rate-limit`,
+					`Das Riot-Rate-Limit für "${credential}" ist gerade ausgelastet. Bitte gleich erneut versuchen.`,
+					credential
+				);
 			}
-			await delay(waitMs + 5); // small buffer to avoid boundary races
-			state.requestTimestamps = state.requestTimestamps.filter((t) => Date.now() - t < LONG_WINDOW_MS);
+
+			await delay(waitMs + 5);
+			state.requestTimestamps = state.requestTimestamps.filter((timestamp) => Date.now() - timestamp < LONG_WINDOW_MS);
 		}
 
 		state.requestTimestamps.push(Date.now());
 	});
+
 	gates.set(
-		key,
+		credential,
 		gate.catch(() => undefined)
 	);
 	await gate;
 }
 
-let overlayApiKeyIndex = 0;
+const RIOT_API_KEY_ENV_NAMES = {
+	tournament: "RIOT_API_KEY_TOURNAMENT",
+	obs_public: "RIOT_API_KEY_OBS_PUBLIC",
+	obs_lauchgruen: "RIOT_API_KEY_OBS_LAUCHGRUEN",
+	obs_akuma: "RIOT_API_KEY_OBS_AKUMA",
+	obs_happygiganto: "RIOT_API_KEY_OBS_HAPPYGIGANTO",
+	obs_hippokrate: "RIOT_API_KEY_OBS_HIPPOKRATE",
+	obs_n4cht4r4: "RIOT_API_KEY_OBS_N4CHT4R4",
+	obs_nachtdienst: "RIOT_API_KEY_OBS_NACHTDIENST",
+} as const satisfies Record<RiotApiCredential, string>;
 
-function apiKey(credential: RiotApiCredential, overlayKeyId?: string): string {
-	if (credential === "overlay") {
-		if (overlayKeyId) {
-			const pinned = overlayApiKeys.find((key) => overlayKeyIdentifier(key) === overlayKeyId);
-			if (!pinned) throw new Error("Der diesem Overlay zugeordnete Riot-API-Key ist nicht mehr konfiguriert.");
-			return pinned;
-		}
-		return nextOverlayApiKey();
-	}
+function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> {
+	return {
+		tournament: process.env.RIOT_API_KEY_TOURNAMENT,
+		obs_public: process.env.RIOT_API_KEY_OBS_PUBLIC,
+		obs_lauchgruen: process.env.RIOT_API_KEY_OBS_LAUCHGRUEN,
+		obs_akuma: process.env.RIOT_API_KEY_OBS_AKUMA,
+		obs_happygiganto: process.env.RIOT_API_KEY_OBS_HAPPYGIGANTO,
+		obs_hippokrate: process.env.RIOT_API_KEY_OBS_HIPPOKRATE,
+		obs_n4cht4r4: process.env.RIOT_API_KEY_OBS_N4CHT4R4,
+		obs_nachtdienst: process.env.RIOT_API_KEY_OBS_NACHTDIENST,
+	};
+}
 
-	const key = process.env.RIOT_API_KEY?.trim();
+function apiKey(credential: RiotApiCredential): string {
+	const key = configuredRiotApiKeys()[credential]?.trim();
 
 	if (!key) {
-		throw new Error("RIOT_API_KEY fehlt.");
+		throw new Error(`${RIOT_API_KEY_ENV_NAMES[credential]} fehlt.`);
 	}
 
 	return key;
 }
 
-function parseApiKeys(value: string | undefined): string[] {
-	return [
-		...new Set(
-			(value ?? "")
-				.split(",")
-				.map((key) => key.trim())
-				.filter(Boolean)
-		),
-	];
-}
-
-const overlayApiKeys = parseApiKeys(process.env.RIOT_OVERLAY_API_KEYS || process.env.RIOT_API_KEY);
-
-function overlayKeyIdentifier(key: string) {
-	let hash = 2166136261;
-	for (let index = 0; index < key.length; index += 1) {
-		hash ^= key.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return `rk_${(hash >>> 0).toString(36)}`;
-}
-
-function affinityIndex(value: string) {
-	let hash = 2166136261;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0) % Math.max(1, overlayApiKeys.length);
-}
-
-function nextOverlayApiKey(): string {
-	if (overlayApiKeys.length === 0) {
-		throw new Error("RIOT_OVERLAY_API_KEYS und RIOT_API_KEY fehlen.");
-	}
-
-	const now = Date.now();
-
-	// Round-robin starting at the current index, skipping any key still on cooldown.
-	for (let attempt = 0; attempt < overlayApiKeys.length; attempt++) {
-		const idx = (overlayApiKeyIndex + attempt) % overlayApiKeys.length;
-		const key = overlayApiKeys[idx];
-		if (getOverlayKeyState(key).blockedUntil <= now) {
-			overlayApiKeyIndex = (idx + 1) % overlayApiKeys.length;
-			return key;
-		}
-	}
-
-	// Never keep a page request open for minutes. A later overlay poll retries.
-	const nextKey = overlayApiKeys.reduce((best, key) => (getOverlayKeyState(key).blockedUntil < getOverlayKeyState(best).blockedUntil ? key : best));
-	if (getOverlayKeyState(nextKey).blockedUntil - now > MAX_OVERLAY_WAIT_MS) {
-		throw new RiotApiError(429, "riot://overlay-rate-limit", "Alle Riot-Overlay-Keys sind vorübergehend ausgelastet. Bitte gleich erneut versuchen.");
-	}
-	return nextKey;
-}
-
 function platform(): string {
-	return process.env.RIOT_PLATFORM ?? "EUW1";
+	return process.env.RIOT_PLATFORM?.trim() || "EUW1";
 }
 
 function region(): string {
-	return process.env.RIOT_REGION ?? "europe";
+	return process.env.RIOT_REGION?.trim() || "europe";
 }
 
 export type RiotRoute = {
 	platform: string;
 	region: string;
-	overlayKeyId?: string;
+	credential: RiotApiCredential;
 };
 
-export const RIOT_ROUTES = {
+export type ObsRiotRoute = Omit<RiotRoute, "credential"> & {
+	credential: ObsRiotCredential;
+};
+
+const RIOT_ROUTE_BASES = {
 	euw1: { platform: "euw1", region: "europe" },
 	eun1: { platform: "eun1", region: "europe" },
 	na1: { platform: "na1", region: "americas" },
@@ -208,102 +210,140 @@ export const RIOT_ROUTES = {
 	oc1: { platform: "oc1", region: "sea" },
 	jp1: { platform: "jp1", region: "asia" },
 	tr1: { platform: "tr1", region: "europe" },
-} as const satisfies Record<string, RiotRoute>;
+} as const;
 
-export type RiotRouteKey = keyof typeof RIOT_ROUTES;
+export type RiotRouteKey = keyof typeof RIOT_ROUTE_BASES;
 
-export function riotRoute(value?: string): RiotRoute {
-	return RIOT_ROUTES[(value?.toLowerCase() as RiotRouteKey) || "euw1"] ?? RIOT_ROUTES.euw1;
+export function riotRoute(value?: string, credential: RiotApiCredential = "tournament"): RiotRoute {
+	const routeKey = (value?.trim() || platform()).toLowerCase() as RiotRouteKey;
+	const base = RIOT_ROUTE_BASES[routeKey] ?? RIOT_ROUTE_BASES.euw1;
+
+	return {
+		...base,
+		credential,
+	};
 }
 
-export function bindOverlayRiotRoute(routing: RiotRoute, affinity: string, preferredKeyId?: string): RiotRoute {
-	if (overlayApiKeys.length === 0) throw new Error("RIOT_OVERLAY_API_KEYS und RIOT_API_KEY fehlen.");
-	const preferred = preferredKeyId && overlayApiKeys.some((key) => overlayKeyIdentifier(key) === preferredKeyId) ? preferredKeyId : undefined;
-	const key = overlayApiKeys[affinityIndex(affinity.toLocaleLowerCase("en-US"))];
-	return { ...routing, overlayKeyId: preferred ?? overlayKeyIdentifier(key) };
+export function obsRiotRoute(value: string | undefined, overlay: ObsOverlayName): ObsRiotRoute {
+	const credential = OBS_RIOT_CREDENTIALS[overlay];
+	const routing = riotRoute(value, credential);
+
+	return {
+		platform: routing.platform,
+		region: routing.region,
+		credential,
+	};
 }
 
 export function getRiotOverlayDiagnostics() {
 	const now = Date.now();
+	const configuredKeys = configuredRiotApiKeys();
+	const credentials = Object.values(OBS_RIOT_CREDENTIALS);
+	const configuredCredentials = credentials.filter((credential) => Boolean(configuredKeys[credential]?.trim()));
+
 	return {
-		configuredKeys: overlayApiKeys.length,
-		availableKeys: overlayApiKeys.filter((key) => getOverlayKeyState(key).blockedUntil <= now).length,
-		blockedKeys: overlayApiKeys.filter((key) => getOverlayKeyState(key).blockedUntil > now).length,
-		requestsLastSecond: overlayApiKeys.reduce(
-			(total, key) => total + getOverlayKeyState(key).requestTimestamps.filter((timestamp) => now - timestamp < SHORT_WINDOW_MS).length,
+		configuredKeys: configuredCredentials.length,
+		availableKeys: configuredCredentials.filter((credential) => getCredentialState(credential).blockedUntil <= now).length,
+		blockedKeys: configuredCredentials.filter((credential) => getCredentialState(credential).blockedUntil > now).length,
+		requestsLastSecond: configuredCredentials.reduce(
+			(total, credential) => total + getCredentialState(credential).requestTimestamps.filter((timestamp) => now - timestamp < SHORT_WINDOW_MS).length,
 			0
 		),
-		requestsLastTwoMinutes: overlayApiKeys.reduce(
-			(total, key) => total + getOverlayKeyState(key).requestTimestamps.filter((timestamp) => now - timestamp < LONG_WINDOW_MS).length,
+		requestsLastTwoMinutes: configuredCredentials.reduce(
+			(total, credential) => total + getCredentialState(credential).requestTimestamps.filter((timestamp) => now - timestamp < LONG_WINDOW_MS).length,
 			0
 		),
+		credentials: credentials.map((credential) => {
+			const state = getCredentialState(credential);
+			return {
+				credential,
+				configured: Boolean(configuredKeys[credential]?.trim()),
+				blockedUntil: state.blockedUntil || null,
+				requestsLastSecond: state.requestTimestamps.filter((timestamp) => now - timestamp < SHORT_WINDOW_MS).length,
+				requestsLastTwoMinutes: state.requestTimestamps.filter((timestamp) => now - timestamp < LONG_WINDOW_MS).length,
+			};
+		}),
 	};
 }
 
-async function riotGet<T>(
-	url: string,
-	credential: RiotApiCredential = "tournament",
-	options: { forceFresh?: boolean; overlayKeyId?: string } = {}
-): Promise<T> {
+type RiotGetOptions = {
+	forceFresh?: boolean;
+	operation?: string;
+};
+
+async function riotGet<T>(url: string, credential: RiotApiCredential, options: RiotGetOptions = {}): Promise<T> {
 	const requestUrl = new URL(url);
-	const maxAttempts = credential === "overlay" && !options.overlayKeyId ? Math.max(1, overlayApiKeys.length) : 1;
-	let lastError: RiotApiError | null = null;
+	const key = apiKey(credential);
 
-	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-		const key = apiKey(credential, options.overlayKeyId);
-		if (credential === "overlay") await paceOverlayRequest(key);
-		const response = await fetch(requestUrl, {
-			headers: {
-				"X-Riot-Token": key,
-				...(options.forceFresh ? { "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache" } : {}),
-			},
-			cache: "no-store",
-			// Belt-and-suspenders: Next's fetch wrapper sometimes ignores cache:"no-store"
-			// in route handlers, so explicitly disable its data cache too.
-			next: { revalidate: 0 },
-		});
+	if (isObsCredential(credential)) {
+		await paceObsRequest(credential);
+	}
 
-		if (response.ok) return (await response.json()) as T;
+	const fetchOptions: RequestInit & { next: { revalidate: number } } = {
+		headers: {
+			"X-Riot-Token": key,
+			...(options.forceFresh
+				? {
+						"Cache-Control": "no-cache, no-store, max-age=0",
+						Pragma: "no-cache",
+					}
+				: {}),
+		},
+		cache: "no-store",
+		next: { revalidate: 0 },
+	};
 
-		let detail = "";
-		try {
-			const body = (await response.json()) as { status?: { message?: string } };
-			detail = body.status?.message ?? "";
-		} catch {
-			// ignore
-		}
-		const decryptFailure = response.status === 400 && detail.toLowerCase().includes("decrypt");
-		const retryableKeyFailure = response.status === 401 || response.status === 403 || response.status === 429;
+	const response = await fetch(requestUrl, fetchOptions);
 
-		if (credential === "overlay") {
-			const state = getOverlayKeyState(key);
-			if (response.status === 429) {
-				const retryAfter = Math.max(1, Number(response.headers.get("Retry-After") ?? "1") || 1);
-				state.blockedUntil = Math.max(state.blockedUntil, Date.now() + retryAfter * 1000);
-			} else if (response.status === 401 || response.status === 403) {
-				// Invalid or expired keys should not poison subsequent overlay requests.
-				state.blockedUntil = Math.max(state.blockedUntil, Date.now() + 5 * 60 * 1000);
-			}
-		}
+	if (response.ok) {
+		return (await response.json()) as T;
+	}
 
-		const message =
-			response.status === 401 || response.status === 403
-				? "Riot-API-Key ungültig oder abgelaufen."
-				: decryptFailure
-					? "Die gespeicherte Riot-Kennung ist nicht mehr gültig und muss neu aufgelöst werden."
+	const rawBody = await response.text();
+	let detail = rawBody;
+
+	try {
+		const body = JSON.parse(rawBody) as {
+			status?: {
+				status_code?: number;
+				message?: string;
+			};
+		};
+		detail = body.status?.message ?? rawBody;
+	} catch {
+		// Riot did not return JSON.
+	}
+
+	if (isObsCredential(credential) && response.status === 429) {
+		const state = getCredentialState(credential);
+		const retryAfterSeconds = Math.max(1, Number(response.headers.get("Retry-After") ?? "1") || 1);
+		state.blockedUntil = Math.max(state.blockedUntil, Date.now() + retryAfterSeconds * 1_000);
+	}
+
+	console.error("[riot] request failed", {
+		operation: options.operation ?? "unknown",
+		credential,
+		status: response.status,
+		statusText: response.statusText,
+		endpoint: requestUrl.toString(),
+		detail,
+		rawBody,
+	});
+
+	const decryptFailure = response.status === 400 && detail.toLowerCase().includes("decrypt");
+
+	const message =
+		response.status === 401 || response.status === 403
+			? `Riot-API-Key "${credential}" ist ungültig oder abgelaufen.`
+			: decryptFailure
+				? `Die Riot-Kennung gehört nicht zum API-Zugang "${credential}" oder ist ungültig. Sie muss mit diesem Zugang neu aufgelöst werden.`
 				: response.status === 404
 					? "Riot-Account nicht gefunden."
 					: response.status === 429
-						? "Riot-Rate-Limit erreicht — kurz warten und erneut versuchen."
+						? `Riot-Rate-Limit für "${credential}" erreicht. Kurz warten und erneut versuchen.`
 						: `Riot-API-Fehler ${response.status}${detail ? `: ${detail}` : ""}`;
-		lastError = new RiotApiError(response.status, requestUrl.toString(), message);
 
-		if (credential !== "overlay" || !retryableKeyFailure || attempt === maxAttempts - 1) {
-			throw lastError;
-		}
-	}
-
-	throw lastError ?? new RiotApiError(500, requestUrl.toString(), "Riot-API-Anfrage fehlgeschlagen.");
+	throw new RiotApiError(response.status, requestUrl.toString(), message, credential, detail);
 }
 
 export type RiotAccount = {
@@ -410,53 +450,60 @@ const riotCache = globalThis as unknown as {
 export function parseRiotId(raw: string): { gameName: string; tagLine: string } {
 	const trimmed = raw.trim();
 	const hashIndex = trimmed.lastIndexOf("#");
+
 	if (hashIndex <= 0 || hashIndex === trimmed.length - 1) {
 		throw new Error("Riot-ID muss im Format Name#TAG vorliegen.");
 	}
+
 	const gameName = trimmed.slice(0, hashIndex).trim();
 	const tagLine = trimmed.slice(hashIndex + 1).trim();
+
 	if (!gameName || !tagLine) {
 		throw new Error("Riot-ID muss im Format Name#TAG vorliegen.");
 	}
+
 	return { gameName, tagLine };
 }
 
 export async function getAccountByRiotId(gameName: string, tagLine: string): Promise<RiotAccount> {
 	const url = `https://${region()}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-	return riotGet<RiotAccount>(url);
+	return riotGet<RiotAccount>(url, "tournament", { operation: "getAccountByRiotId" });
 }
 
 export async function getAccountByRiotIdForRoute(gameName: string, tagLine: string, routing: RiotRoute): Promise<RiotAccount> {
 	const url = `https://${routing.region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-	return riotGet<RiotAccount>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<RiotAccount>(url, routing.credential, { operation: "getAccountByRiotIdForRoute" });
 }
 
 export async function getAccountByPuuidForRoute(puuid: string, routing: RiotRoute): Promise<RiotAccount> {
 	const url = `https://${routing.region}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`;
-	return riotGet<RiotAccount>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<RiotAccount>(url, routing.credential, { operation: "getAccountByPuuidForRoute" });
 }
 
 export async function getAccountByPuuid(puuid: string): Promise<RiotAccount> {
 	const url = `https://${region()}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`;
-	return riotGet<RiotAccount>(url);
+	return riotGet<RiotAccount>(url, "tournament", { operation: "getAccountByPuuid" });
 }
 
 export async function getSummonerByPuuid(puuid: string, options: { forceFresh?: boolean } = {}): Promise<RiotSummoner> {
 	const url = `https://${platform()}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(puuid)}`;
-	return riotGet<RiotSummoner>(url, "tournament", options);
+	return riotGet<RiotSummoner>(url, "tournament", {
+		forceFresh: options.forceFresh,
+		operation: "getSummonerByPuuid",
+	});
 }
 
 export async function getSummonerByPuuidForRoute(puuid: string, routing: RiotRoute): Promise<RiotSummoner> {
 	const url = `https://${routing.platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(puuid)}`;
-	return riotGet<RiotSummoner>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<RiotSummoner>(url, routing.credential, { operation: "getSummonerByPuuidForRoute" });
 }
 
 export async function getLeagueEntriesByPuuid(puuid: string): Promise<RiotLeagueEntry[]> {
 	const url = `https://${platform()}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
+
 	try {
-		return await riotGet<RiotLeagueEntry[]>(url);
+		return await riotGet<RiotLeagueEntry[]>(url, "tournament", { operation: "getLeagueEntriesByPuuid" });
 	} catch (error) {
-		// 404 means no ranked entries — treat as unranked.
 		if (error instanceof RiotApiError && error.status === 404) return [];
 		throw error;
 	}
@@ -464,8 +511,9 @@ export async function getLeagueEntriesByPuuid(puuid: string): Promise<RiotLeague
 
 export async function getLeagueEntriesByPuuidForRoute(puuid: string, routing: RiotRoute): Promise<RiotLeagueEntry[]> {
 	const url = `https://${routing.platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
+
 	try {
-		return await riotGet<RiotLeagueEntry[]>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+		return await riotGet<RiotLeagueEntry[]>(url, routing.credential, { operation: "getLeagueEntriesByPuuidForRoute" });
 	} catch (error) {
 		if (error instanceof RiotApiError && error.status === 404) return [];
 		throw error;
@@ -474,12 +522,12 @@ export async function getLeagueEntriesByPuuidForRoute(puuid: string, routing: Ri
 
 export async function getChallengerLeagueForRoute(routing: RiotRoute): Promise<RiotApexLeague> {
 	const url = `https://${routing.platform}.api.riotgames.com/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5`;
-	return riotGet<RiotApexLeague>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<RiotApexLeague>(url, routing.credential, { operation: "getChallengerLeagueForRoute" });
 }
 
 export async function getGrandmasterLeagueForRoute(routing: RiotRoute): Promise<RiotApexLeague> {
 	const url = `https://${routing.platform}.api.riotgames.com/lol/league/v4/grandmasterleagues/by-queue/RANKED_SOLO_5x5`;
-	return riotGet<RiotApexLeague>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<RiotApexLeague>(url, routing.credential, { operation: "getGrandmasterLeagueForRoute" });
 }
 
 export async function getMatchIdsByPuuid(
@@ -490,33 +538,40 @@ export async function getMatchIdsByPuuid(
 		start: "0",
 		count: String(Math.min(Math.max(input.count ?? 20, 1), 100)),
 	});
+
 	if (input.startTime) params.set("startTime", String(input.startTime));
 	if (input.type) params.set("type", input.type);
+
 	const url = `https://${region()}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`;
-	return riotGet<string[]>(url);
+	return riotGet<string[]>(url, "tournament", { operation: "getMatchIdsByPuuid" });
 }
 
 export async function getMatchById(matchId: string): Promise<RiotMatch> {
 	riotCache.__riotMatchCache ??= new Map();
 	riotCache.__riotMatchRequests ??= new Map();
-	const cached = riotCache.__riotMatchCache.get(matchId);
+
+	const cacheKey = `tournament:${region()}:${matchId}`;
+	const cached = riotCache.__riotMatchCache.get(cacheKey);
 	if (cached) return cached;
-	const pending = riotCache.__riotMatchRequests.get(matchId);
+
+	const pending = riotCache.__riotMatchRequests.get(cacheKey);
 	if (pending) return pending;
 
 	const url = `https://${region()}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
-	const request = riotGet<RiotMatch>(url)
+	const request = riotGet<RiotMatch>(url, "tournament", { operation: "getMatchById" })
 		.then((match) => {
-			riotCache.__riotMatchCache?.set(matchId, match);
-			// Matches are immutable; retain a useful bounded working set per process.
-			if ((riotCache.__riotMatchCache?.size ?? 0) > 250) {
+			riotCache.__riotMatchCache?.set(cacheKey, match);
+
+			if ((riotCache.__riotMatchCache?.size ?? 0) > 500) {
 				const oldest = riotCache.__riotMatchCache?.keys().next().value;
 				if (oldest) riotCache.__riotMatchCache?.delete(oldest);
 			}
+
 			return match;
 		})
-		.finally(() => riotCache.__riotMatchRequests?.delete(matchId));
-	riotCache.__riotMatchRequests.set(matchId, request);
+		.finally(() => riotCache.__riotMatchRequests?.delete(cacheKey));
+
+	riotCache.__riotMatchRequests.set(cacheKey, request);
 	return request;
 }
 
@@ -525,41 +580,53 @@ export async function getMatchIdsByPuuidForRoute(
 	routing: RiotRoute,
 	input: { startTime?: number; count?: number; queue?: number; type?: "ranked" | "normal" | "tourney" | "tutorial" } = {}
 ): Promise<string[]> {
-	const params = new URLSearchParams({ start: "0", count: String(Math.min(Math.max(input.count ?? 20, 1), 100)) });
+	const params = new URLSearchParams({
+		start: "0",
+		count: String(Math.min(Math.max(input.count ?? 20, 1), 100)),
+	});
+
 	if (input.startTime) params.set("startTime", String(input.startTime));
 	if (input.queue) params.set("queue", String(input.queue));
 	if (input.type) params.set("type", input.type);
+
 	const url = `https://${routing.region}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`;
-	return riotGet<string[]>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+	return riotGet<string[]>(url, routing.credential, { operation: "getMatchIdsByPuuidForRoute" });
 }
 
 export async function getMatchByIdForRoute(matchId: string, routing: RiotRoute): Promise<RiotMatch> {
-	const key = `${routing.region}:${routing.overlayKeyId ?? "rotating"}:${matchId}`;
+	const cacheKey = `${routing.credential}:${routing.region}:${matchId}`;
 	riotCache.__riotMatchCache ??= new Map();
 	riotCache.__riotMatchRequests ??= new Map();
-	const cached = riotCache.__riotMatchCache.get(key);
+
+	const cached = riotCache.__riotMatchCache.get(cacheKey);
 	if (cached) return cached;
-	const pending = riotCache.__riotMatchRequests.get(key);
+
+	const pending = riotCache.__riotMatchRequests.get(cacheKey);
 	if (pending) return pending;
+
 	const url = `https://${routing.region}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
-	const request = riotGet<RiotMatch>(url, "overlay", { overlayKeyId: routing.overlayKeyId })
+	const request = riotGet<RiotMatch>(url, routing.credential, { operation: "getMatchByIdForRoute" })
 		.then((match) => {
-			riotCache.__riotMatchCache?.set(key, match);
+			riotCache.__riotMatchCache?.set(cacheKey, match);
+
 			if ((riotCache.__riotMatchCache?.size ?? 0) > 500) {
 				const oldest = riotCache.__riotMatchCache?.keys().next().value;
 				if (oldest) riotCache.__riotMatchCache?.delete(oldest);
 			}
+
 			return match;
 		})
-		.finally(() => riotCache.__riotMatchRequests?.delete(key));
-	riotCache.__riotMatchRequests.set(key, request);
+		.finally(() => riotCache.__riotMatchRequests?.delete(cacheKey));
+
+	riotCache.__riotMatchRequests.set(cacheKey, request);
 	return request;
 }
 
 export async function getActiveGameByPuuidForRoute(puuid: string, routing: RiotRoute): Promise<RiotActiveGame | null> {
 	const url = `https://${routing.platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(puuid)}`;
+
 	try {
-		return await riotGet<RiotActiveGame>(url, "overlay", { overlayKeyId: routing.overlayKeyId });
+		return await riotGet<RiotActiveGame>(url, routing.credential, { operation: "getActiveGameByPuuidForRoute" });
 	} catch (error) {
 		if (error instanceof RiotApiError && error.status === 404) return null;
 		throw error;
@@ -567,10 +634,9 @@ export async function getActiveGameByPuuidForRoute(puuid: string, routing: RiotR
 }
 
 /**
- * Icons 0–28 are the original "default" summoner icons available to every account.
- * Safe to use as a verification challenge pool — every player can switch to any of them.
+ * Icons 0–28 are the original default summoner icons available to every account.
  */
-export const DEFAULT_ICON_POOL: number[] = Array.from({ length: 29 }, (_, i) => i);
+export const DEFAULT_ICON_POOL: number[] = Array.from({ length: 29 }, (_, index) => index);
 
 export function pickChallengeIcon(excludeIconId: number): number {
 	const pool = DEFAULT_ICON_POOL.filter((id) => id !== excludeIconId);
@@ -578,7 +644,6 @@ export function pickChallengeIcon(excludeIconId: number): number {
 }
 
 export function profileIconUrl(iconId: number): string {
-	// Community Dragon serves any historical profile icon by ID without versioning.
 	return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${iconId}.jpg`;
 }
 
@@ -592,9 +657,10 @@ export function itemIconUrl(itemId: number, gameVersion: string): string {
 }
 
 export function formatRank(entries: RiotLeagueEntry[]): string | null {
-	const solo = entries.find((e) => e.queueType === "RANKED_SOLO_5x5");
-	const flex = entries.find((e) => e.queueType === "RANKED_FLEX_SR");
+	const solo = entries.find((entry) => entry.queueType === "RANKED_SOLO_5x5");
+	const flex = entries.find((entry) => entry.queueType === "RANKED_FLEX_SR");
 	const chosen = solo ?? flex;
+
 	if (!chosen) return null;
 	return `${chosen.tier} ${chosen.rank} (${chosen.leaguePoints} LP)`;
 }

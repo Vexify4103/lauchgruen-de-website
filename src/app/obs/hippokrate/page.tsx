@@ -1,5 +1,5 @@
 import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
-import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,9 @@ export default async function HippokrateObsPage({ searchParams }: { searchParams
 		};
 	}
 
-	return <LauchgruenPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/hippokrate${preview ? "?test=1" : ""}`} layout="hippokrate" forceVisible={preview} />;
+	return (
+		<LauchgruenPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/hippokrate${preview ? "?test=1" : ""}`} layout="hippokrate" forceVisible={preview} />
+	);
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {

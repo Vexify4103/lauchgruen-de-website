@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { LauchgruenObsResponse } from "@/lib/lauchgruen-obs";
+import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { AkumaOverlay } from "@/components/obs/AkumaOverlay";
 import { N4cht4r4Overlay } from "@/components/obs/N4cht4r4Overlay";
 import { RankPortraitOverlay } from "@/components/obs/RankPortraitOverlay";
