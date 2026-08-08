@@ -33,6 +33,7 @@ const RANK_CACHE_MS = 60_000;
 const HISTORY_CACHE_MS = 45_000;
 const LIVE_QUEUE_CACHE_MS = 60_000;
 const LIVE_QUEUE_STALE_MS = 10 * 60_000;
+const LIVE_QUEUE_RATE_LIMIT_CACHE_MS = 2 * 60_000;
 
 const TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
 const DIVISION_ORDER = ["IV", "III", "II", "I"] as const;
@@ -189,7 +190,7 @@ const g = globalThis as unknown as {
 	__streamerObsRankRequests?: Map<string, Promise<RiotLeagueEntry[]>>;
 	__streamerObsMatchIds?: Map<string, { expiresAt: number; data: string[] }>;
 	__streamerObsMatchIdRequests?: Map<string, Promise<string[]>>;
-	__streamerObsLiveQueues?: Map<string, { queueId: number | null; fetchedAt: number }>;
+	__streamerObsLiveQueues?: Map<string, { queueId: number | null; fetchedAt: number; retryAt?: number }>;
 	__streamerObsSelectedAccounts?: Map<string, { accountKey: string; streamId: string }>;
 	__streamerObsSelectedQueues?: Map<string, { queueId: 420 | 440; streamId: string }>;
 };
@@ -520,7 +521,7 @@ async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId?: numbe
 
 	const request = getMatchIdsByPuuidForRoute(puuid, routing, {
 		...(queueId ? { queue: queueId } : {}),
-		count: 12,
+		count: 8,
 		type: "ranked",
 	})
 		.then((data) => {
@@ -574,6 +575,7 @@ async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing
 	g.__streamerObsLiveQueues ??= new Map();
 	const cacheKey = `${routing.credential}:${config.slug}:${puuid}`;
 	const cached = g.__streamerObsLiveQueues.get(cacheKey);
+	if (cached?.retryAt && cached.retryAt > Date.now()) return cached.queueId;
 	if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_CACHE_MS) return cached.queueId;
 	try {
 		const activeGame = await getActiveGameByPuuidForRoute(puuid, routing);
@@ -582,11 +584,18 @@ async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing
 		return queueId;
 	} catch (error) {
 		// A transient Riot outage must not flash an active OBS source off-screen.
-		if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_STALE_MS) return cached.queueId;
+		if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_STALE_MS) {
+			g.__streamerObsLiveQueues.set(cacheKey, {
+				queueId: cached.queueId,
+				fetchedAt: cached.fetchedAt,
+				...(error instanceof RiotApiError && error.status === 429 ? { retryAt: Date.now() + LIVE_QUEUE_RATE_LIMIT_CACHE_MS } : {}),
+			});
+			return cached.queueId;
+		}
 		// On a cold start there is no previous queue to reuse. A rate limit should
 		// hide the ranked-only source for one refresh instead of failing the API.
 		if (error instanceof RiotApiError && error.status === 429) {
-			g.__streamerObsLiveQueues.set(cacheKey, { queueId: null, fetchedAt: Date.now() });
+			g.__streamerObsLiveQueues.set(cacheKey, { queueId: null, fetchedAt: Date.now(), retryAt: Date.now() + LIVE_QUEUE_RATE_LIMIT_CACHE_MS });
 			return null;
 		}
 		throw error;

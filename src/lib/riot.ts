@@ -43,10 +43,13 @@ type RiotKeyState = {
 };
 
 const SHORT_WINDOW_MS = 1_000;
-const SHORT_WINDOW_LIMIT = 20;
+// Keep headroom for Riot's stricter per-method limits and parallel app instances.
+const SHORT_WINDOW_LIMIT = 10;
 const LONG_WINDOW_MS = 120_000;
-const LONG_WINDOW_LIMIT = 100;
+const LONG_WINDOW_LIMIT = 80;
 const MAX_RATE_LIMIT_WAIT_MS = 5_000;
+const DEFAULT_RIOT_BACKOFF_MS = 10_000;
+const SERVER_RATE_LIMIT_BACKOFF_MS = 60_000;
 const RIOT_RATE_STATE_VERSION = 3;
 
 const riotRateState = globalThis as unknown as {
@@ -315,24 +318,36 @@ async function riotGet<T>(url: string, credential: RiotApiCredential, options: R
 		// Riot did not return JSON.
 	}
 
+	let rateLimitBackoffMs = 0;
 	if (isObsCredential(credential) && response.status === 429) {
 		const state = getCredentialState(credential);
-		const retryAfterSeconds = Math.max(1, Number(response.headers.get("Retry-After") ?? "1") || 1);
-		state.blockedUntil = Math.max(state.blockedUntil, Date.now() + retryAfterSeconds * 1_000);
+		const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+		const fallbackBackoffMs = detail.toLowerCase().includes("server rate limit") ? SERVER_RATE_LIMIT_BACKOFF_MS : DEFAULT_RIOT_BACKOFF_MS;
+		rateLimitBackoffMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1_000 : fallbackBackoffMs;
+		state.blockedUntil = Math.max(state.blockedUntil, Date.now() + rateLimitBackoffMs);
 	}
 
 	const expectedStatus = options.expectedStatuses?.includes(response.status) ?? false;
 
 	if (!expectedStatus) {
-		console.error("[riot] request failed", {
-			operation: options.operation ?? "unknown",
-			credential,
-			status: response.status,
-			statusText: response.statusText,
-			endpoint: requestUrl.toString(),
-			detail,
-			rawBody,
-		});
+		if (response.status === 429) {
+			console.warn("[riot] request throttled", {
+				operation: options.operation ?? "unknown",
+				credential,
+				detail,
+				retryAfterSeconds: Math.ceil(rateLimitBackoffMs / 1_000),
+			});
+		} else {
+			console.error("[riot] request failed", {
+				operation: options.operation ?? "unknown",
+				credential,
+				status: response.status,
+				statusText: response.statusText,
+				endpoint: requestUrl.toString(),
+				detail,
+				rawBody,
+			});
+		}
 	}
 
 	const decryptFailure = response.status === 400 && detail.toLowerCase().includes("decrypt");
