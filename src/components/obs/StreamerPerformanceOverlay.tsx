@@ -89,9 +89,8 @@ export function StreamerPerformanceOverlay({
 			<RankPortraitOverlay
 				riotId={data.riotId}
 				profileIconUrl={data.profileIconUrl}
-				rank={data.rank ? { tier: data.rank.tier, division: data.rank.rank, leaguePoints: data.rank.leaguePoints, wins: data.rank.wins, losses: data.rank.losses } : null}
-				sessionWins={data.sessionWins}
-				sessionLosses={data.sessionLosses}
+				soloRank={toPortraitRank(data.soloRank ?? (data.rank?.queueType === "RANKED_SOLO_5x5" ? data.rank : null))}
+				flexRank={toPortraitRank(data.flexRank ?? (data.rank?.queueType === "RANKED_FLEX_SR" ? data.rank : null))}
 			/>
 		);
 	}
@@ -107,4 +106,8 @@ export function StreamerPerformanceOverlay({
 	if (layout === "hippokrate") return <HippokrateOverlay data={data} lpTone={tone} />;
 	if (variant === "small") return <LauchgruenSmallOverlay data={data} pulseKey={pulseKey} title={title} rankProgress={rankProgress} lpTone={tone} />;
 	return <LauchgruenOverlay data={data} pulseKey={pulseKey} displayDurationSeconds={displayDurationSeconds} title={title} rankProgress={rankProgress} lpTone={tone} />;
+}
+
+function toPortraitRank(rank: LauchgruenObsResponse["rank"]) {
+	return rank ? { tier: rank.tier, division: rank.rank, leaguePoints: rank.leaguePoints, wins: rank.wins, losses: rank.losses } : null;
 }

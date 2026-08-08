@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useId, useState, type CSSProperties } from "react";
 
 export type RankPortraitRank = {
 	tier: string;
@@ -62,20 +62,29 @@ const CREST_ROOT = "https://raw.communitydragon.org/latest/game/assets/loadouts/
 export function RankPortraitOverlay({
 	riotId,
 	profileIconUrl,
-	rank,
-	sessionWins,
-	sessionLosses,
+	rank: singleRank,
+	soloRank,
+	flexRank,
+	sessionWins = 0,
+	sessionLosses = 0,
 }: {
 	riotId: string;
 	profileIconUrl: string | null;
-	rank: RankPortraitRank;
-	sessionWins: number;
-	sessionLosses: number;
+	rank?: RankPortraitRank;
+	soloRank?: RankPortraitRank;
+	flexRank?: RankPortraitRank;
+	sessionWins?: number;
+	sessionLosses?: number;
 }) {
 	const [scene, setScene] = useState(0);
+	const flameFilterId = `rank-flame-${useId().replaceAll(":", "")}`;
+	const rotatesQueues = soloRank !== undefined || flexRank !== undefined;
+	const rank = rotatesQueues ? (scene === 0 ? (soloRank ?? null) : (flexRank ?? null)) : (singleRank ?? null);
 	const tier = rank?.tier.toUpperCase() ?? "UNRANKED";
 	const palette = RANK_PALETTES[tier] ?? RANK_PALETTES.UNRANKED;
-	const gameName = riotId.split("#")[0]?.trim() || "Summoner";
+	const [rawGameName, rawTagLine] = riotId.split("#");
+	const gameName = rawGameName?.trim() || "Summoner";
+	const tagLine = rawTagLine?.trim();
 	const overallWins = rank?.wins ?? 0;
 	const overallLosses = rank?.losses ?? 0;
 	const crest = RANK_CRESTS[tier];
@@ -89,15 +98,32 @@ export function RankPortraitOverlay({
 	} as CSSProperties;
 
 	useEffect(() => {
-		const interval = window.setInterval(() => setScene((current) => (current + 1) % 3), 30_000);
+		const interval = window.setInterval(() => setScene((current) => (current + 1) % (rotatesQueues ? 2 : 3)), rotatesQueues ? 15_000 : 30_000);
 		return () => window.clearInterval(interval);
-	}, []);
+	}, [rotatesQueues]);
 
 	return (
 		<div
 			style={style}
 			className="rank-portrait-root flex h-[400px] w-[340px] flex-col items-center justify-start overflow-visible bg-transparent px-5 pt-2 text-center text-white"
 		>
+			<svg aria-hidden className="pointer-events-none absolute size-0" focusable="false">
+				<defs>
+					<filter id={flameFilterId} x="-30%" y="-30%" width="160%" height="175%" colorInterpolationFilters="sRGB">
+						<feTurbulence type="fractalNoise" baseFrequency="0.012 0.075" numOctaves="2" seed="8" result="flameNoise">
+							<animate attributeName="baseFrequency" values="0.012 0.075;0.018 0.12;0.01 0.09;0.012 0.075" dur="4.8s" repeatCount="indefinite" />
+						</feTurbulence>
+						<feDisplacementMap in="SourceGraphic" in2="flameNoise" scale="11" xChannelSelector="R" yChannelSelector="B" result="flameShape">
+							<animate attributeName="scale" values="7;14;9;12;7" dur="4.2s" repeatCount="indefinite" />
+						</feDisplacementMap>
+						<feGaussianBlur in="flameShape" stdDeviation="1.4" result="flameGlow" />
+						<feMerge>
+							<feMergeNode in="flameGlow" />
+							<feMergeNode in="flameShape" />
+						</feMerge>
+					</filter>
+				</defs>
+			</svg>
 			<div className="rank-portrait-frame relative h-[286px] w-[320px] shrink-0 overflow-visible">
 				<div aria-hidden className="rank-portrait-glow absolute inset-0 m-auto size-[158px] rounded-full" />
 				<div className="rank-portrait-moving-layer absolute inset-0">
@@ -120,37 +146,54 @@ export function RankPortraitOverlay({
 							<img aria-hidden src={crestBaseUrl} alt="" className="rank-portrait-crest-position rank-portrait-crest-aura pointer-events-none z-0 object-contain" />
 							{/* eslint-disable-next-line @next/next/no-img-element */}
 							<img aria-hidden src={crestBaseUrl} alt="" className="rank-portrait-crest-position pointer-events-none z-10 object-contain" />
-							<div aria-hidden style={crestMaskStyle} className="rank-portrait-crest-position rank-portrait-crest-fire pointer-events-none z-[22]" />
+							<div
+								aria-hidden
+								style={{ ...crestMaskStyle, filter: `url(#${flameFilterId}) drop-shadow(0 0 3px var(--rank-primary))` }}
+								className="rank-portrait-crest-position rank-portrait-crest-fire pointer-events-none z-[12]"
+							/>
 						</>
 					) : null}
 				</div>
 			</div>
 
-			<div className="relative z-10 -mt-6 max-w-full truncate px-3 text-[27px] font-black tracking-[-0.035em] text-white [text-shadow:0_3px_12px_rgba(0,0,0,.95)]">
-				{gameName}
+			<div className="relative z-10 -mt-6 flex max-w-full items-baseline justify-center gap-1.5 truncate px-3 [text-shadow:0_3px_12px_rgba(0,0,0,.95)]">
+				<span className="truncate text-[25px] font-black tracking-[-0.035em] text-white">{gameName}</span>
+				{rotatesQueues && tagLine ? <span className="shrink-0 text-[16px] font-black text-white/65">#{tagLine}</span> : null}
 			</div>
-			<div key={scene} className="rank-portrait-stat mt-1.5 min-h-8 text-[19px] font-black [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
-				{scene === 0 ? (
-					<>
-						<span className="text-[var(--rank-primary)]">{rank ? `${RANK_LABELS[tier] ?? tier}${isApexTier(tier) ? "" : ` ${rank.division}`}` : "Unranked"}</span>
-						{rank ? <span className="ml-2 text-white">{rank.leaguePoints} LP</span> : null}
-					</>
-				) : scene === 1 ? (
-					<>
-						<span className="text-[var(--rank-primary)]">Session</span>
-						<span className="ml-2 text-white">
-							{sessionWins}W · {sessionLosses}L
+			{rotatesQueues ? (
+				<>
+					<div key={scene} className="rank-portrait-stat mt-1.5 flex min-h-12 flex-col items-center [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
+						<span className="mb-0.5 rounded-full border border-[var(--rank-primary)]/45 bg-black/35 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.19em] text-[var(--rank-highlight)]">
+							{scene === 0 ? "Solo/Duo" : "Ranked Flex"}
 						</span>
-					</>
-				) : (
-					<>
-						<span className="text-[var(--rank-primary)]">Gesamt</span>
-						<span className="ml-2 text-white">
-							{overallWins}W · {overallLosses}L
-						</span>
-					</>
-				)}
-			</div>
+						<RankLine rank={rank} tier={tier} />
+					</div>
+					<div className="mt-1 flex items-center gap-1.5" aria-label={scene === 0 ? "Solo/Duo wird angezeigt" : "Ranked Flex wird angezeigt"}>
+						<span className={`h-1 rounded-full transition-all duration-500 ${scene === 0 ? "w-5 bg-[var(--rank-primary)]" : "w-1.5 bg-white/30"}`} />
+						<span className={`h-1 rounded-full transition-all duration-500 ${scene === 1 ? "w-5 bg-[var(--rank-primary)]" : "w-1.5 bg-white/30"}`} />
+					</div>
+				</>
+			) : (
+				<div key={scene} className="rank-portrait-stat mt-1.5 min-h-8 text-[19px] font-black [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
+					{scene === 0 ? (
+						<RankLine rank={rank} tier={tier} />
+					) : scene === 1 ? (
+						<>
+							<span className="text-[var(--rank-primary)]">Session</span>
+							<span className="ml-2 text-white">
+								{sessionWins}W · {sessionLosses}L
+							</span>
+						</>
+					) : (
+						<>
+							<span className="text-[var(--rank-primary)]">Gesamt</span>
+							<span className="ml-2 text-white">
+								{overallWins}W · {overallLosses}L
+							</span>
+						</>
+					)}
+				</div>
+			)}
 
 			<style>{`
 				@keyframes rank-portrait-breathe {
@@ -177,15 +220,16 @@ export function RankPortraitOverlay({
 					70% { transform: rotate(-245deg) scale(.96, 1.05); opacity: .82; }
 				}
 				@keyframes rank-portrait-flame-tongues-a {
-					0%, 100% { transform: translateY(6px) skewX(-2deg) scale(.98, .82); opacity: .64; }
-					27% { transform: translateY(-4px) skewX(4deg) scale(1.03, 1.12); opacity: .98; }
-					58% { transform: translateY(1px) skewX(-5deg) scale(.96, .94); opacity: .76; }
-					81% { transform: translateY(-7px) skewX(2deg) scale(1.01, 1.08); opacity: .94; }
+					0% { transform: translateY(18px) skewX(-3deg) scale(.98, .78); opacity: .2; }
+					24% { opacity: 1; }
+					58% { transform: translateY(-3px) skewX(4deg) scale(1.02, 1.08); opacity: .9; }
+					100% { transform: translateY(-25px) skewX(-2deg) scale(.95, 1.18); opacity: 0; }
 				}
 				@keyframes rank-portrait-flame-tongues-b {
-					0%, 100% { transform: translateY(-2px) skewX(4deg) scale(.94, 1.04); opacity: .72; }
-					36% { transform: translateY(5px) skewX(-4deg) scale(1.04, .86); opacity: .58; }
-					69% { transform: translateY(-8px) skewX(1deg) scale(.98, 1.15); opacity: 1; }
+					0% { transform: translateY(22px) skewX(4deg) scale(.94, .74); opacity: .14; }
+					18% { opacity: .88; }
+					62% { transform: translateY(-6px) skewX(-4deg) scale(1.03, 1.12); opacity: .94; }
+					100% { transform: translateY(-31px) skewX(2deg) scale(.92, 1.22); opacity: 0; }
 				}
 				@keyframes rank-portrait-stat-in {
 					0% { opacity: 0; transform: translateX(24px); filter: blur(5px); }
@@ -195,10 +239,10 @@ export function RankPortraitOverlay({
 				.rank-portrait-moving-layer { transform-origin: 50% 50%; animation: rank-portrait-crest-alive 7.2s ease-in-out infinite; }
 				.rank-portrait-crest-position { position: absolute; left: 50%; top: 50%; width: 510px; height: 510px; max-width: none; margin-left: -255px; margin-top: -255px; }
 				.rank-portrait-crest-aura { animation: rank-portrait-aura-flicker 2.7s ease-in-out infinite; }
-				.rank-portrait-crest-fire { overflow: hidden; mix-blend-mode: screen; filter: brightness(1.38) saturate(1.85) contrast(1.08) drop-shadow(0 0 5px var(--rank-primary)); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }
-				.rank-portrait-crest-fire::before, .rank-portrait-crest-fire::after { content: ""; position: absolute; left: 5%; right: 5%; bottom: 10%; height: 60%; transform-origin: 50% 100%; background-repeat: no-repeat; }
-				.rank-portrait-crest-fire::before { background-image: radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 7%, var(--rank-primary) 22%, transparent 64%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 8%, var(--rank-secondary) 24%, transparent 65%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 20%, transparent 62%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 22%, transparent 64%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 5%, var(--rank-primary) 19%, transparent 60%); background-position: 4% 100%, 25% 100%, 49% 100%, 72% 100%, 95% 100%; background-size: 24% 86%, 22% 66%, 25% 96%, 22% 72%, 20% 88%; animation: rank-portrait-flame-tongues-a 2.15s ease-in-out infinite; }
-				.rank-portrait-crest-fire::after { bottom: 18%; height: 50%; background-image: radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 20%, transparent 61%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 21%, transparent 63%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 5%, var(--rank-primary) 18%, transparent 60%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 6%, var(--rank-secondary) 20%, transparent 61%); background-position: 13% 100%, 39% 100%, 66% 100%, 89% 100%; background-size: 25% 76%, 22% 95%, 24% 72%, 21% 88%; animation: rank-portrait-flame-tongues-b 1.73s ease-in-out infinite; }
+				.rank-portrait-crest-fire { overflow: hidden; mix-blend-mode: screen; opacity: .96; background: transparent; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }
+				.rank-portrait-crest-fire::before, .rank-portrait-crest-fire::after { content: ""; position: absolute; inset: -10% 2% -8%; transform-origin: 50% 100%; background-repeat: no-repeat; will-change: transform, opacity; }
+				.rank-portrait-crest-fire::before { background-image: radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 7%, var(--rank-primary) 19%, transparent 58%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 8%, var(--rank-secondary) 21%, transparent 60%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 56%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 59%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 55%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 58%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 19%, transparent 57%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 59%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 56%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 8%, var(--rank-secondary) 21%, transparent 60%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 7%, var(--rank-primary) 19%, transparent 58%); background-position: -1% 70%, 9% 64%, 19% 73%, 29% 61%, 39% 69%, 50% 63%, 61% 70%, 71% 60%, 81% 72%, 91% 64%, 101% 69%; background-size: 13% 48%, 12% 36%, 13% 55%, 12% 41%, 13% 51%, 13% 38%, 13% 53%, 12% 40%, 13% 56%, 12% 37%, 13% 49%; animation: rank-portrait-flame-tongues-a 2.35s cubic-bezier(.45,0,.55,1) infinite; }
+				.rank-portrait-crest-fire::after { inset: -6% 4% -4%; background-image: radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 56%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 58%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 55%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 19%, transparent 57%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 56%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 58%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 55%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 19%, transparent 57%), radial-gradient(ellipse at 50% 100%, var(--rank-highlight) 0 6%, var(--rank-primary) 18%, transparent 56%), radial-gradient(ellipse at 50% 100%, var(--rank-primary) 0 7%, var(--rank-secondary) 20%, transparent 58%); background-position: 4% 76%, 14% 69%, 24% 78%, 35% 67%, 46% 75%, 57% 68%, 68% 77%, 78% 66%, 89% 75%, 99% 70%; background-size: 12% 34%, 11% 47%, 12% 38%, 11% 50%, 12% 35%, 11% 46%, 12% 37%, 11% 49%, 12% 35%, 11% 44%; animation: rank-portrait-flame-tongues-b 1.95s cubic-bezier(.4,0,.6,1) -.8s infinite; }
 				.rank-portrait-fire { background: conic-gradient(from 20deg, transparent 0 7%, var(--rank-primary) 12%, transparent 19% 29%, var(--rank-highlight) 34%, transparent 41% 57%, var(--rank-secondary) 64%, transparent 72% 84%, var(--rank-primary) 91%, transparent); filter: blur(7px) drop-shadow(0 0 8px var(--rank-shadow)); opacity: .62; -webkit-mask: radial-gradient(circle, transparent 47%, #000 57% 73%, transparent 83%); mask: radial-gradient(circle, transparent 47%, #000 57% 73%, transparent 83%); animation: rank-portrait-fire-spin 4.6s linear infinite; }
 				.rank-portrait-fire-core { background: conic-gradient(from 210deg, transparent, var(--rank-highlight), transparent 22%, var(--rank-primary), transparent 48%, var(--rank-highlight), transparent 70%); filter: blur(4px) drop-shadow(0 0 6px var(--rank-primary)); opacity: .58; -webkit-mask: radial-gradient(circle, transparent 50%, #000 59% 72%, transparent 82%); mask: radial-gradient(circle, transparent 50%, #000 59% 72%, transparent 82%); animation: rank-portrait-fire-drift 3.1s ease-in-out infinite; }
 				.rank-portrait-stat { animation: rank-portrait-stat-in 680ms cubic-bezier(.22,.8,.2,1); }
@@ -209,4 +253,13 @@ export function RankPortraitOverlay({
 
 function isApexTier(tier: string) {
 	return tier === "MASTER" || tier === "GRANDMASTER" || tier === "CHALLENGER";
+}
+
+function RankLine({ rank, tier }: { rank: RankPortraitRank; tier: string }) {
+	return (
+		<div className="text-[19px] font-black">
+			<span className="text-[var(--rank-primary)]">{rank ? `${RANK_LABELS[tier] ?? tier}${isApexTier(tier) ? "" : ` ${rank.division}`}` : "Unranked"}</span>
+			{rank ? <span className="ml-2 text-white">{rank.leaguePoints} LP</span> : null}
+		</div>
+	);
 }

@@ -143,7 +143,6 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		twitchLogin: process.env.HAPPYGIGANTO_OBS_TWITCH_LOGIN?.trim() || "happygiganto",
 		riotGameName: process.env.HAPPYGIGANTO_OBS_RIOT_GAME_NAME?.trim() || "cutie patootie",
 		riotTagLine: process.env.HAPPYGIGANTO_OBS_RIOT_TAG_LINE?.trim() || "happy",
-		alternateAccounts: alternateAccounts("HAPPYGIGANTO", ["baby princess#twin"]),
 	},
 	nachtdienst: {
 		slug: "nachtdienst",
@@ -222,6 +221,8 @@ export type LauchgruenObsResponse = {
 	streamDurationSeconds: number;
 	viewerCount: number;
 	rank: RankSnapshot;
+	soloRank?: RankSnapshot;
+	flexRank?: RankSnapshot;
 	baselineRank: RankSnapshot;
 	lpDelta: number;
 	sessionWins: number;
@@ -678,6 +679,8 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 	const persistedQueueId = resolvedAccount.selectedQueueStreamId === stream?.id ? resolvedAccount.selectedQueueId : undefined;
 	const displayQueueId: 420 | 440 = detectedRankedQueueId ?? rememberedQueueId ?? persistedQueueId ?? 420;
 	const currentRank = rankSnapshot(entries, displayQueueId);
+	const soloRank = rankSnapshot(entries, 420);
+	const flexRank = rankSnapshot(entries, 440);
 	// The test view is a visual preview, not an active queue session. Show the
 	// latest Ranked games across Solo/Duo and Flex so the history and rotating
 	// last-game scene can always be tested while the streamer is offline.
@@ -695,6 +698,8 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 			streamDurationSeconds: 0,
 			viewerCount: 0,
 			rank: currentRank,
+			soloRank,
+			flexRank,
 			baselineRank: currentRank,
 			lpDelta: 0,
 			sessionWins: wins,
@@ -727,6 +732,8 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 		streamDurationSeconds: Math.max(0, Math.floor((Date.now() - new Date(stream.startedAt).getTime()) / 1000)),
 		viewerCount: stream.viewerCount,
 		rank: currentRank,
+		soloRank,
+		flexRank,
 		baselineRank: session?.baselineRank ?? currentRank,
 		lpDelta: currentRank && session?.baselineRank ? currentRank.score - session.baselineRank.score : 0,
 		sessionWins: wins,
