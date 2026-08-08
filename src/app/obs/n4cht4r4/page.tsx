@@ -1,4 +1,4 @@
-import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
+import { StreamerPerformanceOverlay } from "@/components/obs/StreamerPerformanceOverlay";
 import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function N4cht4r4ObsPage({ searchParams }: { searchParams: 
 		initial = fallbackSnapshot(error);
 	}
 
-	return <LauchgruenPerformanceOverlay initial={initial} endpoint={`/api/obs/n4cht4r4${preview ? "?test=1" : ""}`} layout="n4cht4r4" forceVisible={preview} />;
+	return <StreamerPerformanceOverlay initial={initial} endpoint={`/api/obs/n4cht4r4${preview ? "?test=1" : ""}`} layout="n4cht4r4" forceVisible={preview} />;
 }
 
 function fallbackSnapshot(error: unknown): LauchgruenObsResponse {

@@ -1,4 +1,4 @@
-import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
+import { StreamerPerformanceOverlay } from "@/components/obs/StreamerPerformanceOverlay";
 import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ export default async function HippokrateObsPage({ searchParams }: { searchParams
 	}
 
 	return (
-		<LauchgruenPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/hippokrate${preview ? "?test=1" : ""}`} layout="hippokrate" forceVisible={preview} />
+		<StreamerPerformanceOverlay initial={initial} variant={variant} endpoint={`/api/obs/hippokrate${preview ? "?test=1" : ""}`} layout="hippokrate" forceVisible={preview} />
 	);
 }
 

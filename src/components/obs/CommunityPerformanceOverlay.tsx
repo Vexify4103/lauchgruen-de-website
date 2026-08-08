@@ -2,14 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { CommunityObsGame, CommunityObsSnapshot } from "@/lib/community-obs";
-import { RankPortraitOverlay } from "@/components/obs/RankPortraitOverlay";
-import {
-	FREEFORM_CANVAS,
-	communityOverlayParams,
-	type CommunityOverlayConfig,
-	type FreeformElementType,
-	type FreeformOverlayElement,
-} from "@/lib/community-overlay-config";
+import { RankPortraitOverlay } from "@/components/obs/happygiganto/RankPortraitOverlay";
+import { FREEFORM_CANVAS, communityOverlayParams, type CommunityOverlayConfig, type FreeformElementType, type FreeformOverlayElement } from "@/lib/community-overlay-config";
 
 export function CommunityPerformanceOverlay({
 	config,
@@ -85,7 +79,8 @@ export function CommunityPerformanceOverlay({
 	if (config.hideOutsideLeague && config.streamer && data.online && !data.leagueLive) {
 		return preview ? <OverlayNotice text="Ausgeblendet: Der Twitch-Kanal streamt gerade nicht League of Legends." /> : null;
 	}
-	if (config.style === "freeform") return <FreeformOverlay data={data} config={config} style={surfaceStyle} clock={clock} editor={preview} editorOptions={freeformEditorOptions} />;
+	if (config.style === "freeform")
+		return <FreeformOverlay data={data} config={config} style={surfaceStyle} clock={clock} editor={preview} editorOptions={freeformEditorOptions} />;
 	if (config.style === "portrait") {
 		return (
 			<RankPortraitOverlay
@@ -134,10 +129,14 @@ function RotatingScenes({ primary, lastGame }: { primary: React.ReactNode; lastG
 	}, []);
 	return (
 		<div className="inline-grid overflow-hidden [&>*]:col-start-1 [&>*]:row-start-1">
-			<div className={`transform-gpu transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(.22,.8,.2,1)] ${showLastGame ? "pointer-events-none -translate-x-[9%] scale-[0.985] opacity-0 blur-sm" : "translate-x-0 scale-100 opacity-100 blur-0"}`}>
+			<div
+				className={`transform-gpu transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(.22,.8,.2,1)] ${showLastGame ? "pointer-events-none -translate-x-[9%] scale-[0.985] opacity-0 blur-sm" : "translate-x-0 scale-100 opacity-100 blur-0"}`}
+			>
 				{primary}
 			</div>
-			<div className={`transform-gpu transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(.22,.8,.2,1)] ${showLastGame ? "translate-x-0 scale-100 opacity-100 blur-0" : "pointer-events-none translate-x-[9%] scale-[0.985] opacity-0 blur-sm"}`}>
+			<div
+				className={`transform-gpu transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(.22,.8,.2,1)] ${showLastGame ? "translate-x-0 scale-100 opacity-100 blur-0" : "pointer-events-none translate-x-[9%] scale-[0.985] opacity-0 blur-sm"}`}
+			>
 				{lastGame}
 			</div>
 		</div>
@@ -150,12 +149,14 @@ function Frame({ children, config, style, className = "" }: { children: React.Re
 			style={style}
 			className={`relative overflow-hidden text-[var(--overlay-text)] ${config.showBorder ? "border" : ""} ${
 				config.showBackground ? "bg-[var(--overlay-background)] shadow-2xl shadow-black/35 backdrop-blur-xl" : "bg-transparent"
-			} ${
-				config.flip ? "[direction:rtl]" : ""
-			} ${className}`}
+			} ${config.flip ? "[direction:rtl]" : ""} ${className}`}
 		>
-			{config.showBorder ? <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--overlay-primary)] to-transparent opacity-80" /> : null}
-			{config.showBackground ? <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-[var(--overlay-secondary)] opacity-[0.09] blur-3xl" /> : null}
+			{config.showBorder ? (
+				<div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--overlay-primary)] to-transparent opacity-80" />
+			) : null}
+			{config.showBackground ? (
+				<div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-[var(--overlay-secondary)] opacity-[0.09] blur-3xl" />
+			) : null}
 			<div className="relative [direction:ltr]">{children}</div>
 		</section>
 	);
@@ -239,7 +240,11 @@ function BannerOverlay({ data, config, style, clock }: OverlayProps) {
 						</div>
 						{config.showQueue ? <QueueBadge data={data} className="mt-1" /> : null}
 					</div>
-					{config.showGoal && data.rank ? <div className="w-64"><Progress rank={data.rank} config={config} apexGoals={data.apexGoals} /></div> : null}
+					{config.showGoal && data.rank ? (
+						<div className="w-64">
+							<Progress rank={data.rank} config={config} apexGoals={data.apexGoals} />
+						</div>
+					) : null}
 					{config.showWinRate ? <HeroStat label="Session-WR" value={`${sessionWinRate(data)}%`} /> : null}
 					<HeroStat label="Session" value={`${data.sessionWins}W · ${data.sessionLosses}L`} />
 					{config.showLp ? <HeroStat label="LP" value={sessionLpLabel(data, false)} tone={sessionLpTone(data)} /> : null}
@@ -323,12 +328,20 @@ function FloatingOverlay({ data, config, style, clock }: OverlayProps) {
 					<span className="mx-1.5 opacity-50">/</span>
 					<span className="text-rose-300">{data.sessionLosses}L</span>
 				</div>
-				{config.showLp ? <div className={!data.lpDeltaAvailable ? "opacity-45" : data.lpDelta > 0 ? "text-emerald-300" : data.lpDelta < 0 ? "text-rose-300" : "opacity-70"}>{sessionLpLabel(data)}</div> : null}
+				{config.showLp ? (
+					<div className={!data.lpDeltaAvailable ? "opacity-45" : data.lpDelta > 0 ? "text-emerald-300" : data.lpDelta < 0 ? "text-rose-300" : "opacity-70"}>
+						{sessionLpLabel(data)}
+					</div>
+				) : null}
 				{config.showWinRate ? <div className="opacity-80">{sessionWinRate(data)}% Session-WR</div> : null}
 				{data.leagueLive ? <div className="text-[var(--overlay-secondary)]">{duration(data.streamStartedAt, clock)}</div> : null}
 			</div>
 
-			{config.showGoal && data.rank ? <div className="mt-3 w-80"><Progress rank={data.rank} config={config} apexGoals={data.apexGoals} /></div> : null}
+			{config.showGoal && data.rank ? (
+				<div className="mt-3 w-80">
+					<Progress rank={data.rank} config={config} apexGoals={data.apexGoals} />
+				</div>
+			) : null}
 			{config.showHistory ? <FloatingHistory games={data.games} rows={config.historyRows} config={config} className="mt-4" /> : null}
 			{config.showLiveGame && data.liveGame ? <FloatingLiveGame data={data.liveGame} showQueue={config.showQueue} clock={clock} /> : null}
 			{config.showStreamerParticipants && !config.showLiveGame && data.liveGame ? <StreamerParticipants data={data.liveGame} floating /> : null}
@@ -339,7 +352,10 @@ function FloatingOverlay({ data, config, style, clock }: OverlayProps) {
 function LastGameOverlay({ game, data, config, style }: { game: CommunityObsGame; data: CommunityObsSnapshot; config: CommunityOverlayConfig; style: CSSProperties }) {
 	if (config.style === "floating") {
 		return (
-			<div style={style} className={`w-[620px] bg-transparent p-5 text-[var(--overlay-text)] [text-shadow:0_2px_9px_rgba(0,0,0,0.98),0_1px_2px_rgba(0,0,0,1)] ${config.flip ? "ml-auto" : ""}`}>
+			<div
+				style={style}
+				className={`w-[620px] bg-transparent p-5 text-[var(--overlay-text)] [text-shadow:0_2px_9px_rgba(0,0,0,0.98),0_1px_2px_rgba(0,0,0,1)] ${config.flip ? "ml-auto" : ""}`}
+			>
 				<LastGameContent game={game} data={data} config={config} floating />
 			</div>
 		);
@@ -359,7 +375,11 @@ function LastGameOverlay({ game, data, config, style }: { game: CommunityObsGame
 	const padding = config.style === "banner" || config.style === "compact" ? "p-3" : "p-4";
 	return (
 		<div className={padding}>
-			<Frame config={config} style={{ ...style, borderColor: "var(--overlay-border)" }} className={`${width} rounded-[1.7rem] ${config.style === "compact" ? "px-4 py-3" : "p-5"}`}>
+			<Frame
+				config={config}
+				style={{ ...style, borderColor: "var(--overlay-border)" }}
+				className={`${width} rounded-[1.7rem] ${config.style === "compact" ? "px-4 py-3" : "p-5"}`}
+			>
 				<LastGameContent game={game} data={data} config={config} compact={config.style === "compact"} banner={config.style === "banner"} />
 			</Frame>
 		</div>
@@ -392,7 +412,9 @@ function LastGameContent({
 			{/* eslint-disable-next-line @next/next/no-img-element */}
 			<img src={game.championIconUrl} alt={game.championName} className="size-full object-cover" />
 			<div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/5 to-black/15" />
-			<div className={`absolute top-2 rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.16em] backdrop-blur-md ${config.flip ? "left-2" : "right-2"} ${resultSurface} ${resultTone}`}>
+			<div
+				className={`absolute top-2 rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.16em] backdrop-blur-md ${config.flip ? "left-2" : "right-2"} ${resultSurface} ${resultTone}`}
+			>
 				{game.win ? "Sieg" : "Niederlage"}
 			</div>
 			<div className={`absolute inset-x-0 bottom-0 px-3 pb-2.5 ${config.flip ? "text-right" : ""}`}>
@@ -418,13 +440,16 @@ function LastGameContent({
 			</div>
 			<div className={`mt-3 flex flex-wrap gap-1.5 ${config.flip ? "flex-row-reverse justify-end" : ""}`}>
 				{game.items.map((item, index) => (
-					<div key={`${item.id}-${index}`} className={`${compact ? "size-7" : "size-9"} overflow-hidden rounded-lg border border-white/20 bg-black/30 shadow-md shadow-black/50`}>
-				{/* OBS needs direct access to Riot's CDN image. */}
-				{/* eslint-disable-next-line @next/next/no-img-element */}
+					<div
+						key={`${item.id}-${index}`}
+						className={`${compact ? "size-7" : "size-9"} overflow-hidden rounded-lg border border-white/20 bg-black/30 shadow-md shadow-black/50`}
+					>
+						{/* OBS needs direct access to Riot's CDN image. */}
+						{/* eslint-disable-next-line @next/next/no-img-element */}
 						<img src={item.iconUrl} alt={`Item ${item.id}`} className="size-full object-cover" />
 					</div>
 				))}
-				</div>
+			</div>
 		</div>
 	);
 
@@ -435,13 +460,21 @@ function LastGameContent({
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={game.championIconUrl} alt={game.championName} className="size-full object-cover" />
 					<div className="absolute inset-0 bg-gradient-to-t from-black via-black/5 to-transparent" />
-					<div className={`absolute top-3 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.16em] backdrop-blur-md ${config.flip ? "left-3" : "right-3"} ${resultSurface} ${resultTone}`}>{game.win ? "Sieg" : "Niederlage"}</div>
+					<div
+						className={`absolute top-3 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.16em] backdrop-blur-md ${config.flip ? "left-3" : "right-3"} ${resultSurface} ${resultTone}`}
+					>
+						{game.win ? "Sieg" : "Niederlage"}
+					</div>
 					<div className={`absolute inset-x-0 bottom-0 p-3.5 ${config.flip ? "text-right" : ""}`}>
 						<div className="text-[7px] font-black uppercase tracking-[0.2em] text-white/55">Letzte Partie</div>
 						<div className="mt-0.5 truncate text-2xl font-black text-white">{game.championName}</div>
 					</div>
 				</div>
-				{config.showQueue ? <div className={`mt-2 flex ${config.flip ? "justify-end" : ""}`}><QueueBadge label={data.rank?.queueLabel ?? "Ranked"} /></div> : null}
+				{config.showQueue ? (
+					<div className={`mt-2 flex ${config.flip ? "justify-end" : ""}`}>
+						<QueueBadge label={data.rank?.queueLabel ?? "Ranked"} />
+					</div>
+				) : null}
 				<div className="mt-3 grid grid-cols-2 gap-2">
 					<LastGameStat label="KDA" value={game.kda} />
 					<LastGameStat label="CS" value={String(game.creepScore)} />
@@ -460,9 +493,19 @@ function LastGameContent({
 		);
 	}
 	if (banner) {
-		return <div className={`flex items-center gap-4 ${config.flip ? "flex-row-reverse" : ""}`}>{hero}{details}</div>;
+		return (
+			<div className={`flex items-center gap-4 ${config.flip ? "flex-row-reverse" : ""}`}>
+				{hero}
+				{details}
+			</div>
+		);
 	}
-	return <div className={`flex items-stretch gap-4 ${config.flip && !floating ? "flex-row-reverse" : ""}`}>{hero}{details}</div>;
+	return (
+		<div className={`flex items-stretch gap-4 ${config.flip && !floating ? "flex-row-reverse" : ""}`}>
+			{hero}
+			{details}
+		</div>
+	);
 }
 
 function LastGameStat({ label, value }: { label: string; value: string }) {
@@ -492,7 +535,14 @@ type FreeformInteraction = {
 	start: FreeformOverlayElement;
 };
 
-function FreeformOverlay({ data, config, style, clock, editor, editorOptions }: OverlayProps & { editor: boolean; editorOptions: { grid: boolean; snap: boolean; safeArea: boolean } }) {
+function FreeformOverlay({
+	data,
+	config,
+	style,
+	clock,
+	editor,
+	editorOptions,
+}: OverlayProps & { editor: boolean; editorOptions: { grid: boolean; snap: boolean; safeArea: boolean } }) {
 	const [layout, setLayout] = useState(() => config.freeformLayout.map((element) => ({ ...element })));
 	const [selected, setSelected] = useState<FreeformElementType | null>(config.freeformLayout[0]?.type ?? null);
 	const interaction = useRef<FreeformInteraction | null>(null);
@@ -578,7 +628,9 @@ function FreeformOverlay({ data, config, style, clock, editor, editorOptions }: 
 			style={style}
 			className={`relative h-[720px] w-[1280px] overflow-hidden text-[var(--overlay-text)] ${editor && editorOptions.grid ? "bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:20px_20px]" : ""}`}
 		>
-			{editor && editorOptions.safeArea ? <div aria-hidden className="pointer-events-none absolute inset-8 z-[100] rounded-2xl border border-dashed border-amber-200/28" /> : null}
+			{editor && editorOptions.safeArea ? (
+				<div aria-hidden className="pointer-events-none absolute inset-8 z-[100] rounded-2xl border border-dashed border-amber-200/28" />
+			) : null}
 			{layout.map((element) => {
 				const elementStyle = {
 					left: element.x,
@@ -608,7 +660,11 @@ function FreeformOverlay({ data, config, style, clock, editor, editorOptions }: 
 						onFocus={() => notifySelection(element.type)}
 						className={`absolute overflow-hidden rounded-2xl text-[var(--overlay-text)] outline-none ${element.showBackground ? "bg-[var(--overlay-background)] shadow-2xl shadow-black/35 backdrop-blur-xl" : "bg-transparent"} ${element.showBorder ? "border border-[var(--overlay-border)]" : ""} ${editor ? "cursor-move select-none" : ""} ${editor && selected === element.type ? "ring-2 ring-cyan-200 ring-offset-2 ring-offset-[#06110b]" : editor ? "ring-1 ring-white/15" : ""}`}
 					>
-						{editor ? <div className="pointer-events-none absolute right-2 top-2 z-20 rounded-md bg-black/75 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-50">{FREEFORM_LABELS[element.type]}</div> : null}
+						{editor ? (
+							<div className="pointer-events-none absolute right-2 top-2 z-20 rounded-md bg-black/75 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-50">
+								{FREEFORM_LABELS[element.type]}
+							</div>
+						) : null}
 						<FreeformElementContent type={element.type} data={data} config={config} clock={clock} />
 						{editor ? (
 							<button
@@ -636,7 +692,9 @@ function FreeformElementContent({ type, data, config, clock }: { type: FreeformE
 					<div className="text-[8px] font-black uppercase tracking-[0.26em] text-[var(--overlay-primary)]">League Performance</div>
 					<div className="mt-1 truncate text-2xl font-black tracking-tight">{data.riotId}</div>
 				</div>
-				{data.leagueLive ? <div className="shrink-0 font-mono text-sm font-black tabular-nums text-[var(--overlay-highlight)]">{duration(data.streamStartedAt, clock)}</div> : null}
+				{data.leagueLive ? (
+					<div className="shrink-0 font-mono text-sm font-black tabular-nums text-[var(--overlay-highlight)]">{duration(data.streamStartedAt, clock)}</div>
+				) : null}
 			</div>
 		);
 	}
@@ -688,7 +746,9 @@ function FreeformElementContent({ type, data, config, clock }: { type: FreeformE
 					<LiveGameGrid data={data.liveGame} className="mt-3" />
 				</>
 			) : (
-				<div className="grid h-[calc(100%-2rem)] place-items-center rounded-xl border border-dashed border-white/10 text-center text-[10px] font-black uppercase tracking-[0.16em] opacity-35">Kein aktives Spiel</div>
+				<div className="grid h-[calc(100%-2rem)] place-items-center rounded-xl border border-dashed border-white/10 text-center text-[10px] font-black uppercase tracking-[0.16em] opacity-35">
+					Kein aktives Spiel
+				</div>
 			)}
 		</div>
 	);
@@ -696,14 +756,24 @@ function FreeformElementContent({ type, data, config, clock }: { type: FreeformE
 
 function FreeformHistory({ games, rows, config }: { games: CommunityObsGame[]; rows: number; config: CommunityOverlayConfig }) {
 	const visible = games.slice(0, rows * 5);
-	if (!visible.length) return <div className="grid flex-1 place-items-center rounded-xl border border-dashed border-white/10 text-[9px] font-black uppercase tracking-[0.15em] opacity-35">Noch keine Session-Games</div>;
+	if (!visible.length)
+		return (
+			<div className="grid flex-1 place-items-center rounded-xl border border-dashed border-white/10 text-[9px] font-black uppercase tracking-[0.15em] opacity-35">
+				Noch keine Session-Games
+			</div>
+		);
 	return (
 		<div className="grid min-h-0 flex-1 grid-cols-5 gap-2" style={{ gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }}>
 			{visible.map((game) => (
-				<div key={game.matchId} className={`relative min-h-0 overflow-hidden rounded-xl border ${game.win ? "border-emerald-300/55 bg-emerald-400/15" : "border-rose-300/55 bg-rose-400/15"}`}>
+				<div
+					key={game.matchId}
+					className={`relative min-h-0 overflow-hidden rounded-xl border ${game.win ? "border-emerald-300/55 bg-emerald-400/15" : "border-rose-300/55 bg-rose-400/15"}`}
+				>
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={game.championIconUrl} alt={game.championName} className="h-full w-full object-cover" />
-					<div className={`absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t ${game.win ? "from-emerald-950" : "from-rose-950"} via-black/75 to-transparent px-2 pb-1.5 pt-5`}>
+					<div
+						className={`absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t ${game.win ? "from-emerald-950" : "from-rose-950"} via-black/75 to-transparent px-2 pb-1.5 pt-5`}
+					>
 						<span className="truncate text-[8px] font-black">{game.championName}</span>
 						{config.showBadges && game.badge ? <span className="shrink-0 text-[7px] font-black text-[var(--overlay-highlight)]">{game.badge}</span> : null}
 					</div>
@@ -763,7 +833,6 @@ function SessionStats({ data, config }: { data: CommunityObsSnapshot; config: Co
 		</div>
 	);
 }
-
 
 const GOAL_TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
 const GOAL_TIER_LABELS: Record<(typeof GOAL_TIER_ORDER)[number], string> = {
@@ -854,7 +923,10 @@ function Progress({
 				<span>{goal.targetLabel}</span>
 			</div>
 			<div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/35">
-				<div className={`h-full rounded-full from-[var(--overlay-primary)] to-[var(--overlay-secondary)] transition-[width] duration-700 ${flip ? "ml-auto bg-gradient-to-l" : "bg-gradient-to-r"}`} style={{ width: `${goal.percent}%` }} />
+				<div
+					className={`h-full rounded-full from-[var(--overlay-primary)] to-[var(--overlay-secondary)] transition-[width] duration-700 ${flip ? "ml-auto bg-gradient-to-l" : "bg-gradient-to-r"}`}
+					style={{ width: `${goal.percent}%` }}
+				/>
 			</div>
 		</div>
 	);
@@ -865,8 +937,14 @@ function RailProgress({ goal, flip = false }: { goal: ReturnType<typeof goalProg
 		<div className="flex min-h-64 flex-col items-center text-center">
 			<div className="max-w-[4.2rem] text-[7px] font-black uppercase leading-3 tracking-[0.1em] text-[var(--overlay-secondary)]">{goal.targetLabel}</div>
 			<div className="relative my-2.5 w-3.5 flex-1 rounded-full bg-black/35 ring-1 ring-white/10">
-				<div className="absolute inset-x-0 bottom-0 rounded-full bg-gradient-to-t from-[var(--overlay-primary)] to-[var(--overlay-secondary)] transition-[height] duration-700" style={{ height: `${goal.percent}%` }} />
-				<div className="absolute left-1/2 z-10 size-4 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-[var(--overlay-text)] bg-[var(--overlay-highlight)] shadow-[0_0_14px_var(--overlay-highlight)] transition-[bottom] duration-700" style={{ bottom: `${goal.percent}%` }} />
+				<div
+					className="absolute inset-x-0 bottom-0 rounded-full bg-gradient-to-t from-[var(--overlay-primary)] to-[var(--overlay-secondary)] transition-[height] duration-700"
+					style={{ height: `${goal.percent}%` }}
+				/>
+				<div
+					className="absolute left-1/2 z-10 size-4 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-[var(--overlay-text)] bg-[var(--overlay-highlight)] shadow-[0_0_14px_var(--overlay-highlight)] transition-[bottom] duration-700"
+					style={{ bottom: `${goal.percent}%` }}
+				/>
 				<div
 					className={`absolute -translate-y-1/2 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[7px] font-black tabular-nums text-[var(--overlay-text)] ${flip ? "right-6" : "left-6"}`}
 					style={{ bottom: `${goal.percent}%` }}
@@ -896,7 +974,10 @@ function RailHistory({ games, rows, config, flip = false }: { games: CommunityOb
 			<div className="space-y-2">
 				{visible.length ? (
 					visible.map((game) => (
-						<div key={game.matchId} className={`flex items-center gap-2 overflow-hidden rounded-xl border ${flip ? "flex-row-reverse pl-2" : "pr-2"} ${game.win ? "border-emerald-300/35 bg-emerald-400/10" : "border-rose-300/35 bg-rose-400/10"}`}>
+						<div
+							key={game.matchId}
+							className={`flex items-center gap-2 overflow-hidden rounded-xl border ${flip ? "flex-row-reverse pl-2" : "pr-2"} ${game.win ? "border-emerald-300/35 bg-emerald-400/10" : "border-rose-300/35 bg-rose-400/10"}`}
+						>
 							{/* eslint-disable-next-line @next/next/no-img-element */}
 							<img src={game.championIconUrl} alt={game.championName} className="size-10 shrink-0 object-cover" />
 							<div className="min-w-0 flex-1">
@@ -908,25 +989,49 @@ function RailHistory({ games, rows, config, flip = false }: { games: CommunityOb
 						</div>
 					))
 				) : (
-					<div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-[8px] font-black uppercase tracking-[0.12em] opacity-35">Noch keine Session-Games</div>
+					<div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-[8px] font-black uppercase tracking-[0.12em] opacity-35">
+						Noch keine Session-Games
+					</div>
 				)}
 			</div>
 		</div>
 	);
 }
 
-function History({ games, rows, config, compact = false, className = "" }: { games: CommunityObsGame[]; rows: number; config: CommunityOverlayConfig; compact?: boolean; className?: string }) {
+function History({
+	games,
+	rows,
+	config,
+	compact = false,
+	className = "",
+}: {
+	games: CommunityObsGame[];
+	rows: number;
+	config: CommunityOverlayConfig;
+	compact?: boolean;
+	className?: string;
+}) {
 	const visible = games.slice(0, rows * 5);
-	if (!visible.length) return <div className={`${className} rounded-xl border border-dashed border-white/10 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.15em] opacity-35`}>Noch keine Session-Games</div>;
+	if (!visible.length)
+		return (
+			<div className={`${className} rounded-xl border border-dashed border-white/10 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.15em] opacity-35`}>
+				Noch keine Session-Games
+			</div>
+		);
 	return (
 		<div className={`${className} grid grid-cols-5 gap-2`}>
 			{visible.map((game) => (
-				<div key={game.matchId} className={`relative overflow-hidden rounded-xl border ${game.win ? "border-emerald-300/50 bg-emerald-400/15" : "border-rose-300/50 bg-rose-400/15"}`}>
+				<div
+					key={game.matchId}
+					className={`relative overflow-hidden rounded-xl border ${game.win ? "border-emerald-300/50 bg-emerald-400/15" : "border-rose-300/50 bg-rose-400/15"}`}
+				>
 					{/* OBS needs the original CDN asset without Next image-proxy overhead. */}
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={game.championIconUrl} alt={game.championName} className={`${compact ? "h-11" : "h-14"} w-full object-cover`} />
 					<div className={`absolute inset-x-0 bottom-0 h-1 ${game.win ? "bg-emerald-300" : "bg-rose-400"}`} />
-					{config.showBadges && game.badge ? <span className="absolute right-1 top-1 rounded bg-black/75 px-1.5 py-0.5 text-[7px] font-black text-[var(--overlay-highlight)]">{game.badge}</span> : null}
+					{config.showBadges && game.badge ? (
+						<span className="absolute right-1 top-1 rounded bg-black/75 px-1.5 py-0.5 text-[7px] font-black text-[var(--overlay-highlight)]">{game.badge}</span>
+					) : null}
 					{!compact ? <div className="truncate px-1.5 py-1 text-center text-[8px] font-black">{game.kda}</div> : null}
 				</div>
 			))}
@@ -948,7 +1053,9 @@ function FloatingHistory({ games, rows, config, className = "" }: { games: Commu
 				>
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={game.championIconUrl} alt={game.championName} className="size-full object-cover" />
-					{config.showBadges && game.badge ? <span className="absolute right-0.5 top-0.5 rounded bg-black/80 px-1 py-0.5 text-[6px] font-black text-[var(--overlay-highlight)]">{game.badge}</span> : null}
+					{config.showBadges && game.badge ? (
+						<span className="absolute right-0.5 top-0.5 rounded bg-black/80 px-1 py-0.5 text-[6px] font-black text-[var(--overlay-highlight)]">{game.badge}</span>
+					) : null}
 				</div>
 			))}
 		</div>
@@ -979,15 +1086,7 @@ function FloatingLiveGame({ data, showQueue, clock }: { data: NonNullable<Commun
 	);
 }
 
-function StreamerParticipants({
-	data,
-	compact = false,
-	floating = false,
-}: {
-	data: NonNullable<CommunityObsSnapshot["liveGame"]>;
-	compact?: boolean;
-	floating?: boolean;
-}) {
+function StreamerParticipants({ data, compact = false, floating = false }: { data: NonNullable<CommunityObsSnapshot["liveGame"]>; compact?: boolean; floating?: boolean }) {
 	const streamers = data.participants.filter((participant) => participant.streamer);
 	if (streamers.length === 0) return null;
 
@@ -1038,20 +1137,24 @@ const LIVE_ROLE_LABELS: Record<NonNullable<CommunityObsSnapshot["liveGame"]>["pa
 	UTILITY: "Support",
 };
 
-function LiveGameGrid({ data, className = "", compact = false, floating = false }: { data: NonNullable<CommunityObsSnapshot["liveGame"]>; className?: string; compact?: boolean; floating?: boolean }) {
+function LiveGameGrid({
+	data,
+	className = "",
+	compact = false,
+	floating = false,
+}: {
+	data: NonNullable<CommunityObsSnapshot["liveGame"]>;
+	className?: string;
+	compact?: boolean;
+	floating?: boolean;
+}) {
 	return (
 		<div className={`${className} grid grid-cols-10 ${compact ? "gap-1" : "gap-1.5"}`}>
 			{data.participants.map((participant, index) => (
 				<div
 					key={`${participant.name}-${participant.teamId}-${participant.role}-${index}`}
-					className={`relative overflow-hidden rounded-lg border transition ${
-						floating ? "border-2 shadow-lg shadow-black/70" : ""
-					} ${
-						participant.streamer
-							? "border-[#b784ff] shadow-[0_0_18px_rgba(145,70,255,0.55)]"
-							: participant.teamId === 100
-								? "border-sky-300/60"
-								: "border-rose-300/60"
+					className={`relative overflow-hidden rounded-lg border transition ${floating ? "border-2 shadow-lg shadow-black/70" : ""} ${
+						participant.streamer ? "border-[#b784ff] shadow-[0_0_18px_rgba(145,70,255,0.55)]" : participant.teamId === 100 ? "border-sky-300/60" : "border-rose-300/60"
 					} ${participant.isTrackedPlayer ? "ring-2 ring-[var(--overlay-highlight)] ring-offset-1 ring-offset-black/70" : ""}`}
 					title={`${participant.streamer ? `${participant.streamer.displayName} auf Twitch · ` : ""}${participant.name} · ${LIVE_ROLE_LABELS[participant.role]} (geschätzt)`}
 				>
@@ -1060,7 +1163,10 @@ function LiveGameGrid({ data, className = "", compact = false, floating = false 
 					<img src={participant.championIconUrl} alt={participant.name} className="aspect-square w-full object-cover" />
 					{participant.streamer ? (
 						<>
-							<span className="absolute left-0.5 top-0.5 grid size-4 place-items-center rounded bg-[#9146ff] text-white shadow-lg shadow-[#9146ff]/50" aria-hidden="true">
+							<span
+								className="absolute left-0.5 top-0.5 grid size-4 place-items-center rounded bg-[#9146ff] text-white shadow-lg shadow-[#9146ff]/50"
+								aria-hidden="true"
+							>
 								<svg viewBox="0 0 20 20" className="size-2.5" fill="currentColor">
 									<path d="M4 2h13v10l-4 4H9l-2.5 2.5V16H4V2Zm2 2v10h2.5v1.2L9.7 14H13l2-2V4H6Zm3 2h2v5H9V6Zm4 0h2v5h-2V6Z" />
 								</svg>
@@ -1099,7 +1205,9 @@ function QueueBadge({ data, label, live = false, className = "" }: { data?: Comm
 	if (!resolvedLabel) return null;
 	const isLiveQueue = live || Boolean(data?.liveGame);
 	return (
-		<span className={`${className} inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.15em] ${isLiveQueue ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/[0.04] opacity-55"}`}>
+		<span
+			className={`${className} inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.15em] ${isLiveQueue ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/[0.04] opacity-55"}`}
+		>
 			{isLiveQueue ? <span className="size-1.5 rounded-full bg-cyan-200 shadow-[0_0_8px_rgba(165,243,252,0.9)]" /> : null}
 			{resolvedLabel}
 		</span>
@@ -1176,5 +1284,7 @@ function formatSeconds(seconds: number) {
 	const hours = Math.floor(safe / 3600);
 	const minutes = Math.floor((safe % 3600) / 60);
 	const rest = Math.floor(safe % 60);
-	return hours > 0 ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}` : `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+	return hours > 0
+		? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`
+		: `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }

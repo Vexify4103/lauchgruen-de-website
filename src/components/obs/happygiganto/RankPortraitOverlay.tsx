@@ -80,9 +80,7 @@ export function RankPortraitOverlay({
 	const overallLosses = rank?.losses ?? 0;
 	const crest = RANK_CRESTS[tier];
 	const crestBaseUrl = crest ? `${CREST_ROOT}/${crest.folder}/${crest.base}` : null;
-	const crestMaskStyle = crestBaseUrl
-		? ({ WebkitMaskImage: `url("${crestBaseUrl}")`, maskImage: `url("${crestBaseUrl}")` } as CSSProperties)
-		: undefined;
+	const crestMaskStyle = crestBaseUrl ? ({ WebkitMaskImage: `url("${crestBaseUrl}")`, maskImage: `url("${crestBaseUrl}")` } as CSSProperties) : undefined;
 	const style = {
 		"--rank-primary": palette.primary,
 		"--rank-secondary": palette.secondary,
@@ -96,7 +94,10 @@ export function RankPortraitOverlay({
 	}, []);
 
 	return (
-		<div style={style} className="rank-portrait-root flex h-[400px] w-[340px] flex-col items-center justify-start overflow-visible bg-transparent px-5 pt-2 text-center text-white">
+		<div
+			style={style}
+			className="rank-portrait-root flex h-[400px] w-[340px] flex-col items-center justify-start overflow-visible bg-transparent px-5 pt-2 text-center text-white"
+		>
 			<div className="rank-portrait-frame relative h-[286px] w-[320px] shrink-0 overflow-visible">
 				<div aria-hidden className="rank-portrait-glow absolute inset-0 m-auto size-[158px] rounded-full" />
 				<div className="rank-portrait-moving-layer absolute inset-0">
@@ -125,7 +126,9 @@ export function RankPortraitOverlay({
 				</div>
 			</div>
 
-			<div className="relative z-10 -mt-6 max-w-full truncate px-3 text-[27px] font-black tracking-[-0.035em] text-white [text-shadow:0_3px_12px_rgba(0,0,0,.95)]">{gameName}</div>
+			<div className="relative z-10 -mt-6 max-w-full truncate px-3 text-[27px] font-black tracking-[-0.035em] text-white [text-shadow:0_3px_12px_rgba(0,0,0,.95)]">
+				{gameName}
+			</div>
 			<div key={scene} className="rank-portrait-stat mt-1.5 min-h-8 text-[19px] font-black [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
 				{scene === 0 ? (
 					<>
@@ -135,12 +138,16 @@ export function RankPortraitOverlay({
 				) : scene === 1 ? (
 					<>
 						<span className="text-[var(--rank-primary)]">Session</span>
-						<span className="ml-2 text-white">{sessionWins}W · {sessionLosses}L</span>
+						<span className="ml-2 text-white">
+							{sessionWins}W · {sessionLosses}L
+						</span>
 					</>
 				) : (
 					<>
 						<span className="text-[var(--rank-primary)]">Gesamt</span>
-						<span className="ml-2 text-white">{overallWins}W · {overallLosses}L</span>
+						<span className="ml-2 text-white">
+							{overallWins}W · {overallLosses}L
+						</span>
 					</>
 				)}
 			</div>

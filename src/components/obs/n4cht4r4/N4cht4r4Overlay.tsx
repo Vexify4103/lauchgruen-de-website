@@ -153,7 +153,7 @@ function LastGameScene({ game }: { game: LauchgruenObsResponse["lastGames"][numb
 						<LastGameMetric label="Zeit" value={`${minutes}:${seconds}`} />
 					</div>
 					<div className="mt-2 flex min-h-6 gap-1">
-						{game.items.slice(0, 6).map((item, index) => (
+						{game.items.map((item, index) => (
 							<div
 								key={`${item.id}-${index}`}
 								className="size-6 overflow-hidden rounded-md border border-[#ffd0e3]/65 bg-[#260817]/45 shadow-[0_3px_8px_rgba(20,3,13,.72)]"

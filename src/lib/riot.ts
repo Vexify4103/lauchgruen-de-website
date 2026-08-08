@@ -409,6 +409,14 @@ export type RiotMatchParticipant = {
 	item6: number;
 };
 
+const TRINKET_ITEM_IDS = new Set([3330, 3340, 3341, 3342, 3363, 3364, 3513]);
+
+export function participantInventoryItemIds(participant: RiotMatchParticipant) {
+	return [participant.item0, participant.item1, participant.item2, participant.item3, participant.item4, participant.item5, participant.item6].filter(
+		(itemId) => itemId > 0 && !TRINKET_ITEM_IDS.has(itemId)
+	);
+}
+
 export type RiotMatch = {
 	metadata: {
 		matchId: string;

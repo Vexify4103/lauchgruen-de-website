@@ -1,4 +1,4 @@
-import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
+import { StreamerPerformanceOverlay } from "@/components/obs/StreamerPerformanceOverlay";
 import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function NachtdienstObsPage({ searchParams }: { searchParam
 		initial = fallback(error);
 	}
 
-	return <LauchgruenPerformanceOverlay initial={initial} endpoint={`/api/obs/nachtdienst${preview ? "?test=1" : ""}`} layout="nachtdienst" forceVisible={preview} />;
+	return <StreamerPerformanceOverlay initial={initial} endpoint={`/api/obs/nachtdienst${preview ? "?test=1" : ""}`} layout="nachtdienst" forceVisible={preview} />;
 }
 
 function fallback(error: unknown): LauchgruenObsResponse {

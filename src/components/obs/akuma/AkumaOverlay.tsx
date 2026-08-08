@@ -200,7 +200,7 @@ function LastGameScene({ game }: { game: LauchgruenObsResponse["lastGames"][numb
 						<LastGameMetric label="Zeit" value={`${minutes}:${seconds}`} />
 					</div>
 					<div className="mt-3 flex min-h-9 gap-1.5">
-						{game.items.slice(0, 6).map((item, index) => (
+						{game.items.map((item, index) => (
 							<div key={`${item.id}-${index}`} className="size-9 overflow-hidden rounded-lg border border-white/65 bg-black/35 shadow-[0_4px_10px_rgba(0,0,0,.72)]">
 								{/* eslint-disable-next-line @next/next/no-img-element */}
 								<img src={item.iconUrl} alt={`Item ${item.id}`} className="size-full object-cover" />

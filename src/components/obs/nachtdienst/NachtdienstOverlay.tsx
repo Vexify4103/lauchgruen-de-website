@@ -168,7 +168,7 @@ function LastGameScene({ game, queue }: { game: LauchgruenObsResponse["lastGames
 						<br />
 						loadout
 					</div>
-					{game.items.slice(0, 6).map((item, index) => (
+					{game.items.map((item, index) => (
 						<div key={`${item.id}-${index}`} className="size-[34px] overflow-hidden border border-white/18 bg-black/35 shadow-[0_4px_10px_rgba(0,0,0,.45)]">
 							{/* eslint-disable-next-line @next/next/no-img-element */}
 							<img src={item.iconUrl} alt={`Item ${item.id}`} className="size-full object-cover" />

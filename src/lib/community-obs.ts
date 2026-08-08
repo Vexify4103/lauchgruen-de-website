@@ -13,6 +13,7 @@ import {
 	getSummonerByPuuidForRoute,
 	isRiotMatchRemake,
 	itemIconUrl,
+	participantInventoryItemIds,
 	obsRiotRoute,
 	parseRiotId,
 	profileIconUrl,
@@ -726,7 +727,7 @@ async function loadGames(puuid: string, routing: RiotRoute, count: number, queue
 		const participant = match.info.participants.find((entry) => entry.puuid === puuid);
 		if (!participant || match.info.queueId !== queueId) return null;
 		const endedAt = new Date(match.info.gameEndTimestamp ?? match.info.gameStartTimestamp ?? match.info.gameCreation).toISOString();
-		const itemIds = [participant.item0, participant.item1, participant.item2, participant.item3, participant.item4, participant.item5].filter((id) => id > 0);
+		const itemIds = participantInventoryItemIds(participant);
 		return {
 			matchId,
 			championName: participant.championName,

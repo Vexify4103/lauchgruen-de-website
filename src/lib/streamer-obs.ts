@@ -11,6 +11,7 @@ import {
 	getSummonerByPuuidForRoute,
 	isRiotMatchRemake,
 	itemIconUrl,
+	participantInventoryItemIds,
 	parseRiotId,
 	profileIconUrl,
 	obsRiotRoute,
@@ -545,7 +546,7 @@ async function loadSessionGames(puuid: string, routing: RiotRoute, startedAt?: s
 			// match is already running, so session membership must use its end time.
 			if (sessionStartedAt !== null && endedAtTimestamp < sessionStartedAt) return null;
 			const endedAt = new Date(endedAtTimestamp).toISOString();
-			const itemIds = [participant.item0, participant.item1, participant.item2, participant.item3, participant.item4, participant.item5].filter((itemId) => itemId > 0);
+			const itemIds = participantInventoryItemIds(participant);
 			return {
 				matchId: match.metadata.matchId,
 				championId: participant.championId,

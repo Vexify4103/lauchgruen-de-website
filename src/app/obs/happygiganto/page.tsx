@@ -1,4 +1,4 @@
-import { LauchgruenPerformanceOverlay } from "@/components/obs/LauchgruenPerformanceOverlay";
+import { StreamerPerformanceOverlay } from "@/components/obs/StreamerPerformanceOverlay";
 import { getStreamerObsSnapshot, type LauchgruenObsResponse } from "@/lib/streamer-obs";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export default async function HappyGigantoObsPage({ searchParams }: { searchPara
 		};
 	}
 
-	return <LauchgruenPerformanceOverlay initial={initial} endpoint={`/api/obs/happygiganto${preview ? "?test=1" : ""}`} layout="rankPortrait" forceVisible={preview} />;
+	return <StreamerPerformanceOverlay initial={initial} endpoint={`/api/obs/happygiganto${preview ? "?test=1" : ""}`} layout="rankPortrait" forceVisible={preview} />;
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {
