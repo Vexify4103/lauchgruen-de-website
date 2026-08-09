@@ -42,6 +42,11 @@ type RiotKeyState = {
 	blockedUntil: number;
 };
 
+type RiotServiceState = {
+	blockedUntil: number;
+	lastRequestAt: number;
+};
+
 const SHORT_WINDOW_MS = 1_000;
 // Keep headroom for Riot's stricter per-method limits and parallel app instances.
 const SHORT_WINDOW_LIMIT = 10;
@@ -50,17 +55,22 @@ const LONG_WINDOW_LIMIT = 80;
 const MAX_RATE_LIMIT_WAIT_MS = 5_000;
 const DEFAULT_RIOT_BACKOFF_MS = 10_000;
 const SERVER_RATE_LIMIT_BACKOFF_MS = 60_000;
-const RIOT_RATE_STATE_VERSION = 3;
+const SPECTATOR_REQUEST_SPACING_MS = 1_500;
+const RIOT_RATE_STATE_VERSION = 4;
 
 const riotRateState = globalThis as unknown as {
 	__riotCredentialGates?: Map<RiotApiCredential, Promise<void>>;
 	__riotCredentialKeyState?: Map<RiotApiCredential, RiotKeyState>;
+	__riotServiceGates?: Map<string, Promise<void>>;
+	__riotServiceState?: Map<string, RiotServiceState>;
 	__riotRateStateVersion?: number;
 };
 
 if (riotRateState.__riotRateStateVersion !== RIOT_RATE_STATE_VERSION) {
 	riotRateState.__riotCredentialGates = new Map();
 	riotRateState.__riotCredentialKeyState = new Map();
+	riotRateState.__riotServiceGates = new Map();
+	riotRateState.__riotServiceState = new Map();
 	riotRateState.__riotRateStateVersion = RIOT_RATE_STATE_VERSION;
 }
 
@@ -70,6 +80,53 @@ function delay(ms: number): Promise<void> {
 
 function isObsCredential(credential: RiotApiCredential): credential is ObsRiotCredential {
 	return credential.startsWith("obs_");
+}
+
+function obsServiceKey(url: URL) {
+	return url.pathname.startsWith("/lol/spectator/") ? `${url.hostname}:spectator` : null;
+}
+
+function getServiceState(serviceKey: string): RiotServiceState {
+	riotRateState.__riotServiceState ??= new Map();
+	let state = riotRateState.__riotServiceState.get(serviceKey);
+	if (!state) {
+		state = { blockedUntil: 0, lastRequestAt: 0 };
+		riotRateState.__riotServiceState.set(serviceKey, state);
+	}
+	return state;
+}
+
+async function paceObsServiceRequest(serviceKey: string): Promise<void> {
+	riotRateState.__riotServiceGates ??= new Map();
+	const gates = riotRateState.__riotServiceGates;
+	const previous = gates.get(serviceKey) ?? Promise.resolve();
+	const gate = previous.then(async () => {
+		const state = getServiceState(serviceKey);
+		const now = Date.now();
+		if (state.blockedUntil > now) {
+			const waitMs = state.blockedUntil - now;
+			if (waitMs > MAX_RATE_LIMIT_WAIT_MS) {
+				throw new RiotApiError(
+					429,
+					`riot://${serviceKey}/rate-limit`,
+					"Der Riot-Spectator-Dienst ist vorübergehend ausgelastet.",
+					"obs_public",
+					"server rate limit cooldown"
+				);
+			}
+			await delay(waitMs);
+		}
+
+		const spacingWaitMs = SPECTATOR_REQUEST_SPACING_MS - (Date.now() - state.lastRequestAt);
+		if (spacingWaitMs > 0) await delay(spacingWaitMs);
+		state.lastRequestAt = Date.now();
+	});
+
+	gates.set(
+		serviceKey,
+		gate.catch(() => undefined)
+	);
+	await gate;
 }
 
 function getCredentialState(credential: RiotApiCredential): RiotKeyState {
@@ -278,8 +335,10 @@ type RiotGetOptions = {
 async function riotGet<T>(url: string, credential: RiotApiCredential, options: RiotGetOptions = {}): Promise<T> {
 	const requestUrl = new URL(url);
 	const key = apiKey(credential);
+	const serviceKey = isObsCredential(credential) ? obsServiceKey(requestUrl) : null;
 
 	if (isObsCredential(credential)) {
+		if (serviceKey) await paceObsServiceRequest(serviceKey);
 		await paceObsRequest(credential);
 	}
 
@@ -325,6 +384,13 @@ async function riotGet<T>(url: string, credential: RiotApiCredential, options: R
 		const fallbackBackoffMs = detail.toLowerCase().includes("server rate limit") ? SERVER_RATE_LIMIT_BACKOFF_MS : DEFAULT_RIOT_BACKOFF_MS;
 		rateLimitBackoffMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1_000 : fallbackBackoffMs;
 		state.blockedUntil = Math.max(state.blockedUntil, Date.now() + rateLimitBackoffMs);
+
+		const rateLimitType = response.headers.get("X-Rate-Limit-Type")?.toLowerCase();
+		const serviceLimited = rateLimitType === "service" || (!rateLimitType && detail.toLowerCase().includes("server rate limit"));
+		if (serviceLimited && serviceKey) {
+			const serviceState = getServiceState(serviceKey);
+			serviceState.blockedUntil = Math.max(serviceState.blockedUntil, Date.now() + rateLimitBackoffMs);
+		}
 	}
 
 	const expectedStatus = options.expectedStatuses?.includes(response.status) ?? false;
