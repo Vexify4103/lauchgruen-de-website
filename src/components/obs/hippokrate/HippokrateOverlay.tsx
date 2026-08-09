@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { LastGameDetails } from "@/components/obs/shared/LastGameDetails";
-import { rankLabel } from "@/components/obs/shared/utils";
+import { queueLabel, rankLabel } from "@/components/obs/shared/utils";
 
 export function HippokrateOverlay({ data, lpTone }: { data: LauchgruenObsResponse; lpTone: string }) {
 	const [showLastGame, setShowLastGame] = useState(false);
@@ -31,6 +31,9 @@ function SessionScene({ data, lpTone }: { data: LauchgruenObsResponse; lpTone: s
 			<div className="flex items-end gap-3">
 				<div className="text-3xl font-black uppercase tracking-tight">{rankLabel(data.rank)}</div>
 				<div className="pb-0.5 font-mono text-xl font-black text-amber-200">{data.rank?.leaguePoints ?? 0} LP</div>
+				<div className="mb-0.5 rounded-full border border-cyan-200/35 bg-black/30 px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100">
+					{queueLabel(data.rank?.queueType)}
+				</div>
 			</div>
 			<div className="mt-2 flex items-center gap-5 font-mono font-black">
 				<div>
@@ -67,8 +70,13 @@ function LastGameScene({ game }: { game: LauchgruenObsResponse["lastGames"][numb
 				<img src={game.championIconUrl} alt={game.championName} className="size-full object-cover" />
 			</div>
 			<div className="min-w-0">
-				<div className={`text-sm font-black uppercase tracking-[0.22em] ${game.win ? "text-lime-300" : "text-rose-300"}`}>
-					{game.win ? "Letztes Game · Sieg" : "Letztes Game · Niederlage"}
+				<div className="flex items-center gap-2">
+					<div className={`text-sm font-black uppercase tracking-[0.22em] ${game.win ? "text-lime-300" : "text-rose-300"}`}>
+						{game.win ? "Letztes Game · Sieg" : "Letztes Game · Niederlage"}
+					</div>
+					<div className="rounded-full border border-cyan-200/30 bg-black/30 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100">
+						{queueLabel(game.queueId)}
+					</div>
 				</div>
 				<div className="mt-1 text-2xl font-black">{game.championName}</div>
 				<LastGameDetails game={game} />

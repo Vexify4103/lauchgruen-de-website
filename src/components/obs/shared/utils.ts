@@ -21,6 +21,12 @@ export function rankLabel(rank: LauchgruenObsResponse["rank"]) {
 	return rank ? `${tierName(rank.tier)} ${rank.rank}` : "Unranked";
 }
 
+export function queueLabel(queue: string | number | null | undefined) {
+	if (queue === "RANKED_FLEX_SR" || queue === 440) return "Ranked Flex";
+	if (queue === "RANKED_SOLO_5x5" || queue === 420) return "Solo/Duo";
+	return "Ranked";
+}
+
 export function formatDuration(seconds: number) {
 	const safe = Math.max(0, seconds);
 	const hours = Math.floor(safe / 3600);
@@ -38,6 +44,7 @@ export function overlaySignature(data: LauchgruenObsResponse) {
 		online: data.online,
 		leagueLive: data.leagueLive,
 		rank: data.rank?.score ?? null,
+		queue: data.rank?.queueType ?? null,
 		lp: data.lpDelta,
 		w: data.sessionWins,
 		l: data.sessionLosses,

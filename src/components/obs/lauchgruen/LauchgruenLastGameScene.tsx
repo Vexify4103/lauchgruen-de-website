@@ -1,4 +1,5 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
+import { queueLabel } from "@/components/obs/shared/utils";
 
 export function LauchgruenLastGameScene({
 	active,
@@ -40,6 +41,11 @@ export function LauchgruenLastGameScene({
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
 					<div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white">{featured?.championName ?? "Noch keine Games"}</div>
+					{featured ? (
+						<div className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-100">
+							{queueLabel(featured.queueId)}
+						</div>
+					) : null}
 					{featured ? (
 						<div className={`text-[8px] font-black uppercase ${featured.win ? "text-lime-300" : "text-rose-300"}`}>{featured.win ? "Sieg" : "Niederlage"}</div>
 					) : null}

@@ -159,7 +159,7 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		twitchLogin: process.env.AKUMA_OBS_TWITCH_LOGIN?.trim() || "akuma_flo",
 		riotGameName: process.env.AKUMA_OBS_RIOT_GAME_NAME?.trim() || "Aoi Akuma",
 		riotTagLine: process.env.AKUMA_OBS_RIOT_TAG_LINE?.trim() || "EUW",
-		alternateAccounts: alternateAccounts("AKUMA"),
+		alternateAccounts: alternateAccounts("AKUMA", ["DarkinAkuma#420"]),
 	},
 	n4cht4r4: {
 		slug: "n4cht4r4",

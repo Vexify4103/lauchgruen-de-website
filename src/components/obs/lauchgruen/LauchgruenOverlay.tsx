@@ -1,7 +1,7 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { LiveBadge } from "@/components/obs/shared/LiveBadge";
 import { RankProgress } from "@/components/obs/shared/RankProgress";
-import { formatDuration, rankLabel } from "@/components/obs/shared/utils";
+import { formatDuration, queueLabel, rankLabel } from "@/components/obs/shared/utils";
 
 export function LauchgruenOverlay({
 	data,
@@ -33,7 +33,12 @@ export function LauchgruenOverlay({
 				<div className="relative">
 					<div className="flex items-start justify-between gap-2">
 						<div>
-							<div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/64">{title}</div>
+							<div className="flex items-center gap-2">
+								<div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/64">{title}</div>
+								<div className="rounded-full border border-cyan-200/25 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100">
+									{queueLabel(data.rank?.queueType)}
+								</div>
+							</div>
 							<div className="mt-2 flex items-end gap-2">
 								<div className="text-xl font-black leading-none text-white">{rankLabel(data.rank)}</div>
 								<div className="rounded-md border border-amber-200/25 bg-amber-300/14 px-2 py-0.5 font-mono text-xs font-black text-amber-100">

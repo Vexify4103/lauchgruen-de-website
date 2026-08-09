@@ -21,7 +21,7 @@ import { TOURNAMENT_HOSTS } from "@/lib/tournament-url";
 // RFC 6761, so visiting http://lauchgruen.localhost:3000/ Just Works without
 // editing the OS hosts file. To test:
 //   http://lauchgruen.localhost:3000          → landing page
-//   http://quiz.lauchgruen.localhost:3000      → external Quizshow app
+//   http://localhost:4000                     → external Quizshow app
 const APEX_HOSTS = new Set(["lauchgruen.de", "www.lauchgruen.de", "lauchgruen.localhost", "www.lauchgruen.localhost"]);
 
 /**

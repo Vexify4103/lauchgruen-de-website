@@ -1,6 +1,6 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { RankProgress } from "@/components/obs/shared/RankProgress";
-import { rankLabel } from "@/components/obs/shared/utils";
+import { queueLabel, rankLabel } from "@/components/obs/shared/utils";
 
 export function LauchgruenRankScene({
 	active,
@@ -25,7 +25,12 @@ export function LauchgruenRankScene({
 		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
-					<div className="truncate text-[9px] font-black uppercase tracking-[0.22em] text-emerald-100/56">{title}</div>
+					<div className="flex items-center gap-2">
+						<div className="truncate text-[9px] font-black uppercase tracking-[0.22em] text-emerald-100/56">{title}</div>
+						<div className="shrink-0 rounded-full border border-cyan-200/25 bg-cyan-300/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.14em] text-cyan-100">
+							{queueLabel(data.rank?.queueType)}
+						</div>
+					</div>
 					<div className="mt-1 flex items-baseline gap-2">
 						<div className="text-lg font-black leading-none text-white">{rankLabel(data.rank)}</div>
 						<div className="rounded-md border border-amber-200/22 bg-amber-300/14 px-2 py-0.5 font-mono text-xs font-black text-amber-100">
