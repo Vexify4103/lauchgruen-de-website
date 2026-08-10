@@ -19,6 +19,7 @@ import {
 	deleteApplicationsByDiscordId,
 	findApplication,
 	findBlacklistMatch,
+	findEligibilityOverrideMatch,
 	getVerifiedAccount,
 	listApplications,
 	updateVerifiedSummonerLevel,
@@ -86,7 +87,13 @@ export async function POST(request: Request) {
 	if (!verified) {
 		return NextResponse.json({ message: "Verifiziere zuerst deinen Riot-Account, bevor du die Bewerbung absendest." }, { status: 412 });
 	}
-	if (verified.summonerLevel === undefined) {
+	const minimumLevelOverride = await findEligibilityOverrideMatch({
+		discordId,
+		riotId: verified.riotId,
+		tournamentId: settings.activeTournament.id,
+		requirement: "minimum-summoner-level",
+	});
+	if (verified.summonerLevel === undefined && !minimumLevelOverride) {
 		try {
 			const summoner = await getSummonerByPuuid(verified.puuid);
 			await updateVerifiedSummonerLevel(discordId, summoner.summonerLevel);
@@ -98,7 +105,7 @@ export async function POST(request: Request) {
 			);
 		}
 	}
-	if ((verified.summonerLevel ?? 0) < settings.ultimateBravery.minimumSummonerLevel) {
+	if ((verified.summonerLevel ?? 0) < settings.ultimateBravery.minimumSummonerLevel && !minimumLevelOverride) {
 		return NextResponse.json(
 			{
 				message: `Dein League-Account muss mindestens Level ${settings.ultimateBravery.minimumSummonerLevel} sein. Aktuell erkannt: Level ${verified.summonerLevel ?? "unbekannt"}.`,

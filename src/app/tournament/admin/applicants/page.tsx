@@ -1,11 +1,22 @@
 import { TournamentLink as Link } from "../../TournamentLink";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
-import { TOURNAMENT_OWNER_DISCORD_IDS, listBlacklistEntries, listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import {
+	TOURNAMENT_OWNER_DISCORD_IDS,
+	isEligibilityOverrideActive,
+	listApplications,
+	listBlacklistEntries,
+	listEligibilityOverrides,
+	listPreferenceGroups,
+	type TournamentApplication,
+	type TournamentEligibilityOverride,
+} from "@/lib/tournament-storage";
 import { DeleteApplicantButton } from "./DeleteApplicantButton";
 import { EditApplicantForm } from "./EditApplicantForm";
 import { RefreshRanksButton } from "./RefreshRanksButton";
 import { BlacklistManager } from "./BlacklistManager";
+import { EligibilityOverrideManager } from "./EligibilityOverrideManager";
 import { PreferenceGroupManager } from "./PreferenceGroupManager";
 import { getAdminVersions } from "@/lib/admin-version";
 import { DiscordSignInButton } from "../../DiscordSignInButton";
@@ -75,14 +86,17 @@ export default async function ApplicantsPage() {
 		);
 	}
 
-	const [applications, assignedByDiscordId, blacklistEntries, preferenceGroups] = await Promise.all([
+	const [applications, assignedByDiscordId, blacklistEntries, eligibilityOverrides, preferenceGroups, settings] = await Promise.all([
 		listApplications(),
 		loadAssignmentMap(),
 		listBlacklistEntries(),
+		listEligibilityOverrides(),
 		listPreferenceGroups(),
+		getTournamentSettings(),
 	]);
 	const groupByDiscordId = new Map(preferenceGroups.flatMap((group) => group.memberDiscordIds.map((memberDiscordId) => [memberDiscordId, group.code] as const)));
-	const versions = await getAdminVersions(["blacklist", "preference-groups", ...applications.map((app) => `application:${app.id}`)]);
+	const versions = await getAdminVersions(["blacklist", "eligibility-overrides", "preference-groups", ...applications.map((app) => `application:${app.id}`)]);
+	const activeEligibilityOverrides = eligibilityOverrides.filter((entry) => isEligibilityOverrideActive(entry, settings.activeTournament.id));
 
 	// Newest-first
 	const sorted = [...applications].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -115,6 +129,13 @@ export default async function ApplicantsPage() {
 
 				<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} />
 
+				<EligibilityOverrideManager
+					initialEntries={eligibilityOverrides}
+					initialVersion={versions["eligibility-overrides"] ?? 0}
+					activeTournamentId={settings.activeTournament.id}
+					activeTournamentName={settings.activeTournament.name}
+				/>
+
 				<PreferenceGroupManager
 					applicants={sorted.map((app) => ({
 						discordId: app.discordId,
@@ -135,7 +156,17 @@ export default async function ApplicantsPage() {
 				) : (
 					<div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						{sorted.map((app) => (
-							<ApplicantCard key={app.id} app={app} assignedTo={assignedByDiscordId.get(app.discordId) ?? null} version={versions[`application:${app.id}`] ?? 0} />
+							<ApplicantCard
+								key={app.id}
+								app={app}
+								assignedTo={assignedByDiscordId.get(app.discordId) ?? null}
+								eligibilityOverride={
+									activeEligibilityOverrides.find(
+										(entry) => entry.discordId === app.discordId || (entry.riotId && entry.riotId === app.riotId.trim().toLowerCase())
+									) ?? null
+								}
+								version={versions[`application:${app.id}`] ?? 0}
+							/>
 						))}
 					</div>
 				)}
@@ -158,7 +189,17 @@ function StatPill({ label, value, tone }: { label: string; value: string; tone: 
 	);
 }
 
-function ApplicantCard({ app, assignedTo, version }: { app: TournamentApplication; assignedTo: string | null; version: number }) {
+function ApplicantCard({
+	app,
+	assignedTo,
+	eligibilityOverride,
+	version,
+}: {
+	app: TournamentApplication;
+	assignedTo: string | null;
+	eligibilityOverride: TournamentEligibilityOverride | null;
+	version: number;
+}) {
 	return (
 		<article className="flex flex-col gap-3 rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
 			<header className="flex items-start justify-between gap-3">
@@ -199,6 +240,14 @@ function ApplicantCard({ app, assignedTo, version }: { app: TournamentApplicatio
 			</header>
 
 			<div className="grid gap-2 text-xs">
+				{eligibilityOverride ? (
+					<div className="mb-1 flex items-center justify-between gap-2 rounded-xl border border-cyan-200/18 bg-cyan-200/[0.07] px-3 py-2 text-cyan-50">
+						<span className="font-black">Mindestlevel freigegeben</span>
+						<span className="rounded-full border border-cyan-100/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]">
+							{eligibilityOverride.kind === "regular" ? "Dauergast" : "Ausnahme"}
+						</span>
+					</div>
+				) : null}
 				<Row label="Anzeigename">{app.displayName}</Row>
 				<Row label="Aktueller Rang">
 					<span className="flex flex-wrap items-center gap-2">

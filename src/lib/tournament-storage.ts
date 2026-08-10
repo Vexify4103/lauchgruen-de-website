@@ -59,6 +59,22 @@ export type TournamentBlacklistEntry = {
 	createdBy?: string;
 };
 
+export type TournamentEligibilityOverrideKind = "regular" | "exception";
+export type TournamentEligibilityRequirement = "minimum-summoner-level";
+
+export type TournamentEligibilityOverride = {
+	id: string;
+	discordId?: string;
+	riotId?: string;
+	kind: TournamentEligibilityOverrideKind;
+	tournamentId?: string;
+	requirements: TournamentEligibilityRequirement[];
+	note: string;
+	createdAt: string;
+	updatedAt: string;
+	createdBy?: string;
+};
+
 export const TOURNAMENT_PREFERENCE_GROUP_LIMIT = 2;
 
 export type TournamentPreferenceGroup = {
@@ -117,6 +133,7 @@ const MATCHES = "tournament_matches";
 const VERIFIED_RIOT = "verified_riot_accounts";
 const RIOT_CHALLENGES = "riot_verifications";
 const BLACKLIST = "tournament_blacklist";
+const ELIGIBILITY_OVERRIDES = "tournament_eligibility_overrides";
 const PREFERENCE_GROUPS = "tournament_preference_groups";
 const TWITCH_LINKS = "tournament_twitch_links";
 const TWITCH_LINK_STATES = "tournament_twitch_link_states";
@@ -158,6 +175,7 @@ function seededMatches(groupMatches: GroupMatch[]): Record<string, StoredTournam
 type AppDoc = TournamentApplication & { _id: string };
 type MatchDoc = StoredTournamentMatch & { _id: string };
 type BlacklistDoc = TournamentBlacklistEntry & { _id: string };
+type EligibilityOverrideDoc = TournamentEligibilityOverride & { _id: string };
 type PreferenceGroupDoc = Omit<TournamentPreferenceGroup, "code"> & {
 	_id: string;
 };
@@ -174,6 +192,10 @@ async function matchesCollection() {
 
 async function blacklistCollection() {
 	return (await getDb()).collection<BlacklistDoc>(BLACKLIST);
+}
+
+async function eligibilityOverridesCollection() {
+	return (await getDb()).collection<EligibilityOverrideDoc>(ELIGIBILITY_OVERRIDES);
 }
 
 async function preferenceGroupsCollection() {
@@ -209,7 +231,9 @@ async function normalizeApplicationDocs(docs: AppDoc[]) {
 	const changed = docs.filter((doc) => preferredRolesChanged(doc));
 	if (changed.length) {
 		const col = await applicationsCollection();
-		await col.bulkWrite(changed.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $set: { preferredRoles: normalizePreferredRoles(doc.preferredRoles ?? []) } } } })));
+		await col.bulkWrite(
+			changed.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $set: { preferredRoles: normalizePreferredRoles(doc.preferredRoles ?? []) } } } }))
+		);
 	}
 	return docs.map((raw) => normalizeApplication(stripMongoId(raw) as TournamentApplication));
 }
@@ -674,7 +698,9 @@ export async function listCommunityOverlayStreamersByPuuid(puuids: string[]): Pr
 	if (verifiedDocs.length === 0) return new Map();
 
 	const discordIds = verifiedDocs.map((doc) => doc.discordId);
-	const twitchDocs = await (await twitchLinksCollection())
+	const twitchDocs = await (
+		await twitchLinksCollection()
+	)
 		.find({
 			_id: { $in: discordIds },
 			showInCommunityOverlay: true,
@@ -696,10 +722,7 @@ export async function clearRiotLink(discordId: string): Promise<void> {
 		db.collection<VerifiedDoc>(VERIFIED_RIOT).deleteOne({ _id: discordId }),
 		db.collection<ChallengeDoc>(RIOT_CHALLENGES).deleteOne({ _id: discordId }),
 		db.collection<AppDoc>(APPLICATIONS).deleteMany({ discordId }),
-		db.collection<TwitchLinkDoc>(TWITCH_LINKS).updateOne(
-			{ _id: discordId },
-			{ $set: { showInCommunityOverlay: false, updatedAt: new Date().toISOString() } }
-		),
+		db.collection<TwitchLinkDoc>(TWITCH_LINKS).updateOne({ _id: discordId }, { $set: { showInCommunityOverlay: false, updatedAt: new Date().toISOString() } }),
 		leavePreferenceGroup(discordId),
 	]);
 }
@@ -764,4 +787,76 @@ export async function findBlacklistMatch(input: { discordId?: string; riotId?: s
 	const col = await blacklistCollection();
 	const doc = await col.findOne({ $or: clauses });
 	return doc ? (stripMongoId(doc) as TournamentBlacklistEntry) : null;
+}
+
+function eligibilityOverrideId(input: { discordId?: string; riotId?: string }) {
+	const discordPart = input.discordId?.trim() || "-";
+	const riotPart = input.riotId?.trim().toLowerCase() || "-";
+	return `${discordPart}|${riotPart}`;
+}
+
+export function isEligibilityOverrideActive(entry: TournamentEligibilityOverride, tournamentId: string): boolean {
+	return entry.kind === "regular" || entry.tournamentId === tournamentId;
+}
+
+export async function listEligibilityOverrides(): Promise<TournamentEligibilityOverride[]> {
+	const col = await eligibilityOverridesCollection();
+	const docs = await col.find({}, { sort: { updatedAt: -1 } }).toArray();
+	return docs.map((raw) => stripMongoId(raw) as TournamentEligibilityOverride);
+}
+
+export async function upsertEligibilityOverride(input: {
+	discordId?: string;
+	riotId?: string;
+	kind: TournamentEligibilityOverrideKind;
+	tournamentId?: string;
+	requirements: TournamentEligibilityRequirement[];
+	note: string;
+	createdBy?: string;
+}): Promise<TournamentEligibilityOverride> {
+	const id = eligibilityOverrideId(input);
+	const col = await eligibilityOverridesCollection();
+	const existing = await col.findOne({ _id: id });
+	const now = new Date().toISOString();
+	const entry: TournamentEligibilityOverride = {
+		id,
+		...(input.discordId ? { discordId: input.discordId.trim() } : {}),
+		...(input.riotId ? { riotId: input.riotId.trim().toLowerCase() } : {}),
+		kind: input.kind,
+		...(input.kind === "exception" && input.tournamentId ? { tournamentId: input.tournamentId } : {}),
+		requirements: [...new Set(input.requirements)],
+		note: input.note.trim(),
+		createdAt: existing?.createdAt ?? now,
+		updatedAt: now,
+		createdBy: input.createdBy,
+	};
+	await col.replaceOne({ _id: id }, { ...entry }, { upsert: true });
+	return entry;
+}
+
+export async function deleteEligibilityOverride(id: string): Promise<void> {
+	const col = await eligibilityOverridesCollection();
+	await col.deleteOne({ _id: id });
+}
+
+export async function findEligibilityOverrideMatch(input: {
+	discordId?: string;
+	riotId?: string;
+	tournamentId: string;
+	requirement?: TournamentEligibilityRequirement;
+}): Promise<TournamentEligibilityOverride | null> {
+	const identities: Array<Record<string, string>> = [];
+	if (input.discordId) identities.push({ discordId: input.discordId.trim() });
+	if (input.riotId) identities.push({ riotId: input.riotId.trim().toLowerCase() });
+	if (identities.length === 0) return null;
+
+	const col = await eligibilityOverridesCollection();
+	const doc = await col.findOne({
+		$and: [
+			{ $or: identities },
+			{ $or: [{ kind: "regular" }, { kind: "exception", tournamentId: input.tournamentId }] },
+			...(input.requirement ? [{ requirements: input.requirement }] : []),
+		],
+	});
+	return doc ? (stripMongoId(doc) as TournamentEligibilityOverride) : null;
 }

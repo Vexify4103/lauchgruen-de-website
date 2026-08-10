@@ -60,6 +60,7 @@ export function ApplicationForm({
 	initialVerified,
 	initialApplication,
 	minimumSummonerLevel,
+	minimumLevelOverrideKind,
 	announcedDate,
 }: {
 	discordIdentity: DiscordIdentity;
@@ -68,6 +69,7 @@ export function ApplicationForm({
 	initialVerified: VerifiedAccount;
 	initialApplication: ExistingApplication | null;
 	minimumSummonerLevel: number;
+	minimumLevelOverrideKind: "regular" | "exception" | null;
 	announcedDate: string;
 }) {
 	const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
@@ -276,6 +278,13 @@ export function ApplicationForm({
 						</div>
 					</div>
 				) : null}
+				{minimumLevelOverrideKind ? (
+					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
+						<span className="font-black">Teilnahme-Freigabe aktiv:</span> Dein Account-Mindestlevel wird als{" "}
+						{minimumLevelOverrideKind === "regular" ? "Dauergast" : "Ausnahme"} nicht blockiert. Discord-Mitgliedschaft, Riot-Verifizierung und alle übrigen Regeln
+						gelten weiterhin.
+					</div>
+				) : null}
 
 				<label className="grid gap-2">
 					<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Angekündigte Turniertermine</span>
@@ -294,15 +303,17 @@ export function ApplicationForm({
 					<ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
 					<ReadOnlyField label="Aktueller Rang (von Riot)" value={verified?.currentRankAuto ?? "Unranked"} />
 					<ReadOnlyField
-						label={`Account-Level (mindestens ${minimumSummonerLevel})`}
-						value={verified?.summonerLevel ? String(verified.summonerLevel) : "Neu verifizieren"}
+						label={minimumLevelOverrideKind ? "Account-Level (Freigabe aktiv)" : `Account-Level (mindestens ${minimumSummonerLevel})`}
+						value={verified?.summonerLevel ? String(verified.summonerLevel) : minimumLevelOverrideKind ? "Freigegeben" : "Neu verifizieren"}
 					/>
 				</div>
 
 				<div className="grid gap-2">
 					<label className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Wunschrollen</label>
 					<p className="text-xs leading-5 text-emerald-100/58">
-						Die Reihenfolge zählt beim Team-Balancing: Deine zuerst gewählte Rolle ist Wunsch #1, die nächste Wunsch #2 usw. Klicke die Rollen deshalb in deiner tatsächlichen Wunschreihenfolge an. <strong className="text-emerald-50">Fill</strong> bedeutet jede Rolle und kann nicht mit Einzelrollen kombiniert werden. Die Reihenfolge wird bestmöglich berücksichtigt, ist wegen fairer Teams aber keine Garantie.
+						Die Reihenfolge zählt beim Team-Balancing: Deine zuerst gewählte Rolle ist Wunsch #1, die nächste Wunsch #2 usw. Klicke die Rollen deshalb in deiner
+						tatsächlichen Wunschreihenfolge an. <strong className="text-emerald-50">Fill</strong> bedeutet jede Rolle und kann nicht mit Einzelrollen kombiniert werden.
+						Die Reihenfolge wird bestmöglich berücksichtigt, ist wegen fairer Teams aber keine Garantie.
 					</p>
 					<ThemedMultiSelect
 						name="preferredRoles"
@@ -313,7 +324,19 @@ export function ApplicationForm({
 						ordered
 						exclusiveValues={["Fill"]}
 					/>
-					{preferredRoles.length ? <div className="flex flex-wrap gap-2">{preferredRoles.map((role, index) => <span key={role} className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100"><span className="mr-1.5 text-cyan-100">#{index + 1}</span>{role}</span>)}</div> : null}
+					{preferredRoles.length ? (
+						<div className="flex flex-wrap gap-2">
+							{preferredRoles.map((role, index) => (
+								<span
+									key={role}
+									className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100"
+								>
+									<span className="mr-1.5 text-cyan-100">#{index + 1}</span>
+									{role}
+								</span>
+							))}
+						</div>
+					) : null}
 				</div>
 
 				<label className="grid gap-2">
@@ -591,8 +614,8 @@ function RiotVerifyPanel({
 						<div className="grid gap-1 text-sm leading-6 text-emerald-100/76">
 							<div>Öffne im League-Client dein Profil und setze das gezeigte Icon.</div>
 							<div className="text-xs text-amber-100/70">
-								<strong className="font-black">Lass dieses Icon aktiv und klicke dann auf „Jetzt prüfen“.</strong> Ein Logout ist nicht nötig. Falls Riot die Änderung noch nicht
-								anzeigt, warte kurz und prüfe erneut. Erst nach der grünen Bestätigung kannst du dein altes Icon zurückstellen.
+								<strong className="font-black">Lass dieses Icon aktiv und klicke dann auf „Jetzt prüfen“.</strong> Ein Logout ist nicht nötig. Falls Riot die
+								Änderung noch nicht anzeigt, warte kurz und prüfe erneut. Erst nach der grünen Bestätigung kannst du dein altes Icon zurückstellen.
 							</div>
 							<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE")}.</div>
 						</div>
@@ -629,17 +652,7 @@ function RiotVerifyPanel({
 	);
 }
 
-function RiotIconState({
-	label,
-	iconUrl,
-	iconId,
-	tone,
-}: {
-	label: string;
-	iconUrl: string;
-	iconId: number;
-	tone: "expected" | "current";
-}) {
+function RiotIconState({ label, iconUrl, iconId, tone }: { label: string; iconUrl: string; iconId: number; tone: "expected" | "current" }) {
 	return (
 		<div className="flex items-center gap-3">
 			<Image

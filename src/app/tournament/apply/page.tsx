@@ -9,7 +9,7 @@ import {
 	isTournamentApplicationOpenDateReached,
 } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { findApplicationByDiscordId, getVerifiedAccount, updateVerifiedSummonerLevel } from "@/lib/tournament-storage";
+import { findApplicationByDiscordId, findEligibilityOverrideMatch, getVerifiedAccount, updateVerifiedSummonerLevel } from "@/lib/tournament-storage";
 import { getSummonerByPuuid } from "@/lib/riot";
 import { ApplicationForm } from "./ApplicationForm";
 import { DiscordSignInButton } from "../DiscordSignInButton";
@@ -100,7 +100,16 @@ export default async function ApplyPage() {
 		? await Promise.all([getVerifiedAccount(discordIdentity.id), findApplicationByDiscordId(discordIdentity.id)])
 		: [null, null];
 	let verifiedAccount = verifiedAccountResult;
-	if (discordIdentity && verifiedAccount && verifiedAccount.summonerLevel === undefined) {
+	const eligibilityOverride =
+		discordIdentity && verifiedAccount
+			? await findEligibilityOverrideMatch({
+					discordId: discordIdentity.id,
+					riotId: verifiedAccount.riotId,
+					tournamentId: settings.activeTournament.id,
+					requirement: "minimum-summoner-level",
+				})
+			: null;
+	if (discordIdentity && verifiedAccount && verifiedAccount.summonerLevel === undefined && !eligibilityOverride) {
 		try {
 			const summoner = await getSummonerByPuuid(verifiedAccount.puuid);
 			await updateVerifiedSummonerLevel(discordIdentity.id, summoner.summonerLevel);
@@ -187,6 +196,7 @@ export default async function ApplyPage() {
 							initialVerified={initialVerified}
 							initialApplication={existingApplication}
 							minimumSummonerLevel={settings.ultimateBravery.minimumSummonerLevel}
+							minimumLevelOverrideKind={eligibilityOverride?.kind ?? null}
 							announcedDate={formatUltimateBraveryDates(settings.ultimateBravery.startAt, settings.ultimateBravery.dayTwoStartAt)}
 						/>
 					) : (
@@ -197,8 +207,8 @@ export default async function ApplyPage() {
 							<div className="mt-7 text-xs font-black uppercase tracking-[0.28em] text-indigo-100/62">Deine Bewerbung beginnt hier</div>
 							<h2 className="mt-3 max-w-xl text-3xl font-black tracking-tight text-emerald-50 sm:text-4xl">Mit Discord anmelden und direkt weitermachen.</h2>
 							<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-								Wir verknüpfen deine Bewerbung eindeutig mit deinem Discord-Account und prüfen anschließend deine Server-Mitgliedschaft. Danach kannst du hier deinen Riot-Account
-								verifizieren und das Formular ausfüllen.
+								Wir verknüpfen deine Bewerbung eindeutig mit deinem Discord-Account und prüfen anschließend deine Server-Mitgliedschaft. Danach kannst du hier
+								deinen Riot-Account verifizieren und das Formular ausfüllen.
 							</p>
 
 							<div className="mt-7 grid gap-3 sm:grid-cols-3">
