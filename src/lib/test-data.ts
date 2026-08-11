@@ -177,6 +177,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 		notes: "(test data)",
 		acceptedRules: true as const,
 		acceptedDataStorage: true as const,
+		discordDmOptIn: true,
 		createdAt: now,
 		updatedAt: now,
 	}));
@@ -186,10 +187,7 @@ export async function seedTestApplicants(count: number): Promise<number> {
 	const applicationCollection = db.collection<StringIdDoc>("tournament_applications");
 
 	// Replace only explicitly marked test records. Stable IDs make this safely repeatable.
-	await Promise.all([
-		verifiedCollection.deleteMany({ [TEST_FLAG]: true }),
-		applicationCollection.deleteMany({ [TEST_FLAG]: true }),
-	]);
+	await Promise.all([verifiedCollection.deleteMany({ [TEST_FLAG]: true }), applicationCollection.deleteMany({ [TEST_FLAG]: true })]);
 	await Promise.all([
 		verifiedCollection.bulkWrite(verifiedDocs.map((document) => ({ replaceOne: { filter: { _id: document._id }, replacement: document, upsert: true } }))),
 		applicationCollection.bulkWrite(appDocs.map((document) => ({ replaceOne: { filter: { _id: document._id }, replacement: document, upsert: true } }))),
@@ -383,7 +381,9 @@ const TEST_MODE_COLLECTIONS = [
 
 async function readOperationalData(): Promise<Record<string, Document[]>> {
 	const db = await getDb();
-	return Object.fromEntries(await Promise.all(TEST_MODE_COLLECTIONS.map(async (collectionName) => [collectionName, await db.collection(collectionName).find({}).toArray()] as const)));
+	return Object.fromEntries(
+		await Promise.all(TEST_MODE_COLLECTIONS.map(async (collectionName) => [collectionName, await db.collection(collectionName).find({}).toArray()] as const))
+	);
 }
 
 async function clearOperationalData() {

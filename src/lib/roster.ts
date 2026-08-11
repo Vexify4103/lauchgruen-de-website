@@ -7,6 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
+import type { DiscordDirectMessagePayload } from "@/lib/discord";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
@@ -18,7 +19,7 @@ export function isPlayerRole(value: string): value is PlayerRole {
 	return (VALID_ROLES as readonly string[]).includes(value);
 }
 
-type BotStoredPlayer = {
+export type BotStoredPlayer = {
 	riotId: string;
 	puuid: string;
 	discordId?: string;
@@ -28,7 +29,7 @@ type BotStoredPlayer = {
 	verificationStatus?: "verified" | "manual";
 };
 
-type BotTeamMeta = {
+export type BotTeamMeta = {
 	group?: string;
 	seed?: number;
 	accent?: string;
@@ -41,7 +42,7 @@ type BotTeamMeta = {
 	};
 };
 
-type BotTeam = {
+export type BotTeam = {
 	name: string;
 	players: BotStoredPlayer[];
 	playedChampions: string[];
@@ -51,10 +52,24 @@ type BotTeam = {
 	meta?: BotTeamMeta;
 };
 
-type BotStateDoc = {
+export type BotStateDoc = {
 	_id: string;
 	teams?: Record<string, BotTeam>;
+	rosterPublishedAt?: string;
 };
+
+type RosterDraftTeam = {
+	players: BotStoredPlayer[];
+	captain?: BotTeamMeta["captain"];
+};
+
+type RosterDraftDoc = {
+	_id: "default";
+	teams: Record<string, RosterDraftTeam>;
+	updatedAt: string;
+};
+
+const ROSTER_DRAFT_COLLECTION = "tournament_roster_drafts";
 
 export type RosterApplicant = {
 	discordId: string;
@@ -97,20 +112,45 @@ export type RosterSnapshot = {
 	applicants: RosterApplicant[];
 	teams: RosterTeam[];
 	testModeActive: boolean;
+	publication: {
+		publishedAt: string | null;
+		draftUpdatedAt: string | null;
+		hasUnpublishedChanges: boolean;
+	};
 };
+
+export async function getRosterPublicationStatus(): Promise<{
+	published: boolean;
+	publishedAt: string | null;
+	teamCount: number;
+	playerCount: number;
+}> {
+	const db = await getDb();
+	const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
+	const teams = Object.values(doc?.teams ?? {});
+	const playerCount = teams.reduce((total, team) => total + (team.players?.length ?? 0), 0);
+	return {
+		published: Boolean(doc?.rosterPublishedAt && teams.length > 0 && playerCount > 0),
+		publishedAt: doc?.rosterPublishedAt ?? null,
+		teamCount: teams.length,
+		playerCount,
+	};
+}
 
 /** Single read fetching everything the roster builder needs. */
 export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	const db = await getDb();
-	const [appsRaw, botDoc, preferenceGroups, testModeActive] = await Promise.all([
+	const [appsRaw, botDoc, draftDoc, preferenceGroups, testModeActive] = await Promise.all([
 		listApplications(),
 		db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
+		db.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION).findOne({ _id: "default" }),
 		listPreferenceGroups(),
 		isTestRosterModeActive(),
 	]);
 
 	const visibleApplications = testModeActive ? appsRaw.filter((application) => application.discordId.startsWith("test-")) : appsRaw;
-	const teamsObj = botDoc?.teams ?? {};
+	const publishedTeamsObj = botDoc?.teams ?? {};
+	const teamsObj = testModeActive ? publishedTeamsObj : applyDraftToTeams(publishedTeamsObj, draftDoc);
 	const teams: RosterTeam[] = Object.entries(teamsObj).map(([key, t]) => ({
 		key,
 		name: t.name,
@@ -138,7 +178,53 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 		}
 	}
 
-	return { applicants, teams, testModeActive };
+	return {
+		applicants,
+		teams,
+		testModeActive,
+		publication: {
+			publishedAt: botDoc?.rosterPublishedAt ?? null,
+			draftUpdatedAt: draftDoc?.updatedAt ?? null,
+			hasUnpublishedChanges: Boolean(!testModeActive && draftDoc && rosterSignature(publishedTeamsObj) !== rosterSignature(teamsObj)),
+		},
+	};
+}
+
+function applyDraftToTeams(publishedTeams: Record<string, BotTeam>, draft: RosterDraftDoc | null): Record<string, BotTeam> {
+	if (!draft) return publishedTeams;
+	return Object.fromEntries(
+		Object.entries(publishedTeams).map(([teamKey, team]) => {
+			const draftTeam = draft.teams[teamKey];
+			if (!draftTeam) return [teamKey, team];
+			const { captain: _publishedCaptain, ...publishedMeta } = team.meta ?? {};
+			void _publishedCaptain;
+			return [
+				teamKey,
+				{
+					...team,
+					players: draftTeam.players,
+					meta: {
+						...publishedMeta,
+						...(draftTeam.captain ? { captain: draftTeam.captain } : {}),
+					},
+				},
+			];
+		})
+	);
+}
+
+function rosterSignature(teams: Record<string, BotTeam>): string {
+	return JSON.stringify(
+		Object.entries(teams)
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([teamKey, team]) => ({
+				teamKey,
+				captainDiscordId: team.meta?.captain?.discordId ?? null,
+				players: (team.players ?? [])
+					.map((player) => ({ discordId: player.discordId ?? "", riotId: player.riotId, role: player.role ?? null }))
+					.sort((left, right) => left.discordId.localeCompare(right.discordId)),
+			}))
+	);
 }
 
 function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): RosterApplicant {
@@ -203,8 +289,6 @@ export type RosterSavePayload = {
 	teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>>;
 	/** Optional captain change per team (discordId or null to clear). */
 	captains?: Record<string, string | null>;
-	/** Force role PUTs for current members to repair missing Discord roles. */
-	repairDiscordRoles?: boolean;
 	/** Emergency substitutes entered by an admin without account verification. */
 	manualPlayers?: Record<
 		string,
@@ -217,7 +301,9 @@ export type RosterSavePayload = {
 };
 
 /**
- * Applies a roster snapshot to bot_state. Validates that:
+ * Saves a private roster draft. This never changes the public roster or
+ * queues Discord operations. Test mode remains isolated and writes its dummy
+ * roster directly so tournament simulations continue to work.
  * 1. Every team key references an existing team
  * 2. Every discordId has a verified Riot account or an explicit manual substitute record
  * 3. No discordId appears on more than one team
@@ -228,23 +314,10 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	teamsUpdated: number;
 	errors: string[];
 	warnings: string[];
-	discordJobId?: string;
 }> {
 	const db = await getDb();
 	const [doc, testModeActive] = await Promise.all([db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }), isTestRosterModeActive()]);
 	const teamsObj = doc?.teams ?? {};
-	const previousCaptainIds = new Set(
-		Object.values(teamsObj)
-			.map((team) => team.meta?.captain?.discordId)
-			.filter((discordId): discordId is string => !!discordId)
-	);
-	const previousPlayerIds = new Set(
-		Object.values(teamsObj)
-			.flatMap((team) => team.players ?? [])
-			.map((player) => player.discordId)
-			.filter((discordId): discordId is string => !!discordId)
-	);
-
 	const errors: string[] = [];
 	const seen = new Map<string, string>(); // discordId → teamKey
 
@@ -296,10 +369,6 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 		return { applied: 0, teamsUpdated: 0, errors, warnings: [] };
 	}
 
-	// Pull applications once for role-default fallbacks.
-	const apps = await listApplications();
-	const appByDiscord = new Map(apps.map((a) => [a.discordId, a]));
-
 	let applied = 0;
 	let teamsUpdated = 0;
 	const setOps: Record<string, unknown> = {};
@@ -323,7 +392,6 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 				...(slot.role ? { role: slot.role } : {}),
 			};
 		});
-		void appByDiscord;
 		setOps[`teams.${teamKey}.players`] = players;
 		applied += players.length;
 		teamsUpdated += 1;
@@ -367,7 +435,29 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
 
 	if (Object.keys(update).length > 0) {
-		await db.collection<BotStateDoc>("bot_state").updateOne({ _id: "default" }, update, { upsert: true });
+		if (testModeActive) {
+			await db.collection<BotStateDoc>("bot_state").updateOne({ _id: "default" }, update, { upsert: true });
+		} else {
+			const draftTeams: Record<string, RosterDraftTeam> = {};
+			for (const teamKey of Object.keys(payload.teamPlayers)) {
+				const captain = setOps[`teams.${teamKey}.meta.captain`] as BotTeamMeta["captain"] | undefined;
+				draftTeams[teamKey] = {
+					players: (setOps[`teams.${teamKey}.players`] as BotStoredPlayer[] | undefined) ?? [],
+					...(captain ? { captain } : {}),
+				};
+			}
+			await db
+				.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION)
+				.updateOne({ _id: "default" }, { $set: { teams: draftTeams, updatedAt: new Date().toISOString() } }, { upsert: true });
+		}
+	}
+	if (!testModeActive) {
+		return {
+			applied,
+			teamsUpdated,
+			errors: [],
+			warnings: [],
+		};
 	}
 	if (testModeActive) {
 		return {
@@ -377,29 +467,272 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 			warnings: ["Testmodus aktiv: Das Roster wurde nur in MongoDB gespeichert; Discord-Rollen wurden nicht synchronisiert."],
 		};
 	}
+	return { applied, teamsUpdated, errors: [], warnings: [] };
+}
 
-	const repairDiscordRoles = Boolean(payload.repairDiscordRoles);
+type PublishedPlacement = {
+	teamKey: string;
+	teamName: string;
+	role: PlayerRole | null;
+	isCaptain: boolean;
+};
+
+export async function publishRoster(options: { repairDiscordRoles?: boolean } = {}): Promise<{
+	published: boolean;
+	publishedAt: string | null;
+	players: number;
+	changedPlacements: number;
+	dmQueued: number;
+	dmOptedOut: number;
+	warnings: string[];
+	discordJobId?: string;
+}> {
+	const db = await getDb();
+	const [botDoc, draftDoc, testModeActive, applications] = await Promise.all([
+		db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
+		db.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION).findOne({ _id: "default" }),
+		isTestRosterModeActive(),
+		listApplications(),
+	]);
+	if (testModeActive) throw new Error("Das Test-Roster kann nicht veröffentlicht werden.");
+
+	const previousTeams = botDoc?.teams ?? {};
+	const nextTeams = applyDraftToTeams(previousTeams, draftDoc);
+	const changed = rosterSignature(previousTeams) !== rosterSignature(nextTeams);
+	const firstPublication = !options.repairDiscordRoles && !botDoc?.rosterPublishedAt;
+	const shouldPublish = changed || firstPublication;
+	if (!shouldPublish && !options.repairDiscordRoles) {
+		return {
+			published: false,
+			publishedAt: botDoc?.rosterPublishedAt ?? null,
+			players: countRosterPlayers(nextTeams),
+			changedPlacements: 0,
+			dmQueued: 0,
+			dmOptedOut: 0,
+			warnings: [],
+		};
+	}
+
+	const publicationBaseline = firstPublication
+		? Object.fromEntries(
+				Object.entries(previousTeams).map(([teamKey, team]) => [
+					teamKey,
+					{
+						...team,
+						players: [],
+						meta: team.meta ? { ...team.meta, captain: undefined } : undefined,
+					},
+				])
+			)
+		: previousTeams;
+	const previousPlayerIds = rosterPlayerIds(publicationBaseline);
+	const nextPlayerIds = rosterPlayerIds(nextTeams);
+	const previousCaptainIds = rosterCaptainIds(publicationBaseline);
+	const nextCaptains = Object.fromEntries(Object.entries(nextTeams).map(([teamKey, team]) => [teamKey, team.meta?.captain?.discordId ?? null]));
+	const teamPlayers = Object.fromEntries(
+		Object.entries(nextTeams).map(([teamKey, team]) => [
+			teamKey,
+			(team.players ?? [])
+				.filter((player): player is BotStoredPlayer & { discordId: string } => Boolean(player.discordId))
+				.map((player) => ({ discordId: player.discordId, role: player.role ?? null })),
+		])
+	);
+
 	const warnings: string[] = [];
 	const operations: DiscordOperation[] = [];
-	const tournamentRolePlan = planDiscordTournamentRole(previousPlayerIds, new Set(allDiscordIds), repairDiscordRoles);
+	const tournamentRolePlan = planDiscordTournamentRole(previousPlayerIds, nextPlayerIds, Boolean(options.repairDiscordRoles));
 	warnings.push(...tournamentRolePlan.warnings);
 	operations.push(...tournamentRolePlan.operations);
-	const teamRolePlan = planDiscordTeamRoles(teamsObj, payload.teamPlayers, repairDiscordRoles);
+	const teamRolePlan = planDiscordTeamRoles(publicationBaseline, teamPlayers, Boolean(options.repairDiscordRoles));
 	warnings.push(...teamRolePlan.warnings);
 	operations.push(...teamRolePlan.operations);
-	if (payload.captains) {
-		const captainRolePlan = planDiscordCaptainRole(previousCaptainIds, payload.captains, repairDiscordRoles);
-		warnings.push(...captainRolePlan.warnings);
-		operations.push(...captainRolePlan.operations);
+	const captainRolePlan = planDiscordCaptainRole(previousCaptainIds, nextCaptains, Boolean(options.repairDiscordRoles));
+	warnings.push(...captainRolePlan.warnings);
+	operations.push(...captainRolePlan.operations);
+
+	const previousPlacements = rosterPlacements(publicationBaseline);
+	const nextPlacements = rosterPlacements(nextTeams);
+	const appByDiscordId = new Map(applications.map((application) => [application.discordId, application]));
+	let changedPlacements = 0;
+	let dmQueued = 0;
+	let dmOptedOut = 0;
+	if (shouldPublish) {
+		for (const discordId of new Set([...previousPlacements.keys(), ...nextPlacements.keys()])) {
+			const previous = previousPlacements.get(discordId) ?? null;
+			const next = nextPlacements.get(discordId) ?? null;
+			if (JSON.stringify(previous) === JSON.stringify(next)) continue;
+			changedPlacements += 1;
+			const application = appByDiscordId.get(discordId);
+			if (!application || application.discordDmOptIn === false) {
+				if (application) dmOptedOut += 1;
+				continue;
+			}
+			operations.push({
+				kind: "direct-message",
+				discordId,
+				payload: rosterPublicationMessage(next),
+				dedupeKey: `roster-publication:${discordId}`,
+				label: `${application.displayName}: Teamveröffentlichung senden`,
+			});
+			dmQueued += 1;
+		}
+	}
+
+	const publishedAt = new Date().toISOString();
+	if (shouldPublish) {
+		const setOps: Record<string, unknown> = { rosterPublishedAt: publishedAt };
+		const unsetOps: Record<string, ""> = {};
+		for (const [teamKey, team] of Object.entries(nextTeams)) {
+			setOps[`teams.${teamKey}.players`] = team.players ?? [];
+			if (team.meta?.captain) setOps[`teams.${teamKey}.meta.captain`] = team.meta.captain;
+			else unsetOps[`teams.${teamKey}.meta.captain`] = "";
+		}
+		await db
+			.collection<BotStateDoc>("bot_state")
+			.updateOne({ _id: "default" }, { $set: setOps, ...(Object.keys(unsetOps).length ? { $unset: unsetOps } : {}) }, { upsert: true });
+		await db.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION).deleteOne({ _id: "default" });
 	}
 
 	const discordJob = await enqueueDiscordJob({
-		type: repairDiscordRoles ? "roster-role-repair" : "roster-role-sync",
-		title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
+		type: options.repairDiscordRoles ? "roster-role-repair" : "roster-publish",
+		title: options.repairDiscordRoles ? "Veröffentlichte Discord-Rollen reparieren" : "Roster veröffentlichen",
 		operations,
 	});
 
-	return { applied, teamsUpdated, errors: [], warnings, discordJobId: discordJob?.id };
+	return {
+		published: shouldPublish,
+		publishedAt: shouldPublish ? publishedAt : (botDoc?.rosterPublishedAt ?? null),
+		players: countRosterPlayers(nextTeams),
+		changedPlacements,
+		dmQueued,
+		dmOptedOut,
+		warnings,
+		discordJobId: discordJob?.id,
+	};
+}
+
+function rosterPlayerIds(teams: Record<string, BotTeam>): Set<string> {
+	return new Set(
+		Object.values(teams)
+			.flatMap((team) => team.players ?? [])
+			.map((player) => player.discordId)
+			.filter((discordId): discordId is string => Boolean(discordId))
+	);
+}
+
+function rosterCaptainIds(teams: Record<string, BotTeam>): Set<string> {
+	return new Set(
+		Object.values(teams)
+			.map((team) => team.meta?.captain?.discordId)
+			.filter((discordId): discordId is string => Boolean(discordId))
+	);
+}
+
+function countRosterPlayers(teams: Record<string, BotTeam>): number {
+	return Object.values(teams).reduce((total, team) => total + (team.players?.length ?? 0), 0);
+}
+
+function rosterPlacements(teams: Record<string, BotTeam>): Map<string, PublishedPlacement> {
+	const placements = new Map<string, PublishedPlacement>();
+	for (const [teamKey, team] of Object.entries(teams)) {
+		for (const player of team.players ?? []) {
+			if (!player.discordId) continue;
+			placements.set(player.discordId, {
+				teamKey,
+				teamName: team.name,
+				role: player.role ?? null,
+				isCaptain: team.meta?.captain?.discordId === player.discordId,
+			});
+		}
+	}
+	return placements;
+}
+
+function rosterPublicationMessage(placement: PublishedPlacement | null): DiscordDirectMessagePayload {
+	const tournamentBaseUrl = "https://tournament.lauchgruen.de";
+	const commonButtons = [
+		{
+			type: 2 as const,
+			style: 5 as const,
+			label: "Mein Turnierkonto",
+			url: `${tournamentBaseUrl}/me`,
+		},
+	];
+
+	if (!placement) {
+		return {
+			content: "🐻 **Post von Lauchgruen**",
+			embeds: [
+				{
+					author: { name: "LAUCHGRUEN · TURNIERPOST" },
+					title: "Deine Teamzuteilung wurde geändert",
+					description:
+						"Du bist aktuell keinem veröffentlichten Team zugeteilt. Das kann durch eine kurzfristige Rosteränderung passieren. Wenn dir dazu noch keine Information vorliegt, melde dich bitte bei der Turnierleitung.",
+					color: 0xe7b955,
+					fields: [{ name: "DEIN STATUS", value: "Momentan ohne veröffentlichtes Team", inline: false }],
+					footer: { text: "Lauchgruen Community-Turniere · Wir halten dich auf dem Laufenden" },
+					timestamp: new Date().toISOString(),
+				},
+			],
+			components: [{ type: 1, components: commonButtons }],
+		};
+	}
+
+	const roleLabels: Partial<Record<PlayerRole, string>> = {
+		Top: "Toplane",
+		Jungle: "Jungle",
+		Mid: "Midlane",
+		Bot: "Botlane",
+		Support: "Support",
+		Fill: "Flexibel",
+		Sub: "Ersatzspieler:in",
+	};
+	const role = placement.role ? (roleLabels[placement.role] ?? placement.role) : "Noch offen";
+	const buttons = [
+		...(placement.isCaptain
+			? [
+					{
+						type: 2 as const,
+						style: 5 as const,
+						label: "Captain-Portal",
+						url: `${tournamentBaseUrl}/captain`,
+					},
+				]
+			: []),
+		{
+			type: 2 as const,
+			style: 5 as const,
+			label: "Teamübersicht",
+			url: `${tournamentBaseUrl}/teams`,
+		},
+		...commonButtons,
+	];
+
+	return {
+		content: "🐻 **Post von Lauchgruen**",
+		embeds: [
+			{
+				author: { name: "LAUCHGRUEN · TURNIERPOST" },
+				title: placement.isCaptain ? `Du führst ${placement.teamName} an!` : `Willkommen bei ${placement.teamName}!`,
+				description: placement.isCaptain
+					? "Die Teams sind veröffentlicht und du wurdest als Captain ausgewählt. Stimme dich mit deinem Team ab und bereite eure Matches im Captain-Portal vor. 💚"
+					: "Die Teams sind veröffentlicht und dein Platz steht fest. Lernt euch kennen, stimmt euch für das Turnier ab und habt vor allem eine gute Zeit miteinander. 💚",
+				color: 0xb7f36b,
+				fields: [
+					{ name: "DEIN TEAM", value: `**${placement.teamName}**`, inline: true },
+					{ name: "DEINE ROLLE", value: `**${role}**`, inline: true },
+					{
+						name: "DEIN STATUS",
+						value: placement.isCaptain ? "👑 Team-Captain" : "✓ Teammitglied",
+						inline: true,
+					},
+				],
+				footer: { text: "Lauchgruen Community-Turniere · Fair spielen, gemeinsam Spaß haben" },
+				timestamp: new Date().toISOString(),
+			},
+		],
+		components: [{ type: 1, components: buttons }],
+	};
 }
 
 function planDiscordTournamentRole(previousPlayerIds: Set<string>, nextPlayerIds: Set<string>, repairExisting: boolean): { operations: DiscordOperation[]; warnings: string[] } {

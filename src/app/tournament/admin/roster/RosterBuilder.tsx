@@ -147,6 +147,7 @@ export function RosterBuilder({
 		role: PlayerRole;
 	}>(null);
 	const [saving, setSaving] = useState(false);
+	const [publishing, setPublishing] = useState(false);
 	const [discordJob, setDiscordJob] = useState<DiscordJobStatus | null>(null);
 	const [message, setMessage] = useState<null | {
 		tone: "ok" | "error";
@@ -204,7 +205,6 @@ export function RosterBuilder({
 	const [createOpen, setCreateOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [newTeamName, setNewTeamName] = useState("");
-	const [newTeamCreateDiscord, setNewTeamCreateDiscord] = useState(false);
 	const [editTeamTarget, setEditTeamTarget] = useState<RosterTeam | null>(null);
 	const [editingTeam, setEditingTeam] = useState(false);
 	const [editTeamName, setEditTeamName] = useState("");
@@ -219,7 +219,7 @@ export function RosterBuilder({
 	const usesGroups = dayOneFormat === "groups";
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
-	const createTeamDirty = Boolean(createOpen && (newTeamName.trim() || newTeamCreateDiscord));
+	const createTeamDirty = Boolean(createOpen && newTeamName.trim());
 	const editTeamDirty = Boolean(editTeamTarget && editTeamName !== editTeamTarget.name);
 
 	// Auto-dismiss "ok" toasts so they don't sit stuck after the next router
@@ -544,7 +544,7 @@ export function RosterBuilder({
 		setManualSubOpen(false);
 		setMessage({
 			tone: "ok",
-			text: `${displayName} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte das Roster speichern.`,
+			text: `${displayName} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte den Entwurf speichern und später bewusst veröffentlichen.`,
 		});
 	}
 
@@ -611,7 +611,6 @@ export function RosterBuilder({
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				name,
-				createDiscordSetup: newTeamCreateDiscord,
 			}),
 		});
 		setCreating(false);
@@ -638,7 +637,6 @@ export function RosterBuilder({
 			}));
 		}
 		setNewTeamName("");
-		setNewTeamCreateDiscord(false);
 		setCreateOpen(false);
 		const warnings = (json?.warnings as string[] | undefined) ?? [];
 		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
@@ -648,7 +646,7 @@ export function RosterBuilder({
 		});
 		router.refresh();
 		return true;
-	}, [newTeamName, newTeamCreateDiscord, router, showConflict]);
+	}, [newTeamName, router, showConflict]);
 
 	const openEditTeam = useCallback((team: RosterTeam) => {
 		setEditTeamTarget(team);
@@ -834,89 +832,127 @@ export function RosterBuilder({
 		window.location.reload();
 	}
 
-	const save = useCallback(
-		async (repairDiscordRoles = false): Promise<boolean> => {
-			const stateBeingSaved = currentRosterState;
-			setSaving(true);
-			setMessage(null);
-			const teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>> = {};
-			for (const team of snapshot.teams) {
-				teamPlayers[team.key] = [];
-			}
-			for (const [discordId, assignment] of state.assignments) {
-				if (!assignment.teamKey) continue;
-				teamPlayers[assignment.teamKey]?.push({
-					discordId,
-					role: assignment.role,
-				});
-			}
-			const captains: Record<string, string | null> = {};
-			for (const [teamKey, captainId] of state.captains) {
-				captains[teamKey] = captainId;
-			}
-			const manualPlayers = Object.fromEntries(
-				[...state.manualPlayers.entries()].map(([discordId, player]) => [
-					discordId,
-					{
-						discordUsername: player.discordUsername ?? player.discordHandle,
-						displayName: player.displayName,
-						riotId: player.riotId,
-					},
-				])
-			);
-			const response = await fetch("/api/tournament/roster", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					teamPlayers,
-					captains,
-					manualPlayers,
-					repairDiscordRoles,
-				}),
+	const save = useCallback(async (): Promise<boolean> => {
+		const stateBeingSaved = currentRosterState;
+		setSaving(true);
+		setMessage(null);
+		const teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>> = {};
+		for (const team of snapshot.teams) {
+			teamPlayers[team.key] = [];
+		}
+		for (const [discordId, assignment] of state.assignments) {
+			if (!assignment.teamKey) continue;
+			teamPlayers[assignment.teamKey]?.push({
+				discordId,
+				role: assignment.role,
 			});
-			setSaving(false);
-			const json = await response.json().catch(() => null);
-			if (!response.ok) {
-				if (isAdminVersionConflict(response, json)) {
-					showConflict(json);
-					return false;
-				}
-				const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
-				setMessage({ tone: "error", text: errs.join(" · ") });
+		}
+		const captains: Record<string, string | null> = {};
+		for (const [teamKey, captainId] of state.captains) {
+			captains[teamKey] = captainId;
+		}
+		const manualPlayers = Object.fromEntries(
+			[...state.manualPlayers.entries()].map(([discordId, player]) => [
+				discordId,
+				{
+					discordUsername: player.discordUsername ?? player.discordHandle,
+					displayName: player.displayName,
+					riotId: player.riotId,
+				},
+			])
+		);
+		const response = await fetch("/api/tournament/roster", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				teamPlayers,
+				captains,
+				manualPlayers,
+			}),
+		});
+		setSaving(false);
+		const json = await response.json().catch(() => null);
+		if (!response.ok) {
+			if (isAdminVersionConflict(response, json)) {
+				showConflict(json);
 				return false;
 			}
-			setSavedRosterState(stateBeingSaved);
-			const warnings = (json?.warnings as string[] | undefined) ?? [];
+			const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
+			setMessage({ tone: "error", text: errs.join(" · ") });
+			return false;
+		}
+		setSavedRosterState(stateBeingSaved);
+		setSnapshot((current) => ({
+			...current,
+			publication: {
+				...current.publication,
+				draftUpdatedAt: new Date().toISOString(),
+				hasUnpublishedChanges: !current.testModeActive,
+			},
+		}));
+		const warnings = (json?.warnings as string[] | undefined) ?? [];
+		setDiscordJob(null);
+		setMessage({
+			tone: warnings.length > 0 ? "error" : "ok",
+			text:
+				`Privater Roster-Entwurf gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s). Noch nicht veröffentlicht.` +
+				(warnings.length > 0 ? ` Hinweis: ${warnings.join(" · ")}` : ""),
+		});
+		return true;
+	}, [currentRosterState, state, snapshot.teams, showConflict, setSavedRosterState]);
+
+	const publish = useCallback(
+		async (repairDiscordRoles = false) => {
+			if (rosterDirty) {
+				setMessage({ tone: "error", text: "Speichere deine Roster-Änderungen zuerst, bevor du veröffentlichst." });
+				return;
+			}
+			setPublishing(true);
+			setMessage(null);
+			const response = await fetch("/api/tournament/roster/publish", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ repairDiscordRoles }),
+			});
+			const json = await response.json().catch(() => null);
+			setPublishing(false);
+			if (!response.ok) {
+				setMessage({ tone: "error", text: json?.message ?? "Roster konnte nicht veröffentlicht werden." });
+				return;
+			}
 			const discordJobId = typeof json?.discordJobId === "string" ? json.discordJobId : null;
 			if (discordJobId) {
 				setDiscordJob({
 					id: discordJobId,
-					title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Discord-Rollen synchronisieren",
+					title: repairDiscordRoles ? "Discord-Rollen reparieren" : "Roster veröffentlichen",
 					status: "queued",
 					total: 0,
 					completed: 0,
 					failed: 0,
 					warnings: [],
 				});
-			} else {
-				setDiscordJob(null);
 			}
+			setSnapshot((current) => ({
+				...current,
+				publication: {
+					publishedAt: json?.publishedAt ?? current.publication.publishedAt,
+					draftUpdatedAt: null,
+					hasUnpublishedChanges: false,
+				},
+			}));
 			setMessage({
-				tone: warnings.length > 0 ? "error" : "ok",
-				text:
-					`Roster gespeichert · ${json.applied} Spieler in ${json.teamsUpdated} Team(s).` +
-					(warnings.length === 0
-						? discordJobId
-							? repairDiscordRoles
-								? " Discord-Rollen-Reparatur wurde in die Queue gelegt."
-								: " Discord-Rollen-Sync wurde in die Queue gelegt."
-							: " Keine Discord-Rollenänderungen nötig."
-						: "") +
-					(warnings.length > 0 ? ` Discord-Warnung: ${warnings.join(" · ")}` : ""),
+				tone: (json?.warnings?.length ?? 0) > 0 ? "error" : "ok",
+				text: repairDiscordRoles
+					? discordJobId
+						? "Die Reparatur der veröffentlichten Discord-Rollen wurde eingeplant."
+						: "Alle veröffentlichten Discord-Rollen waren bereits korrekt."
+					: json?.published
+						? `Roster veröffentlicht · ${json.players} Spieler · ${json.dmQueued} Discord-DMs eingeplant${json.dmOptedOut ? ` · ${json.dmOptedOut} abgewählt` : ""}.`
+						: "Seit der letzten Veröffentlichung gibt es keine Änderungen.",
 			});
-			return true;
+			router.refresh();
 		},
-		[currentRosterState, state, snapshot.teams, showConflict, setSavedRosterState]
+		[rosterDirty, router]
 	);
 
 	useUnsavedChanges({
@@ -941,8 +977,8 @@ export function RosterBuilder({
 				<div className="rounded-[1.6rem] border border-amber-200/28 bg-gradient-to-r from-amber-200/12 via-lime-200/[0.08] to-cyan-200/[0.06] px-5 py-4 shadow-xl shadow-amber-300/10 xl:col-span-2">
 					<div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Temporärer Testmodus aktiv</div>
 					<p className="mt-1 text-sm font-bold leading-6 text-amber-50/86">
-						Du arbeitest gerade mit acht vollständigen Dummy-Teams. Roster-Saves verändern nur die Testdaten und lösen keine Discord-Synchronisation aus. Mit
-						„Testmodus beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
+						Du arbeitest gerade mit acht vollständigen Dummy-Teams. Roster-Saves verändern nur die Testdaten und lösen keine Discord-Synchronisation aus. Mit „Testmodus
+						beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
 					</p>
 				</div>
 			) : null}
@@ -1095,7 +1131,7 @@ export function RosterBuilder({
 									type="button"
 									onClick={() => setCreateOpen(true)}
 									disabled={creating || autoRunning}
-									title="Neues Team direkt im Bot anlegen"
+									title="Neues Team mit Discord-Rolle und privaten Channels anlegen"
 									className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-cyan-200/28 hover:bg-cyan-300/[0.06] hover:text-cyan-50 disabled:opacity-45"
 								>
 									+ Team anlegen
@@ -1149,14 +1185,32 @@ export function RosterBuilder({
 							</div>
 						</div>
 
-						<button
-							type="button"
-							onClick={() => void save()}
-							disabled={saving || autoRunning}
-							className="min-h-[5.5rem] rounded-2xl bg-gradient-to-br from-lime-200 via-emerald-200 to-cyan-200 px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 hover:shadow-lime-300/30 disabled:translate-y-0 disabled:opacity-50"
-						>
-							{saving ? "Speichern…" : "Roster speichern"}
-						</button>
+						<div className="grid min-w-64 gap-2">
+							<button
+								type="button"
+								onClick={() => void save()}
+								disabled={saving || publishing || autoRunning}
+								className="min-h-12 rounded-2xl border border-lime-200/24 bg-lime-200/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-lime-50 transition hover:border-lime-200/45 hover:bg-lime-200/15 disabled:opacity-50"
+							>
+								{saving ? "Speichern…" : "Entwurf speichern"}
+							</button>
+							<button
+								type="button"
+								onClick={() => void publish(false)}
+								disabled={saving || publishing || autoRunning || rosterDirty || !snapshot.publication.hasUnpublishedChanges || snapshot.testModeActive}
+								title={rosterDirty ? "Speichere den Entwurf zuerst." : "Macht Teams öffentlich, synchronisiert Discord-Rollen und sendet aktivierte DMs."}
+								className="min-h-14 rounded-2xl bg-gradient-to-br from-lime-200 via-emerald-200 to-cyan-200 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 hover:shadow-lime-300/30 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
+							>
+								{publishing ? "Wird veröffentlicht…" : "Teams veröffentlichen"}
+							</button>
+							<p className="text-center text-[10px] font-bold leading-4 text-emerald-100/42">
+								{snapshot.publication.hasUnpublishedChanges
+									? "Privater Entwurf wartet auf Veröffentlichung."
+									: snapshot.publication.publishedAt
+										? `Zuletzt veröffentlicht: ${new Date(snapshot.publication.publishedAt).toLocaleString("de-DE")}`
+										: "Noch kein Roster veröffentlicht."}
+							</p>
+						</div>
 					</div>
 
 					<details className="border-t border-white/8 bg-black/10 px-4 py-3">
@@ -1166,8 +1220,8 @@ export function RosterBuilder({
 						<div className="mt-3 flex flex-wrap gap-2">
 							<button
 								type="button"
-								onClick={() => void save(true)}
-								disabled={saving || autoRunning}
+								onClick={() => void publish(true)}
+								disabled={saving || publishing || autoRunning || rosterDirty}
 								title="Repariert fehlende Turnier-, Team- und Captain-Rollen für das aktuelle Roster. Nur benutzen, wenn Discord-Rollen fehlen."
 								className="rounded-xl border border-amber-200/22 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100 transition hover:border-amber-200/42 hover:text-amber-50 disabled:opacity-45"
 							>
@@ -1582,8 +1636,7 @@ export function RosterBuilder({
 						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Neues Team</div>
 						<h2 className="mt-2 text-lg font-black text-emerald-50">Team anlegen</h2>
 						<p className="mt-1 text-xs text-emerald-100/52">
-							Wird direkt im Bot (bot_state.teams) gespeichert — gleicher Effekt wie der <code className="rounded bg-black/40 px-1 py-0.5">/createteam</code>
-							-Befehl.
+							Das Team wird gespeichert. Discord-Rolle sowie privater Text- und Voice-Channel werden anschließend automatisch über die Job-Queue erstellt.
 						</p>
 
 						<div className="mt-4 grid gap-3">
@@ -1601,15 +1654,6 @@ export function RosterBuilder({
 								Teams werden immer neutral angelegt. Falls eine Gruppenphase gewählt ist, erfolgt die Einteilung anschließend gesammelt im Gruppenplaner des
 								Roster-Builders.
 							</div>
-							<label className="flex gap-3 rounded-xl border border-white/10 bg-black/18 px-3 py-3 text-xs leading-5 text-emerald-100/70">
-								<input
-									type="checkbox"
-									checked={newTeamCreateDiscord}
-									onChange={(e) => setNewTeamCreateDiscord(e.target.checked)}
-									className="mt-0.5 size-4 shrink-0 accent-lime-300"
-								/>
-								Discord-Rolle und privaten Voice-Channel wie bei /createteam anlegen.
-							</label>
 						</div>
 
 						<div className="mt-5 flex justify-end gap-2">
@@ -2188,7 +2232,10 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 				<ApplicationDetailRow
 					label="Rollen"
 					value={
-						[applicant.mainRole ? `Main: ${applicant.mainRole}` : "", applicant.preferredRoles.length > 0 ? `Wünsche: ${applicant.preferredRoles.map((role, index) => `#${index + 1} ${role}`).join(", ")}` : ""]
+						[
+							applicant.mainRole ? `Main: ${applicant.mainRole}` : "",
+							applicant.preferredRoles.length > 0 ? `Wünsche: ${applicant.preferredRoles.map((role, index) => `#${index + 1} ${role}`).join(", ")}` : "",
+						]
 							.filter(Boolean)
 							.join(" · ") || "Keine Angaben"
 					}
@@ -2282,30 +2329,32 @@ function Picker({
 							{decorated.map(({ applicant, priority }) => {
 								const preferred = priority >= 0;
 								return (
-								<button
-									key={applicant.discordId}
-									type="button"
-									onClick={() => onPick(applicant.discordId)}
-									className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
-										preferred ? "border-lime-200/30 bg-lime-200/[0.06] hover:border-lime-200/50" : "border-white/10 bg-black/24 hover:border-lime-200/30"
-									}`}
-								>
-									<div className="min-w-0">
-										<div className="truncate text-sm font-black text-emerald-50">
-											{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}
-											{preferred ? <span className="ml-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime-200/72">Wunsch #{priority + 1}</span> : null}
-										</div>
-										<div className="truncate text-[10px] text-emerald-100/52">
-											{applicant.riotId}
-											{applicant.manualRankOverride || applicant.currentRank ? ` · ${applicant.manualRankOverride || applicant.currentRank}` : ""}
-										</div>
-										{applicant.preferenceGroupCode ? (
-											<div className="mt-1">
-												<PreferenceGroupBadge code={applicant.preferenceGroupCode} />
+									<button
+										key={applicant.discordId}
+										type="button"
+										onClick={() => onPick(applicant.discordId)}
+										className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
+											preferred ? "border-lime-200/30 bg-lime-200/[0.06] hover:border-lime-200/50" : "border-white/10 bg-black/24 hover:border-lime-200/30"
+										}`}
+									>
+										<div className="min-w-0">
+											<div className="truncate text-sm font-black text-emerald-50">
+												{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}
+												{preferred ? (
+													<span className="ml-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime-200/72">Wunsch #{priority + 1}</span>
+												) : null}
 											</div>
-										) : null}
-									</div>
-								</button>
+											<div className="truncate text-[10px] text-emerald-100/52">
+												{applicant.riotId}
+												{applicant.manualRankOverride || applicant.currentRank ? ` · ${applicant.manualRankOverride || applicant.currentRank}` : ""}
+											</div>
+											{applicant.preferenceGroupCode ? (
+												<div className="mt-1">
+													<PreferenceGroupBadge code={applicant.preferenceGroupCode} />
+												</div>
+											) : null}
+										</div>
+									</button>
 								);
 							})}
 						</div>

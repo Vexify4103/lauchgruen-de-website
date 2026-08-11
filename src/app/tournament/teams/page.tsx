@@ -1,6 +1,7 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { redirect } from "next/navigation";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getRosterPublicationStatus } from "@/lib/roster";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -29,7 +30,10 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
-	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
+	const [settings, publication] = await Promise.all([getTournamentSettings(), getRosterPublicationStatus()]);
+	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
+	if (!publication.published) return <TeamsNotPublished tournamentName={settings.activeTournament.name} />;
+	const isAzTournament = settings.activeTournament.id !== "ultimate-bravery";
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
@@ -94,9 +98,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				) : null}
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Teams und Rosters</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Aktuelle Teams, klickbare Spieler.</h1>
+					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Die veröffentlichten Turnierteams.</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/68">
-						Die Rosters werden gesperrt, sobald das Orga-Team die Bewerbungen bestätigt hat. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
+						Die Teamaufteilung wurde von der Turnierleitung freigegeben. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
 					</p>
 				</div>
 
@@ -146,40 +150,42 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 					</div>
 				) : null}
 
-				<div className="mt-8 rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
-					<div className="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">A-Z Wheel</div>
-							<h2 className="mt-2 text-3xl font-black text-emerald-50">
-								{currentAssignment
-									? `${currentAssignment.teamAName}: ${compactPoolLabel(currentAssignment.teamAPool)} vs ${currentAssignment.teamBName}: ${compactPoolLabel(currentAssignment.teamBPool)}`
-									: "Noch kein Match-Pool gezogen"}
-							</h2>
-							<p className="mt-2 text-sm leading-6 text-emerald-100/64">
-								Jeder Spin gilt nur für ein Match: Team A bekommt einen Pool, Team B bekommt einen anderen Pool. Sobald das Match als Finished gespeichert wird,
-								wandern die Pools in die Team-Historie.
-							</p>
+				{isAzTournament ? (
+					<div className="mt-8 rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+						<div className="flex flex-wrap items-start justify-between gap-4">
+							<div>
+								<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">A-Z Wheel</div>
+								<h2 className="mt-2 text-3xl font-black text-emerald-50">
+									{currentAssignment
+										? `${currentAssignment.teamAName}: ${compactPoolLabel(currentAssignment.teamAPool)} vs ${currentAssignment.teamBName}: ${compactPoolLabel(currentAssignment.teamBPool)}`
+										: "Noch kein Match-Pool gezogen"}
+								</h2>
+								<p className="mt-2 text-sm leading-6 text-emerald-100/64">
+									Jeder Spin gilt nur für ein Match: Team A bekommt einen Pool, Team B bekommt einen anderen Pool. Sobald das Match als Finished gespeichert wird,
+									wandern die Pools in die Team-Historie.
+								</p>
+							</div>
+							<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-lime-100">
+								{new Set([...Object.keys(wheel.usedPoolsByTeam), ...Object.keys(wheel.playoffUsedPoolsByTeam)]).size} Teams mit Pool-Historie
+							</div>
 						</div>
-						<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-lime-100">
-							{new Set([...Object.keys(wheel.usedPoolsByTeam), ...Object.keys(wheel.playoffUsedPoolsByTeam)]).size} Teams mit Pool-Historie
-						</div>
-					</div>
 
-					{wheel.history.length > 0 ? (
-						<div className="mt-4 flex flex-wrap gap-2">
-							{wheel.history.slice(0, 6).map((entry) => (
-								<span
-									key={`${entry.matchId}-${entry.spunAt}`}
-									className="rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80"
-								>
-									{compactPoolLabel(entry.teamAPool)} vs {compactPoolLabel(entry.teamBPool)}
-								</span>
-							))}
-						</div>
-					) : (
-						<p className="mt-4 text-sm italic text-emerald-100/42">Noch keine Match-Pools gezogen.</p>
-					)}
-				</div>
+						{wheel.history.length > 0 ? (
+							<div className="mt-4 flex flex-wrap gap-2">
+								{wheel.history.slice(0, 6).map((entry) => (
+									<span
+										key={`${entry.matchId}-${entry.spunAt}`}
+										className="rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80"
+									>
+										{compactPoolLabel(entry.teamAPool)} vs {compactPoolLabel(entry.teamBPool)}
+									</span>
+								))}
+							</div>
+						) : (
+							<p className="mt-4 text-sm italic text-emerald-100/42">Noch keine Match-Pools gezogen.</p>
+						)}
+					</div>
+				) : null}
 
 				<div className="mt-8 grid gap-5 lg:grid-cols-2">
 					{teams.map((team) => {
@@ -192,7 +198,11 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 								<div className="rounded-[1.5rem] border border-white/8 bg-black/16 p-4">
 									<div className="flex flex-wrap items-center justify-between gap-3">
 										<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-100/62">
-											Gruppe {team.group} · Seed {team.seed}
+											{isAzTournament || settings.ultimateBravery.dayOneFormat === "groups"
+												? `Gruppe ${team.group} · Seed ${team.seed}`
+												: settings.ultimateBravery.dayOneFormat === "swiss"
+													? "Swiss-Stage-Team"
+													: "Turnierteam"}
 										</div>
 										<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 											<a
@@ -286,23 +296,56 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 									})}
 								</div>
 
-								<TeamPoolHistory
-									teamName={team.name}
-									groupPools={wheel.usedPoolsByTeam[team.name] ?? []}
-									playoffPools={wheel.playoffUsedPoolsByTeam[team.name] ?? []}
-									matchPools={wheel.history
-										.filter((entry) => entry.teamAName === team.name || entry.teamBName === team.name)
-										.map((entry) => ({
-											matchId: entry.matchId,
-											opponent: entry.teamAName === team.name ? entry.teamBName : entry.teamAName,
-											pool: entry.teamAName === team.name ? entry.teamAPool : entry.teamBPool,
-										}))}
-									groupRemaining={remainingPoolsForTeam(wheel, team.name, "early").length}
-									playoffRemaining={remainingPoolsForTeam(wheel, team.name, "finals").length}
-								/>
+								{isAzTournament ? (
+									<TeamPoolHistory
+										teamName={team.name}
+										groupPools={wheel.usedPoolsByTeam[team.name] ?? []}
+										playoffPools={wheel.playoffUsedPoolsByTeam[team.name] ?? []}
+										matchPools={wheel.history
+											.filter((entry) => entry.teamAName === team.name || entry.teamBName === team.name)
+											.map((entry) => ({
+												matchId: entry.matchId,
+												opponent: entry.teamAName === team.name ? entry.teamBName : entry.teamAName,
+												pool: entry.teamAName === team.name ? entry.teamAPool : entry.teamBPool,
+											}))}
+										groupRemaining={remainingPoolsForTeam(wheel, team.name, "early").length}
+										playoffRemaining={remainingPoolsForTeam(wheel, team.name, "finals").length}
+									/>
+								) : null}
 							</article>
 						);
 					})}
+				</div>
+			</section>
+		</div>
+	);
+}
+
+function TeamsNotPublished({ tournamentName }: { tournamentName: string }) {
+	return (
+		<div className="px-5 py-14 sm:py-20">
+			<section className="mx-auto w-full max-w-4xl overflow-hidden rounded-[2.3rem] border border-lime-200/14 bg-gradient-to-br from-[#102318] via-[#0a1911] to-[#07110c] shadow-2xl shadow-black/30">
+				<div className="relative p-7 sm:p-10">
+					<div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full border border-lime-200/10 bg-lime-300/[0.06] blur-2xl" />
+					<div className="relative max-w-2xl">
+						<div className="text-[10px] font-black uppercase tracking-[0.32em] text-lime-200/58">{tournamentName} · Teams</div>
+						<h1 className="mt-4 text-4xl font-black tracking-[-0.04em] text-emerald-50 sm:text-6xl">Die Teams stehen noch nicht fest.</h1>
+						<p className="mt-5 text-sm leading-7 text-emerald-100/62 sm:text-base">
+							Die Turnierleitung arbeitet gerade an einer fairen Einteilung. Sobald das Roster veröffentlicht wurde, wird der Teams-Link in der Navigation automatisch
+							freigeschaltet und alle Teams erscheinen hier.
+						</p>
+						<div className="mt-7 flex flex-wrap items-center gap-3">
+							<Link
+								href="/tournament"
+								className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/15 transition hover:scale-[1.02]"
+							>
+								Zur Turnierübersicht
+							</Link>
+							<span className="rounded-2xl border border-amber-200/14 bg-amber-200/[0.06] px-4 py-3 text-xs font-bold text-amber-100/64">
+								Noch nicht veröffentlicht
+							</span>
+						</div>
+					</div>
 				</div>
 			</section>
 		</div>

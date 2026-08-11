@@ -37,6 +37,7 @@ const applicationSchema = z.object({
 	notes: z.string().trim().max(1500).optional().default(""),
 	acceptedRules: z.literal(true),
 	acceptedDataStorage: z.literal(true),
+	discordDmOptIn: z.boolean().default(true),
 });
 
 const applicationPatchSchema = z.object({

@@ -34,7 +34,10 @@ type Challenge = {
 	revisionDate?: number;
 };
 
-type ExistingApplication = Pick<TournamentApplication, "displayName" | "mainRole" | "preferredRoles" | "availableAllDates" | "notes" | "acceptedRules" | "acceptedDataStorage">;
+type ExistingApplication = Pick<
+	TournamentApplication,
+	"displayName" | "mainRole" | "preferredRoles" | "availableAllDates" | "notes" | "acceptedRules" | "acceptedDataStorage" | "discordDmOptIn"
+>;
 
 function linkedRiotId(riotId: string) {
 	return encodeURIComponent(riotId.replace("#", "-"));
@@ -131,6 +134,7 @@ export function ApplicationForm({
 			notes: String(formData.get("notes") ?? ""),
 			acceptedRules: formData.get("acceptedRules") === "on",
 			acceptedDataStorage: formData.get("acceptedDataStorage") === "on",
+			discordDmOptIn: formData.get("discordDmOptIn") === "on",
 		};
 
 		const response = await fetch("/api/tournament/applications", {
@@ -356,6 +360,9 @@ export function ApplicationForm({
 					</Consent>
 					<Consent name="acceptedDataStorage" defaultChecked={initialApplication?.acceptedDataStorage ?? false}>
 						Ich bin damit einverstanden, dass meine Turnierbewerbung zur Eventorganisation gespeichert wird.
+					</Consent>
+					<Consent name="discordDmOptIn" defaultChecked={initialApplication?.discordDmOptIn !== false} required={false}>
+						Ich möchte wichtige Turnier-Neuigkeiten per Discord-DM vom Bot erhalten, zum Beispiel meine veröffentlichte Teamzuweisung und einen Captain-Status.
 					</Consent>
 				</div>
 
@@ -717,10 +724,10 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function Consent({ name, children, defaultChecked = false }: { name: string; children: ReactNode; defaultChecked?: boolean }) {
+function Consent({ name, children, defaultChecked = false, required = true }: { name: string; children: ReactNode; defaultChecked?: boolean; required?: boolean }) {
 	return (
 		<label className="flex gap-3 rounded-2xl border border-white/10 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
-			<input required type="checkbox" name={name} defaultChecked={defaultChecked} className="mt-1 size-4 shrink-0 accent-lime-300" />
+			<input required={required} type="checkbox" name={name} defaultChecked={defaultChecked} className="mt-1 size-4 shrink-0 accent-lime-300" />
 			<span>{children}</span>
 		</label>
 	);

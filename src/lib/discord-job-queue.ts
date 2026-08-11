@@ -1,4 +1,4 @@
-import { clearDiscordNickname, setDiscordMemberRole, setDiscordNickname } from "@/lib/discord";
+import { clearDiscordNickname, sendDiscordDirectMessage, setDiscordMemberRole, setDiscordNickname, type DiscordDirectMessagePayload } from "@/lib/discord";
 import { deleteDiscordTeamResources, provisionDiscordTeamResources, renameDiscordTeamResources } from "@/lib/discord-team-resources";
 import { getDb } from "@/lib/mongo";
 
@@ -20,6 +20,14 @@ export type DiscordOperation =
 	| {
 			kind: "nickname-clear";
 			discordId: string;
+			label?: string;
+	  }
+	| {
+			kind: "direct-message";
+			discordId: string;
+			message?: string;
+			payload?: DiscordDirectMessagePayload;
+			dedupeKey: string;
 			label?: string;
 	  }
 	| {
@@ -134,7 +142,9 @@ export async function enqueueDiscordJob(input: { type: string; title: string; op
 
 async function removeSupersededQueuedOperations(db: Awaited<ReturnType<typeof getDb>>, incoming: DiscordOperation[]) {
 	const replaceableKeys = new Set(
-		incoming.filter((operation) => operation.kind === "role" || operation.kind === "nickname-set" || operation.kind === "nickname-clear").map(operationKey)
+		incoming
+			.filter((operation) => operation.kind === "role" || operation.kind === "nickname-set" || operation.kind === "nickname-clear" || operation.kind === "direct-message")
+			.map(operationKey)
 	);
 	if (replaceableKeys.size === 0) return;
 	const collection = db.collection<DiscordJobDoc>(COLLECTION);
@@ -152,6 +162,7 @@ async function removeSupersededQueuedOperations(db: Awaited<ReturnType<typeof ge
 function operationKey(operation: DiscordOperation) {
 	if (operation.kind === "role") return `role:${operation.discordId}:${operation.roleId}`;
 	if (operation.kind === "nickname-set" || operation.kind === "nickname-clear") return `nickname:${operation.discordId}`;
+	if (operation.kind === "direct-message") return `dm:${operation.dedupeKey}`;
 	return `team:${operation.teamKey}`;
 }
 
@@ -348,6 +359,7 @@ async function runDiscordOperation(operation: DiscordOperation): Promise<{ ok: t
 		const result = await clearDiscordNickname(operation.discordId);
 		return result.ok ? { ok: true } : result;
 	}
+	if (operation.kind === "direct-message") return sendDiscordDirectMessage(operation);
 	if (operation.kind === "team-provision") return provisionDiscordTeamResources(operation.teamKey, operation.name);
 	if (operation.kind === "team-rename") return renameDiscordTeamResources(operation);
 	return deleteDiscordTeamResources(operation);

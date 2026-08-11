@@ -18,7 +18,6 @@ const playerSlotSchema = z.object({
 const payloadSchema = z.object({
 	teamPlayers: z.record(z.string(), z.array(playerSlotSchema)),
 	captains: z.record(z.string(), z.string().nullable()).optional(),
-	repairDiscordRoles: z.boolean().optional(),
 	manualPlayers: z
 		.record(
 			z.string(),
@@ -62,6 +61,5 @@ export async function POST(request: Request) {
 		applied: result.applied,
 		teamsUpdated: result.teamsUpdated,
 		warnings: result.warnings,
-		discordJobId: result.discordJobId,
 	});
 }

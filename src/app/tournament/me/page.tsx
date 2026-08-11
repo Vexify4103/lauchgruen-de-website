@@ -21,6 +21,7 @@ import { RiotVerificationCard } from "./RiotVerificationCard";
 import { TwitchLinkCard } from "./TwitchLinkCard";
 import { DiscordSignInButton } from "../DiscordSignInButton";
 import { AccountLogoutButton } from "./AccountLogoutButton";
+import { TournamentDmPreferenceCard } from "./TournamentDmPreferenceCard";
 import { getSiteUrls } from "@/lib/site-urls";
 import { isTournamentHost } from "@/lib/tournament-url";
 
@@ -150,14 +151,32 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		<Shell>
 			<section className="mx-auto w-full max-w-6xl">
 				<div className="grid gap-6">
-					<nav aria-label="Kontobereich verlassen" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/9 bg-black/18 p-2.5 shadow-lg shadow-black/15">
+					<nav
+						aria-label="Kontobereich verlassen"
+						className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/9 bg-black/18 p-2.5 shadow-lg shadow-black/15"
+					>
 						<a href={returnTarget.href} className="rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-black text-emerald-50 transition hover:bg-white/[0.1]">
 							← {returnTarget.label}
 						</a>
 						<div className="flex flex-wrap gap-1.5">
-							<a href={siteUrls.apex} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100">Hauptseite</a>
-							<a href={`${siteUrls.apex}/overlay`} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-cyan-100">Overlay</a>
-							<a href={siteUrls.tournament} className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100">Turnier</a>
+							<a
+								href={siteUrls.apex}
+								className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100"
+							>
+								Hauptseite
+							</a>
+							<a
+								href={`${siteUrls.apex}/overlay`}
+								className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-cyan-100"
+							>
+								Overlay
+							</a>
+							<a
+								href={siteUrls.tournament}
+								className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100"
+							>
+								Turnier
+							</a>
 						</div>
 					</nav>
 					<div className="relative overflow-hidden rounded-[2.4rem] border border-lime-200/12 bg-gradient-to-br from-lime-200/14 via-emerald-400/8 to-cyan-400/10 shadow-2xl shadow-black/24">
@@ -255,6 +274,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					</section>
 
 					<div className="grid gap-6">
+						{application ? <TournamentDmPreferenceCard initialEnabled={application.discordDmOptIn !== false} /> : null}
 						<PreferenceGroupCard
 							hasApplication={Boolean(application)}
 							initialGroup={
@@ -313,7 +333,10 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 									</Link>
 								) : null}
 								{isCaptain && !isUltimateBravery ? (
-									<Link href={tournamentHref("/captain")} className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950">
+									<Link
+										href={tournamentHref("/captain")}
+										className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+									>
 										Captain Portal
 									</Link>
 								) : null}

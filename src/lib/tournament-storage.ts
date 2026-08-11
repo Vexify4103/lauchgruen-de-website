@@ -23,6 +23,7 @@ export type TournamentApplication = {
 	notes: string;
 	acceptedRules: true;
 	acceptedDataStorage: true;
+	discordDmOptIn: boolean;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -220,7 +221,13 @@ function stripMongoId<T extends Record<string, unknown>>(doc: T): Omit<T, "_id">
 }
 
 function normalizeApplication(app: TournamentApplication): TournamentApplication {
-	return { ...app, preferredRoles: normalizePreferredRoles(app.preferredRoles ?? []) };
+	return {
+		...app,
+		preferredRoles: normalizePreferredRoles(app.preferredRoles ?? []),
+		// Applications created before DM preferences existed are opted in by
+		// default. They can disable notifications from the application or /me.
+		discordDmOptIn: app.discordDmOptIn !== false,
+	};
 }
 
 function preferredRolesChanged(app: TournamentApplication) {
@@ -228,11 +235,21 @@ function preferredRolesChanged(app: TournamentApplication) {
 }
 
 async function normalizeApplicationDocs(docs: AppDoc[]) {
-	const changed = docs.filter((doc) => preferredRolesChanged(doc));
+	const changed = docs.filter((doc) => preferredRolesChanged(doc) || typeof doc.discordDmOptIn !== "boolean");
 	if (changed.length) {
 		const col = await applicationsCollection();
 		await col.bulkWrite(
-			changed.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $set: { preferredRoles: normalizePreferredRoles(doc.preferredRoles ?? []) } } } }))
+			changed.map((doc) => ({
+				updateOne: {
+					filter: { _id: doc._id },
+					update: {
+						$set: {
+							preferredRoles: normalizePreferredRoles(doc.preferredRoles ?? []),
+							discordDmOptIn: doc.discordDmOptIn !== false,
+						},
+					},
+				},
+			}))
 		);
 	}
 	return docs.map((raw) => normalizeApplication(stripMongoId(raw) as TournamentApplication));

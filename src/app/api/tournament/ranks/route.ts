@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { getDb } from "@/lib/mongo";
 import { formatRank, getAccountByPuuid, getLeagueEntriesByPuuid, getSummonerByPuuid } from "@/lib/riot";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import {
@@ -28,9 +29,50 @@ type RefreshResult = {
 	previousRiotId?: string;
 	rank: string | null;
 	summonerLevel?: number;
+	changes?: Array<{ field: string; before: string; after: string }>;
 	ok: boolean;
 	message?: string;
 };
+
+type StoredRosterPlayer = { puuid?: string; riotId?: string };
+type StoredRosterTeam = {
+	players?: StoredRosterPlayer[];
+	meta?: { captain?: { puuid?: string; riotId?: string } };
+};
+
+async function updateStoredRosterRiotId(puuid: string, riotId: string) {
+	const db = await getDb();
+	const botCollection = db.collection<{ _id: string; teams?: Record<string, StoredRosterTeam> }>("bot_state");
+	const draftCollection = db.collection<{ _id: string; teams?: Record<string, { players?: StoredRosterPlayer[]; captain?: { puuid?: string; riotId?: string } }> }>(
+		"tournament_roster_drafts"
+	);
+	const [botState, rosterDraft] = await Promise.all([botCollection.findOne({ _id: "default" }), draftCollection.findOne({ _id: "default" })]);
+	const botUpdates: Record<string, string> = {};
+	const draftUpdates: Record<string, string> = {};
+
+	for (const [teamKey, team] of Object.entries(botState?.teams ?? {})) {
+		for (const [index, player] of (team.players ?? []).entries()) {
+			if (player.puuid === puuid && player.riotId !== riotId) botUpdates[`teams.${teamKey}.players.${index}.riotId`] = riotId;
+		}
+		if (team.meta?.captain?.puuid === puuid && team.meta.captain.riotId !== riotId) {
+			botUpdates[`teams.${teamKey}.meta.captain.riotId`] = riotId;
+		}
+	}
+
+	for (const [teamKey, team] of Object.entries(rosterDraft?.teams ?? {})) {
+		for (const [index, player] of (team.players ?? []).entries()) {
+			if (player.puuid === puuid && player.riotId !== riotId) draftUpdates[`teams.${teamKey}.players.${index}.riotId`] = riotId;
+		}
+		if (team.captain?.puuid === puuid && team.captain.riotId !== riotId) {
+			draftUpdates[`teams.${teamKey}.captain.riotId`] = riotId;
+		}
+	}
+
+	await Promise.all([
+		Object.keys(botUpdates).length > 0 ? botCollection.updateOne({ _id: "default" }, { $set: botUpdates }) : Promise.resolve(),
+		Object.keys(draftUpdates).length > 0 ? draftCollection.updateOne({ _id: "default" }, { $set: draftUpdates }) : Promise.resolve(),
+	]);
+}
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,6 +83,14 @@ async function refreshApplicationProfile(app: TournamentApplication): Promise<Re
 		const [account, entries, summoner] = await Promise.all([getAccountByPuuid(app.riotPuuid), getLeagueEntriesByPuuid(app.riotPuuid), getSummonerByPuuid(app.riotPuuid)]);
 		const currentRankAuto = formatRank(entries);
 		const riotId = `${account.gameName}#${account.tagLine}`;
+		const changes: Array<{ field: string; before: string; after: string }> = [];
+		if (app.riotId !== riotId) changes.push({ field: "Riot-ID", before: app.riotId, after: riotId });
+		if (app.currentRankAuto !== currentRankAuto) {
+			changes.push({ field: "Rang", before: app.currentRankAuto ?? "Unranked", after: currentRankAuto ?? "Unranked" });
+		}
+		if (app.summonerLevel !== summoner.summonerLevel) {
+			changes.push({ field: "Level", before: String(app.summonerLevel ?? "Unbekannt"), after: String(summoner.summonerLevel) });
+		}
 		const next: TournamentApplication = {
 			...app,
 			riotId,
@@ -57,6 +107,7 @@ async function refreshApplicationProfile(app: TournamentApplication): Promise<Re
 				currentRankAuto,
 				summonerLevel: summoner.summonerLevel,
 			}),
+			app.riotId !== riotId ? updateStoredRosterRiotId(app.riotPuuid, riotId) : Promise.resolve(),
 		]);
 		return {
 			id: app.id,
@@ -65,6 +116,7 @@ async function refreshApplicationProfile(app: TournamentApplication): Promise<Re
 			previousRiotId: app.riotId !== riotId ? app.riotId : undefined,
 			rank: currentRankAuto,
 			summonerLevel: summoner.summonerLevel,
+			changes,
 			ok: true,
 		};
 	} catch (error) {

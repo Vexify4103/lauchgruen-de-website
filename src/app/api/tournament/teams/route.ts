@@ -1,11 +1,8 @@
 /**
  * POST /api/tournament/teams
  *
- * Creates a new team in bot_state.teams. Owner-only. Body:
- *   { name: string, group?: "A"|"B", seed?: 1..4, accent?: string }
- *
- * The bot's /createteam slash command can also do this — this endpoint exists
- * so admins can create teams without leaving the web roster builder.
+ * Creates a new team in bot_state.teams and queues its Discord resources.
+ * Owner-only. Body: { name: string, group?: "A"|"B", seed?: 1..4, accent?: string }
  */
 
 import { NextResponse } from "next/server";
@@ -28,7 +25,6 @@ const bodySchema = z.object({
 		.optional(),
 	seed: z.coerce.number().int().min(1).max(4).optional(),
 	accent: z.string().trim().max(120).optional(),
-	createDiscordSetup: z.boolean().optional().default(false),
 });
 
 const patchSchema = z.object({
@@ -140,14 +136,12 @@ export async function POST(request: Request) {
 	if (Object.keys(meta).length > 0) teamDoc.meta = meta;
 
 	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { [`teams.${key}`]: teamDoc } }, { upsert: true });
-	const discordJob = parsed.data.createDiscordSetup
-		? await enqueueDiscordJob({
-				type: "team-provision",
-				title: `Discord-Team erstellen: ${parsed.data.name.trim()}`,
-				operations: [{ kind: "team-provision", teamKey: key, name: parsed.data.name.trim(), label: parsed.data.name.trim() }],
-				actorLabel: session.user.discordHandle ?? discordId,
-			})
-		: null;
+	const discordJob = await enqueueDiscordJob({
+		type: "team-provision",
+		title: `Discord-Team erstellen: ${parsed.data.name.trim()}`,
+		operations: [{ kind: "team-provision", teamKey: key, name: parsed.data.name.trim(), label: parsed.data.name.trim() }],
+		actorLabel: session.user.discordHandle ?? discordId,
+	});
 
 	return NextResponse.json({
 		ok: true,

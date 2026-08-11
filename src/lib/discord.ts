@@ -2,11 +2,34 @@ const DISCORD_API = "https://discord.com/api/v10";
 const DISCORD_ROLE_MAX_ATTEMPTS = 5;
 const DISCORD_NICKNAME_MAX_ATTEMPTS = 5;
 const DISCORD_MEMBER_MAX_ATTEMPTS = 5;
+const DISCORD_DM_MAX_ATTEMPTS = 5;
 
 let discordRoleMutationQueue: Promise<void> = Promise.resolve();
 let discordNicknameMutationQueue: Promise<void> = Promise.resolve();
 
 export const DISCORD_INVITE_URL = "https://discord.gg/GFYv7K3SKb";
+
+export type DiscordDirectMessagePayload = {
+	content?: string;
+	embeds?: Array<{
+		author?: { name: string; icon_url?: string };
+		title?: string;
+		description?: string;
+		color?: number;
+		fields?: Array<{ name: string; value: string; inline?: boolean }>;
+		footer?: { text: string; icon_url?: string };
+		timestamp?: string;
+	}>;
+	components?: Array<{
+		type: 1;
+		components: Array<{
+			type: 2;
+			style: 5;
+			label: string;
+			url: string;
+		}>;
+	}>;
+};
 
 function discordBotToken() {
 	return process.env.DISCORD_TOKEN ?? process.env.DISCORD_BOT_TOKEN ?? "";
@@ -362,6 +385,73 @@ export async function setDiscordMemberRole(input: { discordId: string; roleId: s
 		() => undefined
 	);
 	return run;
+}
+
+export async function sendDiscordDirectMessage(input: {
+	discordId: string;
+	message?: string;
+	payload?: DiscordDirectMessagePayload;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+	const token = discordBotToken();
+	if (!token) return { ok: false, message: "Discord-DM übersprungen: Bot-Token fehlt." };
+	if (!input.message && !input.payload) return { ok: false, message: "Discord-DM übersprungen: Nachricht fehlt." };
+
+	const channelResponse = await discordRequestWithRetry(`${DISCORD_API}/users/@me/channels`, {
+		method: "POST",
+		headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
+		body: JSON.stringify({ recipient_id: input.discordId }),
+	});
+	if (!channelResponse?.ok) {
+		return {
+			ok: false,
+			message:
+				channelResponse?.status === 403
+					? "Discord-DM konnte nicht geöffnet werden. Die Person blockiert möglicherweise Bot-DMs."
+					: `Discord-DM-Kanal konnte nicht geöffnet werden (HTTP ${channelResponse?.status ?? "Netzwerkfehler"}).`,
+		};
+	}
+	const channel = (await channelResponse.json().catch(() => null)) as { id?: string } | null;
+	if (!channel?.id) return { ok: false, message: "Discord hat keinen DM-Kanal zurückgegeben." };
+
+	const messageResponse = await discordRequestWithRetry(`${DISCORD_API}/channels/${channel.id}/messages`, {
+		method: "POST",
+		headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
+		body: JSON.stringify({
+			...(input.payload ?? { content: input.message?.slice(0, 2000) }),
+			...(input.payload?.content ? { content: input.payload.content.slice(0, 2000) } : {}),
+			allowed_mentions: { parse: [] },
+		}),
+	});
+	if (messageResponse?.ok) return { ok: true };
+	return {
+		ok: false,
+		message:
+			messageResponse?.status === 403
+				? "Discord-DM wurde abgelehnt. Die Person hat DMs möglicherweise deaktiviert."
+				: `Discord-DM konnte nicht gesendet werden (HTTP ${messageResponse?.status ?? "Netzwerkfehler"}).`,
+	};
+}
+
+async function discordRequestWithRetry(url: string, init: RequestInit): Promise<Response | null> {
+	for (let attempt = 1; attempt <= DISCORD_DM_MAX_ATTEMPTS; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(url, { ...init, cache: "no-store" });
+		} catch {
+			if (attempt === DISCORD_DM_MAX_ATTEMPTS) return null;
+			await wait(300 * attempt);
+			continue;
+		}
+		if (response.status !== 429 || attempt === DISCORD_DM_MAX_ATTEMPTS) return response;
+		const body = (await response
+			.clone()
+			.json()
+			.catch(() => null)) as { retry_after?: number } | null;
+		const retryAfterSeconds =
+			body?.retry_after ?? parseRetryAfter(response.headers.get("retry-after")) ?? parseRetryAfter(response.headers.get("x-ratelimit-reset-after")) ?? 1;
+		await wait(Math.ceil(retryAfterSeconds * 1000) + 150);
+	}
+	return null;
 }
 
 async function setDiscordMemberRoleWithRetry(input: { discordId: string; roleId: string; enabled: boolean }): Promise<{ ok: true } | { ok: false; message: string }> {

@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getSiteUrls } from "@/lib/site-urls";
 import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getRosterPublicationStatus } from "@/lib/roster";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { isTournamentHost } from "@/lib/tournament-url";
 import { TournamentAccountControl } from "./TournamentAccountControl";
@@ -72,9 +73,13 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 	const hostname = (host ?? "").split(":")[0].toLowerCase();
 	const siteUrls = getSiteUrls(host);
 	if (["lauchgruen.de", "www.lauchgruen.de", "lauchgruen.localhost", "www.lauchgruen.localhost"].includes(hostname)) {
-		return <MainAccountChrome apexUrl={siteUrls.apex} tournamentUrl={siteUrls.tournament}>{children}</MainAccountChrome>;
+		return (
+			<MainAccountChrome apexUrl={siteUrls.apex} tournamentUrl={siteUrls.tournament}>
+				{children}
+			</MainAccountChrome>
+		);
 	}
-	const [settings, session] = await Promise.all([getTournamentSettings(), auth()]);
+	const [settings, session, rosterPublication] = await Promise.all([getTournamentSettings(), auth(), getRosterPublicationStatus()]);
 	const cleanUrls = isTournamentHost(host);
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
@@ -114,6 +119,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 				: teaserNavItems;
 	const dynamicNavItems = selectedNavItems.map((item) => {
 		const itemDisabled = "disabled" in item ? item.disabled === true : false;
+		if (item.href === "/tournament/teams") return { ...item, disabled: !rosterPublication.published };
 		if (item.href === "/tournament/stage") return { ...item, label: stageLabel, disabled: itemDisabled || settings.ultimateBravery.dayOneFormat === "undecided" };
 		if (item.href === "/tournament/playoffs") return { ...item, disabled: itemDisabled || settings.ultimateBravery.format === "undecided" };
 		return item;
