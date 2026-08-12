@@ -85,15 +85,11 @@ export function proxy(req: NextRequest) {
 
 		// Public stream-tool workshop. OBS output itself lives below /obs/* and
 		// is excluded from this proxy matcher so it stays host-independent.
-		if (pathname === "/overlay" || pathname.startsWith("/overlay/")) {
+		if (pathname === "/overlay" || pathname.startsWith("/overlay/") || pathname === "/clips") {
 			return NextResponse.next();
 		}
 
-		if (
-			pathname.startsWith("/api/riot/") ||
-			pathname.startsWith("/api/overlay/") ||
-			pathname === "/api/tournament/preference-group"
-		) {
+		if (pathname.startsWith("/api/riot/") || pathname.startsWith("/api/overlay/") || pathname === "/api/tournament/preference-group") {
 			return NextResponse.next();
 		}
 

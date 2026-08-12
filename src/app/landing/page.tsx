@@ -39,13 +39,26 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 			>
 				Zum Inhalt
 			</a>
-			<div aria-hidden className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_14%_4%,rgba(163,230,53,0.12),transparent_29%),radial-gradient(circle_at_92%_26%,rgba(34,211,238,0.09),transparent_27%),linear-gradient(155deg,#020b07_0%,#04140c_48%,#020906_100%)]" />
-			<div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] [background-size:72px_72px]" />
+			<div
+				aria-hidden
+				className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_14%_4%,rgba(163,230,53,0.12),transparent_29%),radial-gradient(circle_at_92%_26%,rgba(34,211,238,0.09),transparent_27%),linear-gradient(155deg,#020b07_0%,#04140c_48%,#020906_100%)]"
+			/>
+			<div
+				aria-hidden
+				className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] [background-size:72px_72px]"
+			/>
 
 			<header className="sticky top-0 z-50 border-b border-white/7 bg-[#020b07]/88 shadow-lg shadow-black/10 backdrop-blur-xl">
 				<div className="mx-auto flex w-full max-w-[90rem] items-center justify-between gap-4 px-5 py-4 sm:px-8">
 					<Link href="/" className="flex min-w-0 items-center gap-3">
-						<Image src="/bear-logo.png" alt="Lauchgruen" width={48} height={48} priority className="size-12 rounded-2xl border border-lime-200/24 object-cover shadow-[0_0_24px_rgba(163,230,53,0.13)]" />
+						<Image
+							src="/bear-logo.png"
+							alt="Lauchgruen"
+							width={48}
+							height={48}
+							priority
+							className="size-12 rounded-2xl border border-lime-200/24 object-cover shadow-[0_0_24px_rgba(163,230,53,0.13)]"
+						/>
 						<div className="min-w-0">
 							<div className="truncate text-[10px] font-black uppercase tracking-[0.34em] text-lime-200/68">Lauchgruen</div>
 							<div className="mt-0.5 text-sm font-black text-emerald-50">Stream Hub</div>
@@ -55,12 +68,15 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 					<nav className="hidden items-center gap-1 rounded-2xl border border-white/9 bg-white/[0.035] p-1 lg:flex" aria-label="Seitennavigation">
 						<HeaderLink href="#live">Live</HeaderLink>
 						<HeaderLink href="#projekte">Projekte</HeaderLink>
-						<HeaderLink href="#clips">Clips</HeaderLink>
+						<HeaderLink href="/clips">Clips</HeaderLink>
 						<HeaderLink href="/overlay">OBS-Tools</HeaderLink>
 					</nav>
 
 					<div className="flex items-center gap-2">
-						<Link href={siteUrls.tournament} className="hidden rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/74 transition hover:border-lime-200/28 hover:text-lime-100 sm:inline-flex">
+						<Link
+							href={siteUrls.tournament}
+							className="hidden rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/74 transition hover:border-lime-200/28 hover:text-lime-100 sm:inline-flex"
+						>
 							Turnier
 						</Link>
 						<Link
@@ -76,7 +92,12 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 								<AccountIcon />
 							)}
 						</Link>
-						<a href={TWITCH_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#06110b] shadow-lg shadow-lime-300/10 transition hover:-translate-y-0.5">
+						<a
+							href={TWITCH_URL}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#06110b] shadow-lg shadow-lime-300/10 transition hover:-translate-y-0.5"
+						>
 							<span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
 							Twitch
 						</a>
@@ -87,7 +108,10 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 			<main id="main-content" tabIndex={-1} className="relative z-10 mx-auto flex w-full max-w-[90rem] flex-col gap-8 px-5 py-6 sm:px-8 sm:py-10 lg:gap-12">
 				<section id="live" className="landing-reveal grid scroll-mt-24 gap-4 lg:grid-cols-[minmax(0,1.14fr)_minmax(25rem,0.86fr)]">
 					<div className="relative isolate flex min-h-[32rem] overflow-hidden rounded-[2.6rem] border border-lime-100/13 bg-[linear-gradient(145deg,#0a2013_0%,#06160e_52%,#05120f_100%)] p-7 shadow-2xl shadow-black/35 sm:p-10 lg:p-12">
-						<div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(190,242,100,0.15),transparent_27%),radial-gradient(circle_at_76%_92%,rgba(34,211,238,0.1),transparent_31%)]" />
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(190,242,100,0.15),transparent_27%),radial-gradient(circle_at_76%_92%,rgba(34,211,238,0.1),transparent_31%)]"
+						/>
 						<div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-80 rounded-full border border-lime-100/[0.07]" />
 						<div aria-hidden className="pointer-events-none absolute -right-3 top-8 size-52 rounded-full border border-cyan-100/[0.06]" />
 						<div aria-hidden className="pointer-events-none absolute bottom-0 left-0 h-1 w-2/3 bg-gradient-to-r from-lime-300 via-emerald-300 to-transparent" />
@@ -113,10 +137,18 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 
 							<div className="flex flex-col gap-4 border-t border-white/8 pt-5 sm:flex-row sm:items-center sm:justify-between">
 								<div className="flex flex-wrap gap-3">
-									<a href={TWITCH_URL} target="_blank" rel="noreferrer" className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#06110b] shadow-lg shadow-lime-300/12 transition hover:-translate-y-0.5">
+									<a
+										href={TWITCH_URL}
+										target="_blank"
+										rel="noreferrer"
+										className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#06110b] shadow-lg shadow-lime-300/12 transition hover:-translate-y-0.5"
+									>
 										Zu Twitch
 									</a>
-									<Link href={siteUrls.tournament} className="rounded-xl border border-white/12 bg-white/[0.035] px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100">
+									<Link
+										href={siteUrls.tournament}
+										className="rounded-xl border border-white/12 bg-white/[0.035] px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
+									>
 										Turnier ansehen
 									</Link>
 								</div>
@@ -136,31 +168,52 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 				</section>
 
 				<section id="projekte" className="landing-reveal landing-delay-1 scroll-mt-24">
-					<SectionHeading kicker="Aktuell bei Lauchgruen" title="Mitmachen statt nur zuschauen." text="Das nächste Turnier steht fest. Wer selbst streamt, findet darunter außerdem das kostenlose League-Overlay." />
+					<SectionHeading
+						kicker="Aktuell bei Lauchgruen"
+						title="Mitmachen statt nur zuschauen."
+						text="Das nächste Turnier steht fest. Wer selbst streamt, findet darunter außerdem das kostenlose League-Overlay."
+					/>
 
 					<div className="mt-7 grid gap-4 lg:grid-cols-12">
-						<Link href={siteUrls.tournament} className="group relative isolate min-h-[27rem] overflow-hidden rounded-[2.2rem] border border-lime-200/16 bg-[#091c11] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-lime-200/32 sm:p-9 lg:col-span-7">
-							<div aria-hidden className="pointer-events-none absolute -bottom-16 -right-8 text-[12rem] font-black leading-none tracking-[-0.12em] text-lime-100/[0.035]">GG</div>
+						<Link
+							href={siteUrls.tournament}
+							className="group relative isolate min-h-[27rem] overflow-hidden rounded-[2.2rem] border border-lime-200/16 bg-[#091c11] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-lime-200/32 sm:p-9 lg:col-span-7"
+						>
+							<div
+								aria-hidden
+								className="pointer-events-none absolute -bottom-16 -right-8 text-[12rem] font-black leading-none tracking-[-0.12em] text-lime-100/[0.035]"
+							>
+								GG
+							</div>
 							<div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_20%,rgba(163,230,53,0.16),transparent_30%),linear-gradient(145deg,rgba(190,242,100,0.07),transparent_48%)]" />
 							<div className="relative flex h-full flex-col justify-between">
 								<div>
 									<div className="flex items-center justify-between gap-3">
 										<span className="text-[9px] font-black uppercase tracking-[0.3em] text-lime-200/58">Nächstes Community-Turnier</span>
-										<span className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-lime-100/65">04.–05.09.2026</span>
+										<span className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-lime-100/65">
+											04.–05.09.2026
+										</span>
 									</div>
 									<h2 className="mt-7 max-w-[11ch] text-5xl font-black leading-[0.92] tracking-[-0.05em] sm:text-6xl">Ultimate Bravery.</h2>
-									<p className="mt-5 max-w-xl text-sm leading-7 text-emerald-100/60">Zufällige Champions, zufällige Builds und zwei Abende, an denen ein guter Plan vermutlich trotzdem nicht schadet.</p>
+									<p className="mt-5 max-w-xl text-sm leading-7 text-emerald-100/60">
+										Zufällige Champions, zufällige Builds und zwei Abende, an denen ein guter Plan vermutlich trotzdem nicht schadet.
+									</p>
 								</div>
 								<div className="mt-9 flex items-center justify-between border-t border-white/8 pt-5">
 									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/45">Turnier ansehen und bewerben</span>
-									<span className="grid size-11 place-items-center rounded-full border border-lime-200/20 bg-lime-200/[0.08] text-xl text-lime-100 transition group-hover:translate-x-1">→</span>
+									<span className="grid size-11 place-items-center rounded-full border border-lime-200/20 bg-lime-200/[0.08] text-xl text-lime-100 transition group-hover:translate-x-1">
+										→
+									</span>
 								</div>
 							</div>
 						</Link>
 
 						<div className="grid gap-4 lg:col-span-5">
 							{QUIZ_ENABLED ? (
-								<Link href={siteUrls.quiz} className="group relative overflow-hidden rounded-[2.2rem] border border-amber-200/16 bg-[#171509] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-amber-200/32">
+								<Link
+									href={siteUrls.quiz}
+									className="group relative overflow-hidden rounded-[2.2rem] border border-amber-200/16 bg-[#171509] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-amber-200/32"
+								>
 									<div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(251,191,36,0.13),transparent_30%)]" />
 									<div className="relative">
 										<div className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-100/58">Quizshow</div>
@@ -181,7 +234,10 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 								</div>
 							)}
 
-							<Link href="/overlay" className="group relative overflow-hidden rounded-[2.2rem] border border-cyan-200/14 bg-[#07171a] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-cyan-200/30">
+							<Link
+								href="/overlay"
+								className="group relative overflow-hidden rounded-[2.2rem] border border-cyan-200/14 bg-[#07171a] p-7 shadow-xl shadow-black/25 transition hover:-translate-y-1 hover:border-cyan-200/30"
+							>
 								<div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_20%,rgba(34,211,238,0.14),transparent_32%)]" />
 								<div className="relative">
 									<div className="text-[9px] font-black uppercase tracking-[0.3em] text-cyan-100/58">Kostenloses Stream-Tool</div>
@@ -221,7 +277,19 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 				</section>
 
 				<section id="clips" className="landing-reveal landing-delay-3 scroll-mt-24">
-					<SectionHeading kicker="Letzte 30 Tage" title="Clips, die der Chat behalten wollte." text="Kurze Ausschnitte aus langen Abenden. Direkt von Twitch, ohne kuratierte Hochglanzfassung." action={<a href={`https://www.twitch.tv/${TWITCH_LOGIN}/clips`} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/12 bg-white/[0.035] px-4 py-3 text-[10px] font-black uppercase tracking-[0.19em] text-emerald-100/70 transition hover:border-lime-200/28 hover:text-lime-100">Alle Clips</a>} />
+					<SectionHeading
+						kicker="Frisch & beliebt"
+						title="Clips, die der Chat behalten wollte."
+						text="Neue Highlights der letzten 30 Tage. Falls es gerade ruhiger war, rücken die beliebtesten Klassiker nach."
+						action={
+							<Link
+								href="/clips"
+								className="rounded-2xl border border-white/12 bg-white/[0.035] px-4 py-3 text-[10px] font-black uppercase tracking-[0.19em] text-emerald-100/70 transition hover:border-lime-200/28 hover:text-lime-100"
+							>
+								Alle Clips
+							</Link>
+						}
+					/>
 					<div className="mt-7">
 						<RecentClips login={TWITCH_LOGIN} count={6} />
 					</div>
@@ -235,7 +303,14 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 							<h2 className="mt-4 max-w-2xl text-4xl font-black leading-[0.95] tracking-[-0.045em] sm:text-5xl">Der nächste gute Abend beginnt im Chat.</h2>
 							<p className="mt-4 max-w-xl text-sm leading-7 text-emerald-100/58">Folgen, Benachrichtigung an und beim nächsten Stream einfach dazukommen.</p>
 						</div>
-						<a href={TWITCH_URL} target="_blank" rel="noreferrer" className="shrink-0 rounded-2xl bg-emerald-50 px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-[#06110b] transition hover:-translate-y-0.5 hover:bg-lime-100">Auf Twitch folgen</a>
+						<a
+							href={TWITCH_URL}
+							target="_blank"
+							rel="noreferrer"
+							className="shrink-0 rounded-2xl bg-emerald-50 px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-[#06110b] transition hover:-translate-y-0.5 hover:bg-lime-100"
+						>
+							Auf Twitch folgen
+						</a>
 					</div>
 				</section>
 			</main>
@@ -251,7 +326,9 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 					</div>
 					<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/42">
 						<span>© {new Date().getFullYear()} Lauchgruen</span>
-						<a href={VEXIFY_URL} target="_blank" rel="noreferrer" className="transition hover:text-lime-100">Crafted by Vexify</a>
+						<a href={VEXIFY_URL} target="_blank" rel="noreferrer" className="transition hover:text-lime-100">
+							Crafted by Vexify
+						</a>
 					</div>
 				</div>
 			</footer>
@@ -274,7 +351,14 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 }
 
 function HeaderLink({ href, children }: { href: string; children: React.ReactNode }) {
-	return <Link href={href} className="rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.17em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100">{children}</Link>;
+	return (
+		<Link
+			href={href}
+			className="rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.17em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100"
+		>
+			{children}
+		</Link>
+	);
 }
 
 function AccountIcon() {

@@ -19,6 +19,8 @@ const STREAM_CACHE_MS = 30_000; // poll Twitch at most once per 30s
 const STREAM_ERROR_RETRY_MS = 60_000;
 const USER_CACHE_MS = 60 * 60_000; // user info changes rarely — 1h
 const CLIPS_CACHE_MS = 10 * 60_000; // clips list refreshes every ~10 min
+const CLIP_ARCHIVE_START = "2016-01-01T00:00:00.000Z";
+const MAX_ARCHIVE_CLIPS = 1_000;
 
 interface AppToken {
 	accessToken: string;
@@ -40,14 +42,17 @@ const g = globalThis as unknown as {
 	__qd_twitch_stream_requests?: Map<string, Promise<TwitchStream | null>>;
 	__qd_twitch_user?: Map<string, CachedStream<TwitchUser | null>>;
 	__qd_twitch_clips?: Map<string, CachedStream<TwitchClip[]>>;
+	__qd_twitch_clip_requests?: Map<string, Promise<TwitchClip[]>>;
 };
 g.__qd_twitch_stream ??= new Map();
 g.__qd_twitch_stream_requests ??= new Map();
 g.__qd_twitch_user ??= new Map();
 g.__qd_twitch_clips ??= new Map();
+g.__qd_twitch_clip_requests ??= new Map();
 const streamCache = g.__qd_twitch_stream!;
 const userCache = g.__qd_twitch_user!;
 const clipsCache = g.__qd_twitch_clips!;
+const clipRequests = g.__qd_twitch_clip_requests!;
 
 export interface TwitchStream {
 	id: string;
@@ -72,6 +77,8 @@ export interface TwitchClip {
 	creatorName: string;
 	gameId: string;
 }
+
+export type TwitchClipCollection = "recent" | "popular";
 
 export interface TwitchUser {
 	id: string;
@@ -313,51 +320,98 @@ export async function getUser(login: string, scope: TwitchCredentialScope = "def
 	return data;
 }
 
+function mapClip(clip: {
+	id: string;
+	url: string;
+	embed_url: string;
+	title: string;
+	thumbnail_url: string;
+	view_count: number;
+	duration: number;
+	created_at: string;
+	creator_name: string;
+	game_id: string;
+}): TwitchClip {
+	return {
+		id: clip.id,
+		url: clip.url,
+		embedUrl: clip.embed_url,
+		title: clip.title,
+		thumbnailUrl: clip.thumbnail_url,
+		viewCount: clip.view_count,
+		durationSec: clip.duration,
+		createdAt: clip.created_at,
+		creatorName: clip.creator_name,
+		gameId: clip.game_id,
+	};
+}
+
+async function fetchClipCollection(broadcasterId: string, collection: TwitchClipCollection): Promise<TwitchClip[]> {
+	const clips: TwitchClip[] = [];
+	const startedAt = collection === "recent" ? new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString() : CLIP_ARCHIVE_START;
+	const maxResults = collection === "recent" ? 100 : MAX_ARCHIVE_CLIPS;
+	let cursor = "";
+
+	do {
+		const params = new URLSearchParams({
+			broadcaster_id: broadcasterId,
+			first: String(Math.min(100, maxResults - clips.length)),
+			started_at: startedAt,
+			ended_at: new Date().toISOString(),
+		});
+		if (cursor) params.set("after", cursor);
+
+		const json = (await helix(`${CLIPS_URL}?${params.toString()}`)) as {
+			data?: Array<Parameters<typeof mapClip>[0]>;
+			pagination?: { cursor?: string };
+		} | null;
+		const page = json?.data ?? [];
+		clips.push(...page.map(mapClip));
+		cursor = json?.pagination?.cursor ?? "";
+		if (page.length === 0) break;
+	} while (cursor && clips.length < maxResults);
+
+	return clips;
+}
+
 /**
- * Returns the most-viewed clips for `login` from roughly the last 30 days.
- * Result is cached for 10 minutes.
+ * Returns either the last 30 days or the channel's most popular clip archive.
+ * Twitch returns clips ordered by views; callers can sort the cached result by
+ * date without issuing another Helix request.
  */
-export async function getClips(login: string, count = 6): Promise<TwitchClip[]> {
-	const key = `${login.toLowerCase()}|${count}`;
+export async function getClipCollection(login: string, collection: TwitchClipCollection): Promise<TwitchClip[]> {
+	const loginKey = login.toLowerCase();
+	const key = `${loginKey}|${collection}`;
 	const cached = clipsCache.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
+	const pending = clipRequests.get(key);
+	if (pending) return pending;
 
-	const user = await getUser(login);
-	if (!user) {
-		clipsCache.set(key, { data: [], expiresAt: Date.now() + CLIPS_CACHE_MS });
-		return [];
-	}
+	const request = (async () => {
+		const user = await getUser(loginKey);
+		const data = user ? await fetchClipCollection(user.id, collection) : [];
+		clipsCache.set(key, { data, expiresAt: Date.now() + CLIPS_CACHE_MS });
+		return data;
+	})().finally(() => clipRequests.delete(key));
 
-	const startedAt = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
-	const url = `${CLIPS_URL}?broadcaster_id=${encodeURIComponent(user.id)}&first=${count}&started_at=${encodeURIComponent(startedAt)}`;
-	const json = (await helix(url)) as {
-		data: Array<{
-			id: string;
-			url: string;
-			embed_url: string;
-			title: string;
-			thumbnail_url: string;
-			view_count: number;
-			duration: number;
-			created_at: string;
-			creator_name: string;
-			game_id: string;
-		}>;
-	} | null;
+	clipRequests.set(key, request);
+	return request;
+}
 
-	const data: TwitchClip[] = (json?.data ?? []).map((c) => ({
-		id: c.id,
-		url: c.url,
-		embedUrl: c.embed_url,
-		title: c.title,
-		thumbnailUrl: c.thumbnail_url,
-		viewCount: c.view_count,
-		durationSec: c.duration,
-		createdAt: c.created_at,
-		creatorName: c.creator_name,
-		gameId: c.game_id,
-	}));
+/**
+ * Homepage selection: prefer clips from the last 30 days and fill empty slots
+ * with popular older highlights.
+ */
+export async function getClips(login: string, count = 6): Promise<{ clips: TwitchClip[]; usedPopularFallback: boolean }> {
+	const recent = (await getClipCollection(login, "recent")).slice(0, count);
+	if (recent.length >= count) return { clips: recent, usedPopularFallback: false };
 
-	clipsCache.set(key, { data, expiresAt: Date.now() + CLIPS_CACHE_MS });
-	return data;
+	const popular = await getClipCollection(login, "popular");
+	return selectHomepageClips(recent, popular, count);
+}
+
+export function selectHomepageClips(recent: TwitchClip[], popular: TwitchClip[], count: number): { clips: TwitchClip[]; usedPopularFallback: boolean } {
+	const seen = new Set(recent.map((clip) => clip.id));
+	const fallback = popular.filter((clip) => !seen.has(clip.id)).slice(0, count - recent.length);
+	return { clips: [...recent, ...fallback], usedPopularFallback: fallback.length > 0 };
 }
