@@ -722,7 +722,9 @@ export async function getActiveGameByPuuidForRoute(puuid: string, routing: RiotR
 	try {
 		return await riotGet<RiotActiveGame>(url, routing.credential, {
 			operation: "getActiveGameByPuuidForRoute",
-			expectedStatuses: [404],
+			// Both outcomes are handled by the overlay cache. A temporary
+			// Spectator-service throttle is expected and should not spam logs.
+			expectedStatuses: [404, 429],
 		});
 	} catch (error) {
 		if (error instanceof RiotApiError && error.status === 404) {

@@ -36,7 +36,7 @@ const HISTORY_CACHE_MS = 45_000;
 const PREVIEW_MATCH_LIMIT = 8;
 const SESSION_MATCH_LIMIT = 40;
 const SESSION_START_BUFFER_SECONDS = 3 * 60 * 60;
-const LIVE_QUEUE_CACHE_MS = 60_000;
+const LIVE_QUEUE_CACHE_MS = 90_000;
 const LIVE_QUEUE_STALE_MS = 10 * 60_000;
 const LIVE_QUEUE_RATE_LIMIT_CACHE_MS = 2 * 60_000;
 
@@ -661,14 +661,21 @@ async function selectStreamerAccount(config: StreamerConfig, accounts: ResolvedS
 	const rememberedSelection = g.__streamerObsSelectedAccounts.get(config.slug);
 	const rememberedKey = rememberedSelection?.streamId === streamId ? rememberedSelection.accountKey : persistedSelection;
 
-	const liveQueues = await Promise.all(accounts.map((entry) => resolveLiveQueueId(config, entry.account.puuid, entry.routing)));
-	const activeIndex = liveQueues.findIndex((queueId) => queueId !== null);
-	if (activeIndex >= 0) {
-		const selected = accounts[activeIndex];
+	// Check the account used earlier in this stream first. This avoids probing
+	// every alternate account on every refresh while still detecting switches.
+	const orderedAccounts = rememberedKey
+		? [
+				...accounts.filter((entry) => entry.accountKey === rememberedKey),
+				...accounts.filter((entry) => entry.accountKey !== rememberedKey),
+			]
+		: accounts;
+	for (const selected of orderedAccounts) {
+		const liveQueueId = await resolveLiveQueueId(config, selected.account.puuid, selected.routing);
+		if (liveQueueId === null) continue;
 		await rememberSelectedAccount(config, selected.accountKey, streamId).catch((error) => {
 			console.warn(`[${config.slug}-obs] Aktives Riot-Konto konnte nicht gespeichert werden:`, error);
 		});
-		return { selected, liveQueueId: liveQueues[activeIndex] };
+		return { selected, liveQueueId };
 	}
 
 	const selected = accounts.find((entry) => entry.accountKey === rememberedKey) ?? primary;
