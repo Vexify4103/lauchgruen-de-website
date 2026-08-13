@@ -19,10 +19,12 @@ import {
 	type ObsRiotCredential,
 	type RiotAccount,
 	type RiotLeagueEntry,
+	type RiotMatch,
 	type RiotSummoner,
 	type RiotRoute,
 } from "@/lib/riot";
 import { getStream } from "@/lib/twitch";
+import { summarizeObsSession } from "@/lib/obs-session";
 
 const SESSION_COLLECTION = "lauchgruen_obs_sessions";
 const ACCOUNT_COLLECTION = "streamer_obs_accounts";
@@ -31,6 +33,9 @@ const SNAPSHOT_CACHE_MS = 60_000;
 const ACCOUNT_CACHE_MS = 24 * 60 * 60_000;
 const RANK_CACHE_MS = 60_000;
 const HISTORY_CACHE_MS = 45_000;
+const PREVIEW_MATCH_LIMIT = 8;
+const SESSION_MATCH_LIMIT = 40;
+const SESSION_START_BUFFER_SECONDS = 3 * 60 * 60;
 const LIVE_QUEUE_CACHE_MS = 60_000;
 const LIVE_QUEUE_STALE_MS = 10 * 60_000;
 const LIVE_QUEUE_RATE_LIMIT_CACHE_MS = 2 * 60_000;
@@ -512,18 +517,28 @@ async function cachedRankEntries(puuid: string, routing: RiotRoute): Promise<Rio
 	return request;
 }
 
-async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId?: number | null): Promise<string[]> {
+async function cachedMatchIds(
+	puuid: string,
+	routing: RiotRoute,
+	options: { queueId?: number | null; startedAt?: string } = {}
+): Promise<string[]> {
 	g.__streamerObsMatchIds ??= new Map();
 	g.__streamerObsMatchIdRequests ??= new Map();
-	const key = `${routing.credential}:${routing.region}:${puuid}:${queueId ?? "ranked"}`;
+	const sessionStartedAt = options.startedAt ? new Date(options.startedAt).getTime() : null;
+	const startTime =
+		sessionStartedAt !== null
+			? Math.max(0, Math.floor(sessionStartedAt / 1000) - SESSION_START_BUFFER_SECONDS)
+			: undefined;
+	const key = `${routing.credential}:${routing.region}:${puuid}:${options.queueId ?? "ranked"}:${startTime ?? "latest"}`;
 	const cached = g.__streamerObsMatchIds.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__streamerObsMatchIdRequests.get(key);
 	if (pending) return pending;
 
 	const request = getMatchIdsByPuuidForRoute(puuid, routing, {
-		...(queueId ? { queue: queueId } : {}),
-		count: 8,
+		...(options.queueId ? { queue: options.queueId } : {}),
+		...(startTime !== undefined ? { startTime } : {}),
+		count: options.startedAt ? SESSION_MATCH_LIMIT : PREVIEW_MATCH_LIMIT,
 		type: "ranked",
 	})
 		.then((data) => {
@@ -535,9 +550,28 @@ async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId?: numbe
 	return request;
 }
 
+async function mapAvailableMatches(matchIds: string[], routing: RiotRoute) {
+	const matches: RiotMatch[] = [];
+	let cursor = 0;
+
+	async function worker() {
+		while (cursor < matchIds.length) {
+			const matchId = matchIds[cursor++];
+			try {
+				matches.push(await getMatchByIdForRoute(matchId, routing));
+			} catch (error) {
+				console.warn(`[streamer-obs] Match ${matchId} konnte vorübergehend nicht geladen werden:`, error);
+			}
+		}
+	}
+
+	await Promise.all(Array.from({ length: Math.min(3, matchIds.length) }, () => worker()));
+	return matches;
+}
+
 async function loadSessionGames(puuid: string, routing: RiotRoute, startedAt?: string, queueId?: number | null): Promise<LauchgruenObsGame[]> {
-	const matchIds = await cachedMatchIds(puuid, routing, queueId);
-	const matches = await Promise.all(matchIds.map((matchId) => getMatchByIdForRoute(matchId, routing)));
+	const matchIds = await cachedMatchIds(puuid, routing, { queueId, startedAt });
+	const matches = await mapAvailableMatches(matchIds, routing);
 	const sessionStartedAt = startedAt ? new Date(startedAt).getTime() : null;
 	return matches
 		.map((match) => {
@@ -569,8 +603,7 @@ async function loadSessionGames(puuid: string, routing: RiotRoute, startedAt?: s
 			};
 		})
 		.filter((game): game is LauchgruenObsGame => Boolean(game))
-		.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())
-		.slice(0, 5);
+		.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime());
 }
 
 async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing: RiotRoute): Promise<number | null> {
@@ -644,7 +677,8 @@ async function selectStreamerAccount(config: StreamerConfig, accounts: ResolvedS
 
 async function loadGamesAcrossAccounts(accounts: ResolvedStreamerAccount[], startedAt?: string, queueId?: number | null) {
 	const games = (await Promise.all(accounts.map((entry) => loadSessionGames(entry.account.puuid, entry.routing, startedAt, queueId)))).flat();
-	return games.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime()).slice(0, 5);
+	const uniqueGames = [...new Map(games.map((game) => [game.matchId, game])).values()];
+	return uniqueGames.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime());
 }
 
 async function resolveConfiguredStreamerAccounts(config: StreamerConfig) {
@@ -698,8 +732,7 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 	const previewGames = options.preview ? await loadGamesAcrossAccounts(resolvedAccounts) : [];
 
 	if (!stream) {
-		const wins = previewGames.filter((game) => game.win).length;
-		const losses = previewGames.length - wins;
+		const sessionSummary = summarizeObsSession(previewGames);
 		const response: LauchgruenObsResponse = {
 			online: false,
 			leagueLive: false,
@@ -713,10 +746,10 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 			flexRank,
 			baselineRank: currentRank,
 			lpDelta: 0,
-			sessionWins: wins,
-			sessionLosses: losses,
-			winRate: previewGames.length ? Math.round((wins / previewGames.length) * 100) : 0,
-			lastGames: previewGames.slice(0, 5),
+			sessionWins: sessionSummary.wins,
+			sessionLosses: sessionSummary.losses,
+			winRate: sessionSummary.winRate,
+			lastGames: sessionSummary.visibleGames,
 			profileIconUrl: currentProfileIconUrl,
 			riotId: `${account.gameName}#${account.tagLine}`,
 			twitchLogin: config.twitchLogin,
@@ -730,9 +763,10 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 
 	const shouldTrackSession = leagueLive && (!config.rankedOnly || rankedQueueLive);
 	const session = shouldTrackSession ? await getOrCreateSession(config, stream.id, stream.startedAt, currentRank, account.puuid) : null;
-	const games = options.preview ? previewGames : shouldTrackSession ? await loadGamesAcrossAccounts(resolvedAccounts, stream.startedAt, displayQueueId) : [];
-	const wins = games.filter((game) => game.win).length;
-	const losses = games.length - wins;
+	// Session W/L describes the whole stream. The displayed rank may follow the
+	// current Solo/Duo or Flex queue, but changing queues must not erase games.
+	const games = options.preview ? previewGames : shouldTrackSession ? await loadGamesAcrossAccounts(resolvedAccounts, stream.startedAt) : [];
+	const sessionSummary = summarizeObsSession(games);
 
 	const response: LauchgruenObsResponse = {
 		online: true,
@@ -747,10 +781,10 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 		flexRank,
 		baselineRank: session?.baselineRank ?? currentRank,
 		lpDelta: currentRank && session?.baselineRank ? currentRank.score - session.baselineRank.score : 0,
-		sessionWins: wins,
-		sessionLosses: losses,
-		winRate: games.length ? Math.round((wins / games.length) * 100) : 0,
-		lastGames: games.slice(0, 5),
+		sessionWins: sessionSummary.wins,
+		sessionLosses: sessionSummary.losses,
+		winRate: sessionSummary.winRate,
+		lastGames: sessionSummary.visibleGames,
 		profileIconUrl: currentProfileIconUrl,
 		riotId: `${account.gameName}#${account.tagLine}`,
 		twitchLogin: config.twitchLogin,

@@ -29,6 +29,7 @@ import {
 } from "@/lib/riot";
 import { listCommunityOverlayStreamersByPuuid, type CommunityOverlayStreamer } from "@/lib/tournament-storage";
 import { getStream } from "@/lib/twitch";
+import { summarizeObsSession } from "@/lib/obs-session";
 
 const SESSION_COLLECTION = "community_obs_sessions";
 const ACCOUNT_COLLECTION = "community_obs_accounts";
@@ -38,6 +39,8 @@ const LIVE_RANK_CACHE_MS = 55_000;
 const OFFLINE_RANK_CACHE_MS = 5 * 60_000;
 const LIVE_HISTORY_CACHE_MS = 2 * 60_000;
 const OFFLINE_HISTORY_CACHE_MS = 5 * 60_000;
+const SESSION_MATCH_LIMIT = 40;
+const SESSION_START_BUFFER_SECONDS = 3 * 60 * 60;
 const NEW_SNAPSHOT_WINDOW_MS = 120_000;
 const NEW_SNAPSHOT_LIMIT = 3;
 const KNOWN_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -699,16 +702,23 @@ async function mapLimited<T, R>(values: T[], limit: number, worker: (value: T) =
 	return output;
 }
 
-async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId: 420 | 440, maxAgeMs: number, startedAt?: string) {
-	const startTime = startedAt ? Math.max(0, Math.floor(new Date(startedAt).getTime() / 1000) - 300) : undefined;
+async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId: 420 | 440 | null, maxAgeMs: number, startedAt?: string) {
+	const startTime = startedAt
+		? Math.max(0, Math.floor(new Date(startedAt).getTime() / 1000) - SESSION_START_BUFFER_SECONDS)
+		: undefined;
 	globalCache.__communityObsMatchIdCache ??= new Map();
 	globalCache.__communityObsMatchIdRequests ??= new Map();
-	const key = `${routing.credential}:${routing.region}:${puuid}:${queueId}:${startTime ?? "all"}`;
+	const key = `${routing.credential}:${routing.region}:${puuid}:${queueId ?? "ranked"}:${startTime ?? "all"}`;
 	const cached = globalCache.__communityObsMatchIdCache.get(key);
 	if (cached && Date.now() - cached.fetchedAt < maxAgeMs) return cached.ids;
 	const pending = globalCache.__communityObsMatchIdRequests.get(key);
 	if (pending) return pending;
-	const request = getMatchIdsByPuuidForRoute(puuid, routing, { count: 18, queue: queueId, type: "ranked", ...(startTime ? { startTime } : {}) })
+	const request = getMatchIdsByPuuidForRoute(puuid, routing, {
+		count: startedAt ? SESSION_MATCH_LIMIT : 18,
+		...(queueId ? { queue: queueId } : {}),
+		type: "ranked",
+		...(startTime ? { startTime } : {}),
+	})
 		.then((ids) => {
 			globalCache.__communityObsMatchIdCache!.set(key, { ids, fetchedAt: Date.now() });
 			trimMap(globalCache.__communityObsMatchIdCache!, 1_000);
@@ -719,14 +729,20 @@ async function cachedMatchIds(puuid: string, routing: RiotRoute, queueId: 420 | 
 	return request;
 }
 
-async function loadGames(puuid: string, routing: RiotRoute, count: number, queueId: 420 | 440, cacheMs: number, startedAt?: string): Promise<CommunityObsGame[]> {
-	const ids = (await cachedMatchIds(puuid, routing, queueId, cacheMs, startedAt)).slice(0, Math.min(18, count + 3));
+async function loadGames(puuid: string, routing: RiotRoute, count: number, queueId: 420 | 440 | null, cacheMs: number, startedAt?: string): Promise<CommunityObsGame[]> {
+	const ids = (await cachedMatchIds(puuid, routing, queueId, cacheMs, startedAt)).slice(
+		0,
+		startedAt ? SESSION_MATCH_LIMIT : Math.min(18, count + 3)
+	);
+	const sessionStartedAt = startedAt ? new Date(startedAt).getTime() : null;
 	const games = await mapLimited(ids, 3, async (matchId) => {
 		const match = await getMatchByIdForRoute(matchId, routing);
 		if (isRiotMatchRemake(match)) return null;
 		const participant = match.info.participants.find((entry) => entry.puuid === puuid);
-		if (!participant || match.info.queueId !== queueId) return null;
-		const endedAt = new Date(match.info.gameEndTimestamp ?? match.info.gameStartTimestamp ?? match.info.gameCreation).toISOString();
+		if (!participant || ![420, 440].includes(match.info.queueId) || (queueId && match.info.queueId !== queueId)) return null;
+		const endedAtTimestamp = match.info.gameEndTimestamp ?? match.info.gameStartTimestamp ?? match.info.gameCreation;
+		if (sessionStartedAt !== null && endedAtTimestamp < sessionStartedAt) return null;
+		const endedAt = new Date(endedAtTimestamp).toISOString();
 		const itemIds = participantInventoryItemIds(participant);
 		return {
 			matchId,
@@ -743,7 +759,8 @@ async function loadGames(puuid: string, routing: RiotRoute, count: number, queue
 			endedAt,
 		} satisfies CommunityObsGame;
 	});
-	return games.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime()).slice(0, count);
+	const sortedGames = games.sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime());
+	return startedAt ? sortedGames : sortedGames.slice(0, count);
 }
 
 async function sessionBaseline(streamer: string, streamId: string, startedAt: string, rank: CommunityObsRank) {
@@ -834,12 +851,21 @@ export async function getCommunityObsSnapshot(input: {
 		const baselineRank = session?.baselineRank ?? rank;
 		const historyStart = input.sessionOnly && !input.preview ? startedAt : undefined;
 		const historyQueueId = sessionRankQueueId ?? rank?.queueId ?? null;
-		const games =
+		const loadedGames =
 			input.sessionOnly && !input.preview && !leagueLive
 				? []
 				: historyQueueId && count > 0
-					? await loadGames(account.puuid, routing, count, historyQueueId, leagueLive ? LIVE_HISTORY_CACHE_MS : OFFLINE_HISTORY_CACHE_MS, historyStart)
-					: [];
+					? await loadGames(
+							account.puuid,
+							routing,
+							count,
+							historyStart ? null : historyQueueId,
+							leagueLive ? LIVE_HISTORY_CACHE_MS : OFFLINE_HISTORY_CACHE_MS,
+							historyStart
+						)
+						: [];
+		const sessionSummary = summarizeObsSession(loadedGames, count);
+		const games = sessionSummary.visibleGames;
 		const tagsByChampion = liveGame ? await championRoleTags() : new Map<number, ChampionRoleTag[]>();
 		const liveRoles = liveGame
 			? new Map(
@@ -855,10 +881,10 @@ export async function getCommunityObsSnapshot(input: {
 			input.includeStreamerParticipants && liveGame
 				? await listCommunityOverlayStreamersByPuuid(liveGame.participants.map((participant) => participant.puuid))
 				: new Map<string, CommunityOverlayStreamer>();
-		const sessionWins = games.filter((game) => game.win).length;
-		const sessionLosses = games.length - sessionWins;
+		const sessionWins = sessionSummary.wins;
+		const sessionLosses = sessionSummary.losses;
 		const lpDeltaAvailable = Boolean(
-			session && rank && baselineRank && !input.preview && !games.some((game) => new Date(game.endedAt).getTime() <= new Date(session.createdAt).getTime())
+			session && rank && baselineRank && !input.preview && !loadedGames.some((game) => new Date(game.endedAt).getTime() <= new Date(session.createdAt).getTime())
 		);
 		const resolvedLiveGame: CommunityObsLiveGame =
 			input.includeLiveGame && liveGame
