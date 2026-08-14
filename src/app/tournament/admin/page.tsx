@@ -17,12 +17,13 @@ import { TournamentModePanel } from "./TournamentModePanel";
 import { WheelAdminClient } from "./WheelAdminClient";
 import { getTournamentArchive } from "@/lib/tournament-next";
 import { DiscordSignInButton } from "../DiscordSignInButton";
+import { RefreshRanksButton } from "./applicants/RefreshRanksButton";
 
 export default async function TournamentAdminPage() {
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
-	const [settings, audit, azArchive] = isOwner ? await Promise.all([getTournamentSettings(), listAuditLog(5), getTournamentArchive("az-2026")]) : [null, [], null];
+	const [settings, audit, azArchive] = isOwner ? await Promise.all([getTournamentSettings(), listAuditLog(), getTournamentArchive("az-2026")]) : [null, [], null];
 	const isBlankTournament = settings?.activeTournament.id === "ultimate-bravery";
 	const ctx = isOwner && !isBlankTournament ? await getTournamentContext() : null;
 	const state = isOwner && ctx ? await readTournamentState(ctx.groupMatches) : null;
@@ -128,6 +129,20 @@ export default async function TournamentAdminPage() {
 							</div>
 						) : null}
 						<div className="mt-5">
+							<section className="grid min-w-0 gap-5 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[linear-gradient(135deg,rgba(34,211,238,0.065),rgba(7,20,13,0.9)_46%)] p-5 shadow-xl shadow-black/22 lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:items-start">
+								<div className="max-w-2xl">
+									<div className="text-[9px] font-black uppercase tracking-[0.26em] text-cyan-100/52">Riot-Datenbestand</div>
+									<h2 className="mt-2 text-xl font-black text-emerald-50">Alle verknüpften Profile abgleichen</h2>
+									<p className="mt-2 text-xs leading-6 text-emerald-100/48">
+										Aktualisiert Riot-ID, Rang und Summoner-Level sämtlicher dauerhaft gespeicherter Konten. Vorhandene Bewerbungen und Roster-Namen werden automatisch mitgezogen.
+									</p>
+								</div>
+								<div className="min-w-0 lg:justify-self-end">
+									<RefreshRanksButton label="Alle Riot-Profile aktualisieren" confirmBulk scope="verified" />
+								</div>
+							</section>
+						</div>
+						<div className="mt-5">
 							<DiscordControlCenter />
 						</div>
 					</>
@@ -174,7 +189,7 @@ export default async function TournamentAdminPage() {
 
 				{isOwner ? (
 					<div className="mt-8">
-						<AuditLogPanel initialEntries={audit} />
+						<AuditLogPanel key={audit[0]?.id ?? "empty"} initialEntries={audit} />
 					</div>
 				) : null}
 			</section>

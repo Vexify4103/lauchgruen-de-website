@@ -67,6 +67,7 @@ export function RefreshRanksButton({
 	label = "Spielerdaten aktualisieren",
 	confirmBulk = false,
 	estimatedDelayMs = 2600,
+	scope = "applications",
 }: {
 	applicationId?: string;
 	label?: string;
@@ -74,6 +75,7 @@ export function RefreshRanksButton({
 	totalCount?: number;
 	applicantNames?: string[];
 	estimatedDelayMs?: number;
+	scope?: "applications" | "verified";
 }) {
 	const router = useRouter();
 	const [message, setMessage] = useState("");
@@ -87,13 +89,13 @@ export function RefreshRanksButton({
 	useEffect(() => {
 		if (!confirmBulk || runtimeApplicants.length > 0) return;
 		let cancelled = false;
-		void fetchApplications().then((loaded) => {
+		void fetchRefreshTargets(scope).then((loaded) => {
 			if (!cancelled && loaded.length > 0) setRuntimeApplicants(loaded);
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [confirmBulk, runtimeApplicants.length]);
+	}, [confirmBulk, runtimeApplicants.length, scope]);
 
 	useEffect(() => {
 		if (!running || !confirmBulk) return;
@@ -105,7 +107,7 @@ export function RefreshRanksButton({
 		const response = await fetch("/api/tournament/ranks", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify(id ? { id } : {}),
+			body: JSON.stringify(id ? (scope === "verified" ? { puuid: id, audit: !confirmBulk } : { id, audit: !confirmBulk }) : {}),
 		});
 		const json = (await response.json().catch(() => null)) as RefreshResponse | null;
 		return { response, json };
@@ -137,9 +139,9 @@ export function RefreshRanksButton({
 			return;
 		}
 
-		const applicants = runtimeApplicants.length > 0 ? runtimeApplicants : await fetchApplications();
+		const applicants = runtimeApplicants.length > 0 ? runtimeApplicants : await fetchRefreshTargets(scope);
 		if (applicants.length === 0) {
-			setMessage("Keine Bewerbungen zum Aktualisieren gefunden.");
+			setMessage(scope === "verified" ? "Keine verifizierten Riot-Konten gefunden." : "Keine Bewerbungen zum Aktualisieren gefunden.");
 			setRunning(false);
 			return;
 		}
@@ -210,8 +212,9 @@ export function RefreshRanksButton({
 			if (remaining > 0) await sleep(estimatedDelayMs);
 		}
 
-		setRunning(false);
 		setBulkProgress((current) => ({ ...current, current: null, phase: "done", etaDeadline: Date.now() }));
+		await saveBulkAudit({ scope, okCount, failCount: failedCount, changedCount, unchangedCount });
+		setRunning(false);
 		setMessage(
 			failed.length === 0
 				? `${okCount} Riot-Profile geprüft: ${changedCount} geändert, ${unchangedCount} unverändert.`
@@ -309,7 +312,7 @@ export function RefreshRanksButton({
 			<ConfirmDialog
 				open={bulkConfirmOpen}
 				title="Alle Riot-Daten aktualisieren?"
-				description={`Riot-ID, aktueller Rang und Summoner-Level aller Bewerber werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten.${runtimeApplicants.length > 0 ? ` Geplant: ${runtimeApplicants.length} Profile.` : ""}`}
+				description={`Riot-ID, aktueller Rang und Summoner-Level ${scope === "verified" ? "aller dauerhaft verknüpften Riot-Konten" : "aller Bewerber"} werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten.${runtimeApplicants.length > 0 ? ` Geplant: ${runtimeApplicants.length} Profile.` : ""}`}
 				confirmLabel="Aktualisierung starten"
 				cancelLabel="Abbrechen"
 				onCancel={() => setBulkConfirmOpen(false)}
@@ -346,7 +349,12 @@ function sleep(ms: number) {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function fetchApplications(): Promise<BulkApplicant[]> {
+async function fetchRefreshTargets(scope: "applications" | "verified"): Promise<BulkApplicant[]> {
+	if (scope === "verified") {
+		const response = await fetch("/api/tournament/ranks");
+		const json = (await response.json().catch(() => null)) as { accounts?: BulkApplicant[] } | null;
+		return response.ok ? (json?.accounts ?? []) : [];
+	}
 	const response = await fetch("/api/tournament/applications");
 	const json = (await response.json().catch(() => null)) as { applications?: ApplicationSummary[] } | null;
 	if (!response.ok) return [];
@@ -358,4 +366,18 @@ async function fetchApplications(): Promise<BulkApplicant[]> {
 				label: app.displayName && app.riotId ? `${app.displayName} · ${app.riotId}` : app.displayName || app.riotId || app.id,
 			})) ?? []
 	);
+}
+
+async function saveBulkAudit(summary: {
+	scope: "applications" | "verified";
+	okCount: number;
+	failCount: number;
+	changedCount: number;
+	unchangedCount: number;
+}) {
+	await fetch("/api/tournament/ranks", {
+		method: "PUT",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(summary),
+	}).catch(() => null);
 }

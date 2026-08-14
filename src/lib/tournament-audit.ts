@@ -43,12 +43,11 @@ export async function writeAuditLog(input: {
 	return entry;
 }
 
-export async function listAuditLog(limit = 16): Promise<TournamentAuditEntry[]> {
+export async function listAuditLog(limit?: number): Promise<TournamentAuditEntry[]> {
 	const db = await getDb();
-	const docs = await db
-		.collection<AuditDoc>(COLLECTION)
-		.find({}, { sort: { createdAt: -1 }, limit })
-		.toArray();
+	const cursor = db.collection<AuditDoc>(COLLECTION).find({}, { sort: { createdAt: -1 } });
+	if (limit && limit > 0) cursor.limit(limit);
+	const docs = await cursor.toArray();
 	return docs.map(stripMongoId);
 }
 

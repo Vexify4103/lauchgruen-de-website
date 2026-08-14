@@ -707,6 +707,15 @@ export async function getVerifiedAccount(discordId: string): Promise<VerifiedRio
 	return rest as VerifiedRiotAccount;
 }
 
+export async function listVerifiedAccounts(): Promise<VerifiedRiotAccount[]> {
+	const col = await verifiedCollection();
+	const docs = await col.find({}, { sort: { verifiedAt: 1 } }).toArray();
+	return docs.map(({ _id, ...account }) => {
+		void _id;
+		return account as VerifiedRiotAccount;
+	});
+}
+
 export async function listCommunityOverlayStreamersByPuuid(puuids: string[]): Promise<Map<string, CommunityOverlayStreamer>> {
 	const uniquePuuids = [...new Set(puuids.filter(Boolean))];
 	if (uniquePuuids.length === 0) return new Map();
