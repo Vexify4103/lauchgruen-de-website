@@ -51,6 +51,13 @@ function legacyApiResponse(pathname: string) {
 }
 
 export function proxy(req: NextRequest) {
+	// This app performs mutations through explicit Route Handlers and does not
+	// expose Server Actions. Reject forged action probes before Next.js attempts
+	// to resolve attacker-controlled action IDs such as `Next-Action: x`.
+	if (req.method === "POST" && req.headers.has("next-action")) {
+		return NextResponse.json({ message: "Nicht gefunden." }, { status: 404 });
+	}
+
 	// `host` includes the port locally (e.g. "localhost:3000"), strip it.
 	const rawHost = req.headers.get("host") ?? "";
 	const host = rawHost.split(":")[0].toLowerCase();
@@ -89,7 +96,12 @@ export function proxy(req: NextRequest) {
 			return NextResponse.next();
 		}
 
-		if (pathname.startsWith("/api/riot/") || pathname.startsWith("/api/overlay/") || pathname === "/api/tournament/preference-group") {
+		if (
+			pathname.startsWith("/api/riot/") ||
+			pathname.startsWith("/api/overlay/") ||
+			pathname === "/api/tournament/preference-group" ||
+			pathname === "/api/tournament/applications"
+		) {
 			return NextResponse.next();
 		}
 
