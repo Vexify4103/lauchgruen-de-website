@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
 	poweredByHeader: false,
 	allowedDevOrigins: ["lauchgruen.localhost", "tournament.lauchgruen.localhost"],
 	experimental: {
+		// The production container has a tight memory limit; parallel build workers can exceed it.
+		cpus: 1,
 		turbopackFileSystemCacheForDev: false,
 	},
 	images: {
