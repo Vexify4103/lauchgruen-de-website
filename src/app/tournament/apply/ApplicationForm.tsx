@@ -7,6 +7,7 @@ import type { TournamentApplication } from "@/lib/tournament-storage";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import { WithdrawApplicationButton } from "../me/WithdrawApplicationButton";
 
 type SubmitState = { status: "idle"; message: "" } | { status: "loading"; message: string } | { status: "success"; message: string } | { status: "error"; message: string };
 
@@ -65,6 +66,7 @@ export function ApplicationForm({
 	minimumSummonerLevel,
 	minimumLevelOverrideKind,
 	announcedDate,
+	applicationDeadlineLabel,
 }: {
 	discordIdentity: DiscordIdentity;
 	isGuildMember: boolean;
@@ -74,6 +76,7 @@ export function ApplicationForm({
 	minimumSummonerLevel: number;
 	minimumLevelOverrideKind: "regular" | "exception" | null;
 	announcedDate: string;
+	applicationDeadlineLabel: string;
 }) {
 	const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
 	const [preferredRoles, setPreferredRoles] = useState<string[]>(initialApplication?.preferredRoles ?? []);
@@ -389,6 +392,22 @@ export function ApplicationForm({
 							? "Bewerbung ändern"
 							: "Bewerbung absenden"}
 				</button>
+				{hasApplication ? (
+					<div className="rounded-2xl border border-rose-300/14 bg-rose-400/[0.045] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+						<div>
+							<div className="text-xs font-black text-emerald-50">Du kannst doch nicht teilnehmen?</div>
+							<p className="mt-1 text-xs leading-5 text-emerald-100/50">Bis zum Bewerbungsschluss kannst du deine Anmeldung selbst zurückziehen.</p>
+						</div>
+						<WithdrawApplicationButton
+							deadlineLabel={applicationDeadlineLabel}
+							className="mt-3 shrink-0 sm:mt-0"
+							onWithdrawn={(message) => {
+								setHasApplication(false);
+								setState({ status: "success", message });
+							}}
+						/>
+					</div>
+				) : null}
 				<p className="text-xs leading-5 text-emerald-100/48">
 					Mit dem Absenden bestätigst du verbindlich die{" "}
 					<Link href="/tournament/terms" className="font-black text-lime-100 underline decoration-lime-200/40 underline-offset-4">

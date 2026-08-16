@@ -198,6 +198,7 @@ export default async function ApplyPage() {
 							minimumSummonerLevel={settings.ultimateBravery.minimumSummonerLevel}
 							minimumLevelOverrideKind={eligibilityOverride?.kind ?? null}
 							announcedDate={formatUltimateBraveryDates(settings.ultimateBravery.startAt, settings.ultimateBravery.dayTwoStartAt)}
+							applicationDeadlineLabel={deadlineLabel}
 						/>
 					) : (
 						<div className="flex min-h-[34rem] flex-col justify-center rounded-[1.8rem] border border-indigo-200/16 bg-[radial-gradient(circle_at_top_right,rgba(129,140,248,0.16),transparent_42%),linear-gradient(145deg,rgba(99,102,241,0.09),rgba(0,0,0,0.12))] p-6 sm:p-9">

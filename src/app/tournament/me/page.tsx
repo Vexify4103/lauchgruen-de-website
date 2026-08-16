@@ -24,6 +24,8 @@ import { AccountLogoutButton } from "./AccountLogoutButton";
 import { TournamentDmPreferenceCard } from "./TournamentDmPreferenceCard";
 import { getSiteUrls } from "@/lib/site-urls";
 import { isTournamentHost } from "@/lib/tournament-url";
+import { formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 
 export const metadata: Metadata = {
 	title: "Mein Lauchgruen-Konto",
@@ -89,6 +91,8 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
 	const discordAvatarUrl = session.user.discordAvatar ?? "https://cdn.discordapp.com/embed/avatars/0.png";
 	const application = applications.find((entry) => entry.discordId === discordId) ?? null;
+	const applicationDeadlinePassed = isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const applicationDeadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
 	const team =
 		ctx.teams.find((entry) => entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase()) || entry.captainRef?.discordId === discordId) ??
 		null;
@@ -275,6 +279,18 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 
 					<div className="grid gap-6">
 						{application ? <TournamentDmPreferenceCard initialEnabled={application.discordDmOptIn !== false} /> : null}
+						{application ? (
+							<section className="rounded-[2rem] border border-rose-300/14 bg-rose-400/[0.045] p-5 shadow-xl shadow-black/16 sm:p-6">
+								<div className="text-xs font-black uppercase tracking-[0.28em] text-rose-200/64">Turnierteilnahme</div>
+								<h2 className="mt-2 text-xl font-black text-emerald-50">Deine Bewerbung verwalten</h2>
+								<p className="mt-2 text-sm leading-6 text-emerald-100/58">
+									{applicationDeadlinePassed
+										? `Der Bewerbungsschluss am ${applicationDeadlineLabel} ist vorbei. Eine Rücknahme ist jetzt nur noch über das Orga-Team möglich.`
+										: `Du kannst deine Bewerbung bis ${applicationDeadlineLabel} selbst zurückziehen. Deine verknüpften Konten bleiben dabei erhalten.`}
+								</p>
+								{!applicationDeadlinePassed ? <WithdrawApplicationButton deadlineLabel={applicationDeadlineLabel} className="mt-4 sm:justify-self-start" /> : null}
+							</section>
+						) : null}
 						<PreferenceGroupCard
 							hasApplication={Boolean(application)}
 							initialGroup={
@@ -296,6 +312,11 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 											summonerLevel: verified.summonerLevel,
 											verifiedAt: verified.verifiedAt,
 										}
+									: null
+							}
+							disconnectBlockedReason={
+								application && applicationDeadlinePassed
+									? "Nach Bewerbungsschluss bleibt der verifizierte Riot-Account mit deiner verbindlichen Bewerbung verknüpft. Bitte wende dich für Änderungen an das Orga-Team."
 									: null
 							}
 						/>

@@ -18,6 +18,7 @@ import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
 	deleteApplicationsByDiscordId,
 	findApplication,
+	findApplicationByDiscordId,
 	findBlacklistMatch,
 	findEligibilityOverrideMatch,
 	getVerifiedAccount,
@@ -243,15 +244,51 @@ export async function PATCH(request: Request) {
 	});
 }
 
-/** Admin-only: removes tournament applications while preserving the Riot link. */
+/** Removes applications while preserving the permanent Discord/Riot/Twitch links. */
 export async function DELETE(request: Request) {
 	const session = await auth();
 	const discordId = session?.user?.discordId;
-	if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) {
-		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
-	}
+	if (!discordId) return NextResponse.json({ message: "Bitte zuerst mit Discord anmelden." }, { status: 401 });
 
 	const searchParams = new URL(request.url).searchParams;
+	const selfWithdrawal = searchParams.get("self") === "true";
+	if (selfWithdrawal) {
+		const settings = await getTournamentSettings();
+		if (isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
+			return NextResponse.json(
+				{
+					message: `Die Rücknahme war nur bis ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)} möglich. Bitte wende dich an das Orga-Team.`,
+				},
+				{ status: 403 }
+			);
+		}
+
+		const existing = await findApplicationByDiscordId(discordId);
+		if (!existing) return NextResponse.json({ message: "Keine aktive Bewerbung gefunden." }, { status: 404 });
+
+		const deletedCount = await deleteApplicationsByDiscordId(discordId);
+		await writeAuditLog({
+			action: "application.withdraw",
+			targetType: "application",
+			targetId: existing.id,
+			summary: `${existing.displayName} hat die eigene Bewerbung vor Bewerbungsschluss zurückgezogen.`,
+			actorDiscordId: discordId,
+			actorLabel: session.user.discordHandle ?? discordId,
+			metadata: { deletedCount, preservedRiotLink: true, selfWithdrawal: true },
+		});
+
+		return NextResponse.json({
+			ok: true,
+			deletedCount,
+			preservedRiotLink: true,
+			message: "Deine Bewerbung wurde zurückgezogen. Deine verknüpften Konten bleiben erhalten.",
+		});
+	}
+
+	if (!TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) {
+		return NextResponse.json({ message: "Nach Bewerbungsschluss kann nur das Orga-Team Bewerbungen entfernen." }, { status: 403 });
+	}
+
 	const targetDiscordId = searchParams.get("discordId")?.trim();
 	const applicationId = searchParams.get("id")?.trim();
 	const expectedVersion = Number(searchParams.get("expectedVersion"));

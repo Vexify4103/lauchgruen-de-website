@@ -28,7 +28,7 @@ type Status =
 	| { kind: "loading"; message: string }
 	| { kind: "error"; message: string };
 
-export function RiotVerificationCard({ verified }: { verified: VerifiedAccount | null }) {
+export function RiotVerificationCard({ verified, disconnectBlockedReason }: { verified: VerifiedAccount | null; disconnectBlockedReason?: string | null }) {
 	const router = useRouter();
 	const [riotId, setRiotId] = useState("");
 	const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -148,10 +148,16 @@ export function RiotVerificationCard({ verified }: { verified: VerifiedAccount |
 				<button
 					type="button"
 					onClick={() => setDisconnectConfirmOpen(true)}
-					className="mt-4 rounded-2xl border border-red-200/18 bg-red-500/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 transition hover:border-red-200/30 hover:bg-red-500/12"
+					disabled={Boolean(disconnectBlockedReason)}
+					className="mt-4 rounded-2xl border border-red-200/18 bg-red-500/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 transition hover:border-red-200/30 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-40"
 				>
 					Riot-Account trennen
 				</button>
+				{disconnectBlockedReason ? (
+					<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.07] px-4 py-3 text-xs font-bold leading-5 text-amber-50/78">
+						{disconnectBlockedReason}
+					</div>
+				) : null}
 				{status.kind === "loading" ? <StatusMessage message={status.message} /> : null}
 				{status.kind === "error" ? <ErrorMessage message={status.message} /> : null}
 				<ConfirmDialog
