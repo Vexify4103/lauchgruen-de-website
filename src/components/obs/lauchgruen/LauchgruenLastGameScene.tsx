@@ -31,7 +31,7 @@ export function LauchgruenLastGameScene({
 					<div
 						className={`absolute bottom-0 right-0 rounded-tl-md px-1.5 py-0.5 text-[9px] font-black ${featured.win ? "bg-lime-300 text-emerald-950" : "bg-rose-400 text-white"}`}
 					>
-						{featured.win ? "W" : "L"}
+						{featured.win ? "S" : "N"}
 					</div>
 				</div>
 			) : (
@@ -40,7 +40,7 @@ export function LauchgruenLastGameScene({
 
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
-					<div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white">{featured?.championName ?? "Noch keine Games"}</div>
+					<div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white">{featured?.championName ?? "Noch keine Spiele"}</div>
 					{featured ? (
 						<div className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-100">
 							{queueLabel(featured.queueId)}
@@ -74,13 +74,13 @@ export function LauchgruenLastGameScene({
 
 			<div className="shrink-0 text-right">
 				<div className="font-mono text-sm font-black text-emerald-50">
-					{data.sessionWins}W · {data.sessionLosses}L
+					{data.sessionWins} S · {data.sessionLosses} N
 				</div>
 				<div className={`mt-1 font-mono text-xs font-black ${lpTone}`}>
 					{lpDelta > 0 ? "+" : ""}
 					{lpDelta} LP
 				</div>
-				<div className="mt-1 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/36">{gamesPlayed} Games</div>
+				<div className="mt-1 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/36">{gamesPlayed} Spiele</div>
 			</div>
 		</div>
 	);

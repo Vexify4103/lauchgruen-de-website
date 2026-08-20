@@ -1,13 +1,13 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
-import { tierName } from "@/components/obs/shared/utils";
+import { germanTierName } from "@/components/obs/shared/utils";
 
 export function RankProgress({ rank, progress, compact = false }: { rank: LauchgruenObsResponse["rank"]; progress: number; compact?: boolean }) {
 	return (
 		<div>
 			<div className={`mb-1 flex items-center justify-between font-mono font-black uppercase tracking-[0.08em] text-emerald-100/44 ${compact ? "text-[8px]" : "text-[9px]"}`}>
-				<span>{rank ? `${tierName(rank.tier)} IV` : "Unranked"}</span>
+				<span>{rank ? `${germanTierName(rank.tier)} IV` : "Ohne Rang"}</span>
 				<span>{Math.round(progress)}%</span>
-				<span>{rank ? tierName(rank.nextTierLabel.split(" ")[0]) : "Next"}</span>
+				<span>{rank ? germanTierName(rank.nextTierLabel.split(" ")[0]) : "Nächstes Ziel"}</span>
 			</div>
 			<div className="relative h-2 overflow-hidden rounded-full bg-black/42 ring-1 ring-white/10">
 				<div

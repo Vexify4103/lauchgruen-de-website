@@ -1,6 +1,6 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { RankProgress } from "@/components/obs/shared/RankProgress";
-import { queueLabel, rankLabel } from "@/components/obs/shared/utils";
+import { germanRankLabel, queueLabel } from "@/components/obs/shared/utils";
 
 export function LauchgruenRankScene({
 	active,
@@ -32,7 +32,7 @@ export function LauchgruenRankScene({
 						</div>
 					</div>
 					<div className="mt-1 flex items-baseline gap-2">
-						<div className="text-lg font-black leading-none text-white">{rankLabel(data.rank)}</div>
+						<div className="text-lg font-black leading-none text-white">{germanRankLabel(data.rank)}</div>
 						<div className="rounded-md border border-amber-200/22 bg-amber-300/14 px-2 py-0.5 font-mono text-xs font-black text-amber-100">
 							{data.rank?.leaguePoints ?? 0} LP
 						</div>
@@ -47,13 +47,13 @@ export function LauchgruenRankScene({
 			<div className="grid grid-cols-[1fr_auto_auto] items-end gap-3">
 				<RankProgress rank={data.rank} progress={rankProgress} compact />
 				<div className="text-right">
-					<div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/38">Session</div>
+					<div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/38">Bilanz</div>
 					<div className="font-mono text-sm font-black text-emerald-50">
-						{data.sessionWins}W · {data.sessionLosses}L
+						{data.sessionWins} S · {data.sessionLosses} N
 					</div>
 				</div>
 				<div className="text-right">
-					<div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/38">Games</div>
+					<div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/38">Spiele</div>
 					<div className="font-mono text-sm font-black text-emerald-50">{gamesPlayed}</div>
 				</div>
 			</div>

@@ -17,6 +17,27 @@ export function tierName(tier?: string) {
 	return labels[tier.toUpperCase()] ?? tier;
 }
 
+export function germanTierName(tier?: string) {
+	if (!tier) return "Ohne Rang";
+	const labels: Record<string, string> = {
+		IRON: "Eisen",
+		BRONZE: "Bronze",
+		SILVER: "Silber",
+		GOLD: "Gold",
+		PLATINUM: "Platin",
+		EMERALD: "Smaragd",
+		DIAMOND: "Diamant",
+		MASTER: "Meister",
+		GRANDMASTER: "Großmeister",
+		CHALLENGER: "Herausforderer",
+	};
+	return labels[tier.toUpperCase()] ?? tier;
+}
+
+export function germanRankLabel(rank: LauchgruenObsResponse["rank"]) {
+	return rank ? `${germanTierName(rank.tier)} ${rank.rank}` : "Ohne Rang";
+}
+
 export function rankLabel(rank: LauchgruenObsResponse["rank"]) {
 	return rank ? `${tierName(rank.tier)} ${rank.rank}` : "Unranked";
 }

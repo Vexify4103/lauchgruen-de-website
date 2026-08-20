@@ -9,7 +9,7 @@ import { LauchgruenOverlay } from "@/components/obs/lauchgruen/LauchgruenOverlay
 import { LauchgruenSmallOverlay } from "@/components/obs/lauchgruen/LauchgruenSmallOverlay";
 import { N4cht4r4Overlay } from "@/components/obs/n4cht4r4/N4cht4r4Overlay";
 import { NachtdienstOverlay } from "@/components/obs/nachtdienst/NachtdienstOverlay";
-import { lpTone, overlaySignature, tierName } from "@/components/obs/shared/utils";
+import { germanTierName, lpTone, overlaySignature } from "@/components/obs/shared/utils";
 
 const POLL_INTERVAL_MS = 20_000;
 
@@ -75,7 +75,7 @@ export function StreamerPerformanceOverlay({
 	}, [data.online, data.streamDurationSeconds]);
 
 	const tone = lpTone(data.lpDelta);
-	const title = data.rank ? `Road to ${tierName(data.rank.nextTierLabel.split(" ")[0])}` : "Road to Ranked";
+	const title = data.rank ? `Aufstieg zu ${germanTierName(data.rank.nextTierLabel.split(" ")[0])}` : "Aufstieg in die Rangliste";
 	const rankProgress = data.rank?.tierProgressPercent ?? 0;
 
 	if (layout === "nachtdienst") {
