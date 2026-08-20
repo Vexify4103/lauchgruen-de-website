@@ -1,7 +1,7 @@
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { LiveBadge } from "@/components/obs/shared/LiveBadge";
 import { RankProgress } from "@/components/obs/shared/RankProgress";
-import { formatDuration, queueLabel, rankLabel } from "@/components/obs/shared/utils";
+import { formatDuration, germanRankLabel, queueLabel } from "@/components/obs/shared/utils";
 
 export function LauchgruenOverlay({
 	data,
@@ -40,7 +40,7 @@ export function LauchgruenOverlay({
 								</div>
 							</div>
 							<div className="mt-2 flex items-end gap-2">
-								<div className="text-xl font-black leading-none text-white">{rankLabel(data.rank)}</div>
+								<div className="text-xl font-black leading-none text-white">{germanRankLabel(data.rank)}</div>
 								<div className="rounded-md border border-amber-200/25 bg-amber-300/14 px-2 py-0.5 font-mono text-xs font-black text-amber-100">
 									{data.rank?.leaguePoints ?? 0} LP
 								</div>
@@ -52,7 +52,7 @@ export function LauchgruenOverlay({
 					<div className="mt-3">
 						<RankProgress rank={data.rank} progress={rankProgress} />
 					</div>
-					<div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/54">Letzte 5 Games</div>
+					<div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/54">Letzte 5 Spiele</div>
 					<div className="mt-1.5 grid grid-cols-5 gap-1.5">
 						{[0, 1, 2, 3, 4].map((index) => {
 							const game = data.lastGames[index];
@@ -66,7 +66,7 @@ export function LauchgruenOverlay({
 									<div
 										className={`absolute bottom-0 right-0 rounded-tl-md px-1.5 py-0.5 text-[9px] font-black ${game.win ? "bg-lime-300 text-emerald-950" : "bg-rose-400 text-white"}`}
 									>
-										{game.win ? "W" : "L"}
+										{game.win ? "S" : "N"}
 									</div>
 								</div>
 							) : (
@@ -76,19 +76,19 @@ export function LauchgruenOverlay({
 					</div>
 
 					<div className="mt-3 grid grid-cols-3 gap-1.5">
-						<StatCard label="Session" value={`${data.sessionWins}W · ${data.sessionLosses}L`} />
-						<StatCard label="Winrate" value={`${data.winRate}%`} />
-						<StatCard label="Heute LP" value={`${data.lpDelta > 0 ? "+" : ""}${data.lpDelta}`} valueClassName={lpTone} />
+						<StatCard label="Bilanz" value={`${data.sessionWins} S · ${data.sessionLosses} N`} />
+						<StatCard label="Siegquote" value={`${data.winRate}%`} />
+						<StatCard label="LP-Bilanz" value={`${data.lpDelta > 0 ? "+" : ""}${data.lpDelta}`} valueClassName={lpTone} />
 					</div>
 					<div className="mt-2.5 grid grid-cols-[1fr_auto] gap-1.5 rounded-xl border border-amber-200/16 bg-black/30 p-2">
 						<div>
-							<div className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-100/56">Timer</div>
+							<div className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-100/56">Streamzeit</div>
 							<div className="font-mono text-lg font-black leading-none text-amber-100">
 								{formatDuration(data.online ? displayDurationSeconds : data.streamDurationSeconds)}
 							</div>
 						</div>
 						<div className="min-w-14 border-l border-white/10 pl-2 text-right">
-							<div className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-100/44">Games</div>
+							<div className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-100/44">Spiele</div>
 							<div className="font-mono text-lg font-black leading-none text-emerald-50">{gamesPlayed}</div>
 						</div>
 					</div>
