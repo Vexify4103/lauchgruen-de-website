@@ -508,6 +508,7 @@ export type RiotMatch = {
 		gameCreation: number;
 		gameStartTimestamp?: number;
 		gameEndTimestamp?: number;
+		endOfGameResult?: string;
 		gameDuration: number;
 		gameMode: string;
 		gameType: string;
@@ -517,7 +518,17 @@ export type RiotMatch = {
 };
 
 export function isRiotMatchRemake(match: RiotMatch): boolean {
-	return match.info.participants.some((participant) => participant.gameEndedInEarlySurrender === true) || (match.info.gameDuration > 0 && match.info.gameDuration < 5 * 60);
+	if (match.info.participants.some((participant) => participant.gameEndedInEarlySurrender === true)) {
+		return true;
+	}
+
+	if (match.info.gameDuration <= 0 || match.info.gameDuration >= 5 * 60) {
+		return false;
+	}
+
+	const completedNormally = match.info.endOfGameResult?.toLowerCase() === "gamecomplete";
+	const hasWinner = match.info.participants.some((participant) => participant.win === true);
+	return !completedNormally || !hasWinner;
 }
 
 export type RiotActiveGame = {
