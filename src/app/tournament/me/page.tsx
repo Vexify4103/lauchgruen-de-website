@@ -221,7 +221,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							<div className="flex flex-wrap items-center justify-between gap-3">
 								<p className="text-sm font-bold text-emerald-100/64">
 									{application
-										? "Deine Bewerbung ist hinterlegt. Duo und Twitch kannst du unten jederzeit verwalten."
+										? "Deine Bewerbung ist hinterlegt. Wunschgruppe und Twitch kannst du unten jederzeit verwalten."
 										: settings.activeTournament.mode === "registration"
 											? "Die Anmeldung ist geöffnet. Vervollständige jetzt dein Turnierprofil."
 											: "Die Anmeldung startet, sobald Termin und Format feststehen."}

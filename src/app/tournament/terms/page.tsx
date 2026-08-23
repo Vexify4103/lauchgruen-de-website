@@ -88,12 +88,12 @@ const ruleSections = [
 	},
 	{
 		title: "Rückzug, Forfeit und Team-Balance",
-		text: "Wunschduos sind nicht garantiert. Das Orga-Team darf Duos aus Fairness- und Balancing-Gründen aufteilen. Wer nach der finalen Teamzuteilung nicht mehr antreten möchte, muss das dem Orga-Team so früh wie möglich mitteilen.",
+		text: "Wunschgruppen mit bis zu fünf Personen sind nicht garantiert. Das Orga-Team darf Gruppen aus Fairness- und Balancing-Gründen teilweise oder vollständig aufteilen. Wer nach der finalen Teamzuteilung nicht mehr antreten möchte, muss das dem Orga-Team so früh wie möglich mitteilen.",
 		list: [
 			"Wenn ein Team wegen Rückzug, fehlenden Spielern oder verweigerter Teilnahme nicht spielbereit ist, kann das Orga-Team einzelne Matches als Forfeit werten",
 			"Ein Forfeit kann als Niederlage für das betroffene Team und als Sieg für den Gegner eingetragen werden",
 			"Wenn der Turnierablauf sonst gefährdet ist, darf das Orga-Team Ersatzspieler einsetzen oder Teams kurzfristig anpassen",
-			"Diskussionen über Wunschduos oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
+			"Diskussionen über Wunschgruppen oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
 		],
 		footer: "Ziel ist, dass das Turnier für alle Teams fair und planbar bleibt.",
 	},

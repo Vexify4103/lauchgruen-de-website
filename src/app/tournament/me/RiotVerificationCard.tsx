@@ -23,10 +23,7 @@ type Challenge = {
 	revisionDate?: number;
 };
 
-type Status =
-	| { kind: "idle"; message: "" }
-	| { kind: "loading"; message: string }
-	| { kind: "error"; message: string };
+type Status = { kind: "idle"; message: "" } | { kind: "loading"; message: string } | { kind: "error"; message: string };
 
 export function RiotVerificationCard({ verified, disconnectBlockedReason }: { verified: VerifiedAccount | null; disconnectBlockedReason?: string | null }) {
 	const router = useRouter();
@@ -165,7 +162,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 					title="Riot-Account wirklich trennen?"
 					description={
 						<>
-							Die Riot-Verifizierung, deine gespeicherte Turnierbewerbung und dein Wunschduo werden entfernt. Twitch bleibt verbunden, wird aber nicht mehr in
+							Die Riot-Verifizierung, deine gespeicherte Turnierbewerbung und deine Wunschgruppe werden entfernt. Twitch bleibt verbunden, wird aber nicht mehr in
 							Community-Overlays freigegeben. Du kannst den Riot-Account später erneut verifizieren.
 						</>
 					}

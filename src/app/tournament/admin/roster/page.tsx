@@ -50,7 +50,7 @@ export default async function RosterPage() {
 								<span className="text-emerald-100/38">Balance sehen.</span>
 							</h1>
 							<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/58">
-								Spieler zuweisen, Wunschduos prüfen und Teamstärken vergleichen. „Entwurf speichern“ bleibt vollständig privat; erst „Teams veröffentlichen“
+								Spieler zuweisen, Wunschgruppen prüfen und Teamstärken vergleichen. „Entwurf speichern“ bleibt vollständig privat; erst „Teams veröffentlichen“
 								aktualisiert Website, Bot-Rollen und Benachrichtigungen.
 							</p>
 						</div>

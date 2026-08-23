@@ -4,15 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-export function WithdrawApplicationButton({
-	deadlineLabel,
-	onWithdrawn,
-	className = "",
-}: {
-	deadlineLabel: string;
-	onWithdrawn?: (message: string) => void;
-	className?: string;
-}) {
+export function WithdrawApplicationButton({ deadlineLabel, onWithdrawn, className = "" }: { deadlineLabel: string; onWithdrawn?: (message: string) => void; className?: string }) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
@@ -38,7 +30,11 @@ export function WithdrawApplicationButton({
 			onWithdrawn?.(message);
 			router.refresh();
 		} catch (requestError) {
-			setError(requestError instanceof DOMException && requestError.name === "AbortError" ? "Die Anfrage hat zu lange gedauert. Bitte versuche es erneut." : "Die Bewerbung konnte wegen eines Netzwerkfehlers nicht zurückgezogen werden.");
+			setError(
+				requestError instanceof DOMException && requestError.name === "AbortError"
+					? "Die Anfrage hat zu lange gedauert. Bitte versuche es erneut."
+					: "Die Bewerbung konnte wegen eines Netzwerkfehlers nicht zurückgezogen werden."
+			);
 		} finally {
 			window.clearTimeout(timeout);
 			setBusy(false);
@@ -68,8 +64,8 @@ export function WithdrawApplicationButton({
 				title="Bewerbung wirklich zurückziehen?"
 				description={
 					<>
-						Deine Turnierbewerbung und dein Wunschduo werden entfernt. Deine Discord-, Riot- und Twitch-Verknüpfungen bleiben für spätere Bewerbungen erhalten. Bis zum Bewerbungsschluss am{" "}
-						<strong className="text-emerald-50">{deadlineLabel}</strong> kannst du dich erneut bewerben.
+						Deine Turnierbewerbung und deine Wunschgruppe werden entfernt. Deine Discord-, Riot- und Twitch-Verknüpfungen bleiben für spätere Bewerbungen erhalten. Bis
+						zum Bewerbungsschluss am <strong className="text-emerald-50">{deadlineLabel}</strong> kannst du dich erneut bewerben.
 					</>
 				}
 				confirmLabel="Ja, zurückziehen"

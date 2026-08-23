@@ -95,7 +95,7 @@ export default async function TournamentAdminPage() {
 								detail="Matches, Scores und laufende Spiele"
 								tone="red"
 							/>
-							<AdminAreaLink href="/tournament/admin/applicants" eyebrow="Teilnehmer" title="Bewerbungen" detail="Profile, Blacklist und Wunschduos" tone="cyan" />
+							<AdminAreaLink href="/tournament/admin/applicants" eyebrow="Teilnehmer" title="Bewerbungen" detail="Profile, Blacklist und Wunschgruppen" tone="cyan" />
 							<AdminAreaLink href="/tournament/admin/roster" eyebrow="Teambau" title="Roster-Builder" detail="Rollen, Balance und Discord-Sync" tone="lime" />
 							<AdminAreaLink href="/tournament/admin/status" eyebrow="Betrieb" title="Systemstatus" detail="APIs, Cache und Queue" tone="cyan" />
 						</nav>
@@ -134,7 +134,8 @@ export default async function TournamentAdminPage() {
 									<div className="text-[9px] font-black uppercase tracking-[0.26em] text-cyan-100/52">Riot-Datenbestand</div>
 									<h2 className="mt-2 text-xl font-black text-emerald-50">Alle verknüpften Profile abgleichen</h2>
 									<p className="mt-2 text-xs leading-6 text-emerald-100/48">
-										Aktualisiert Riot-ID, Rang und Summoner-Level sämtlicher dauerhaft gespeicherter Konten. Vorhandene Bewerbungen und Roster-Namen werden automatisch mitgezogen.
+										Aktualisiert Riot-ID, Rang und Summoner-Level sämtlicher dauerhaft gespeicherter Konten. Vorhandene Bewerbungen und Roster-Namen werden
+										automatisch mitgezogen.
 									</p>
 								</div>
 								<div className="min-w-0 lg:justify-self-end">

@@ -585,8 +585,8 @@ export function RosterBuilder({
 			text:
 				`Auto-Balance hat ${result.assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt.` +
 				(splitCount > 0
-					? ` ${splitCount} Wunschduo(s) aufgeteilt` + (tooStrong > 0 ? ` (${tooStrong} zu stark)` : "") + (tooWeak > 0 ? ` (${tooWeak} zu schwach)` : "") + "."
-					: " Wunschduos wurden zusammengehalten.") +
+					? ` ${splitCount} Wunschgruppe(n) aufgeteilt` + (tooStrong > 0 ? ` (${tooStrong} zu stark)` : "") + (tooWeak > 0 ? ` (${tooWeak} zu schwach)` : "") + "."
+					: " Wunschgruppen wurden zusammengehalten.") +
 				(result.imputedApplicants > 0 ? ` ${result.imputedApplicants} Spieler ohne verwertbaren Rang wurden neutral mit dem Bewerber-Median bewertet.` : "") +
 				(result.highEloPreferredAssignments.length > 0
 					? ` Achtung: ${result.highEloPreferredAssignments.length} Master+-Spieler wurden auf einer Main- oder Wunschrolle eingeplant.`
@@ -1155,7 +1155,7 @@ export function RosterBuilder({
 									<label
 										htmlFor="split-threshold"
 										className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
-										title="Maximale gewünschte Team-Abweichung. Wunschduos werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
+										title="Maximale gewünschte Team-Abweichung. Wunschgruppen werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
 									>
 										Fairness-Schwelle
 									</label>
@@ -1339,7 +1339,7 @@ export function RosterBuilder({
 						</div>
 						{balanceResult.splitGroups.length > 0 ? (
 							<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.06] p-3">
-								<div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Aufgeteilte Wunschduos</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Aufgeteilte Wunschgruppen</div>
 								<div className="mt-2 space-y-1.5">
 									{balanceResult.splitGroups.map((group) => (
 										<div key={group.code} className="text-[11px] leading-4 text-amber-50/72">
@@ -1383,11 +1383,11 @@ export function RosterBuilder({
 					<section className="rounded-[1.8rem] border border-cyan-200/14 bg-cyan-300/[0.035] p-4 shadow-xl shadow-black/16">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">Wunschduos</div>
+								<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">Wunschgruppen</div>
 								<p className="mt-1 text-xs leading-5 text-emerald-100/48">Gemeinsame Einteilung ist ein Wunsch und keine Garantie.</p>
 							</div>
 							<span className="rounded-full border border-cyan-200/16 bg-cyan-300/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50/66">
-								{preferenceGroups.length} Wunschduos
+								{preferenceGroups.length} Wunschgruppen
 							</span>
 						</div>
 						<div className="mt-4 grid gap-2 md:grid-cols-5">
@@ -1395,7 +1395,7 @@ export function RosterBuilder({
 							<GroupSummaryTile label="Teilweise zusammen" value={preferenceGroupSummary.partial} tone="warn" />
 							<GroupSummaryTile label="Getrennt" value={preferenceGroupSummary.split} tone="danger" />
 							<GroupSummaryTile label="Noch offen" value={preferenceGroupSummary.open} tone="neutral" />
-							<GroupSummaryTile label="Mit Wunschduo" value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`} tone="info" />
+							<GroupSummaryTile label="Mit Wunschgruppe" value={`${preferenceGroupSummary.membersTogether}/${preferenceGroupSummary.totalMembers}`} tone="info" />
 						</div>
 						<div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
 							{preferenceGroups.map(({ code, members }) => {
@@ -1586,7 +1586,7 @@ export function RosterBuilder({
 				title="Roster automatisch ausbalancieren?"
 				description={
 					<>
-						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Wunschduos werden zusammengehalten, sofern ihr gemeinsamer Skill nicht zu stark vom
+						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Wunschgruppen werden zusammengehalten, sofern ihr gemeinsamer Skill nicht zu stark vom
 						Gesamtdurchschnitt abweicht. Wunschrollen werden nach ihrer angegebenen Reihenfolge gewichtet: Wunsch #1 zählt deutlich stärker als #2, #3 usw.{" "}
 						<strong className="text-emerald-50">Captains werden zurückgesetzt.</strong> Du kannst danach manuell anpassen, bevor du speicherst.
 					</>
@@ -2378,7 +2378,7 @@ function Picker({
 function PreferenceGroupBadge({ code }: { code: string }) {
 	return (
 		<span
-			title="Unverbindliches Wunschduo"
+			title="Unverbindliche Wunschgruppe"
 			className="inline-flex rounded-full border border-cyan-200/22 bg-cyan-300/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50/76"
 		>
 			Wunsch · {code}

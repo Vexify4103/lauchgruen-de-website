@@ -76,7 +76,7 @@ export type TournamentEligibilityOverride = {
 	createdBy?: string;
 };
 
-export const TOURNAMENT_PREFERENCE_GROUP_LIMIT = 2;
+export const TOURNAMENT_PREFERENCE_GROUP_LIMIT = 5;
 
 export type TournamentPreferenceGroup = {
 	code: string;
@@ -454,7 +454,7 @@ export async function adminMovePreferenceGroupMember(discordId: string, rawTarge
 		{
 			_id: targetCode,
 			memberDiscordIds: { $ne: discordId },
-			"memberDiscordIds.1": { $exists: false },
+			$expr: { $lt: [{ $size: "$memberDiscordIds" }, TOURNAMENT_PREFERENCE_GROUP_LIMIT] },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },
@@ -507,7 +507,7 @@ export async function joinPreferenceGroup(discordId: string, rawCode: string): P
 		{
 			_id: code,
 			memberDiscordIds: { $ne: discordId },
-			"memberDiscordIds.1": { $exists: false },
+			$expr: { $lt: [{ $size: "$memberDiscordIds" }, TOURNAMENT_PREFERENCE_GROUP_LIMIT] },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },
