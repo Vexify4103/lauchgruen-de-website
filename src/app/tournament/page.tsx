@@ -4,6 +4,7 @@ import { areTournamentApplicationsOpen } from "@/lib/tournament-application-dead
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { listTournamentArchives } from "@/lib/tournament-next";
+import { TournamentMarkdown } from "@/components/TournamentMarkdown";
 
 const formatSteps = [
 	{
@@ -330,8 +331,8 @@ function UltimateBraveryOverview({
 						<TeaserFact number="05" title="2 Rerolls pro Match" text="Jeder Spieler hat 2 garantierte Rerolls. Weitere Ausnahmen laufen nur über Captain und Orga." />
 					</div>
 					<div className="mt-5 rounded-2xl border border-amber-200/18 bg-black/18 p-4">
-						<div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Preispool</div>
-						<div className="mt-2 text-xl font-black text-amber-50">{config.prizePool}</div>
+						<div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Preisankündigung</div>
+						<TournamentMarkdown>{config.prizePool}</TournamentMarkdown>
 					</div>
 					<div className="mt-5 text-xs font-bold text-emerald-100/54">
 						{archiveCount} {archiveCount === 1 ? "Turnier ist" : "Turniere sind"} im Archiv gesichert.

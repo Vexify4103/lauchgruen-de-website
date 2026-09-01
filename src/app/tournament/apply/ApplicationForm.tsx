@@ -293,10 +293,12 @@ export function ApplicationForm({
 					</div>
 				) : null}
 
-				<label className="grid gap-2">
-					<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Angekündigte Turniertermine</span>
-					<input value={announcedDate} readOnly className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none" />
-				</label>
+				<div className="grid min-w-0 gap-2">
+					<div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Angekündigte Turniertermine</div>
+					<div className="min-w-0 rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm leading-6 text-emerald-50 [overflow-wrap:anywhere]">
+						{announcedDate}
+					</div>
+				</div>
 
 				<Consent name="availableAllDates" defaultChecked={initialApplication?.availableAllDates ?? false}>
 					Ich kann an beiden angekündigten Turniertagen verbindlich teilnehmen und bin mindestens 20 Minuten vor Start im Voice-Call. Wenn ich unsicher bin, schreibe ich

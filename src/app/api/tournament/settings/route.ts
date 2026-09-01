@@ -34,7 +34,7 @@ const schema = z.object({
 			format: z.enum(["undecided", "double-elimination", "single-elimination"]),
 			minimumSummonerLevel: z.number().int().min(1).max(1000),
 			rerollsPerPlayer: z.number().int().min(0).max(5),
-			prizePool: z.string().trim().min(1).max(200),
+			prizePool: z.string().trim().min(1).max(4000),
 		})
 		.optional(),
 });

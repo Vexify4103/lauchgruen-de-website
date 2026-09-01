@@ -8,6 +8,7 @@ import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 import { ThemedDateTimePicker } from "@/components/ThemedDateTimePicker";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
+import { TournamentMarkdown } from "@/components/TournamentMarkdown";
 
 type SettingKey = keyof Pick<TournamentSettings, "applicationsOpen" | "applicationDeadlineOverride" | "tournamentLive" | "draftEnabled">;
 type SettingsPatch = Partial<
@@ -409,14 +410,28 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 								]}
 							/>
 						</label>
-						<label className="text-xs font-bold text-emerald-100/62 sm:col-span-2">
-							Preispool
-							<input
+						<div className="sm:col-span-2">
+							<label htmlFor="tournament-prize-pool" className="text-xs font-bold text-emerald-100/62">
+								Preisankündigung
+							</label>
+							<textarea
+								id="tournament-prize-pool"
 								value={settings.ultimateBravery.prizePool}
+								maxLength={4000}
+								rows={9}
 								onChange={(event) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, prizePool: event.target.value } }))}
-								className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-[#07110c] px-4 text-sm font-black text-emerald-50"
+								placeholder={"# Preispool\n\n- 1. Platz: ...\n- 2. Platz: ..."}
+								className="mt-2 min-h-48 w-full resize-y rounded-2xl border border-white/10 bg-[#07110c] px-4 py-3 font-mono text-sm leading-6 text-emerald-50 outline-none transition focus:border-cyan-200/35 focus:ring-2 focus:ring-cyan-200/10"
 							/>
-						</label>
+							<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold leading-5 text-emerald-100/46">
+								<span>`#` Überschrift · `##` Untertitel · `-` Liste · `**fett**` · `_kursiv_` · `~~durchgestrichen~~` · `[Link](https://...)`</span>
+								<span>{settings.ultimateBravery.prizePool.length}/4000</span>
+							</div>
+							<div className="mt-4 rounded-2xl border border-amber-200/16 bg-amber-200/[0.055] p-4">
+								<div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Öffentliche Vorschau</div>
+								<TournamentMarkdown>{settings.ultimateBravery.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
+							</div>
+						</div>
 					</div>
 					<button
 						type="button"
