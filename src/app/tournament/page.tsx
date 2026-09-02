@@ -2,6 +2,7 @@ import { TournamentLink as Link } from "./TournamentLink";
 import { applicationSteps, azLetterPools, pastTournamentWinners, playoffMatches, tournament } from "@/lib/tournament-data";
 import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
 import { getTournamentContext } from "@/lib/tournament-runtime";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { listTournamentArchives } from "@/lib/tournament-next";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
@@ -253,7 +254,7 @@ function UltimateBraveryOverview({
 			: config.dayOneFormat === "groups"
 				? `${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}`
 				: "Format wird noch festgelegt";
-	const playoffLabel = config.format === "double-elimination" ? "Double Elimination" : config.format === "single-elimination" ? "Single Elimination" : null;
+	const playoffLabel = playoffFormatLabel(config.format);
 	const qualificationLabel =
 		config.advanceTeamCount === config.teamCount ? "Alle Teams ziehen weiter." : `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams ziehen weiter.`;
 	return (

@@ -10,7 +10,7 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState, upsertMatch } from "@/lib/tournament-storage";
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { getSwissStageState } from "@/lib/tournament-swiss";
+import { getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
 
 export const runtime = "nodejs";
 
@@ -106,6 +106,9 @@ export async function PATCH(request: Request) {
 		winner: winner ?? undefined,
 		updatedAt,
 	});
+	if (swissPairing && hasFinalScore) {
+		await setSwissPairingWinner(settings.activeTournament.id, swissPairing.id, parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey!);
+	}
 
 	if (nextStatus === "Finished") {
 		await commitWheelAssignmentForMatch(parsed.data.id);

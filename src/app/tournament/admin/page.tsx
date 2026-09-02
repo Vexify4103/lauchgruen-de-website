@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { computeGroupStandings, resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { checkDiscordMemberRole, isDiscordGuildMember } from "@/lib/discord";
 import { listAuditLog } from "@/lib/tournament-audit";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -163,6 +164,7 @@ export default async function TournamentAdminPage() {
 									initialMatches={adminMatches}
 									initialStored={state.matches}
 									initialVersions={Object.fromEntries(adminMatches.map((match) => [match.id, adminVersions[`match:${match.id}`] ?? 0]))}
+									ultimateBravery={settings?.activeTournament.id === "ultimate-bravery"}
 								/>
 							</section>
 						) : (
@@ -201,7 +203,7 @@ export default async function TournamentAdminPage() {
 function AdminStatusGrid({ settings, applicationsOpen }: { settings: Awaited<ReturnType<typeof getTournamentSettings>>; applicationsOpen: boolean }) {
 	const modeLabels = { teaser: "Ankündigung", registration: "Anmeldung", preparation: "Vorbereitung", live: "Live", paused: "Pausiert" } as const;
 	const dayOne = settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss" : settings.ultimateBravery.dayOneFormat === "groups" ? "Gruppen" : "Offen";
-	const dayTwo = settings.ultimateBravery.format === "double-elimination" ? "Double" : settings.ultimateBravery.format === "single-elimination" ? "Single" : "Offen";
+	const dayTwo = playoffFormatLabel(settings.ultimateBravery.format, true) ?? "Offen";
 	return (
 		<div className="grid min-w-[17rem] grid-cols-2 gap-2">
 			<AdminStatusCell label="Modus" value={modeLabels[settings.activeTournament.mode]} tone={settings.activeTournament.mode === "live" ? "red" : "lime"} />
@@ -265,7 +267,7 @@ function TeaserReadinessChecklist({ settings, hasAzArchive }: { settings: Awaite
 			: config.dayOneFormat === "groups"
 				? `${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"} · ${config.groupRoundRobinLegs === 2 ? "Hin- und Rückrunde" : "einmal gegeneinander"}`
 				: "noch nicht entschieden";
-	const playoffs = config.format === "double-elimination" ? "Double Elimination" : config.format === "single-elimination" ? "Single Elimination" : "noch nicht entschieden";
+	const playoffs = playoffFormatLabel(config.format) ?? "noch nicht entschieden";
 	const checks = [
 		{
 			label: "A-Z-Archiv",

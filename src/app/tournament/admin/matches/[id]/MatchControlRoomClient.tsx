@@ -49,6 +49,7 @@ export function MatchControlRoomClient({
 	parallelMatches,
 	initialVersion,
 	initialRosterVersion,
+	ultimateBravery = false,
 }: {
 	match: ControlMatch;
 	teamA: TournamentTeam | null;
@@ -61,6 +62,7 @@ export function MatchControlRoomClient({
 	parallelMatches: ControlMatch[];
 	initialVersion: number;
 	initialRosterVersion: number;
+	ultimateBravery?: boolean;
 }) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
@@ -111,8 +113,9 @@ export function MatchControlRoomClient({
 		save: persistMatch,
 	});
 
-	const canDraw = Boolean(teamA && teamB && !match.poolAssignment && status !== "Finished");
-	const canPrepare = Boolean(teamA && teamB && status === "Scheduled" && !match.poolAssignment);
+	const canDraw = Boolean(!ultimateBravery && teamA && teamB && !match.poolAssignment && status !== "Finished");
+	const canPrepare = Boolean(teamA && teamB && status === "Scheduled" && (ultimateBravery || !match.poolAssignment));
+	const canRetryNotifications = Boolean(ultimateBravery && teamA && teamB && (status === "Live" || status === "Pending"));
 	const poolA = match.poolAssignment?.teamAPool ?? null;
 	const poolB = match.poolAssignment?.teamBPool ?? null;
 	const allowedA = poolA ? (pools.find((pool) => pool.pool === poolA)?.champions ?? []) : [];
@@ -142,22 +145,24 @@ export function MatchControlRoomClient({
 		});
 	}
 
-	function prepareMatch() {
-		if (!canPrepare || isPending) return;
+	function prepareMatch(action: "start" | "notify" = "start") {
+		if ((action === "start" ? !canPrepare : !canRetryNotifications) || isPending) return;
 		setMessage("");
 		startTransition(async () => {
 			const response = await fetch("/api/tournament/matches/start", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ id: match.id }),
+				body: JSON.stringify({ id: match.id, action }),
 			});
 			const json = (await response.json().catch(() => null)) as { message?: string; drewPools?: boolean } | null;
 			if (!response.ok) {
 				setMessage(json?.message ?? "Match konnte nicht vorbereitet werden.");
 				return;
 			}
-			setStatus("Scheduled");
-			setMessage(json?.drewPools ? "Match vorbereitet und Pools gezogen." : "Match ist vorbereitet.");
+			if (action === "start") setStatus(ultimateBravery ? "Live" : "Scheduled");
+			setMessage(
+				ultimateBravery ? (json?.message ?? "Rolls für beide Teams freigegeben.") : json?.drewPools ? "Match vorbereitet und Pools gezogen." : "Match ist vorbereitet."
+			);
 			router.refresh();
 		});
 	}
@@ -273,7 +278,7 @@ export function MatchControlRoomClient({
 					<div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
 						<div className="min-w-0">
 							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
-								{match.phase === "groups" ? "Gruppenphase" : "Playoffs"} · {match.id}
+								{ultimateBravery ? "Ultimate Bravery" : match.phase === "groups" ? "Gruppenphase" : "Playoffs"} · {match.id}
 							</div>
 							<h1 className="mt-2 text-4xl font-black tracking-tight text-emerald-50">
 								{match.teamALabel} vs {match.teamBLabel}
@@ -290,12 +295,12 @@ export function MatchControlRoomClient({
 								Zurück
 							</Link>
 							<Link
-								href={`/tournament/champ-select/${match.id}`}
+								href={ultimateBravery ? `/tournament/matches/${match.id}` : `/tournament/champ-select/${match.id}`}
 								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50 transition hover:border-lime-200/48 md:flex-none"
 							>
-								Draft steuern
+								{ultimateBravery ? "Spieleransicht" : "Draft steuern"}
 							</Link>
-							{draftEnabled ? (
+							{draftEnabled && !ultimateBravery ? (
 								<Link
 									href={`/tournament/champ-select/${match.id}/spectate`}
 									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-sky-200/16 bg-sky-300/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-100 transition hover:border-sky-200/34 md:flex-none"
@@ -303,14 +308,16 @@ export function MatchControlRoomClient({
 									Zuschaueransicht
 								</Link>
 							) : null}
-							<button
-								type="button"
-								onClick={() => setResetDraftConfirmOpen(true)}
-								disabled={isPending}
-								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-red-200/18 bg-red-500/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/76 transition hover:border-red-200/36 hover:text-red-50 disabled:opacity-50 md:flex-none"
-							>
-								Draft zurücksetzen
-							</button>
+							{!ultimateBravery ? (
+								<button
+									type="button"
+									onClick={() => setResetDraftConfirmOpen(true)}
+									disabled={isPending}
+									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-red-200/18 bg-red-500/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/76 transition hover:border-red-200/36 hover:text-red-50 disabled:opacity-50 md:flex-none"
+								>
+									Draft zurücksetzen
+								</button>
+							) : null}
 						</div>
 					</div>
 				</div>
@@ -320,7 +327,7 @@ export function MatchControlRoomClient({
 					<TeamPanel side="Team B" team={teamB} pool={poolB} fallback={match.teamBLabel} />
 				</div>
 
-				{match.poolAssignment ? (
+				{!ultimateBravery && match.poolAssignment ? (
 					<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
 						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">Gespielte Champions eintragen</summary>
 						<div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -342,55 +349,88 @@ export function MatchControlRoomClient({
 					</details>
 				) : null}
 
-				<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
-					<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">Match-Zusammenfassung und Draft</summary>
-					<div className="mt-4">
-						<DraftSummary match={match} draft={draft} sequence={draftSequence} teamAChampions={teamAChampions} teamBChampions={teamBChampions} embedded />
-					</div>
-				</details>
+				{!ultimateBravery || status === "Scheduled" ? (
+					<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
+						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">Match-Zusammenfassung und Draft</summary>
+						<div className="mt-4">
+							<DraftSummary match={match} draft={draft} sequence={draftSequence} teamAChampions={teamAChampions} teamBChampions={teamBChampions} embedded />
+						</div>
+					</details>
+				) : null}
 			</section>
 
 			<aside className="grid content-start gap-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
-				<LobbyChecklist
-					poolsDrawn={Boolean(match.poolAssignment)}
-					captainsReady={draftReady(draft)}
-					draftComplete={draftComplete(draft, draftSequence)}
-					scoreSaved={scoreA !== "" && scoreB !== "" && (match.phase !== "groups" || parseGameDuration(gameDuration) !== null)}
-					matchFinished={status === "Finished"}
-				/>
+				{!ultimateBravery ? (
+					<LobbyChecklist
+						poolsDrawn={Boolean(match.poolAssignment)}
+						captainsReady={draftReady(draft)}
+						draftComplete={draftComplete(draft, draftSequence)}
+						scoreSaved={scoreA !== "" && scoreB !== "" && (match.phase !== "groups" || parseGameDuration(gameDuration) !== null)}
+						matchFinished={status === "Finished"}
+					/>
+				) : null}
 
-				<button
-					type="button"
-					onClick={prepareMatch}
-					disabled={!canPrepare || isPending}
-					className="rounded-[1.4rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					{match.poolAssignment ? "Match vorbereitet" : "Match vorbereiten"}
-				</button>
-
-				<div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-xl shadow-black/24">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">A-Z Pools</div>
-					{match.poolAssignment ? (
-						<div className="mt-4 grid gap-3">
-							<div className="rounded-2xl border border-sky-200/16 bg-sky-300/8 p-3">
-								<div className="text-xs font-bold text-emerald-100/54">Blue Side</div>
-								<div className="mt-1 text-lg font-black text-sky-100">{blueSide === "teamA" ? match.teamALabel : match.teamBLabel}</div>
-							</div>
-							<PoolBadge label={match.poolAssignment.teamAName} pool={match.poolAssignment.teamAPool} />
-							<PoolBadge label={match.poolAssignment.teamBName} pool={match.poolAssignment.teamBPool} />
-						</div>
-					) : (
-						<p className="mt-3 text-sm leading-6 text-emerald-100/56">Noch keine Pools gezogen. Ziehe sie hier direkt für dieses Match.</p>
-					)}
+				{ultimateBravery ? (
+					<div className="rounded-[1.6rem] border border-cyan-200/16 bg-cyan-300/[0.055] p-4 shadow-xl shadow-black/20">
+						<div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Discord Match Call</div>
+						<p className="mt-2 text-xs leading-5 text-emerald-100/54">
+							{status === "Scheduled"
+								? "Gibt die persönlichen Rolls frei und benachrichtigt beide Teamrollen in ihren privaten Textkanälen."
+								: status === "Finished"
+									? "Das Match ist abgeschlossen; es werden keine weiteren Startnachrichten gesendet."
+									: "Prüft beide Teamnachrichten erneut. Bereits erfolgreich versandte Nachrichten werden nicht doppelt gepostet."}
+						</p>
+						<button
+							type="button"
+							onClick={() => prepareMatch(status === "Scheduled" ? "start" : "notify")}
+							disabled={isPending || (status === "Scheduled" ? !canPrepare : !canRetryNotifications)}
+							className="mt-4 w-full rounded-[1.2rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{isPending
+								? "Wird eingereiht..."
+								: status === "Scheduled"
+									? "Rolls freigeben & Teams pingen"
+									: status === "Finished"
+										? "Match abgeschlossen"
+										: "Teamnachrichten erneut prüfen"}
+						</button>
+					</div>
+				) : (
 					<button
 						type="button"
-						onClick={drawPools}
-						disabled={!canDraw || isPending}
-						className="mt-4 w-full rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+						onClick={() => prepareMatch("start")}
+						disabled={!canPrepare || isPending}
+						className="rounded-[1.4rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{match.poolAssignment ? "Pools vorhanden" : "Pools ziehen"}
+						{match.poolAssignment ? "Match vorbereitet" : "Match vorbereiten"}
 					</button>
-				</div>
+				)}
+
+				{!ultimateBravery ? (
+					<div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-xl shadow-black/24">
+						<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">A-Z Pools</div>
+						{match.poolAssignment ? (
+							<div className="mt-4 grid gap-3">
+								<div className="rounded-2xl border border-sky-200/16 bg-sky-300/8 p-3">
+									<div className="text-xs font-bold text-emerald-100/54">Blue Side</div>
+									<div className="mt-1 text-lg font-black text-sky-100">{blueSide === "teamA" ? match.teamALabel : match.teamBLabel}</div>
+								</div>
+								<PoolBadge label={match.poolAssignment.teamAName} pool={match.poolAssignment.teamAPool} />
+								<PoolBadge label={match.poolAssignment.teamBName} pool={match.poolAssignment.teamBPool} />
+							</div>
+						) : (
+							<p className="mt-3 text-sm leading-6 text-emerald-100/56">Noch keine Pools gezogen. Ziehe sie hier direkt für dieses Match.</p>
+						)}
+						<button
+							type="button"
+							onClick={drawPools}
+							disabled={!canDraw || isPending}
+							className="mt-4 w-full rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{match.poolAssignment ? "Pools vorhanden" : "Pools ziehen"}
+						</button>
+					</div>
+				) : null}
 
 				<form
 					onSubmit={saveMatch}

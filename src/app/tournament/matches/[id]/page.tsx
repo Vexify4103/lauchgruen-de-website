@@ -12,32 +12,78 @@ import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { auth } from "@/lib/auth";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
-import { hideUltimateBraveryBuild, listUltimateBraveryRolls, ULTIMATE_BRAVERY_TEST_PLAYERS } from "@/lib/ultimate-bravery";
+import { hideUltimateBraveryBuild, listUltimateBraveryRolls } from "@/lib/ultimate-bravery";
+import { listUltimateBraveryTestSlots, ULTIMATE_BRAVERY_TEST_MATCH_ID } from "@/lib/ultimate-bravery-test";
+import { resolveUltimateBraveryMatchPlayers } from "@/lib/ultimate-bravery-match";
+import { getUltimateBraveryDraftStatus } from "@/lib/ultimate-bravery-state";
 import { UltimateBraveryMatch } from "./UltimateBraveryMatch";
+import { UltimateBraveryTestLobby } from "./UltimateBraveryTestLobby";
+import { DiscordSignInButton } from "../../DiscordSignInButton";
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	const [settings, session] = await Promise.all([getTournamentSettings(), auth()]);
 	const currentDiscordId = session?.user?.discordId;
-	if (id === "ub-test") {
-		if (!currentDiscordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(currentDiscordId)) notFound();
-		const rolls = await listUltimateBraveryRolls(id);
-		const allLocked = ULTIMATE_BRAVERY_TEST_PLAYERS.every((player) => rolls.some((roll) => roll.discordId === player.discordId && roll.status === "locked"));
+	if (id === ULTIMATE_BRAVERY_TEST_MATCH_ID) {
+		if (!currentDiscordId) {
+			return (
+				<UltimateBraveryPage title="Team Alpha vs Team Bravo" subtitle="5v5-Proberaum · Discord-Anmeldung erforderlich">
+					<div className="mt-6 rounded-[2rem] border border-cyan-200/16 bg-cyan-300/[0.055] p-6 text-center">
+						<p className="text-sm font-bold leading-6 text-emerald-100/64">
+							Melde dich mit Discord an, damit genau ein Testplatz und genau ein Roll deinem Account zugeordnet werden.
+						</p>
+						<DiscordSignInButton
+							redirectTo="/tournament/matches/ub-test"
+							pendingLabel="Discord wird geöffnet…"
+							className="mt-4 rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+						>
+							Mit Discord anmelden
+						</DiscordSignInButton>
+					</div>
+				</UltimateBraveryPage>
+			);
+		}
+		const [rolls, slots, players] = await Promise.all([listUltimateBraveryRolls(id), listUltimateBraveryTestSlots(), resolveUltimateBraveryMatchPlayers(id)]);
+		if (!players) notFound();
+		const isTestOwner = TOURNAMENT_OWNER_DISCORD_IDS.has(currentDiscordId);
+		const viewer = players.find((player) => player.discordId === currentDiscordId);
+		const simulatedViewer = viewer ?? (isTestOwner ? players.find((player) => player.discordId) : undefined);
+		const draftStatus = getUltimateBraveryDraftStatus(players, rolls);
+		const { allLocked } = draftStatus;
 		const visibleRolls = rolls
-			.filter((roll) => allLocked || roll.teamName === "Team Alpha")
-			.map((roll) => (roll.teamName === "Team Alpha" ? roll : hideUltimateBraveryBuild(roll)));
+			.filter((roll) => simulatedViewer && (allLocked || roll.teamName === simulatedViewer.teamName))
+			.map((roll) => (roll.teamName === simulatedViewer?.teamName ? roll : hideUltimateBraveryBuild(roll)));
 		return (
-			<UltimateBraveryPage title="Team Alpha vs Team Bravo" subtitle="Test-Draft · Owner-Simulation">
-				<UltimateBraveryMatch
-					matchId={id}
-					players={[...ULTIMATE_BRAVERY_TEST_PLAYERS]}
-					initialRolls={visibleRolls}
-					currentDiscordId={currentDiscordId}
-					viewerTeam="Team Alpha"
-					initialAllLocked={allLocked}
-					rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
-					testOwner
+			<UltimateBraveryPage title="Team Alpha vs Team Bravo" subtitle="Swiss-Probe · echter 5v5-Test">
+				<UltimateBraveryTestLobby
+					key={slots.map((slot) => `${slot.slotId}:${slot.discordId ?? "-"}`).join("|")}
+					initial={{
+						slots,
+						currentSlotId: slots.find((slot) => slot.discordId === currentDiscordId)?.slotId ?? null,
+						claimedCount: slots.filter((slot) => slot.discordId).length,
+						ready: slots.every((slot) => slot.discordId),
+						isAdmin: TOURNAMENT_OWNER_DISCORD_IDS.has(currentDiscordId),
+					}}
 				/>
+				{simulatedViewer && slots.every((slot) => slot.discordId) ? (
+					<UltimateBraveryMatch
+						matchId={id}
+						players={players}
+						initialRolls={visibleRolls}
+						currentDiscordId={currentDiscordId}
+						viewerTeam={simulatedViewer.teamName}
+						initialAllLocked={allLocked}
+						initialLockedCount={draftStatus.lockedCount}
+						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						testMode
+						testOwner={isTestOwner}
+						initialPerspectiveDiscordId={simulatedViewer.discordId}
+					/>
+				) : viewer ? (
+					<div className="mt-6 rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.06] px-6 py-5 text-center text-sm font-bold text-amber-50/76">
+						Der 5v5-Test startet, sobald alle zehn Plätze belegt sind.
+					</div>
+				) : null}
 			</UltimateBraveryPage>
 		);
 	}
@@ -45,29 +91,36 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) notFound();
 	if (settings.activeTournament.id === "ultimate-bravery") {
-		const rolls = await listUltimateBraveryRolls(id);
-		const participatingTeams = ctx.teams.filter((team) => team.name === match.teamAName || team.name === match.teamBName);
-		const players = participatingTeams.flatMap((team) =>
-			team.players.map((player) => ({ discordId: player.discordId, name: player.name, riotId: player.riotId, role: player.role, teamName: team.name }))
-		);
-		const viewerTeam = participatingTeams.find((team) => team.players.some((player) => player.discordId === currentDiscordId))?.name;
+		const [rolls, players] = await Promise.all([listUltimateBraveryRolls(id), resolveUltimateBraveryMatchPlayers(id)]);
+		if (!players) notFound();
+		const viewerTeam = players.find((player) => player.discordId === currentDiscordId)?.teamName;
 		if (!viewerTeam && !TOURNAMENT_OWNER_DISCORD_IDS.has(currentDiscordId ?? "")) notFound();
-		const effectiveViewerTeam = viewerTeam ?? participatingTeams[0]?.name ?? "";
-		const allLocked = players.filter((player) => player.discordId).every((player) => rolls.some((roll) => roll.discordId === player.discordId && roll.status === "locked"));
+		const effectiveViewerTeam = viewerTeam ?? players[0]?.teamName ?? "";
+		const draftStatus = getUltimateBraveryDraftStatus(players, rolls);
+		const { allLocked } = draftStatus;
 		const visibleRolls = rolls
 			.filter((roll) => allLocked || roll.teamName === effectiveViewerTeam)
 			.map((roll) => (roll.teamName === effectiveViewerTeam ? roll : hideUltimateBraveryBuild(roll)));
+		const rollsOpen = match.status === "Pending" || match.status === "Live" || match.status === "Finished";
 		return (
 			<UltimateBraveryPage title={`${match.teamALabel} vs ${match.teamBLabel}`} subtitle={`Ultimate Bravery · ${match.round}`}>
-				<UltimateBraveryMatch
-					matchId={id}
-					players={players}
-					initialRolls={visibleRolls}
-					currentDiscordId={currentDiscordId}
-					viewerTeam={effectiveViewerTeam}
-					initialAllLocked={allLocked}
-					rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
-				/>
+				{rollsOpen ? (
+					<UltimateBraveryMatch
+						matchId={id}
+						players={players}
+						initialRolls={visibleRolls}
+						currentDiscordId={currentDiscordId}
+						viewerTeam={effectiveViewerTeam}
+						initialAllLocked={allLocked}
+						initialLockedCount={draftStatus.lockedCount}
+						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						readOnly={match.status === "Finished"}
+					/>
+				) : (
+					<div className="mt-6 rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.06] px-6 py-5 text-center text-sm font-bold leading-6 text-amber-50/76">
+						Die Paarung steht fest. Die Turnierleitung gibt die Rolls kurz vor dem Match im Admin-Control-Room frei.
+					</div>
+				)}
 			</UltimateBraveryPage>
 		);
 	}

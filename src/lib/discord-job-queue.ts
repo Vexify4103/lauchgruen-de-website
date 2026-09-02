@@ -1,4 +1,12 @@
-import { clearDiscordNickname, sendDiscordDirectMessage, setDiscordMemberRole, setDiscordNickname, type DiscordDirectMessagePayload } from "@/lib/discord";
+import {
+	clearDiscordNickname,
+	sendDiscordChannelMessage,
+	sendDiscordDirectMessage,
+	setDiscordMemberRole,
+	setDiscordNickname,
+	type DiscordDirectMessagePayload,
+	type DiscordMessagePayload,
+} from "@/lib/discord";
 import { deleteDiscordTeamResources, provisionDiscordTeamResources, renameDiscordTeamResources } from "@/lib/discord-team-resources";
 import { getDb } from "@/lib/mongo";
 
@@ -27,6 +35,15 @@ export type DiscordOperation =
 			discordId: string;
 			message?: string;
 			payload?: DiscordDirectMessagePayload;
+			dedupeKey: string;
+			label?: string;
+	  }
+	| {
+			kind: "channel-message";
+			channelId: string;
+			roleId?: string;
+			message?: string;
+			payload?: DiscordMessagePayload;
 			dedupeKey: string;
 			label?: string;
 	  }
@@ -78,8 +95,10 @@ type DiscordJobDoc = Omit<DiscordJob, "id"> & {
 };
 
 const COLLECTION = "discord_jobs";
+const RECEIPT_COLLECTION = "discord_operation_receipts";
 const COMPLETED_JOB_RETENTION_MS = 24 * 60 * 60 * 1000;
 const FAILED_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const MESSAGE_RECEIPT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const LOCK_COLLECTION = "discord_job_locks";
 const LOCK_ID = "runner";
 const LOCK_LEASE_MS = 2 * 60 * 1000;
@@ -99,6 +118,7 @@ async function ensureDiscordJobIndexes() {
 			const db = await getDb();
 			const jobs = db.collection<DiscordJobDoc>(COLLECTION);
 			await jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "discord_jobs_expiry" });
+			await db.collection(RECEIPT_COLLECTION).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "discord_operation_receipts_expiry" });
 
 			// Remove completed jobs created before expiry dates were introduced.
 			const now = Date.now();
@@ -143,7 +163,14 @@ export async function enqueueDiscordJob(input: { type: string; title: string; op
 async function removeSupersededQueuedOperations(db: Awaited<ReturnType<typeof getDb>>, incoming: DiscordOperation[]) {
 	const replaceableKeys = new Set(
 		incoming
-			.filter((operation) => operation.kind === "role" || operation.kind === "nickname-set" || operation.kind === "nickname-clear" || operation.kind === "direct-message")
+			.filter(
+				(operation) =>
+					operation.kind === "role" ||
+					operation.kind === "nickname-set" ||
+					operation.kind === "nickname-clear" ||
+					operation.kind === "direct-message" ||
+					operation.kind === "channel-message"
+			)
 			.map(operationKey)
 	);
 	if (replaceableKeys.size === 0) return;
@@ -163,11 +190,13 @@ function operationKey(operation: DiscordOperation) {
 	if (operation.kind === "role") return `role:${operation.discordId}:${operation.roleId}`;
 	if (operation.kind === "nickname-set" || operation.kind === "nickname-clear") return `nickname:${operation.discordId}`;
 	if (operation.kind === "direct-message") return `dm:${operation.dedupeKey}`;
+	if (operation.kind === "channel-message") return `channel-message:${operation.dedupeKey}`;
 	return `team:${operation.teamKey}`;
 }
 
 function operationSubject(operation: DiscordOperation) {
 	if ("discordId" in operation) return operation.discordId;
+	if (operation.kind === "channel-message") return operation.channelId;
 	return operation.teamKey;
 }
 
@@ -360,6 +389,22 @@ async function runDiscordOperation(operation: DiscordOperation): Promise<{ ok: t
 		return result.ok ? { ok: true } : result;
 	}
 	if (operation.kind === "direct-message") return sendDiscordDirectMessage(operation);
+	if (operation.kind === "channel-message") {
+		const db = await getDb();
+		const receiptId = `channel-message:${operation.dedupeKey}`;
+		const receipts = db.collection<{ _id: string; sentAt: string; expiresAt: Date }>(RECEIPT_COLLECTION);
+		if (await receipts.findOne({ _id: receiptId })) return { ok: true };
+		const result = await sendDiscordChannelMessage(operation);
+		if (result.ok) {
+			const sentAt = new Date();
+			await receipts.updateOne(
+				{ _id: receiptId },
+				{ $set: { sentAt: sentAt.toISOString(), expiresAt: new Date(sentAt.getTime() + MESSAGE_RECEIPT_RETENTION_MS) } },
+				{ upsert: true }
+			);
+		}
+		return result;
+	}
 	if (operation.kind === "team-provision") return provisionDiscordTeamResources(operation.teamKey, operation.name);
 	if (operation.kind === "team-rename") return renameDiscordTeamResources(operation);
 	return deleteDiscordTeamResources(operation);

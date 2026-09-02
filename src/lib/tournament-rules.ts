@@ -11,7 +11,7 @@ export function poolHistoryScopeForMatchPhase(phase: "groups" | "playoffs"): Poo
 }
 
 export function poolHistoryScopeForMatchId(matchId: string): PoolHistoryScope {
-	return ["ub-f", "lb-sf", "lb-f", "gf", "gf-reset"].includes(matchId) ? "finals" : "early";
+	return ["ub-f", "lb-sf", "lb-r3", "lb-f", "gf"].includes(matchId) ? "finals" : "early";
 }
 
 export function bonusBanSideForMatch(input: { id: string; blueSide: "teamA" | "teamB" }): DraftSide | null {

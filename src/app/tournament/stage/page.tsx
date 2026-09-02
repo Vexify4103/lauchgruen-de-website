@@ -6,9 +6,11 @@ import { computeGroupStandings } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
 import { formatGameDuration } from "@/lib/match-duration";
-import { GroupStagePlan, SwissStageBoard } from "@/components/SwissStageBoard";
+import { GroupStagePlan } from "@/components/SwissStageBoard";
 import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
-import { SwissLivePairings } from "@/components/SwissLivePairings";
+import { SwissStageLiveView } from "@/components/SwissStageLiveView";
+import { StageMatchAutoFocus } from "@/components/StageMatchAutoFocus";
+import { resolveGroupFocusMatchId } from "@/lib/tournament-stage-focus";
 
 const groups = ["A", "B"] as const;
 
@@ -33,9 +35,11 @@ export default async function GroupsPage() {
 		...(state.matches[match.id] ?? {}),
 		poolAssignment: wheel.currentAssignment?.matchId === match.id ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === match.id) ?? null),
 	}));
+	const focusedGroupMatchId = resolveGroupFocusMatchId(matchesWithScores);
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
+			<StageMatchAutoFocus matchId={focusedGroupMatchId} />
 			<section className="mx-auto w-full max-w-7xl">
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Gruppenphase</div>
@@ -124,6 +128,7 @@ export default async function GroupsPage() {
 										return (
 											<div
 												key={match.id}
+												data-stage-match-id={match.id}
 												className={`rounded-2xl border p-4 ${
 													isLive ? "border-red-300/34 bg-red-500/12 shadow-lg shadow-red-950/20" : "border-white/10 bg-black/18"
 												}`}
@@ -236,12 +241,7 @@ function SwissStagePage({
 						Nach {config.swissRounds} Runden ziehen die besten {config.advanceTeamCount} von {config.teamCount} Teams in die Playoffs ein.
 					</p>
 				</div>
-				<div className="mt-9">
-					<SwissLivePairings initialState={swissState} configuredRounds={config.swissRounds} live={settings.tournamentLive} />
-				</div>
-				<div className="mt-6">
-					<SwissStageBoard config={config} teamNames={teamNames} />
-				</div>
+				<SwissStageLiveView initialState={swissState} config={config} teamNames={teamNames} live={settings.tournamentLive} />
 				{teamNames.length === 0 ? (
 					<div className="mx-auto mt-5 max-w-3xl rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] px-5 py-4 text-center text-sm font-bold leading-6 text-amber-50/76">
 						Die Grafik zeigt aktuell den geplanten Ablauf. Teamnamen und Paarungen erscheinen, sobald die Roster veröffentlicht und die jeweilige Runde freigegeben

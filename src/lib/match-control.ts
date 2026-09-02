@@ -5,6 +5,7 @@ import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tourna
 import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState } from "@/lib/tournament-swiss";
+import { resolveUltimateBraveryPlayoffMatches } from "@/lib/ultimate-bravery-playoffs";
 
 export type ControlMatch = {
 	id: string;
@@ -92,7 +93,7 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 	if (settings.activeTournament.id === "ultimate-bravery") {
 		if (settings.ultimateBravery.dayOneFormat !== "swiss") return { teams: ctx.teams, stored: state.matches, matches: [] };
 		const swiss = await getSwissStageState(settings.activeTournament.id);
-		const matches: ControlMatch[] = swiss.rounds.flatMap((round) =>
+		const swissMatches: ControlMatch[] = swiss.rounds.flatMap((round) =>
 			round.pairings.flatMap((pairing) => {
 				if (pairing.bye || !pairing.teamBName) return [];
 				const stored = state.matches[pairing.id];
@@ -121,7 +122,14 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 				];
 			})
 		);
-		return { teams: ctx.teams, stored: state.matches, matches };
+		const playoffMatches = resolveUltimateBraveryPlayoffMatches({
+			format: settings.ultimateBravery.format,
+			swiss,
+			teams: ctx.teams,
+			requiredRounds: settings.ultimateBravery.swissRounds,
+			stored: state.matches,
+		}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: null }));
+		return { teams: ctx.teams, stored: state.matches, matches: [...swissMatches, ...playoffMatches] };
 	}
 	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);

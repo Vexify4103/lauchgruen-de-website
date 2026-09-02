@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 import { formatTournamentApplicationDeadlineLabel, formatTournamentApplicationOpenLabel } from "@/lib/tournament-application-deadline";
 import type { TournamentSettings } from "@/lib/tournament-settings";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 import { ThemedDateTimePicker } from "@/components/ThemedDateTimePicker";
 import { ThemedSelect } from "@/components/ThemedSelect";
@@ -58,13 +59,16 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 	const advancing = Math.max(2, Math.min(config.advanceTeamCount || 2, teamCount));
 	const eliminated = teamCount - advancing;
 	const isPowerOfTwo = advancing > 0 && (advancing & (advancing - 1)) === 0;
-	const playoffFormat =
-		config.format === "double-elimination" ? "Double Elimination" : config.format === "single-elimination" ? "Single Elimination" : "Playoff-Format noch offen";
+	const playoffFormat = playoffFormatLabel(config.format) ?? "Playoff-Format noch offen";
+	const lightWarning =
+		config.format === "double-elimination-light" && (config.teamCount !== 8 || config.advanceTeamCount !== 8)
+			? "Double Elimination Light benötigt genau 8 Teams, die alle die Playoffs erreichen."
+			: null;
 	if (config.dayOneFormat === "undecided") {
 		return {
 			stage: "Format für Tag 1 noch nicht entschieden",
 			qualification: "Die Stage bleibt öffentlich geschlossen, bis Gruppenphase oder Swiss Stage gewählt wurde.",
-			warning: null,
+			warning: lightWarning,
 		};
 	}
 
@@ -73,7 +77,7 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 			return {
 				stage: "8-Team Placement Swiss · bis zu 4 Runden",
 				qualification: `Alle Teams erreichen die Playoffs. Die Swiss Stage bestimmt Seed #1 bis #8; ${playoffFormat.toLowerCase()}.`,
-				warning: null,
+				warning: lightWarning,
 			};
 		}
 		const matchesPerRound = Math.floor(teamCount / 2);
@@ -81,13 +85,14 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 			stage: `${config.swissRounds} Swiss-Runden · ungefähr ${matchesPerRound * config.swissRounds} Matches`,
 			qualification: `${advancing === teamCount ? "Alle Teams erreichen die Playoffs." : `Platz 1–${advancing} erreicht die Playoffs, ${eliminated} Team${eliminated === 1 ? " scheidet" : "s scheiden"} an Tag 1 aus.`} ${playoffFormat}.`,
 			warning:
-				config.swissRounds > (teamCount % 2 === 0 ? teamCount - 1 : teamCount)
+				lightWarning ??
+				(config.swissRounds > (teamCount % 2 === 0 ? teamCount - 1 : teamCount)
 					? "Es sind mehr Swiss-Runden konfiguriert, als ohne ein Rematch mathematisch möglich sind."
 					: teamCount % 2 !== 0
 						? "Bei einer ungeraden Teamzahl erhält pro Runde ein Team ein möglichst fair verteiltes Freilos."
 						: !isPowerOfTwo
 							? "Das Playoff-Bracket benötigt Freilose, weil die Zahl der Qualifizierten keine Zweierpotenz ist."
-							: null,
+							: null),
 		};
 	}
 
@@ -103,13 +108,14 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 		stage: `${groupCount} Gruppe${groupCount === 1 ? "" : "n"} (${sizes}) · ${matchCount} Matches`,
 		qualification: `${advancing === teamCount ? "Alle Teams erreichen die Playoffs." : `${advancing} von ${teamCount} Teams erreichen die Playoffs; ${eliminated} scheiden an Tag 1 aus.`} ${playoffFormat}.`,
 		warning:
-			teamCount % groupCount !== 0
+			lightWarning ??
+			(teamCount % groupCount !== 0
 				? "Die Teams lassen sich nicht gleichmäßig auf die Gruppen verteilen."
 				: advancing % groupCount !== 0
 					? "Die Playoff-Plätze lassen sich nicht gleichmäßig pro Gruppe vergeben; eine Wildcard-Regel ist nötig."
 					: !isPowerOfTwo
 						? "Das Playoff-Bracket benötigt Freilose, weil die Zahl der Qualifizierten keine Zweierpotenz ist."
-						: null,
+						: null),
 	};
 }
 
@@ -374,10 +380,31 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 								options={[
 									{ value: "undecided", label: "Noch nicht entschieden" },
 									{ value: "double-elimination", label: "Double Elimination" },
+									{
+										value: "double-elimination-light",
+										label: "Double Elimination Light",
+										description: "#1/#2 mit Upper-Freilos, #7/#8 starten im Lower Bracket",
+									},
 									{ value: "single-elimination", label: "Single Elimination" },
 								]}
 							/>
 						</label>
+						{settings.ultimateBravery.format === "double-elimination-light" ? (
+							<div className="rounded-2xl border border-lime-200/18 bg-lime-200/[0.065] p-4 sm:col-span-2">
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">Double Elimination Light · 8 Teams</div>
+								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
+									Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein.
+									Das Grand Final ist immer ein einzelnes Do-or-die-Match ohne Bracket Reset.
+								</p>
+							</div>
+						) : settings.ultimateBravery.format === "double-elimination" ? (
+							<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Double Elimination · 8 Teams</div>
+								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
+									Alle acht Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
+								</p>
+							</div>
+						) : null}
 						<div className="sm:col-span-2 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4">
 							<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
 							<div className="mt-2 text-sm font-black text-emerald-50">{plan.stage}</div>

@@ -112,7 +112,7 @@ async function saveResourceId(teamKey: string, field: "roleId" | "voiceChannelId
 async function createRole(name: string) {
 	const role = await request<{ id: string }>(`/guilds/${guildId()}/roles`, {
 		method: "POST",
-		body: JSON.stringify({ name, reason: `LauchManager: Team ${name}` }),
+		body: JSON.stringify({ name, mentionable: true, reason: `LauchManager: Team ${name}` }),
 	});
 	return role.id;
 }
@@ -168,7 +168,11 @@ export async function renameDiscordTeamResources(input: {
 	textChannelId?: string;
 }): Promise<OperationResult> {
 	try {
-		if (input.roleId) await request(`/guilds/${guildId()}/roles/${input.roleId}`, { method: "PATCH", body: JSON.stringify({ name: input.name }) });
+		if (input.roleId)
+			await request(`/guilds/${guildId()}/roles/${input.roleId}`, {
+				method: "PATCH",
+				body: JSON.stringify({ name: input.name, mentionable: true }),
+			});
 		if (input.voiceChannelId) await request(`/channels/${input.voiceChannelId}`, { method: "PATCH", body: JSON.stringify({ name: input.name }) });
 		if (input.textChannelId) {
 			await request(`/channels/${input.textChannelId}`, { method: "PATCH", body: JSON.stringify({ name: textChannelName(input.name) }) });

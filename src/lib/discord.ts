@@ -9,7 +9,7 @@ let discordNicknameMutationQueue: Promise<void> = Promise.resolve();
 
 export const DISCORD_INVITE_URL = "https://discord.gg/GFYv7K3SKb";
 
-export type DiscordDirectMessagePayload = {
+export type DiscordMessagePayload = {
 	content?: string;
 	embeds?: Array<{
 		author?: { name: string; icon_url?: string };
@@ -30,6 +30,8 @@ export type DiscordDirectMessagePayload = {
 		}>;
 	}>;
 };
+
+export type DiscordDirectMessagePayload = DiscordMessagePayload;
 
 function discordBotToken() {
 	return process.env.DISCORD_TOKEN ?? process.env.DISCORD_BOT_TOKEN ?? "";
@@ -429,6 +431,54 @@ export async function sendDiscordDirectMessage(input: {
 			messageResponse?.status === 403
 				? "Discord-DM wurde abgelehnt. Die Person hat DMs möglicherweise deaktiviert."
 				: `Discord-DM konnte nicht gesendet werden (HTTP ${messageResponse?.status ?? "Netzwerkfehler"}).`,
+	};
+}
+
+export async function sendDiscordChannelMessage(input: {
+	channelId: string;
+	roleId?: string;
+	message?: string;
+	payload?: DiscordMessagePayload;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+	const token = discordBotToken();
+	if (!token) return { ok: false, message: "Discord-Teamnachricht übersprungen: Bot-Token fehlt." };
+	if (!input.channelId.trim()) return { ok: false, message: "Discord-Teamnachricht übersprungen: Channel-ID fehlt." };
+	if (!input.message && !input.payload) return { ok: false, message: "Discord-Teamnachricht übersprungen: Nachricht fehlt." };
+	if (input.roleId) {
+		const guildId = discordGuildId();
+		if (!guildId) return { ok: false, message: "Discord-Teamnachricht übersprungen: Guild-ID fehlt." };
+		const roleResponse = await discordRequestWithRetry(`${DISCORD_API}/guilds/${guildId}/roles/${input.roleId}`, {
+			method: "PATCH",
+			headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
+			body: JSON.stringify({ mentionable: true }),
+		});
+		if (!roleResponse?.ok) {
+			return {
+				ok: false,
+				message:
+					roleResponse?.status === 403
+						? "Discord-Teamrolle konnte nicht für den Match-Call freigegeben werden. Prüfe „Rollen verwalten“ und die Bot-Rollenposition."
+						: `Discord-Teamrolle konnte nicht vorbereitet werden (HTTP ${roleResponse?.status ?? "Netzwerkfehler"}).`,
+			};
+		}
+	}
+
+	const messageResponse = await discordRequestWithRetry(`${DISCORD_API}/channels/${input.channelId}/messages`, {
+		method: "POST",
+		headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
+		body: JSON.stringify({
+			...(input.payload ?? { content: input.message?.slice(0, 2000) }),
+			...(input.payload?.content ? { content: input.payload.content.slice(0, 2000) } : {}),
+			allowed_mentions: { parse: [], roles: input.roleId ? [input.roleId] : [] },
+		}),
+	});
+	if (messageResponse?.ok) return { ok: true };
+	return {
+		ok: false,
+		message:
+			messageResponse?.status === 403
+				? "Discord-Teamnachricht wurde abgelehnt. Dem Bot fehlen wahrscheinlich Rechte für diesen Kanal."
+				: `Discord-Teamnachricht konnte nicht gesendet werden (HTTP ${messageResponse?.status ?? "Netzwerkfehler"}).`,
 	};
 }
 

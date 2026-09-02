@@ -1,4 +1,5 @@
 import { TournamentLink as Link } from "../TournamentLink";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 
 const ruleSections = [
@@ -164,12 +165,8 @@ export default async function TournamentTermsPage() {
 			: config.dayOneFormat === "groups"
 				? `eine Gruppenphase mit ${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}`
 				: "ein noch nicht festgelegtes Stage-Format";
-	const playoffs =
-		config.format === "double-elimination"
-			? "Double-Elimination-Bracket"
-			: config.format === "single-elimination"
-				? "Single-Elimination-Bracket"
-				: "noch nicht festgelegten Playoff-Format";
+	const playoffName = playoffFormatLabel(config.format);
+	const playoffs = playoffName ? `${playoffName.replaceAll(" ", "-")}-Bracket` : "noch nicht festgelegten Playoff-Format";
 	const qualification =
 		config.advanceTeamCount === config.teamCount
 			? "Alle Teams erreichen den zweiten Spieltag."
@@ -182,11 +179,14 @@ export default async function TournamentTermsPage() {
 					...section,
 					text: `Alle Matches werden als Best of 1 gespielt. Am ersten Spieltag folgt ${dayOne}.${swissPairingRule} Am zweiten Spieltag finden die Playoffs im ${playoffs} statt. ${qualification}`,
 					list:
-						config.format === "double-elimination"
+						config.format === "double-elimination" || config.format === "double-elimination-light"
 							? [
+									...(config.format === "double-elimination-light"
+										? ["Seed #1 und #2 starten im Upper-Halbfinale; Seed #7 und #8 beginnen im Lower Bracket"]
+										: ["Alle qualifizierten Teams starten im Upper Bracket"]),
 									"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
 									"Eine Niederlage im Lower Bracket beendet das Turnier",
-									"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+									"Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset",
 								]
 							: config.format === "single-elimination"
 								? [

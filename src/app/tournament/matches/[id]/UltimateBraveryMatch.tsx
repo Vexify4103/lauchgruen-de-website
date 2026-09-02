@@ -3,9 +3,19 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { UltimateBraveryRoll } from "@/lib/ultimate-bravery";
 import { playDraftCompleteSound, playRerollSound, unlockTournamentAudio } from "@/lib/tournament-sounds";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type Player = { discordId?: string; name: string; riotId: string; role: string; teamName: string };
-type DraftResponse = { rolls: UltimateBraveryRoll[]; allLocked: boolean; lockedCount: number; totalPlayers: number; viewerTeam: string; message?: string };
+type DraftResponse = {
+	rolls: UltimateBraveryRoll[];
+	allLocked: boolean;
+	lockedCount: number;
+	totalPlayers: number;
+	claimedCount: number;
+	rerollRequestCount: number;
+	viewerTeam: string;
+	message?: string;
+};
 
 export function UltimateBraveryMatch({
 	matchId,
@@ -14,8 +24,13 @@ export function UltimateBraveryMatch({
 	currentDiscordId,
 	viewerTeam,
 	initialAllLocked,
+	initialLockedCount,
 	rerollLimit,
+	testMode = false,
 	testOwner = false,
+	initialPerspectiveDiscordId,
+	adminMode = false,
+	readOnly = false,
 }: {
 	matchId: string;
 	players: Player[];
@@ -23,13 +38,22 @@ export function UltimateBraveryMatch({
 	currentDiscordId?: string;
 	viewerTeam: string;
 	initialAllLocked: boolean;
+	initialLockedCount?: number;
 	rerollLimit: number;
+	testMode?: boolean;
 	testOwner?: boolean;
+	initialPerspectiveDiscordId?: string;
+	adminMode?: boolean;
+	readOnly?: boolean;
 }) {
 	const [rolls, setRolls] = useState(initialRolls);
-	const [activeViewerTeam, setActiveViewerTeam] = useState(viewerTeam);
 	const [allLocked, setAllLocked] = useState(initialAllLocked);
+	const [lockedCount, setLockedCount] = useState(initialLockedCount ?? initialRolls.filter((roll) => roll.status === "locked" && !roll.rerollRequestedAt).length);
+	const [totalPlayers, setTotalPlayers] = useState(players.length);
+	const [perspectiveDiscordId, setPerspectiveDiscordId] = useState(initialPerspectiveDiscordId ?? currentDiscordId);
 	const [message, setMessage] = useState("");
+	const [adminRerollPlayer, setAdminRerollPlayer] = useState<Player | null>(null);
+	const [resetOpen, setResetOpen] = useState(false);
 	const [isPending, startTransition] = useTransition();
 	const previousAllLockedRef = useRef(initialAllLocked);
 
@@ -38,49 +62,72 @@ export function UltimateBraveryMatch({
 		previousAllLockedRef.current = allLocked;
 	}, [allLocked]);
 
-	async function refresh(team = activeViewerTeam) {
-		const response = await fetch(`/api/tournament/ultimate-bravery?matchId=${encodeURIComponent(matchId)}${testOwner ? `&viewerTeam=${encodeURIComponent(team)}` : ""}`, {
+	function draftEndpoint(perspective = perspectiveDiscordId) {
+		const params = new URLSearchParams({ matchId });
+		if (adminMode) params.set("admin", "1");
+		else if (testMode && testOwner && perspective) params.set("perspective", perspective);
+		return `/api/tournament/ultimate-bravery?${params.toString()}`;
+	}
+
+	async function refresh(perspective = perspectiveDiscordId) {
+		const response = await fetch(draftEndpoint(perspective), {
 			cache: "no-store",
 		});
 		if (!response.ok) return;
 		const json = (await response.json()) as DraftResponse;
 		setRolls(json.rolls);
 		setAllLocked(json.allLocked);
+		setLockedCount(json.lockedCount);
+		setTotalPlayers(json.totalPlayers);
 	}
 
 	useEffect(() => {
 		const timer = window.setInterval(async () => {
-			const response = await fetch(
-				`/api/tournament/ultimate-bravery?matchId=${encodeURIComponent(matchId)}${testOwner ? `&viewerTeam=${encodeURIComponent(activeViewerTeam)}` : ""}`,
-				{ cache: "no-store" }
-			);
+			const params = new URLSearchParams({ matchId });
+			if (adminMode) params.set("admin", "1");
+			else if (testMode && testOwner && perspectiveDiscordId) params.set("perspective", perspectiveDiscordId);
+			const response = await fetch(`/api/tournament/ultimate-bravery?${params.toString()}`, { cache: "no-store" });
 			if (!response.ok) return;
 			const json = (await response.json()) as DraftResponse;
 			setRolls(json.rolls);
 			setAllLocked(json.allLocked);
+			setLockedCount(json.lockedCount);
+			setTotalPlayers(json.totalPlayers);
 		}, 5_000);
 		return () => window.clearInterval(timer);
-	}, [activeViewerTeam, matchId, testOwner]);
+	}, [adminMode, matchId, perspectiveDiscordId, testMode, testOwner]);
 
-	function act(action: "roll" | "reroll" | "confirm" | "reset-test", playerDiscordId?: string) {
+	function act(action: "roll" | "reroll" | "confirm" | "request-reroll" | "admin-reroll" | "admin-reset", playerDiscordId?: string, confirmation?: string) {
 		setMessage("");
 		void unlockTournamentAudio();
 		startTransition(async () => {
 			const response = await fetch("/api/tournament/ultimate-bravery", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ action, matchId, ...(playerDiscordId ? { playerDiscordId } : {}) }),
+				body: JSON.stringify({ action, matchId, ...(playerDiscordId ? { playerDiscordId } : {}), ...(confirmation ? { confirmation } : {}) }),
 			});
 			const json = (await response.json().catch(() => null)) as { message?: string } | null;
 			setMessage(json?.message ?? (response.ok ? "Gespeichert." : "Aktion fehlgeschlagen."));
 			if (response.ok) {
-				if (action === "reroll") playRerollSound();
+				if (action === "reroll" || action === "admin-reroll") playRerollSound();
 				await refresh();
+				setAdminRerollPlayer(null);
+				setResetOpen(false);
 			}
 		});
 	}
 
 	const teamNames = [...new Set(players.map((player) => player.teamName))];
+	const perspectivePlayer = players.find((player) => player.discordId === perspectiveDiscordId);
+	const activeViewerTeam = perspectivePlayer?.teamName ?? viewerTeam;
+
+	function selectPerspective(player: Player) {
+		if (!player.discordId) return;
+		setPerspectiveDiscordId(player.discordId);
+		setMessage(`Spielerperspektive: ${player.name} · ${player.role}`);
+		void refresh(player.discordId);
+	}
+
 	return (
 		<section className="mt-6 overflow-hidden rounded-[2.3rem] border border-cyan-200/14 bg-[#07140e]/92 shadow-2xl shadow-black/30">
 			<header className="border-b border-white/8 bg-gradient-to-r from-cyan-300/[0.08] via-transparent to-lime-300/[0.08] p-5 sm:p-7">
@@ -90,13 +137,16 @@ export function UltimateBraveryMatch({
 						<h2 className="mt-2 text-3xl font-black text-emerald-50">Würfeln, prüfen, bestätigen.</h2>
 					</div>
 					<div className="flex flex-wrap items-center gap-2">
-						{testOwner ? (
+						<div className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.055] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-cyan-50">
+							{lockedCount}/{totalPlayers} bestätigt
+						</div>
+						{adminMode && !readOnly ? (
 							<button
 								disabled={isPending}
-								onClick={() => act("reset-test")}
+								onClick={() => setResetOpen(true)}
 								className="rounded-full border border-red-200/20 bg-red-500/8 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 disabled:opacity-50"
 							>
-								Test zurücksetzen
+								Rolls zurücksetzen
 							</button>
 						) : null}
 						<div
@@ -107,39 +157,50 @@ export function UltimateBraveryMatch({
 					</div>
 				</div>
 				<p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-100/60">
-					Kein Timer und keine Bans. Jeder Spieler hat 2 garantierte Rerolls pro Match; der letzte verfügbare Reroll wird automatisch bestätigt. Die gegnerischen Rolls
-					werden erst sichtbar, wenn beide Teams vollständig bestätigt haben.
+					Kein Timer und keine Bans. Jeder Spieler hat {rerollLimit} garantierte Rerolls pro Match; der letzte verfügbare Reroll wird automatisch bestätigt. Die
+					gegnerischen Rolls werden erst sichtbar, wenn beide Teams vollständig bestätigt haben.
 				</p>
-				{testOwner ? (
-					<div className="mt-4 flex flex-wrap gap-2">
-						<span className="self-center text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/42">Test-Perspektive</span>
-						{teamNames.map((teamName) => (
-							<button
-								key={teamName}
-								type="button"
-								onClick={() => {
-									setActiveViewerTeam(teamName);
-									void refresh(teamName);
-								}}
-								className={`rounded-xl border px-4 py-2 text-xs font-black ${activeViewerTeam === teamName ? "border-cyan-200/32 bg-cyan-200/14 text-cyan-50" : "border-white/10 bg-black/18 text-emerald-100/52"}`}
-							>
-								{teamName}
-							</button>
-						))}
+				{testMode && testOwner && !adminMode ? (
+					<div className="mt-5 rounded-2xl border border-cyan-200/14 bg-black/18 p-3">
+						<div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/52">Simulierte Spielerperspektive</div>
+						<div className="flex flex-wrap gap-2">
+							{players.map((player) => (
+								<button
+									key={`perspective:${player.teamName}:${player.role}`}
+									type="button"
+									disabled={!player.discordId || isPending}
+									onClick={() => selectPerspective(player)}
+									className={`rounded-xl border px-3 py-2 text-left text-[10px] font-black transition disabled:opacity-35 ${
+										player.discordId === perspectiveDiscordId
+											? "border-lime-200/32 bg-lime-200/12 text-lime-50"
+											: "border-white/10 bg-white/[0.035] text-emerald-100/60 hover:border-cyan-200/24 hover:text-cyan-50"
+									}`}
+								>
+									<span className="block text-[8px] uppercase tracking-[0.14em] opacity-55">{player.teamName}</span>
+									{player.role}
+								</button>
+							))}
+						</div>
+					</div>
+				) : null}
+				{adminMode && rolls.some((roll) => roll.rerollRequestedAt) ? (
+					<div className="mt-4 rounded-2xl border border-red-300/35 bg-red-500/12 px-4 py-3 text-sm font-black text-red-50 shadow-lg shadow-red-950/20">
+						Achtung: {rolls.filter((roll) => roll.rerollRequestedAt).length} offene{" "}
+						{rolls.filter((roll) => roll.rerollRequestedAt).length === 1 ? "Reroll-Ausnahme" : "Reroll-Ausnahmen"} benötigen eine Admin-Entscheidung.
 					</div>
 				) : null}
 			</header>
 
 			<div className="grid gap-px bg-white/8 lg:grid-cols-2">
 				{teamNames.map((teamName) => {
-					const enemyHidden = teamName !== activeViewerTeam && !allLocked;
-					const enemyRevealed = teamName !== activeViewerTeam && allLocked;
+					const enemyHidden = !adminMode && teamName !== activeViewerTeam && !allLocked;
+					const enemyRevealed = !adminMode && teamName !== activeViewerTeam && allLocked;
 					return (
 						<div key={teamName} className="bg-[#08150f] p-4 sm:p-6">
 							<div className="mb-4 flex items-center justify-between">
 								<h3 className="text-2xl font-black text-emerald-50">{teamName}</h3>
 								<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/42">
-									{teamName === activeViewerTeam ? "Dein Team" : enemyHidden ? "Verdeckt" : "Aufgedeckt"}
+									{adminMode ? "Admin-Einsicht" : teamName === activeViewerTeam ? "Dein Team" : enemyHidden ? "Verdeckt" : "Aufgedeckt"}
 								</span>
 							</div>
 							<div className="grid gap-3">
@@ -147,15 +208,24 @@ export function UltimateBraveryMatch({
 									.filter((player) => player.teamName === teamName)
 									.map((player) => (
 										<PlayerRoll
-											key={`${teamName}:${player.riotId}`}
+											key={`${teamName}:${player.role}:${player.discordId ?? "open"}`}
 											player={player}
 											roll={enemyHidden ? undefined : rolls.find((entry) => entry.discordId === player.discordId)}
 											hidden={enemyHidden}
 											summaryOnly={enemyRevealed}
-											canControl={Boolean(player.discordId && (player.discordId === currentDiscordId || testOwner))}
+											canControl={Boolean(
+												!readOnly &&
+												player.discordId &&
+												((testMode && adminMode) ||
+													(testMode && testOwner && !adminMode && player.discordId === perspectiveDiscordId) ||
+													(!adminMode && !testOwner && player.discordId === currentDiscordId))
+											)}
+											adminMode={adminMode}
+											readOnly={readOnly}
 											rerollLimit={rerollLimit}
 											pending={isPending}
-											onAction={(action) => act(action, testOwner ? player.discordId : undefined)}
+											onAction={(action) => act(action, player.discordId)}
+											onAdminReroll={() => setAdminRerollPlayer(player)}
 										/>
 									))}
 							</div>
@@ -164,6 +234,26 @@ export function UltimateBraveryMatch({
 				})}
 			</div>
 			{message ? <div className="border-t border-white/8 px-5 py-4 text-sm font-bold text-emerald-100/72">{message}</div> : null}
+			<ConfirmDialog
+				open={Boolean(adminRerollPlayer)}
+				title="Ausnahme-Reroll wirklich ausführen?"
+				description={`${adminRerollPlayer?.name ?? "Dieser Spieler"} hat bereits alle ${rerollLimit} garantierten Rerolls verbraucht. Der aktuelle, bestätigte Champion wird sofort ersetzt und der neue Roll automatisch bestätigt. Diese Ausnahme wird im Audit-Log festgehalten.`}
+				confirmLabel="Ausnahme-Reroll"
+				cancelLabel="Abbrechen"
+				tone="danger"
+				onCancel={() => setAdminRerollPlayer(null)}
+				onConfirm={() => adminRerollPlayer?.discordId && act("admin-reroll", adminRerollPlayer.discordId, "AUSNAHME-REROLL")}
+			/>
+			<ConfirmDialog
+				open={resetOpen}
+				title={`${testMode ? "Test-Rolls" : "Match-Rolls"} vollständig zurücksetzen?`}
+				description="Alle Champions, Builds, Bestätigungen und offenen Ausnahme-Anfragen dieses Matches werden gelöscht. Teams, Swiss-Paarung und Ergebnis bleiben erhalten."
+				confirmLabel="Rolls zurücksetzen"
+				cancelLabel="Abbrechen"
+				tone="danger"
+				onCancel={() => setResetOpen(false)}
+				onConfirm={() => act("admin-reset", undefined, "ROLLS ZURÜCKSETZEN")}
+			/>
 		</section>
 	);
 }
@@ -174,18 +264,24 @@ function PlayerRoll({
 	hidden,
 	summaryOnly,
 	canControl,
+	adminMode,
+	readOnly,
 	rerollLimit,
 	pending,
 	onAction,
+	onAdminReroll,
 }: {
 	player: Player;
 	roll?: UltimateBraveryRoll;
 	hidden: boolean;
 	summaryOnly: boolean;
 	canControl: boolean;
+	adminMode: boolean;
+	readOnly: boolean;
 	rerollLimit: number;
 	pending: boolean;
-	onAction: (action: "roll" | "reroll" | "confirm") => void;
+	onAction: (action: "roll" | "reroll" | "confirm" | "request-reroll") => void;
+	onAdminReroll: () => void;
 }) {
 	if (hidden)
 		return (
@@ -217,8 +313,28 @@ function PlayerRoll({
 				</button>
 			</div>
 		) : roll?.status === "locked" ? (
-			<div className="rounded-xl border border-lime-200/18 bg-lime-200/8 px-2 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-lime-100/76">
-				Bestätigt · #{roll.rollNumber}
+			<div className="grid gap-2">
+				<div className="rounded-xl border border-lime-200/18 bg-lime-200/8 px-2 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-lime-100/76">
+					Bestätigt · #{roll.rollNumber}
+				</div>
+				{canControl && remaining === 0 ? (
+					<button
+						disabled={pending || Boolean(roll.rerollRequestedAt)}
+						onClick={() => onAction("request-reroll")}
+						className="rounded-xl border border-red-200/22 bg-red-500/9 px-2 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-red-100 disabled:opacity-55"
+					>
+						{roll.rerollRequestedAt ? "Ausnahme angefragt" : "Ausnahme-Reroll anfragen"}
+					</button>
+				) : null}
+				{adminMode && !readOnly && roll.rerollRequestedAt ? (
+					<button
+						onClick={onAdminReroll}
+						disabled={pending}
+						className="rounded-xl bg-gradient-to-r from-red-300 to-amber-200 px-2 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-red-950 shadow-lg shadow-red-950/20 disabled:opacity-50"
+					>
+						Geforderte Ausnahme prüfen
+					</button>
+				) : null}
 			</div>
 		) : null;
 	return (
@@ -262,11 +378,7 @@ function EnemyChampion({ roll }: { roll: UltimateBraveryRoll }) {
 		<div className="mt-4 flex items-center gap-3 rounded-xl border border-red-200/12 bg-red-300/[0.04] p-3">
 			{/* Remote Data Dragon assets are already size-specific and do not benefit from Next image optimization here. */}
 			{/* eslint-disable-next-line @next/next/no-img-element */}
-			<img
-				src={roll.champion.imageUrl}
-				alt={roll.champion.name}
-				className="size-16 rounded-xl border border-white/12 object-cover"
-			/>
+			<img src={roll.champion.imageUrl} alt={roll.champion.name} className="size-16 rounded-xl border border-white/12 object-cover" />
 			<div>
 				<div className="text-[9px] font-black uppercase tracking-[0.18em] text-red-100/48">Gegnerischer Champion</div>
 				<div className="mt-1 text-base font-black text-emerald-50">{roll.champion.name}</div>

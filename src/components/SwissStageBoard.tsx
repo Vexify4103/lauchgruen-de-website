@@ -1,5 +1,8 @@
+"use client";
+
 import type { TournamentSettings } from "@/lib/tournament-settings";
-import type { ReactNode } from "react";
+import { playoffFormatLabel } from "@/lib/tournament-format";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 type StageConfig = TournamentSettings["ultimateBravery"];
 
@@ -21,8 +24,24 @@ function recordBuckets(round: number, targetWins: number) {
 	);
 }
 
-export function SwissStageBoard({ config, teamNames }: { config: StageConfig; teamNames: string[] }) {
+export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config: StageConfig; teamNames: string[]; activeRound?: number }) {
 	const matchCount = Math.floor(config.teamCount / 2);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const lastFocusedRound = useRef<number | null>(null);
+
+	useLayoutEffect(() => {
+		if (lastFocusedRound.current === activeRound) return;
+		const scroller = scrollRef.current;
+		const target = scroller?.querySelector<HTMLElement>(`[data-swiss-round="${activeRound}"]`);
+		if (!scroller || !target) return;
+		const scrollerRect = scroller.getBoundingClientRect();
+		const targetRect = target.getBoundingClientRect();
+		const targetCenter = targetRect.left - scrollerRect.left + scroller.scrollLeft + targetRect.width / 2;
+		const left = Math.max(0, Math.min(targetCenter - scroller.clientWidth / 2, scroller.scrollWidth - scroller.clientWidth));
+		scroller.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+		lastFocusedRound.current = activeRound;
+	}, [activeRound]);
+
 	return (
 		<div className="overflow-hidden rounded-[2.4rem] border border-cyan-200/14 bg-[#07140e]/92 shadow-2xl shadow-black/30">
 			<header className="border-b border-white/8 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.1),transparent_35%)] px-6 py-6 sm:px-8">
@@ -48,10 +67,18 @@ export function SwissStageBoard({ config, teamNames }: { config: StageConfig; te
 					</div>
 				) : null}
 			</header>
-			<div className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
+			<div ref={scrollRef} className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
 				<div className="grid min-w-max gap-3" style={{ gridTemplateColumns: `repeat(${config.swissRounds}, minmax(14rem, 1fr))` }}>
 					{Array.from({ length: config.swissRounds }, (_, roundIndex) => (
-						<section key={roundIndex} className="rounded-[1.6rem] border border-white/8 bg-black/16 p-3">
+						<section
+							key={roundIndex}
+							data-swiss-round={roundIndex + 1}
+							className={`rounded-[1.6rem] border p-3 transition ${
+								roundIndex + 1 === activeRound
+									? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]"
+									: "border-white/8 bg-black/16"
+							}`}
+						>
 							<div className="flex items-center justify-between border-b border-white/8 pb-3">
 								<div>
 									<div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/42">Auslosung</div>
@@ -173,13 +200,7 @@ export function LegacySwissStageBoard({ config, teamNames }: { config: StageConf
 								tone="advance"
 								label="Playoffs"
 								value={`Platz 1–${config.advanceTeamCount}`}
-								detail={
-									config.format === "double-elimination"
-										? "Double Elimination"
-										: config.format === "single-elimination"
-											? "Single Elimination"
-											: "Format noch offen"
-								}
+								detail={playoffFormatLabel(config.format) ?? "Format noch offen"}
 							/>
 							{config.teamCount > config.advanceTeamCount ? (
 								<OutcomeCard
@@ -406,47 +427,98 @@ export function GroupStagePlan({ config, teamNames }: { config: StageConfig; tea
 }
 
 export function SwissPlayoffSeedBracket({ format }: { format: StageConfig["format"] }) {
+	const isLight = format === "double-elimination-light";
 	return (
 		<div className="overflow-hidden rounded-[2.4rem] border border-lime-200/14 bg-[#07140e]/92 shadow-2xl shadow-black/30">
 			<div className="border-b border-white/8 bg-gradient-to-r from-lime-200/[0.075] via-transparent to-cyan-300/[0.045] px-6 py-5">
 				<div className="text-[10px] font-black uppercase tracking-[0.28em] text-lime-100/52">Seeded Bracket · Tag 2</div>
-				<h2 className="mt-2 text-3xl font-black text-emerald-50">#1 gegen #8. #2 gegen #7.</h2>
+				<h2 className="mt-2 text-3xl font-black text-emerald-50">{isLight ? "Vorteil für die Top-Seeds." : "#1 gegen #8. #2 gegen #7."}</h2>
 			</div>
-			<div className="grid gap-5 p-5 lg:grid-cols-2">
-				<BracketHalf
-					title="Obere Hälfte"
-					accent="lime"
-					quarterfinals={[
-						[1, 8],
-						[4, 5],
-					]}
-					semifinal="Sieger #1/#8 vs Sieger #4/#5"
-				/>
-				<BracketHalf
-					title="Untere Hälfte"
-					accent="cyan"
-					quarterfinals={[
-						[2, 7],
-						[3, 6],
-					]}
-					semifinal="Sieger #2/#7 vs Sieger #3/#6"
-				/>
-			</div>
+			{isLight ? (
+				<div className="grid gap-4 p-5 lg:grid-cols-3">
+					<SeedEntryGroup title="Upper-Freilos" accent="lime" detail="Direkt im Upper-Halbfinale">
+						<SeedDestination seed={1} destination="Upper Halbfinale 2" />
+						<SeedDestination seed={2} destination="Upper Halbfinale 1" />
+					</SeedEntryGroup>
+					<SeedEntryGroup title="Upper Runde 1" accent="cyan" detail="Sieger treffen auf #1 und #2">
+						<SeedMatch first={3} second={6} />
+						<SeedMatch first={4} second={5} />
+					</SeedEntryGroup>
+					<SeedEntryGroup title="Lower-Einstieg" accent="amber" detail="Eine Niederlage beendet das Turnier">
+						<SeedDestination seed={7} destination="Lower Runde 1" />
+						<SeedDestination seed={8} destination="Lower Runde 1" />
+					</SeedEntryGroup>
+				</div>
+			) : (
+				<div className="grid gap-5 p-5 lg:grid-cols-2">
+					<BracketHalf
+						title="Obere Hälfte"
+						accent="lime"
+						quarterfinals={[
+							[1, 8],
+							[4, 5],
+						]}
+						semifinal="Sieger #1/#8 vs Sieger #4/#5"
+					/>
+					<BracketHalf
+						title="Untere Hälfte"
+						accent="cyan"
+						quarterfinals={[
+							[2, 7],
+							[3, 6],
+						]}
+						semifinal="Sieger #2/#7 vs Sieger #3/#6"
+					/>
+				</div>
+			)}
 			<div className="grid gap-3 border-t border-white/8 px-6 py-5 text-xs leading-6 text-emerald-100/54 md:grid-cols-2">
 				<div>
-					<strong className="text-emerald-50">Seeding:</strong> Die Swiss-Platzierung bestimmt ausschließlich diese erste Playoff-Runde.
+					<strong className="text-emerald-50">Seeding:</strong>{" "}
+					{isLight ? "Die Swiss-Platzierung bestimmt den Einstieg und damit die Zahl der verbleibenden Leben." : "Die Swiss-Platzierung bestimmt ausschließlich diese erste Playoff-Runde."}
 				</div>
 				<div>
-					<strong className="text-emerald-50">
-						{format === "double-elimination" ? "Double Elimination:" : format === "single-elimination" ? "Single Elimination:" : "Format offen:"}
-					</strong>{" "}
-					{format === "double-elimination"
-						? "Verlierer wechseln anschließend in das Lower Bracket; Sieger bleiben im Upper Bracket."
+					<strong className="text-emerald-50">{playoffFormatLabel(format) ? `${playoffFormatLabel(format)}:` : "Format offen:"}</strong>{" "}
+					{format === "double-elimination" || format === "double-elimination-light"
+						? "Eine Niederlage im Upper führt ins Lower Bracket. Das Grand Final ist ein einziges Do-or-die-Match ohne Reset."
 						: format === "single-elimination"
 							? "Eine Niederlage beendet das Turnier."
 							: "Der genaue Playoff-Ablauf wird noch festgelegt."}
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function SeedEntryGroup({
+	title,
+	accent,
+	detail,
+	children,
+}: {
+	title: string;
+	accent: "lime" | "cyan" | "amber";
+	detail: string;
+	children: ReactNode;
+}) {
+	const tone = {
+		lime: "border-lime-200/20 bg-lime-200/[0.065] text-lime-100",
+		cyan: "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100",
+		amber: "border-amber-200/20 bg-amber-200/[0.06] text-amber-100",
+	}[accent];
+	return (
+		<section className={`rounded-[1.8rem] border p-4 ${tone}`}>
+			<div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-65">{title}</div>
+			<div className="mt-1 text-[11px] font-bold text-emerald-100/48">{detail}</div>
+			<div className="mt-4 grid gap-3">{children}</div>
+		</section>
+	);
+}
+
+function SeedDestination({ seed, destination }: { seed: number; destination: string }) {
+	return (
+		<div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+			<span className="text-sm font-black text-emerald-50">Seed #{seed}</span>
+			<span className="text-[10px] font-black uppercase tracking-[0.13em] opacity-62">{destination}</span>
 		</div>
 	);
 }

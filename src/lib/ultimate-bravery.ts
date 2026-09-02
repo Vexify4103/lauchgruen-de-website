@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
+import { ultimateBraveryItemGroups } from "@/lib/ultimate-bravery-items";
 
 const COLLECTION = "ultimate_bravery_rolls";
 const DATA_DRAGON = "https://ddragon.leagueoflegends.com";
@@ -47,8 +48,11 @@ export type UltimateBraveryRoll = {
 	runes: UltimateBraveryRunePage;
 	rollNumber: number;
 	rerollsUsed: number;
+	exceptionRerollsUsed?: number;
 	status: "selecting" | "locked";
 	confirmedAt?: string;
+	rerollRequestedAt?: string;
+	rerollRequestedBy?: string;
 	rolledAt: string;
 	rolledBy: string;
 	updatedAt: string;
@@ -63,19 +67,6 @@ export function hideUltimateBraveryBuild(roll: UltimateBraveryRoll): UltimateBra
 		runes: { primary: "", secondary: "", runes: [], shards: [] },
 	};
 }
-
-export const ULTIMATE_BRAVERY_TEST_PLAYERS = [
-	{ discordId: "ub-test-a-top", name: "Alpha Top", riotId: "AlphaTop#TEST", role: "Top", teamName: "Team Alpha" },
-	{ discordId: "ub-test-a-jungle", name: "Alpha Jungle", riotId: "AlphaJungle#TEST", role: "Jungle", teamName: "Team Alpha" },
-	{ discordId: "ub-test-a-mid", name: "Alpha Mid", riotId: "AlphaMid#TEST", role: "Mid", teamName: "Team Alpha" },
-	{ discordId: "ub-test-a-bot", name: "Alpha Bot", riotId: "AlphaBot#TEST", role: "Bot", teamName: "Team Alpha" },
-	{ discordId: "ub-test-a-support", name: "Alpha Support", riotId: "AlphaSupport#TEST", role: "Support", teamName: "Team Alpha" },
-	{ discordId: "ub-test-b-top", name: "Bravo Top", riotId: "BravoTop#TEST", role: "Top", teamName: "Team Bravo" },
-	{ discordId: "ub-test-b-jungle", name: "Bravo Jungle", riotId: "BravoJungle#TEST", role: "Jungle", teamName: "Team Bravo" },
-	{ discordId: "ub-test-b-mid", name: "Bravo Mid", riotId: "BravoMid#TEST", role: "Mid", teamName: "Team Bravo" },
-	{ discordId: "ub-test-b-bot", name: "Bravo Bot", riotId: "BravoBot#TEST", role: "Bot", teamName: "Team Bravo" },
-	{ discordId: "ub-test-b-support", name: "Bravo Support", riotId: "BravoSupport#TEST", role: "Support", teamName: "Team Bravo" },
-] as const;
 
 type RollDoc = UltimateBraveryRoll & { _id: string };
 type CatalogItem = ItemData & { id: string; canonicalName: string };
@@ -138,6 +129,21 @@ function sample<T>(values: T[], count: number): T[] {
 	const available = [...values];
 	const result: T[] = [];
 	while (available.length && result.length < count) result.push(available.splice(randomInt(available.length), 1)[0]);
+	return result;
+}
+
+function sampleCompatibleItems(values: CatalogItem[], count: number): CatalogItem[] {
+	const available = [...values];
+	const result: CatalogItem[] = [];
+	const usedGroups = new Set<string>();
+	while (available.length && result.length < count) {
+		const item = available.splice(randomInt(available.length), 1)[0];
+		const groups = ultimateBraveryItemGroups(itemName(item));
+		if (groups.some((group) => usedGroups.has(group))) continue;
+		result.push(item);
+		groups.forEach((group) => usedGroups.add(group));
+	}
+	if (result.length < count) throw new Error("Es konnten nicht genug miteinander kompatible Items zugelost werden.");
 	return result;
 }
 
@@ -260,7 +266,7 @@ async function generateRoll(input: {
 	);
 	const selectedBoots = role === "mid" && midBoots.length ? pick(midBoots) : pick(boots);
 	const legendaryCount = role === "bot" ? 6 : role === "support" ? 4 : 5;
-	const legendaryItems = sample(finishedItems, legendaryCount);
+	const legendaryItems = sampleCompatibleItems(finishedItems, legendaryCount);
 	const selectedItems = [legendaryItems[0], selectedBoots, ...legendaryItems.slice(1)];
 
 	const riftSpells = catalog.spells.filter((spell) => spell.modes.includes("CLASSIC") && !["SummonerSmite", "SummonerSnowball"].includes(spell.id));
@@ -322,6 +328,7 @@ export async function createUltimateBraveryRoll(input: {
 	rolledBy: string;
 	rerollLimit: number;
 	reroll?: boolean;
+	force?: boolean;
 }): Promise<UltimateBraveryRoll> {
 	const col = await rollsCollection();
 	let existing = await col.findOne({ _id: `${input.matchId}:${input.discordId}` });
@@ -329,14 +336,17 @@ export async function createUltimateBraveryRoll(input: {
 		await col.deleteOne({ _id: existing._id });
 		existing = null;
 	}
-	if (existing?.status === "locked") return strip(existing);
+	if (existing?.status === "locked" && !input.force) return strip(existing);
 	if (existing && !input.reroll) return strip(existing);
 	const rerollsUsed = existing ? existing.rerollsUsed + 1 : 0;
-	if (rerollsUsed > input.rerollLimit) return strip(existing!);
+	if (rerollsUsed > input.rerollLimit && !input.force) return strip(existing!);
 	for (let attempt = 0; attempt < 8; attempt += 1) {
 		const matchRolls = await col.find({ matchId: input.matchId }).toArray();
 		const excludedChampionIds = matchRolls.filter((entry) => entry.discordId !== input.discordId).map((entry) => entry.champion.id);
-		const roll = await generateRoll({ ...input, rollNumber: (existing?.rollNumber ?? 0) + 1, rerollsUsed, excludedChampionIds });
+		const roll = {
+			...(await generateRoll({ ...input, rollNumber: (existing?.rollNumber ?? 0) + 1, rerollsUsed, excludedChampionIds })),
+			...(input.force ? { exceptionRerollsUsed: (existing?.exceptionRerollsUsed ?? 0) + 1 } : {}),
+		};
 		try {
 			await col.replaceOne({ _id: roll.id }, { ...roll }, { upsert: true });
 			return roll;
@@ -354,6 +364,30 @@ export async function confirmUltimateBraveryRoll(matchId: string, discordId: str
 	return doc ? strip(doc) : null;
 }
 
+export async function requestUltimateBraveryReroll(input: { matchId: string; discordId: string; requestedBy: string; rerollLimit: number }): Promise<UltimateBraveryRoll> {
+	const collection = await rollsCollection();
+	const current = await collection.findOne({ _id: `${input.matchId}:${input.discordId}` });
+	if (!current) throw new Error("Bitte würfle und bestätige zuerst deinen Roll.");
+	if (current.rerollsUsed < input.rerollLimit) throw new Error("Du hast noch einen garantierten Reroll übrig.");
+	if (current.rerollRequestedAt) return strip(current);
+	const now = new Date().toISOString();
+	const updated = await collection.findOneAndUpdate(
+		{ _id: current._id },
+		{ $set: { rerollRequestedAt: now, rerollRequestedBy: input.requestedBy, updatedAt: now } },
+		{ returnDocument: "after" }
+	);
+	if (!updated) throw new Error("Die Reroll-Anfrage konnte nicht gespeichert werden.");
+	return strip(updated);
+}
+
+export async function deleteUltimateBraveryRoll(matchId: string, discordId: string): Promise<void> {
+	await (await rollsCollection()).deleteOne({ _id: `${matchId}:${discordId}` });
+}
+
+export async function resetUltimateBraveryMatch(matchId: string): Promise<void> {
+	await (await rollsCollection()).deleteMany({ matchId });
+}
+
 export async function resetUltimateBraveryTestDraft(): Promise<void> {
-	await (await rollsCollection()).deleteMany({ matchId: "ub-test" });
+	await resetUltimateBraveryMatch("ub-test");
 }

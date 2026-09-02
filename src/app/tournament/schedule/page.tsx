@@ -59,7 +59,6 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 		.sort(compareGroupMatches);
 
 	const saturday = playoffs
-		.filter((match) => match.id !== "gf-reset")
 		.map((match) => ({
 			id: match.id,
 			day: "Samstag, 20.06.",

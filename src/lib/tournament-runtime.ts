@@ -208,6 +208,7 @@ function makeTeam(stored: StoredTeam, group: "A" | "B", seed: number): Tournamen
 		captain: captainText,
 		captainRef,
 		discordRoleId: stored.roleId,
+		discordTextChannelId: stored.textChannelId,
 		accent: stored.meta?.accent ?? DEFAULT_ACCENTS[accentIndex],
 		players: sortPlayersByRole(stored.players).map(buildPlayer),
 		playedChampions: stored.playedChampions ?? [],

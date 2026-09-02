@@ -28,7 +28,7 @@ export type TournamentSettings = {
 		groupRoundRobinLegs: 1 | 2;
 		swissRounds: number;
 		advanceTeamCount: number;
-		format: "undecided" | "double-elimination" | "single-elimination";
+		format: "undecided" | "double-elimination" | "double-elimination-light" | "single-elimination";
 		minimumSummonerLevel: number;
 		rerollsPerPlayer: number;
 		prizePool: string;
@@ -129,7 +129,12 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		groupRoundRobinLegs: mergedUltimateBravery.groupRoundRobinLegs === 2 ? 2 : 1,
 		swissRounds: clampInteger(mergedUltimateBravery.swissRounds, 1, 10, defaults.ultimateBravery.swissRounds),
 		advanceTeamCount: clampInteger(mergedUltimateBravery.advanceTeamCount, 2, teamCount, Math.min(defaults.ultimateBravery.advanceTeamCount, teamCount)),
-		format: mergedUltimateBravery.format === "single-elimination" || mergedUltimateBravery.format === "double-elimination" ? mergedUltimateBravery.format : "undecided",
+		format:
+			mergedUltimateBravery.format === "single-elimination" ||
+			mergedUltimateBravery.format === "double-elimination" ||
+			mergedUltimateBravery.format === "double-elimination-light"
+				? mergedUltimateBravery.format
+				: "undecided",
 		minimumSummonerLevel: clampInteger(mergedUltimateBravery.minimumSummonerLevel, 1, 1000, defaults.ultimateBravery.minimumSummonerLevel),
 		rerollsPerPlayer: clampInteger(mergedUltimateBravery.rerollsPerPlayer, 0, 5, defaults.ultimateBravery.rerollsPerPlayer),
 		prizePool:

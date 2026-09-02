@@ -99,6 +99,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const isCaptain = team?.captainRef?.discordId === discordId;
 	const matches = team ? ctx.matches.filter((match) => match.teamAName === team.name || match.teamBName === team.name) : [];
 	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? null;
+	const matchAccessReady = nextMatch?.status === "Live" || nextMatch?.status === "Pending";
 	const isTeamA = nextMatch?.teamAName === team?.name;
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
 	const pool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
@@ -249,6 +250,78 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						</div>
 					</div>
 
+					{nextMatch ? (
+						<section
+							className={`relative isolate overflow-hidden rounded-[2.3rem] border shadow-2xl shadow-black/28 ${
+								matchAccessReady
+									? "border-lime-200/36 bg-gradient-to-br from-lime-200/18 via-emerald-400/10 to-cyan-300/16"
+									: "border-amber-200/20 bg-gradient-to-br from-amber-200/10 via-emerald-400/[0.055] to-black/10"
+							}`}
+						>
+							<div
+								className={`pointer-events-none absolute -right-16 -top-24 size-72 rounded-full blur-3xl ${matchAccessReady ? "animate-pulse bg-cyan-300/18" : "bg-amber-200/8"}`}
+							/>
+							<div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+								<div>
+									<div
+										className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] ${
+											matchAccessReady ? "border-lime-200/30 bg-lime-200/12 text-lime-50" : "border-amber-200/24 bg-amber-200/10 text-amber-50"
+										}`}
+									>
+										<span
+											className={`size-2 rounded-full ${matchAccessReady ? "animate-pulse bg-lime-200 shadow-[0_0_16px_rgba(190,242,100,.9)]" : "bg-amber-200"}`}
+										/>
+										{matchAccessReady ? "Champ Select ist freigegeben" : "Nächstes Match steht fest"}
+									</div>
+									<div className="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/46">
+										{nextMatch.round} · {nextMatch.time}
+										{!isUltimateBravery && pool ? ` · Pool ${compactPoolLabel(pool)}` : ""}
+									</div>
+									<h2 className="mt-2 text-3xl font-black tracking-tight text-emerald-50 sm:text-5xl">
+										{team?.name} <span className="text-lime-200/52">vs</span> {opponent?.name ?? (isTeamA ? nextMatch.teamBLabel : nextMatch.teamALabel)}
+									</h2>
+									<p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-emerald-100/62">
+										{matchAccessReady
+											? isUltimateBravery
+												? "Dein persönlicher Roll wartet. Öffne jetzt den Champ Select und bestätige Champion, Build, Runen und Summoner Spells."
+												: "Der Champ Select ist geöffnet. Öffne jetzt die Match-Seite und tritt deinem Team bei."
+											: "Die Paarung ist bereits sichtbar. Sobald die Turnierleitung den Champ Select freigibt, wird dieser Bereich grün und der Startknopf deutlich hervorgehoben."}
+									</p>
+								</div>
+								<div className="grid min-w-52 gap-2">
+									{isUltimateBravery ? (
+										<Link
+											href={tournamentHref(`/matches/${nextMatch.id}`)}
+											className={`rounded-2xl px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] transition hover:-translate-y-0.5 ${
+												matchAccessReady
+													? "bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 text-emerald-950 shadow-xl shadow-lime-300/20"
+													: "border border-amber-200/18 bg-amber-200/[0.07] text-amber-50"
+											}`}
+										>
+											{matchAccessReady ? "Jetzt Champ Select öffnen" : "Match-Seite öffnen"}
+										</Link>
+									) : pool ? (
+										<Link
+											href={tournamentHref(`/champ-select/${nextMatch.id}/spectate`)}
+											className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20"
+										>
+											Champ Select öffnen
+										</Link>
+									) : null}
+									{isCaptain && !isUltimateBravery ? (
+										<Link
+											href={tournamentHref("/captain")}
+											className="rounded-2xl border border-white/12 bg-white/[0.05] px-6 py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-emerald-100 hover:text-lime-100"
+										>
+											Captain Portal
+										</Link>
+									) : null}
+									<div className="text-center text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/38">Match {nextMatch.id}</div>
+								</div>
+							</div>
+						</section>
+					) : null}
+
 					<section className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-xl shadow-black/18 sm:p-6">
 						<div className="flex flex-wrap items-end justify-between gap-3">
 							<div>
@@ -322,48 +395,6 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						/>
 						<TwitchLinkCard initialLink={twitchLink} status={twitchStatus} isOwner={isOwner} verifiedRiotId={verified?.riotId ?? null} returnSource={source} />
 					</div>
-
-					{nextMatch ? (
-						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
-							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Nächstes Match · {nextMatch.id}</div>
-							<h2 className="mt-2 text-3xl font-black text-emerald-50">
-								{team?.name} vs {opponent?.name ?? (isTeamA ? nextMatch.teamBLabel : nextMatch.teamALabel)}
-							</h2>
-							<div className="mt-4 grid gap-3 sm:grid-cols-3">
-								<Info label="Status" value={nextMatch.status ?? "Scheduled"} />
-								<Info label="Zeit" value={`${nextMatch.round} · ${nextMatch.time}`} />
-								<Info
-									label={isUltimateBravery ? "Dein Roll" : "Dein Pool"}
-									value={isUltimateBravery ? "Auf der Match-Seite" : pool ? compactPoolLabel(pool) : "Noch offen"}
-								/>
-							</div>
-							<div className="mt-5 flex flex-wrap gap-2">
-								{isUltimateBravery ? (
-									<Link
-										href={tournamentHref(`/matches/${nextMatch.id}`)}
-										className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
-									>
-										Match & Roll öffnen
-									</Link>
-								) : pool ? (
-									<Link
-										href={tournamentHref(`/champ-select/${nextMatch.id}/spectate`)}
-										className="rounded-2xl border border-sky-200/20 bg-sky-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-50/82"
-									>
-										Spectator Draft
-									</Link>
-								) : null}
-								{isCaptain && !isUltimateBravery ? (
-									<Link
-										href={tournamentHref("/captain")}
-										className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
-									>
-										Captain Portal
-									</Link>
-								) : null}
-							</div>
-						</div>
-					) : null}
 
 					{team ? (
 						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">

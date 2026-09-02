@@ -1,5 +1,6 @@
 import { readTournamentState } from "@/lib/tournament-storage";
 import { redirect } from "next/navigation";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -34,7 +35,7 @@ export default async function PlayoffsPage() {
 			<section className="mx-auto w-full max-w-[1600px]">
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Playoffs und Finals</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Acht Teams – Double Elimination.</h1>
+					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Acht Teams · Double Elimination.</h1>
 				</div>
 
 				<div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-3 shadow-xl shadow-black/24 sm:p-5">
@@ -88,7 +89,7 @@ function GenericPlayoffPreview({ settings }: { settings: Awaited<ReturnType<type
 				<div className="rounded-[2.4rem] border border-white/10 bg-white/[0.045] p-7 shadow-xl shadow-black/20">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Playoff-Planung</div>
 					<h1 className="mt-3 text-4xl font-black text-emerald-50">
-						{config.advanceTeamCount} Teams · {config.format === "double-elimination" ? "Double" : "Single"} Elimination.
+						{config.advanceTeamCount} Teams · {playoffFormatLabel(config.format) ?? "Format offen"}.
 					</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/64">
 						Das konkrete Seeding erscheint hier, sobald Tag 1 vollständig konfiguriert und die Teilnehmer feststehen.

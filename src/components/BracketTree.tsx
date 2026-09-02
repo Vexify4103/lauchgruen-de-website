@@ -1,9 +1,10 @@
 "use client";
 
 import { TournamentLink as Link } from "@/app/tournament/TournamentLink";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
+import { resolveBracketFocusMatchId } from "@/lib/tournament-stage-focus";
 
 /** Per-section grid positions. Each sub-grid has its own row/col coordinates. */
 const UB_POSITIONS: Record<string, CSSProperties> = {
@@ -23,15 +24,11 @@ const LB_POSITIONS: Record<string, CSSProperties> = {
 	"lb-f": { gridRow: "1 / span 4", gridColumn: 4 },
 };
 
-const GF_POSITIONS_WITH_RESET: Record<string, CSSProperties> = {
-	gf: { gridRow: "1 / span 1", gridColumn: 1 },
-	"gf-reset": { gridRow: "2 / span 1", gridColumn: 1 },
-};
-const GF_POSITIONS_NO_RESET: Record<string, CSSProperties> = {
+const GF_POSITIONS: Record<string, CSSProperties> = {
 	gf: { gridRow: "1 / span 1", gridColumn: 1 },
 };
 
-type ConnectorKind = "advance" | "conditional";
+type ConnectorKind = "advance";
 
 type Connection = {
 	from: string;
@@ -61,25 +58,18 @@ const CONNECTIONS: Connection[] = [
 	{ from: "ub-f", to: "gf", port: "top", kind: "advance" },
 	{ from: "lb-f", to: "gf", port: "bottom", kind: "advance" },
 
-	{ from: "gf", to: "gf-reset", port: "top", kind: "conditional" },
 ];
 
 const UB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Upper Final"];
 const LB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Lower-Halbfinale", "Lower Final"];
 
 export function BracketTree({ matches }: { matches: BracketMatch[] }) {
+	const scrollRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+	const lastFocusedMatch = useRef<string | null>(null);
 	const [paths, setPaths] = useState<ConnectorPath[]>([]);
 	const [size, setSize] = useState({ w: 0, h: 0 });
-	const matchById = useMemo(() => new Map(matches.map((match) => [match.id, match])), [matches]);
-
-	// Bracket reset only happens if the lower-bracket side wins the first Grand Final.
-	const gf = matchById.get("gf");
-	const showReset = !!gf && !!gf.winner && gf.winner === gf.teamBName;
-	const gfPositions = showReset ? GF_POSITIONS_WITH_RESET : GF_POSITIONS_NO_RESET;
-	const activeConnections = useMemo(() => (showReset ? CONNECTIONS : CONNECTIONS.filter((c) => c.to !== "gf-reset")), [showReset]);
-
 	const compute = useCallback(() => {
 		const container = containerRef.current;
 		if (!container) return;
@@ -88,7 +78,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 		setSize((prev) => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize));
 
 		const next: ConnectorPath[] = [];
-		for (const conn of activeConnections) {
+		for (const conn of CONNECTIONS) {
 			const from = cardRefs.current.get(conn.from);
 			const to = cardRefs.current.get(conn.to);
 			if (!from || !to) continue;
@@ -118,7 +108,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 			next.push({ d, kind: conn.kind });
 		}
 		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.kind === next[index]?.kind) ? prev : next));
-	}, [activeConnections]);
+	}, []);
 
 	useEffect(() => {
 		compute();
@@ -130,7 +120,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 			observer.disconnect();
 			window.removeEventListener("resize", compute);
 		};
-	}, [compute, matches.length, showReset]);
+	}, [compute, matches.length]);
 
 	const lookup = (id: string) => matches.find((m) => m.id === id);
 
@@ -138,9 +128,23 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 		if (el) cardRefs.current.set(id, el);
 		else cardRefs.current.delete(id);
 	};
+	const focusMatchId = resolveBracketFocusMatchId(matches);
+
+	useLayoutEffect(() => {
+		if (!focusMatchId || lastFocusedMatch.current === focusMatchId) return;
+		const scroller = scrollRef.current;
+		const target = cardRefs.current.get(focusMatchId);
+		if (!scroller || !target) return;
+		const scrollerRect = scroller.getBoundingClientRect();
+		const targetRect = target.getBoundingClientRect();
+		const targetCenter = targetRect.left - scrollerRect.left + scroller.scrollLeft + targetRect.width / 2;
+		const left = Math.max(0, Math.min(targetCenter - scroller.clientWidth / 2, scroller.scrollWidth - scroller.clientWidth));
+		scroller.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+		lastFocusedMatch.current = focusMatchId;
+	}, [focusMatchId, matches.length]);
 
 	return (
-		<div className="overflow-x-auto pb-2 -mx-2 px-2">
+		<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
 			<div ref={containerRef} className="relative grid min-w-[63rem] gap-x-6" style={{ gridTemplateColumns: "minmax(42rem, 1fr) 14rem" }}>
 				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
 					{paths.map((p, i) => (
@@ -148,9 +152,8 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 							key={i}
 							d={p.d}
 							fill="none"
-							strokeWidth={p.kind === "conditional" ? 1.5 : 2}
-							strokeDasharray={p.kind === "conditional" ? "5 5" : undefined}
-							stroke={p.kind === "conditional" ? "rgb(252 211 77 / 0.55)" : "rgb(190 242 100 / 0.55)"}
+							strokeWidth={2}
+							stroke="rgb(190 242 100 / 0.55)"
 							strokeLinecap="round"
 							strokeLinejoin="round"
 						/>
@@ -191,8 +194,8 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 						accent="amber"
 						columnLabels={["Finale"]}
 						columns={1}
-						rows={showReset ? 2 : 1}
-						positions={gfPositions}
+						rows={1}
+						positions={GF_POSITIONS}
 						matches={matches}
 						registerCard={registerCard}
 						lookup={lookup}
@@ -202,7 +205,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 
 			<div className="mt-4 flex flex-wrap gap-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100/52">
 				<LegendDot color="rgb(190 242 100 / 0.7)" label="Sieger zieht weiter" />
-				{showReset ? <LegendDot color="rgb(252 211 77 / 0.7)" label="Nur bei Bracket Reset" dashed /> : null}
+				<span>Grand Final · ein Do-or-die-Match ohne Bracket Reset</span>
 			</div>
 		</div>
 	);
@@ -284,7 +287,7 @@ function BracketSection({
 	);
 }
 
-function LegendDot({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
+function LegendDot({ color, label }: { color: string; label: string }) {
 	return (
 		<span className="inline-flex items-center gap-2">
 			<span
@@ -292,7 +295,7 @@ function LegendDot({ color, label, dashed }: { color: string; label: string; das
 				style={{
 					width: "1.4rem",
 					height: 0,
-					borderTop: `2px ${dashed ? "dashed" : "solid"} ${color}`,
+					borderTop: `2px solid ${color}`,
 				}}
 			/>
 			{label}
@@ -307,7 +310,7 @@ function BracketCard({ match }: { match: BracketMatch }) {
 	const scoreB = match.scoreB;
 	const hasScore = scoreA !== undefined && scoreB !== undefined;
 
-	const isFinalTier = match.round === "Grand Final" || match.round === "Grand Final Reset";
+	const isFinalTier = match.round === "Grand Final";
 
 	return (
 		<article
@@ -409,8 +412,6 @@ function TeamLine({
 
 function shortRoundLabel(round: ResolvedPlayoffMatch["round"]): string {
 	switch (round) {
-		case "Grand Final Reset":
-			return "Bracket Reset";
 		case "Grand Final":
 			return "Grand Final";
 		case "Upper R1":

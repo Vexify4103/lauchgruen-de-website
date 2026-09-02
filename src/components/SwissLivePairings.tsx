@@ -1,24 +1,19 @@
 "use client";
 
-import { useEffect, useEffectEvent, useState } from "react";
 import type { SwissStageState } from "@/lib/tournament-swiss";
 
-export function SwissLivePairings({ initialState, configuredRounds, live }: { initialState: SwissStageState; configuredRounds: number; live: boolean }) {
-	const [state, setState] = useState(initialState);
-	const refresh = useEffectEvent(async () => {
-		const response = await fetch("/api/tournament/swiss");
-		const json = (await response.json().catch(() => null)) as { state?: SwissStageState } | null;
-		if (response.ok && json?.state && json.state.updatedAt !== state.updatedAt) setState(json.state);
-	});
+export function SwissLivePairings({
+	state,
+	configuredRounds,
+	live,
+	activeRound,
+}: {
+	state: SwissStageState;
+	configuredRounds: number;
+	live: boolean;
+	activeRound: number;
+}) {
 	const complete = state.rounds.length >= configuredRounds;
-
-	useEffect(() => {
-		if (!live || complete) return;
-		const timer = window.setInterval(() => {
-			if (document.visibilityState === "visible") void refresh();
-		}, 3000);
-		return () => window.clearInterval(timer);
-	}, [complete, live]);
 
 	if (!state.rounds.length)
 		return (
@@ -41,7 +36,12 @@ export function SwissLivePairings({ initialState, configuredRounds, live }: { in
 			</header>
 			<div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
 				{state.rounds.map((round) => (
-					<article key={round.round} className="rounded-2xl border border-white/9 bg-black/18 p-3">
+					<article
+						key={round.round}
+						className={`rounded-2xl border p-3 transition ${
+							round.round === activeRound ? "border-cyan-200/34 bg-cyan-300/[0.075] shadow-lg shadow-cyan-950/20" : "border-white/9 bg-black/18"
+						}`}
+					>
 						<div className="flex items-center justify-between">
 							<strong className="text-sm text-emerald-50">Runde {round.round}</strong>
 							<span className="text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100/40">Zufällig gezogen</span>

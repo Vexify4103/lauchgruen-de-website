@@ -31,7 +31,7 @@ const schema = z.object({
 			groupRoundRobinLegs: z.union([z.literal(1), z.literal(2)]),
 			swissRounds: z.number().int().min(1).max(10),
 			advanceTeamCount: z.number().int().min(2).max(32),
-			format: z.enum(["undecided", "double-elimination", "single-elimination"]),
+			format: z.enum(["undecided", "double-elimination", "double-elimination-light", "single-elimination"]),
 			minimumSummonerLevel: z.number().int().min(1).max(1000),
 			rerollsPerPlayer: z.number().int().min(0).max(5),
 			prizePool: z.string().trim().min(1).max(4000),
@@ -59,6 +59,9 @@ export async function PATCH(request: Request) {
 		const config = parsed.data.ultimateBravery;
 		if (config.groupCount > config.teamCount || config.advanceTeamCount > config.teamCount) {
 			return NextResponse.json({ message: "Gruppen und Playoff-Teams dürfen die Gesamtzahl der Teams nicht überschreiten." }, { status: 400 });
+		}
+		if (config.format === "double-elimination-light" && (config.teamCount !== 8 || config.advanceTeamCount !== 8)) {
+			return NextResponse.json({ message: "Double Elimination Light ist für genau 8 Teams ausgelegt, die alle Tag 2 erreichen." }, { status: 400 });
 		}
 	}
 

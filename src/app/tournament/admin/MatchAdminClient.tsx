@@ -34,16 +34,20 @@ export function MatchAdminClient({
 	initialMatches,
 	initialStored,
 	initialVersions,
+	ultimateBravery = false,
 }: {
 	initialMatches: AdminMatch[];
 	initialStored: Record<string, StoredTournamentMatch>;
 	initialVersions: Record<string, number>;
+	ultimateBravery?: boolean;
 }) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
 	const [stored, setStored] = useState(initialStored);
 	const [versions, setVersions] = useState(initialVersions);
-	const [preparedMatchIds, setPreparedMatchIds] = useState(() => new Set(initialMatches.filter((match) => match.poolsDrawn).map((match) => match.id)));
+	const [preparedMatchIds, setPreparedMatchIds] = useState(
+		() => new Set(initialMatches.filter((match) => match.poolsDrawn || (ultimateBravery && match.status !== "Scheduled")).map((match) => match.id))
+	);
 	const [preparingId, setPreparingId] = useState<string | null>(null);
 	const [message, setMessage] = useState("");
 	const [isPreparing, startPreparing] = useTransition();
@@ -104,7 +108,13 @@ export function MatchAdminClient({
 			}
 
 			setPreparedMatchIds((current) => new Set(current).add(match.id));
-			setMessage(result?.drewPools ? `Pools für ${match.teamA} vs. ${match.teamB} gezogen.` : "Dieses Match war bereits vorbereitet.");
+			setMessage(
+				ultimateBravery
+					? (result?.message ?? `Rolls für ${match.teamA} vs. ${match.teamB} freigegeben und Teamnachrichten eingereiht.`)
+					: result?.drewPools
+						? `Pools für ${match.teamA} vs. ${match.teamB} gezogen.`
+						: "Dieses Match war bereits vorbereitet."
+			);
 			setPreparingId(null);
 			router.refresh();
 		});
@@ -129,6 +139,7 @@ export function MatchAdminClient({
 								stored={stored[match.id] ?? { id: match.id }}
 								poolsDrawn={preparedMatchIds.has(match.id)}
 								preparing={preparingId === match.id}
+								ultimateBravery={ultimateBravery}
 								onPrepare={() => prepareMatch(match)}
 								onSave={(values) => updateMatch(match.id, values)}
 							/>
@@ -158,6 +169,7 @@ function MatchRow({
 	stored,
 	poolsDrawn,
 	preparing,
+	ultimateBravery,
 	onPrepare,
 	onSave,
 }: {
@@ -165,6 +177,7 @@ function MatchRow({
 	stored: StoredTournamentMatch;
 	poolsDrawn: boolean;
 	preparing: boolean;
+	ultimateBravery: boolean;
 	onPrepare: () => void;
 	onSave: (values: { scoreA: string; scoreB: string; gameDuration: string }) => Promise<boolean>;
 }) {
@@ -260,14 +273,20 @@ function MatchRow({
 						className="rounded-xl border border-cyan-200/20 bg-cyan-300/8 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-emerald-100/32"
 					>
 						{preparing
-							? "Pools werden gezogen..."
+							? ultimateBravery
+								? "Rolls werden freigegeben..."
+								: "Pools werden gezogen..."
 							: poolsDrawn
-								? "Pools gezogen"
+								? ultimateBravery
+									? "Rolls freigegeben"
+									: "Pools gezogen"
 								: status === "Locked"
 									? "Teilnehmer offen"
 									: status !== "Scheduled"
 										? "Draft läuft"
-										: "Pools ziehen"}
+										: ultimateBravery
+											? "Rolls freigeben & Teams pingen"
+											: "Pools ziehen"}
 					</button>
 					<Link
 						href={`/tournament/admin/matches/${base.id}`}

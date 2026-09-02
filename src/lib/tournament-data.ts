@@ -28,6 +28,7 @@ export type TournamentTeam = {
 	/** Structured reference to a verified captain (Discord + Riot). Optional. */
 	captainRef?: TeamCaptainRef;
 	discordRoleId?: string;
+	discordTextChannelId?: string;
 	accent: string;
 	players: TournamentPlayer[];
 	playedChampions?: string[];
@@ -46,7 +47,7 @@ export type GroupMatch = {
 	status: "Scheduled" | "Live" | "Finished";
 };
 
-export type PlayoffRound = "Upper R1" | "Upper R2" | "Upper Final" | "Lower R1" | "Lower R2" | "Lower SF" | "Lower Final" | "Grand Final" | "Grand Final Reset";
+export type PlayoffRound = "Upper R1" | "Upper R2" | "Upper Final" | "Lower R1" | "Lower R2" | "Lower SF" | "Lower Final" | "Grand Final";
 
 export type PlayoffBracket = "Upper" | "Lower" | "Grand";
 
@@ -376,16 +377,6 @@ export const playoffMatches: PlayoffMatch[] = [
 		round: "Grand Final",
 		slot: "Grand Final",
 		time: "Richtzeit 21:00 · rollierend",
-		teamA: winnerOf("ub-f"),
-		teamB: winnerOf("lb-f"),
-		status: "Locked",
-	},
-	{
-		id: "gf-reset",
-		bracket: "Grand",
-		round: "Grand Final Reset",
-		slot: "Bracket Reset (falls nötig)",
-		time: "Falls Lower Bracket gewinnt",
 		teamA: winnerOf("ub-f"),
 		teamB: winnerOf("lb-f"),
 		status: "Locked",
