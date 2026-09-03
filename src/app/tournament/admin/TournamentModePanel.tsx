@@ -61,9 +61,11 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 	const isPowerOfTwo = advancing > 0 && (advancing & (advancing - 1)) === 0;
 	const playoffFormat = playoffFormatLabel(config.format) ?? "Playoff-Format noch offen";
 	const lightWarning =
-		config.format === "double-elimination-light" && (config.teamCount !== 8 || config.advanceTeamCount !== 8)
-			? "Double Elimination Light benötigt genau 8 Teams, die alle die Playoffs erreichen."
-			: null;
+		config.format === "double-elimination-light" && (config.advanceTeamCount !== config.teamCount || ![6, 8].includes(config.advanceTeamCount))
+			? "Double Elimination Light benötigt 6 oder 8 Teams, die alle die Playoffs erreichen. Bei 4 Teams bitte normales Double Elimination wählen."
+			: config.format === "double-elimination" && ![4, 8].includes(config.advanceTeamCount)
+				? "Normales Double Elimination benötigt 4 oder 8 Playoff-Teams. Für 6 Teams bitte Double Elimination Light wählen."
+				: null;
 	if (config.dayOneFormat === "undecided") {
 		return {
 			stage: "Format für Tag 1 noch nicht entschieden",
@@ -113,7 +115,7 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 				? "Die Teams lassen sich nicht gleichmäßig auf die Gruppen verteilen."
 				: advancing % groupCount !== 0
 					? "Die Playoff-Plätze lassen sich nicht gleichmäßig pro Gruppe vergeben; eine Wildcard-Regel ist nötig."
-					: !isPowerOfTwo
+					: !isPowerOfTwo && config.format !== "double-elimination-light"
 						? "Das Playoff-Bracket benötigt Freilose, weil die Zahl der Qualifizierten keine Zweierpotenz ist."
 						: null),
 	};
@@ -261,15 +263,20 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 										ultimateBravery: (() => {
 											const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
 											const swiss = swissQualification(teamCount, allTeamsAdvance);
+											const advanceTeamCount =
+												current.ultimateBravery.dayOneFormat === "swiss" ? swiss.advancing : Math.min(current.ultimateBravery.advanceTeamCount, teamCount);
 											return {
 												...current.ultimateBravery,
 												teamCount,
 												groupCount: Math.min(current.ultimateBravery.groupCount, teamCount),
-												advanceTeamCount:
-													current.ultimateBravery.dayOneFormat === "swiss"
-														? swiss.advancing
-														: Math.min(current.ultimateBravery.advanceTeamCount, teamCount),
+												advanceTeamCount,
 												swissRounds: current.ultimateBravery.dayOneFormat === "swiss" ? swiss.rounds : current.ultimateBravery.swissRounds,
+												format:
+													teamCount === 6 && advanceTeamCount === 6
+														? "double-elimination-light"
+														: teamCount === 4 && advanceTeamCount === 4
+															? "double-elimination"
+															: current.ultimateBravery.format,
 											};
 										})(),
 									}));
@@ -345,7 +352,18 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 									onChange={(value) =>
 										setSettings((current) => {
 											const swiss = swissQualification(current.ultimateBravery.teamCount, value === "all");
-											return { ...current, ultimateBravery: { ...current.ultimateBravery, advanceTeamCount: swiss.advancing, swissRounds: swiss.rounds } };
+											return {
+												...current,
+												ultimateBravery: {
+													...current.ultimateBravery,
+													advanceTeamCount: swiss.advancing,
+													swissRounds: swiss.rounds,
+													format:
+														current.ultimateBravery.teamCount === 6 && swiss.advancing === 6
+															? "double-elimination-light"
+															: current.ultimateBravery.format,
+												},
+											};
 										})
 									}
 									ariaLabel="Teams in den Playoffs"
@@ -361,7 +379,22 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 									value={settings.ultimateBravery.advanceTeamCount}
 									ariaLabel="Teams in den Playoffs"
 									onChange={(value) =>
-										setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, advanceTeamCount: Number(value) } }))
+										setSettings((current) => {
+											const advanceTeamCount = Number(value);
+											return {
+												...current,
+												ultimateBravery: {
+													...current.ultimateBravery,
+													advanceTeamCount,
+													format:
+														current.ultimateBravery.teamCount === 6 && advanceTeamCount === 6
+															? "double-elimination-light"
+															: current.ultimateBravery.teamCount === 4 && advanceTeamCount === 4
+																? "double-elimination"
+																: current.ultimateBravery.format,
+												},
+											};
+										})
 									}
 								/>
 							)}
@@ -383,7 +416,10 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 									{
 										value: "double-elimination-light",
 										label: "Double Elimination Light",
-										description: "#1/#2 mit Upper-Freilos, #7/#8 starten im Lower Bracket",
+										description:
+											settings.ultimateBravery.advanceTeamCount === 6
+												? "#1–#4 starten Upper, #5/#6 starten Lower"
+												: "#1/#2 mit Upper-Freilos, #7/#8 starten Lower",
 									},
 									{ value: "single-elimination", label: "Single Elimination" },
 								]}
@@ -391,17 +427,23 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 						</label>
 						{settings.ultimateBravery.format === "double-elimination-light" ? (
 							<div className="rounded-2xl border border-lime-200/18 bg-lime-200/[0.065] p-4 sm:col-span-2">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">Double Elimination Light · 8 Teams</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">
+									Double Elimination Light · {settings.ultimateBravery.advanceTeamCount} Teams
+								</div>
 								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-									Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein.
+									{settings.ultimateBravery.advanceTeamCount === 6
+										? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket. #5 und #6 steigen direkt gegen die Verlierer dieser Halbfinals im Lower Bracket ein."
+										: "Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein."}{" "}
 									Das Grand Final ist immer ein einzelnes Do-or-die-Match ohne Bracket Reset.
 								</p>
 							</div>
 						) : settings.ultimateBravery.format === "double-elimination" ? (
 							<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Double Elimination · 8 Teams</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">
+									Double Elimination · {settings.ultimateBravery.advanceTeamCount} Teams
+								</div>
 								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-									Alle acht Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
+									Alle qualifizierten Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
 								</p>
 							</div>
 						) : null}

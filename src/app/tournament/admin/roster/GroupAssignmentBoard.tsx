@@ -5,13 +5,23 @@ import { useRouter } from "next/navigation";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import type { RosterTeam } from "@/lib/roster";
 
-function initialAssignments(teams: RosterTeam[]) {
-	return new Map(teams.flatMap((team) => (team.group && team.seed ? [[team.key, { group: team.group, seed: team.seed }] as const] : [])));
+function initialAssignments(teams: RosterTeam[], groupCount: number, plannedTeamCount: number) {
+	const groups = Array.from({ length: groupCount }, (_, index) => String.fromCharCode(65 + index));
+	const baseSize = Math.floor(plannedTeamCount / groupCount);
+	const remainder = plannedTeamCount % groupCount;
+	const groupSizes = new Map(groups.map((group, index) => [group, baseSize + (index < remainder ? 1 : 0)]));
+	return new Map(
+		teams.flatMap((team) =>
+			team.group && team.seed && groups.includes(team.group) && team.seed <= (groupSizes.get(team.group) ?? 0)
+				? [[team.key, { group: team.group, seed: team.seed }] as const]
+				: []
+		)
+	);
 }
 
 export function GroupAssignmentBoard({ teams, groupCount, plannedTeamCount }: { teams: RosterTeam[]; groupCount: number; plannedTeamCount: number }) {
 	const router = useRouter();
-	const [assignments, setAssignments] = useState(() => initialAssignments(teams));
+	const [assignments, setAssignments] = useState(() => initialAssignments(teams, groupCount, plannedTeamCount));
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
 	const [pending, startTransition] = useTransition();
@@ -49,7 +59,7 @@ export function GroupAssignmentBoard({ teams, groupCount, plannedTeamCount }: { 
 				setError(json?.message ?? "Gruppenzuteilung konnte nicht gespeichert werden.");
 				return;
 			}
-			setMessage(`${json?.assigned ?? assignments.size} Team(s) wurden den Gruppen zugeteilt.`);
+			setMessage(`${json?.assigned ?? assignments.size} Team(s) wurden im privaten Entwurf den Gruppen zugeteilt. Veröffentliche danach die Teams.`);
 			router.refresh();
 		});
 	}

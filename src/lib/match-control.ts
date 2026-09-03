@@ -1,22 +1,23 @@
-import { resolvePlayoffMatches, type ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
+import { computeGroupStandings, resolvePlayoffMatches, type ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { readTournamentState, type StoredTournamentMatch } from "@/lib/tournament-storage";
 import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState } from "@/lib/tournament-swiss";
-import { resolveUltimateBraveryPlayoffMatches } from "@/lib/ultimate-bravery-playoffs";
+import { computeUltimateBraveryGroupSeeds, resolveUltimateBraveryPlayoffMatches } from "@/lib/ultimate-bravery-playoffs";
 
 export type ControlMatch = {
 	id: string;
 	phase: "groups" | "playoffs";
+	bracket?: "Upper" | "Lower" | "Grand";
 	round: string;
 	time: string;
 	teamAName: string | null;
 	teamBName: string | null;
 	teamALabel: string;
 	teamBLabel: string;
-	status: StoredTournamentMatch["status"];
+	status: NonNullable<StoredTournamentMatch["status"]>;
 	scoreA?: number;
 	scoreB?: number;
 	gameDurationSeconds?: number;
@@ -26,6 +27,8 @@ export type ControlMatch = {
 	isCasted?: boolean;
 	winner?: string;
 	adminNote?: string;
+	sideSelectionTeamName?: string;
+	sideSelectionSeed?: number;
 	poolAssignment: WheelMatchAssignment | null;
 };
 
@@ -91,6 +94,21 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	if (settings.activeTournament.id === "ultimate-bravery") {
+		const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
+		if (settings.ultimateBravery.dayOneFormat === "groups") {
+			const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
+			const seeds = computeUltimateBraveryGroupSeeds(standings, ctx.groupMatches, settings.ultimateBravery.advanceTeamCount);
+			const groupMatches = ctx.groupMatches.map((match) => groupToControlMatch(match, state.matches[match.id], assignment(match.id)));
+			const playoffMatches = resolveUltimateBraveryPlayoffMatches({
+				format: settings.ultimateBravery.format,
+				teams: ctx.teams,
+				stored: state.matches,
+				seedNames: seeds,
+				playoffTeamCount: settings.ultimateBravery.advanceTeamCount,
+				seedSourceLabel: "Gruppenphasen-Seed",
+			}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: assignment(match.id) }));
+			return { teams: ctx.teams, stored: state.matches, matches: [...groupMatches, ...playoffMatches] };
+		}
 		if (settings.ultimateBravery.dayOneFormat !== "swiss") return { teams: ctx.teams, stored: state.matches, matches: [] };
 		const swiss = await getSwissStageState(settings.activeTournament.id);
 		const swissMatches: ControlMatch[] = swiss.rounds.flatMap((round) =>
@@ -117,7 +135,7 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 						isCasted: stored?.isCasted ?? false,
 						winner: stored?.winner,
 						adminNote: stored?.adminNote,
-						poolAssignment: null,
+						poolAssignment: assignment(pairing.id),
 					},
 				];
 			})
@@ -128,7 +146,8 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 			teams: ctx.teams,
 			requiredRounds: settings.ultimateBravery.swissRounds,
 			stored: state.matches,
-		}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: null }));
+			playoffTeamCount: settings.ultimateBravery.advanceTeamCount,
+		}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: assignment(match.id) }));
 		return { teams: ctx.teams, stored: state.matches, matches: [...swissMatches, ...playoffMatches] };
 	}
 	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);

@@ -57,12 +57,12 @@ export default async function MatchControlRoomPage({ params }: { params: Promise
 	]);
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) notFound();
-	const groupRound = match.phase === "groups" ? /^[ab]-r(\d+)-\d+$/.exec(match.id)?.[1] : null;
+	const groupRound = match.phase === "groups" ? /^[a-p]-r(\d+)-\d+$/.exec(match.id)?.[1] : null;
 	const parallelMatches = ctx.matches.filter(
 		(entry) =>
 			entry.id !== match.id &&
 			entry.phase === match.phase &&
-			(groupRound ? /^[ab]-r(\d+)-\d+$/.exec(entry.id)?.[1] === groupRound : entry.round === match.round) &&
+			(groupRound ? /^[a-p]-r(\d+)-\d+$/.exec(entry.id)?.[1] === groupRound : entry.round === match.round) &&
 			entry.teamAName &&
 			entry.teamBName
 	);

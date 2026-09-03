@@ -159,7 +159,7 @@ export function MatchControlRoomClient({
 				setMessage(json?.message ?? "Match konnte nicht vorbereitet werden.");
 				return;
 			}
-			if (action === "start") setStatus(ultimateBravery ? "Live" : "Scheduled");
+			if (action === "start") setStatus(ultimateBravery ? "Pending" : "Scheduled");
 			setMessage(
 				ultimateBravery ? (json?.message ?? "Rolls für beide Teams freigegeben.") : json?.drewPools ? "Match vorbereitet und Pools gezogen." : "Match ist vorbereitet."
 			);
@@ -461,6 +461,14 @@ export function MatchControlRoomClient({
 						</label>
 					</div>
 					<div className="mt-3 grid grid-cols-2 gap-2">
+						{match.sideSelectionTeamName ? (
+							<div className="col-span-2 rounded-xl border border-lime-200/24 bg-lime-200/10 px-3 py-2.5">
+								<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100/64">Seitenwahl · höherer Seed</div>
+								<div className="mt-1 text-sm font-black text-lime-50">
+									{match.sideSelectionTeamName} (Seed #{match.sideSelectionSeed}) entscheidet über Blue oder Red Side.
+								</div>
+							</div>
+						) : null}
 						<div className="grid gap-1.5">
 							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Status (automatisch)</span>
 							<div className="flex min-h-11 items-center rounded-xl border border-white/10 bg-black/24 px-3 text-sm font-black text-emerald-100/72">{status}</div>
@@ -488,17 +496,19 @@ export function MatchControlRoomClient({
 							</span>
 						</label>
 					</div>
-					<div className="mt-3">
-						<CoinTossButton
-							teamALabel={match.teamALabel}
-							teamBLabel={match.teamBLabel}
-							winner={coinWinner}
-							tossing={coinTossing}
-							disabled={isPending}
-							onToss={tossCoin}
-							compact
-						/>
-					</div>
+					{match.sideSelectionTeamName ? null : (
+						<div className="mt-3">
+							<CoinTossButton
+								teamALabel={match.teamALabel}
+								teamBLabel={match.teamBLabel}
+								winner={coinWinner}
+								tossing={coinTossing}
+								disabled={isPending}
+								onToss={tossCoin}
+								compact
+							/>
+						</div>
+					)}
 					<details className="mt-3 rounded-xl border border-white/8 bg-black/14 p-3">
 						<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Admin-Notiz und Hinweise</summary>
 						<textarea

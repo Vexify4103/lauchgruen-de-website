@@ -415,12 +415,38 @@ function testIdentity(index: number) {
 	};
 }
 
-function buildFullTestTeams(now: string): Record<string, TestStoredTeam> {
+function testTeamTemplates(teamCount: number) {
+	return Array.from({ length: teamCount }, (_, index) => {
+		const template = TEST_TEAMS[index];
+		return {
+			name: template?.name ?? `Test Team ${String(index + 1).padStart(2, "0")}`,
+			accent: template?.accent ?? TEST_TEAMS[index % TEST_TEAMS.length].accent,
+		};
+	});
+}
+
+function testGroupAssignment(teamIndex: number, teamCount: number, groupCount: number) {
+	const safeGroupCount = Math.max(1, Math.min(groupCount, teamCount, 16));
+	const baseSize = Math.floor(teamCount / safeGroupCount);
+	const remainder = teamCount % safeGroupCount;
+	let start = 0;
+	for (let groupIndex = 0; groupIndex < safeGroupCount; groupIndex += 1) {
+		const size = baseSize + (groupIndex < remainder ? 1 : 0);
+		if (teamIndex < start + size) {
+			return { group: String.fromCharCode(65 + groupIndex), seed: teamIndex - start + 1 };
+		}
+		start += size;
+	}
+	return { group: "A", seed: teamIndex + 1 };
+}
+
+function buildFullTestTeams(now: string, teamCount: number, playersPerTeam: number, groupCount: number): Record<string, TestStoredTeam> {
 	return Object.fromEntries(
-		TEST_TEAMS.map((team, teamIndex) => {
-			const players = ROLES.map((role, roleIndex) => ({
-				...testIdentity(teamIndex * ROLES.length + roleIndex),
-				role,
+		testTeamTemplates(teamCount).map((team, teamIndex) => {
+			const assignment = testGroupAssignment(teamIndex, teamCount, groupCount);
+			const players = Array.from({ length: playersPerTeam }, (_, roleIndex) => ({
+				...testIdentity(teamIndex * playersPerTeam + roleIndex),
+				role: ROLES[roleIndex % ROLES.length],
 				verificationStatus: "verified",
 			}));
 			const captain = players[0];
@@ -431,8 +457,8 @@ function buildFullTestTeams(now: string): Record<string, TestStoredTeam> {
 					players,
 					playedChampions: [],
 					meta: {
-						group: team.group,
-						seed: team.seed,
+						group: assignment.group,
+						seed: assignment.seed,
 						accent: team.accent,
 						captain: {
 							discordId: captain.discordId,
@@ -466,8 +492,8 @@ export async function isTestRosterModeActive(): Promise<boolean> {
 	return Boolean(await db.collection<TestRosterState>(TEST_STATE_COLLECTION).findOne({ _id: TEST_ROSTER_STATE_ID }, { projection: { _id: 1 } }));
 }
 
-/** Saves the real roster once, then replaces it with eight complete dummy teams. */
-export async function startTestRosterMode(): Promise<{
+/** Saves the real roster once, then replaces it with a complete configured dummy roster. */
+export async function startTestRosterMode(options: { teamCount: number; playersPerTeam: number; groupCount: number }): Promise<{
 	teamsInserted: number;
 	playersInserted: number;
 	originalTeamsSaved: number;
@@ -486,11 +512,15 @@ export async function startTestRosterMode(): Promise<{
 		{ upsert: true }
 	);
 	await clearOperationalData();
-	await botCollection.updateOne({ _id: "default" }, { $set: { teams: buildFullTestTeams(new Date().toISOString()) } }, { upsert: true });
+	await botCollection.updateOne(
+		{ _id: "default" },
+		{ $set: { teams: buildFullTestTeams(new Date().toISOString(), options.teamCount, options.playersPerTeam, options.groupCount) } },
+		{ upsert: true }
+	);
 
 	return {
-		teamsInserted: TEST_TEAMS.length,
-		playersInserted: TEST_TEAMS.length * ROLES.length,
+		teamsInserted: options.teamCount,
+		playersInserted: options.teamCount * options.playersPerTeam,
 		originalTeamsSaved: Object.keys(originalTeams).length,
 		alreadyActive: Boolean(existingState),
 	};

@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
-import type { WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
-import { BracketTree } from "@/components/BracketTree";
+import { BracketTree, type BracketMatch } from "@/components/BracketTree";
 
 const POLL_INTERVAL_MS = 15_000;
 
-export type LivePlayoffMatch = ResolvedPlayoffMatch & {
-	poolAssignment?: WheelMatchAssignment | null;
-};
+export type LivePlayoffMatch = BracketMatch;
 
 export function LivePlayoffs({ initialMatches }: { initialMatches: LivePlayoffMatch[] }) {
 	const [matches, setMatches] = useState(initialMatches);

@@ -366,6 +366,8 @@ async function syncMatchStatusFromDraft({
 	if (!nextStatus) {
 		await upsertMatch(matchId, {
 			id: matchId,
+			teamAName: match.teamAName ?? undefined,
+			teamBName: match.teamBName ?? undefined,
 			...championPatch,
 			updatedAt: new Date().toISOString(),
 		});
@@ -374,6 +376,8 @@ async function syncMatchStatusFromDraft({
 
 	await upsertMatch(matchId, {
 		id: matchId,
+		teamAName: match.teamAName ?? undefined,
+		teamBName: match.teamBName ?? undefined,
 		status: nextStatus,
 		...championPatch,
 		updatedAt: new Date().toISOString(),

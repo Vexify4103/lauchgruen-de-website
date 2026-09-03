@@ -2,27 +2,8 @@
 
 import { TournamentLink as Link } from "@/app/tournament/TournamentLink";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { resolveBracketFocusMatchId } from "@/lib/tournament-stage-focus";
-
-/** Per-section grid positions. Each sub-grid has its own row/col coordinates. */
-const UB_POSITIONS: Record<string, CSSProperties> = {
-	"ub-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
-	"ub-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
-	"ub-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
-	"ub-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
-	"ub-f": { gridRow: "2 / span 2", gridColumn: 3 },
-};
-
-const LB_POSITIONS: Record<string, CSSProperties> = {
-	"lb-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
-	"lb-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
-	"lb-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
-	"lb-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
-	"lb-sf": { gridRow: "2 / span 2", gridColumn: 3 },
-	"lb-f": { gridRow: "1 / span 4", gridColumn: 4 },
-};
 
 const GF_POSITIONS: Record<string, CSSProperties> = {
 	gf: { gridRow: "1 / span 1", gridColumn: 1 },
@@ -38,32 +19,115 @@ type Connection = {
 };
 
 type ConnectorPath = { d: string; kind: ConnectorKind };
-type BracketMatch = ResolvedPlayoffMatch & {
+export type BracketMatch = {
+	id: string;
+	bracket?: "Upper" | "Lower" | "Grand";
+	round: string;
+	teamAName: string | null;
+	teamBName: string | null;
+	teamALabel: string;
+	teamBLabel: string;
+	status: "Locked" | "Scheduled" | "Pending" | "Live" | "Finished";
+	scoreA?: number;
+	scoreB?: number;
+	winner?: string | null;
 	poolAssignment?: WheelMatchAssignment | null;
 };
 
-const CONNECTIONS: Connection[] = [
-	{ from: "ub-r1-1", to: "ub-r2-1", port: "middle", kind: "advance" },
-	{ from: "ub-r1-2", to: "ub-r2-2", port: "middle", kind: "advance" },
-	{ from: "ub-r2-1", to: "ub-f", port: "top", kind: "advance" },
-	{ from: "ub-r2-2", to: "ub-f", port: "bottom", kind: "advance" },
+function buildBracketLayout(ids: Set<string>) {
+	const hasFourOpeningMatches = ids.has("ub-r1-3");
+	const hasUpperOpeningMatches = ids.has("ub-r1-1");
+	const upperPositions: Record<string, CSSProperties> = hasFourOpeningMatches
+		? {
+				"ub-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
+				"ub-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
+				"ub-r1-3": { gridRow: "5 / span 2", gridColumn: 1 },
+				"ub-r1-4": { gridRow: "7 / span 2", gridColumn: 1 },
+				"ub-r2-1": { gridRow: "2 / span 2", gridColumn: 2 },
+				"ub-r2-2": { gridRow: "6 / span 2", gridColumn: 2 },
+				"ub-f": { gridRow: "4 / span 2", gridColumn: 3 },
+			}
+		: hasUpperOpeningMatches
+			? {
+					"ub-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
+					"ub-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
+					"ub-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
+					"ub-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
+					"ub-f": { gridRow: "2 / span 2", gridColumn: 3 },
+				}
+			: {
+					"ub-r2-1": { gridRow: "1 / span 2", gridColumn: 1 },
+					"ub-r2-2": { gridRow: "3 / span 2", gridColumn: 1 },
+					"ub-f": { gridRow: "2 / span 2", gridColumn: 2 },
+				};
 
-	{ from: "lb-r1-1", to: "lb-r2-1", port: "middle", kind: "advance" },
-	{ from: "lb-r1-2", to: "lb-r2-2", port: "middle", kind: "advance" },
-	{ from: "lb-r2-1", to: "lb-sf", port: "top", kind: "advance" },
-	{ from: "lb-r2-2", to: "lb-sf", port: "bottom", kind: "advance" },
+	const hasLowerRoundTwo = ids.has("lb-r2-1");
+	const hasLowerSemi = ids.has("lb-r3") || ids.has("lb-sf");
+	const lowerSemiId = ids.has("lb-r3") ? "lb-r3" : "lb-sf";
+	const lowerPositions: Record<string, CSSProperties> = hasLowerRoundTwo
+		? {
+				"lb-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
+				"lb-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
+				"lb-r2-1": { gridRow: "1 / span 2", gridColumn: 2 },
+				"lb-r2-2": { gridRow: "3 / span 2", gridColumn: 2 },
+				[lowerSemiId]: { gridRow: "2 / span 2", gridColumn: 3 },
+				"lb-f": { gridRow: "1 / span 4", gridColumn: 4 },
+			}
+		: hasLowerSemi
+			? {
+					"lb-r1-1": { gridRow: "1 / span 2", gridColumn: 1 },
+					"lb-r1-2": { gridRow: "3 / span 2", gridColumn: 1 },
+					[lowerSemiId]: { gridRow: "2 / span 2", gridColumn: 2 },
+					"lb-f": { gridRow: "1 / span 4", gridColumn: 3 },
+				}
+			: {
+					"lb-r1": { gridRow: "1 / span 2", gridColumn: 1 },
+					"lb-f": { gridRow: "1 / span 2", gridColumn: 2 },
+				};
 
-	{ from: "lb-sf", to: "lb-f", port: "middle", kind: "advance" },
+	const connections: Connection[] = [];
+	const connect = (from: string, to: string, port: Connection["port"] = "middle") => {
+		if (ids.has(from) && ids.has(to)) connections.push({ from, to, port, kind: "advance" });
+	};
+	if (hasFourOpeningMatches) {
+		connect("ub-r1-1", "ub-r2-1", "top");
+		connect("ub-r1-2", "ub-r2-1", "bottom");
+		connect("ub-r1-3", "ub-r2-2", "top");
+		connect("ub-r1-4", "ub-r2-2", "bottom");
+	} else {
+		connect("ub-r1-1", "ub-r2-1");
+		connect("ub-r1-2", "ub-r2-2");
+	}
+	connect("ub-r2-1", ids.has("ub-f") ? "ub-f" : "gf", "top");
+	connect("ub-r2-2", ids.has("ub-f") ? "ub-f" : "gf", "bottom");
+	connect("lb-r1-1", hasLowerRoundTwo ? "lb-r2-1" : lowerSemiId, "top");
+	connect("lb-r1-2", hasLowerRoundTwo ? "lb-r2-2" : lowerSemiId, "bottom");
+	connect("lb-r2-1", lowerSemiId, "top");
+	connect("lb-r2-2", lowerSemiId, "bottom");
+	connect("lb-r1", "lb-f");
+	connect(lowerSemiId, "lb-f");
+	connect("ub-f", "gf", "top");
+	connect("lb-f", "gf", "bottom");
 
-	{ from: "ub-f", to: "gf", port: "top", kind: "advance" },
-	{ from: "lb-f", to: "gf", port: "bottom", kind: "advance" },
-
-];
-
-const UB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Upper Final"];
-const LB_COLUMN_LABELS = ["Runde 1", "Runde 2", "Lower-Halbfinale", "Lower Final"];
+	return {
+		upperPositions,
+		upperColumns: hasUpperOpeningMatches ? 3 : 2,
+		upperRows: hasFourOpeningMatches ? 8 : 4,
+		upperLabels: hasUpperOpeningMatches ? ["Runde 1", "Runde 2", "Upper Final"] : ["Upper-Halbfinale", "Upper Final"],
+		lowerPositions,
+		lowerColumns: hasLowerRoundTwo ? 4 : hasLowerSemi ? 3 : 2,
+		lowerLabels: hasLowerRoundTwo
+			? ["Runde 1", "Runde 2", "Lower-Halbfinale", "Lower Final"]
+			: hasLowerSemi
+				? ["Runde 1", "Lower-Halbfinale", "Lower Final"]
+				: ["Lower Runde 1", "Lower Final"],
+		connections,
+	};
+}
 
 export function BracketTree({ matches }: { matches: BracketMatch[] }) {
+	const matchIds = matches.map((match) => match.id).join("|");
+	const layout = buildBracketLayout(new Set(matches.map((match) => match.id)));
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -78,7 +142,8 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 		setSize((prev) => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize));
 
 		const next: ConnectorPath[] = [];
-		for (const conn of CONNECTIONS) {
+		const connections = buildBracketLayout(new Set(matchIds.split("|").filter(Boolean))).connections;
+		for (const conn of connections) {
 			const from = cardRefs.current.get(conn.from);
 			const to = cardRefs.current.get(conn.to);
 			if (!from || !to) continue;
@@ -108,7 +173,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 			next.push({ d, kind: conn.kind });
 		}
 		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.kind === next[index]?.kind) ? prev : next));
-	}, []);
+	}, [matchIds]);
 
 	useEffect(() => {
 		compute();
@@ -145,18 +210,10 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 
 	return (
 		<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
-			<div ref={containerRef} className="relative grid min-w-[63rem] gap-x-6" style={{ gridTemplateColumns: "minmax(42rem, 1fr) 14rem" }}>
+			<div ref={containerRef} className="relative grid min-w-[52rem] gap-x-6" style={{ gridTemplateColumns: "minmax(34rem, 1fr) 14rem" }}>
 				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
 					{paths.map((p, i) => (
-						<path
-							key={i}
-							d={p.d}
-							fill="none"
-							strokeWidth={2}
-							stroke="rgb(190 242 100 / 0.55)"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						/>
+						<path key={i} d={p.d} fill="none" strokeWidth={2} stroke="rgb(190 242 100 / 0.55)" strokeLinecap="round" strokeLinejoin="round" />
 					))}
 				</svg>
 
@@ -165,26 +222,28 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 					<BracketSection
 						label="Upper-Bracket"
 						accent="lime"
-						columnLabels={UB_COLUMN_LABELS}
-						columns={3}
-						rows={4}
-						positions={UB_POSITIONS}
+						columnLabels={layout.upperLabels}
+						columns={layout.upperColumns}
+						rows={layout.upperRows}
+						positions={layout.upperPositions}
 						matches={matches}
 						registerCard={registerCard}
 						lookup={lookup}
 					/>
 
-					<BracketSection
-						label="Lower-Bracket"
-						accent="sky"
-						columnLabels={LB_COLUMN_LABELS}
-						columns={4}
-						rows={4}
-						positions={LB_POSITIONS}
-						matches={matches}
-						registerCard={registerCard}
-						lookup={lookup}
-					/>
+					{matches.some((match) => match.bracket === "Lower") ? (
+						<BracketSection
+							label="Lower-Bracket"
+							accent="sky"
+							columnLabels={layout.lowerLabels}
+							columns={layout.lowerColumns}
+							rows={4}
+							positions={layout.lowerPositions}
+							matches={matches}
+							registerCard={registerCard}
+							lookup={lookup}
+						/>
+					) : null}
 				</div>
 
 				{/* Right column: Grand Final stack */}
@@ -410,7 +469,7 @@ function TeamLine({
 	);
 }
 
-function shortRoundLabel(round: ResolvedPlayoffMatch["round"]): string {
+function shortRoundLabel(round: string): string {
 	switch (round) {
 		case "Grand Final":
 			return "Grand Final";
@@ -428,10 +487,12 @@ function shortRoundLabel(round: ResolvedPlayoffMatch["round"]): string {
 			return "Lower SF";
 		case "Lower Final":
 			return "Lower Final";
+		default:
+			return round;
 	}
 }
 
-function statusToneClass(status: ResolvedPlayoffMatch["status"]): string {
+function statusToneClass(status: BracketMatch["status"]): string {
 	switch (status) {
 		case "Scheduled":
 			return "border-white/10 bg-black/24 text-emerald-100/80";

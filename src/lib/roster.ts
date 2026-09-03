@@ -11,6 +11,7 @@ import type { DiscordDirectMessagePayload } from "@/lib/discord";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
 export type PlayerRole = (typeof VALID_ROLES)[number];
@@ -59,8 +60,10 @@ export type BotStateDoc = {
 };
 
 type RosterDraftTeam = {
-	players: BotStoredPlayer[];
-	captain?: BotTeamMeta["captain"];
+	players?: BotStoredPlayer[];
+	captain?: BotTeamMeta["captain"] | null;
+	group?: string | null;
+	seed?: number | null;
 };
 
 type RosterDraftDoc = {
@@ -196,17 +199,26 @@ function applyDraftToTeams(publishedTeams: Record<string, BotTeam>, draft: Roste
 		Object.entries(publishedTeams).map(([teamKey, team]) => {
 			const draftTeam = draft.teams[teamKey];
 			if (!draftTeam) return [teamKey, team];
-			const { captain: _publishedCaptain, ...publishedMeta } = team.meta ?? {};
-			void _publishedCaptain;
+			const nextMeta: BotTeamMeta = { ...(team.meta ?? {}) };
+			if ("captain" in draftTeam) {
+				if (draftTeam.captain) nextMeta.captain = draftTeam.captain;
+				else delete nextMeta.captain;
+			}
+			if ("group" in draftTeam || "seed" in draftTeam) {
+				if (draftTeam.group && draftTeam.seed) {
+					nextMeta.group = draftTeam.group;
+					nextMeta.seed = draftTeam.seed;
+				} else {
+					delete nextMeta.group;
+					delete nextMeta.seed;
+				}
+			}
 			return [
 				teamKey,
 				{
 					...team,
-					players: draftTeam.players,
-					meta: {
-						...publishedMeta,
-						...(draftTeam.captain ? { captain: draftTeam.captain } : {}),
-					},
+					players: draftTeam.players ?? team.players,
+					meta: nextMeta,
 				},
 			];
 		})
@@ -220,6 +232,8 @@ function rosterSignature(teams: Record<string, BotTeam>): string {
 			.map(([teamKey, team]) => ({
 				teamKey,
 				captainDiscordId: team.meta?.captain?.discordId ?? null,
+				group: team.meta?.group ?? null,
+				seed: team.meta?.seed ?? null,
 				players: (team.players ?? [])
 					.map((player) => ({ discordId: player.discordId ?? "", riotId: player.riotId, role: player.role ?? null }))
 					.sort((left, right) => left.discordId.localeCompare(right.discordId)),
@@ -316,7 +330,11 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	warnings: string[];
 }> {
 	const db = await getDb();
-	const [doc, testModeActive] = await Promise.all([db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }), isTestRosterModeActive()]);
+	const [doc, testModeActive, existingDraft] = await Promise.all([
+		db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
+		isTestRosterModeActive(),
+		db.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION).findOne({ _id: "default" }),
+	]);
 	const teamsObj = doc?.teams ?? {};
 	const errors: string[] = [];
 	const seen = new Map<string, string>(); // discordId → teamKey
@@ -442,8 +460,9 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 			for (const teamKey of Object.keys(payload.teamPlayers)) {
 				const captain = setOps[`teams.${teamKey}.meta.captain`] as BotTeamMeta["captain"] | undefined;
 				draftTeams[teamKey] = {
+					...(existingDraft?.teams[teamKey] ?? {}),
 					players: (setOps[`teams.${teamKey}.players`] as BotStoredPlayer[] | undefined) ?? [],
-					...(captain ? { captain } : {}),
+					...(payload.captains ? { captain: captain ?? null } : {}),
 				};
 			}
 			await db
@@ -488,16 +507,43 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 	discordJobId?: string;
 }> {
 	const db = await getDb();
-	const [botDoc, draftDoc, testModeActive, applications] = await Promise.all([
+	const [botDoc, draftDoc, testModeActive, applications, settings] = await Promise.all([
 		db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }),
 		db.collection<RosterDraftDoc>(ROSTER_DRAFT_COLLECTION).findOne({ _id: "default" }),
 		isTestRosterModeActive(),
 		listApplications(),
+		getTournamentSettings(),
 	]);
 	if (testModeActive) throw new Error("Das Test-Roster kann nicht veröffentlicht werden.");
 
 	const previousTeams = botDoc?.teams ?? {};
 	const nextTeams = applyDraftToTeams(previousTeams, draftDoc);
+	if (!options.repairDiscordRoles) {
+		const config = settings.ultimateBravery;
+		const teams = Object.values(nextTeams);
+		if (teams.length !== config.teamCount) {
+			throw new Error(`Zum Veröffentlichen werden genau ${config.teamCount} Teams benötigt; aktuell sind ${teams.length} angelegt.`);
+		}
+		const incompleteTeams = teams.filter((team) => (team.players?.length ?? 0) !== config.playersPerTeam);
+		if (incompleteTeams.length > 0) {
+			throw new Error(
+				`Jedes Team benötigt genau ${config.playersPerTeam} Spieler. Unvollständig: ${incompleteTeams.map((team) => `${team.name} (${team.players?.length ?? 0})`).join(", ")}.`
+			);
+		}
+		if (config.dayOneFormat === "groups") {
+			const groups = Array.from({ length: config.groupCount }, (_, index) => String.fromCharCode(65 + index));
+			const seenSlots = new Set<string>();
+			for (const team of teams) {
+				const group = team.meta?.group;
+				const seed = team.meta?.seed;
+				const slot = group && seed ? `${group}-${seed}` : null;
+				if (!group || !groups.includes(group) || !Number.isInteger(seed) || !slot || seenSlots.has(slot)) {
+					throw new Error("Vor der Veröffentlichung müssen alle Teams im Gruppenplan genau einem freien Gruppen-Seed zugeordnet sein.");
+				}
+				seenSlots.add(slot);
+			}
+		}
+	}
 	const changed = rosterSignature(previousTeams) !== rosterSignature(nextTeams);
 	const firstPublication = !options.repairDiscordRoles && !botDoc?.rosterPublishedAt;
 	const shouldPublish = changed || firstPublication;
@@ -586,6 +632,13 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 			setOps[`teams.${teamKey}.players`] = team.players ?? [];
 			if (team.meta?.captain) setOps[`teams.${teamKey}.meta.captain`] = team.meta.captain;
 			else unsetOps[`teams.${teamKey}.meta.captain`] = "";
+			if (team.meta?.group && team.meta.seed) {
+				setOps[`teams.${teamKey}.meta.group`] = team.meta.group;
+				setOps[`teams.${teamKey}.meta.seed`] = team.meta.seed;
+			} else {
+				unsetOps[`teams.${teamKey}.meta.group`] = "";
+				unsetOps[`teams.${teamKey}.meta.seed`] = "";
+			}
 		}
 		await db
 			.collection<BotStateDoc>("bot_state")

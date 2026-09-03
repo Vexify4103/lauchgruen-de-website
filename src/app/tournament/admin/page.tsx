@@ -35,14 +35,14 @@ export default async function TournamentAdminPage() {
 
 	let adminMatches: AdminMatch[] = [];
 	let adminVersions: Record<string, number> = isOwner ? await getAdminVersions(["settings"]) : {};
-	let tiebreakerGroups: Array<"A" | "B"> = [];
+	let tiebreakerGroups: string[] = [];
 	if (state && ctx) {
 		const matchesWithPools = new Set([
 			...(wheel?.history.map((assignment) => assignment.matchId) ?? []),
 			...(wheel?.currentAssignment ? [wheel.currentAssignment.matchId] : []),
 		]);
 		const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
-		tiebreakerGroups = (["A", "B"] as const).filter((group) => standings[group].some((standing) => standing.tiebreakerRequired));
+		tiebreakerGroups = Object.keys(standings).filter((group) => standings[group].some((standing) => standing.tiebreakerRequired));
 		const resolved = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 		adminMatches = [
 			...ctx.groupMatches.map<AdminMatch>((m) => ({

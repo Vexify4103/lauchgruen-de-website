@@ -20,7 +20,7 @@ export type TeamStanding = {
 	tiebreakerRequired: boolean;
 };
 
-export type GroupStandings = {
+export type GroupStandings = Record<string, TeamStanding[]> & {
 	A: TeamStanding[];
 	B: TeamStanding[];
 };
@@ -64,8 +64,9 @@ type StoredMap = Record<string, StoredTournamentMatch>;
 
 export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[], groupMatches: GroupMatch[]): GroupStandings {
 	const byGroup: GroupStandings = { A: [], B: [] };
+	const groups = [...new Set([...teams.map((team) => team.group), ...groupMatches.map((match) => match.group)])].sort((a, b) => a.localeCompare(b));
 
-	for (const group of ["A", "B"] as const) {
+	for (const group of groups) {
 		const groupTeams = teams.filter((team) => team.group === group);
 		const standings: TeamStanding[] = groupTeams.map((team) => ({
 			team,
@@ -157,7 +158,8 @@ export function computeGroupStandings(state: StoredMap, teams: TournamentTeam[],
 			return a.team.name.localeCompare(b.team.name);
 		});
 
-		const groupComplete = standings.every((standing) => standing.played === Math.max((groupTeams.length - 1) * 2, 0));
+		const expectedMatches = new Map(groupTeams.map((team) => [team.name, matches.filter((match) => match.teamA === team.name || match.teamB === team.name).length]));
+		const groupComplete = standings.every((standing) => standing.played === (expectedMatches.get(standing.team.name) ?? 0));
 
 		for (const standing of standings) {
 			const tiedTeams = standings.filter(
@@ -270,9 +272,10 @@ export function resolvePlayoffMatches(state: StoredMap, teams: TournamentTeam[],
 		if (resolved.has(id)) return resolved.get(id);
 		const base = playoffMatches.find((m) => m.id === id);
 		if (!base) return undefined;
-		const stored = state[id];
 		const teamAName = resolveSlot(base.teamA);
 		const teamBName = resolveSlot(base.teamB);
+		const candidate = state[id];
+		const stored = candidate?.teamAName && candidate.teamBName && (candidate.teamAName !== teamAName || candidate.teamBName !== teamBName) ? undefined : candidate;
 		const teamsResolved = Boolean(teamAName && teamBName);
 
 		let winner: string | null = null;

@@ -13,7 +13,7 @@ export function groupRollingTime(round: number) {
 }
 
 export function groupRollingTimeForMatch(matchId: string) {
-	const parts = /^[ab]-r(\d+)-(\d+)$/.exec(matchId);
+	const parts = /^[a-p]-r(\d+)-(\d+)$/.exec(matchId);
 	if (!parts) return "Rollierender Zeitplan";
 	return groupRollingTime(Number(parts[1]));
 }

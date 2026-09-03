@@ -60,8 +60,14 @@ export async function PATCH(request: Request) {
 		if (config.groupCount > config.teamCount || config.advanceTeamCount > config.teamCount) {
 			return NextResponse.json({ message: "Gruppen und Playoff-Teams dürfen die Gesamtzahl der Teams nicht überschreiten." }, { status: 400 });
 		}
-		if (config.format === "double-elimination-light" && (config.teamCount !== 8 || config.advanceTeamCount !== 8)) {
-			return NextResponse.json({ message: "Double Elimination Light ist für genau 8 Teams ausgelegt, die alle Tag 2 erreichen." }, { status: 400 });
+		if (config.format === "double-elimination-light" && (config.advanceTeamCount !== config.teamCount || ![6, 8].includes(config.advanceTeamCount))) {
+			return NextResponse.json({ message: "Double Elimination Light unterstützt 6 oder 8 Teams, wenn alle Teams Tag 2 erreichen." }, { status: 400 });
+		}
+		if (config.format === "double-elimination" && ![4, 8].includes(config.advanceTeamCount)) {
+			return NextResponse.json(
+				{ message: "Normales Double Elimination unterstützt aktuell 4 oder 8 Playoff-Teams. Für 6 Teams bitte Double Elimination Light wählen." },
+				{ status: 400 }
+			);
 		}
 	}
 

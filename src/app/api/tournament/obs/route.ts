@@ -11,6 +11,8 @@ import { computeGroupStandings, resolvePlayoffMatches } from "@/lib/bracket-reso
 import { readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { getMatchControlContext } from "@/lib/match-control";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +21,7 @@ export type ObsTeamResponse = {
 	team: {
 		id: string;
 		name: string;
-		group: "A" | "B";
+		group: string;
 		accent: string;
 		seed: number;
 	};
@@ -63,7 +65,8 @@ export async function GET(request: Request) {
 		return NextResponse.json({ message: `Unbekanntes Team: ${teamId}` }, { status: 404 });
 	}
 
-	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
+	const [state, wheel, settings] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState(), getTournamentSettings()]);
+	const control = settings.activeTournament.id === "ultimate-bravery" ? await getMatchControlContext() : null;
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
 	const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
@@ -98,7 +101,7 @@ export async function GET(request: Request) {
 		});
 	}
 
-	const resolvedPlayoff = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
+	const resolvedPlayoff = control ? control.matches.filter((match) => match.phase === "playoffs") : resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	for (const r of resolvedPlayoff) {
 		if (r.teamAName !== team.name && r.teamBName !== team.name) continue;
 		allRelevant.push({
@@ -108,7 +111,7 @@ export async function GET(request: Request) {
 				teamA: r.teamAName,
 				teamB: r.teamBName,
 				round: r.round,
-				bracket: r.bracket,
+				bracket: r.bracket ?? "Upper",
 				time: r.time,
 				defaultStatus: r.status,
 			},
@@ -153,8 +156,9 @@ export async function GET(request: Request) {
 	let playoffSlot: string | null = null;
 	if (standing) {
 		const rank = standing.rank;
-		const allPlayed = standings[team.group].every((s) => s.played === (groupSize - 1) * 2);
-		if (allPlayed && !standing.tiebreakerRequired && rank <= 4) {
+		const allPlayed = standings[team.group].every((s) => s.played === ctx.groupMatches.filter((match) => match.teamA === s.team.name || match.teamB === s.team.name).length);
+		const advancing = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.advanceTeamCount : 4;
+		if (allPlayed && !standing.tiebreakerRequired && rank <= advancing) {
 			// Map group rank → overall seed using the same logic as the resolver
 			playoffSlot = `Gruppe ${team.group} #${rank}`;
 		}

@@ -34,7 +34,7 @@ async function buildInitial(teamId: string, ctx: Awaited<ReturnType<typeof getTo
 	const resolved = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 
 	const groupSize = standings[team.group].length;
-	const allPlayed = standings[team.group].every((s) => s.played === (groupSize - 1) * 2);
+	const allPlayed = standings[team.group].every((s) => s.played === ctx.groupMatches.filter((match) => match.teamA === s.team.name || match.teamB === s.team.name).length);
 	let playoffSlot: string | null = null;
 	if (standing && allPlayed && !standing.tiebreakerRequired && standing.rank <= 4) {
 		playoffSlot = `Gruppe ${team.group} #${standing.rank}`;

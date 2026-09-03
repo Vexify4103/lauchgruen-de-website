@@ -111,6 +111,8 @@ export type TwitchLinkState = {
 
 export type StoredTournamentMatch = {
 	id: string;
+	teamAName?: string;
+	teamBName?: string;
 	scoreA?: number;
 	scoreB?: number;
 	gameDurationSeconds?: number;
@@ -170,7 +172,10 @@ async function ensureIndexes() {
 }
 
 function seededMatches(groupMatches: GroupMatch[]): Record<string, StoredTournamentMatch> {
-	return Object.fromEntries([...groupMatches, ...playoffMatches].map((match) => [match.id, { id: match.id, status: match.status }]));
+	return Object.fromEntries([
+		...groupMatches.map((match) => [match.id, { id: match.id, status: match.status, teamAName: match.teamA, teamBName: match.teamB }] as const),
+		...playoffMatches.map((match) => [match.id, { id: match.id, status: match.status }] as const),
+	]);
 }
 
 type AppDoc = TournamentApplication & { _id: string };
@@ -262,6 +267,10 @@ export async function readTournamentState(groupMatches: GroupMatch[]): Promise<T
 	const matchesMap = seededMatches(groupMatches);
 	for (const raw of matches) {
 		const doc = stripMongoId(raw) as StoredTournamentMatch;
+		const seeded = matchesMap[doc.id];
+		if (seeded?.teamAName && seeded.teamBName && doc.teamAName && doc.teamBName && (doc.teamAName !== seeded.teamAName || doc.teamBName !== seeded.teamBName)) {
+			continue;
+		}
 		matchesMap[doc.id] = { ...matchesMap[doc.id], ...doc };
 	}
 

@@ -38,8 +38,8 @@ function landingRotationForPool(pool: string, previousRotation: number) {
 }
 
 function compareGroupMatchOrder(a: AdminMatch, b: AdminMatch) {
-	const aParts = /^([ab])-r(\d+)-(\d+)$/.exec(a.id);
-	const bParts = /^([ab])-r(\d+)-(\d+)$/.exec(b.id);
+	const aParts = /^([a-p])-r(\d+)-(\d+)$/.exec(a.id);
+	const bParts = /^([a-p])-r(\d+)-(\d+)$/.exec(b.id);
 	if (!aParts || !bParts) return a.id.localeCompare(b.id);
 
 	const roundDifference = Number(aParts[2]) - Number(bParts[2]);

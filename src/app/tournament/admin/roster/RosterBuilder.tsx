@@ -977,8 +977,8 @@ export function RosterBuilder({
 				<div className="rounded-[1.6rem] border border-amber-200/28 bg-gradient-to-r from-amber-200/12 via-lime-200/[0.08] to-cyan-200/[0.06] px-5 py-4 shadow-xl shadow-amber-300/10 xl:col-span-2">
 					<div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Temporärer Testmodus aktiv</div>
 					<p className="mt-1 text-sm font-bold leading-6 text-amber-50/86">
-						Du arbeitest gerade mit acht vollständigen Dummy-Teams. Roster-Saves verändern nur die Testdaten und lösen keine Discord-Synchronisation aus. Mit „Testmodus
-						beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
+						Du arbeitest gerade mit {plannedTeamCount} vollständigen Dummy-Teams passend zu den Turniereinstellungen. Roster-Saves verändern nur die Testdaten und lösen
+						keine Discord-Synchronisation aus. Mit „Testmodus beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
 					</p>
 				</div>
 			) : null}
@@ -1231,7 +1231,7 @@ export function RosterBuilder({
 								type="button"
 								onClick={() => setTestDataAction("seed")}
 								disabled={seeding || autoRunning || snapshot.testModeActive}
-								title="Echten Roster sichern und temporär durch 8 vollständige Dummy-Teams ersetzen"
+								title={`Echten Roster sichern und temporär durch ${plannedTeamCount} vollständige Dummy-Teams ersetzen`}
 								className="rounded-xl border border-white/12 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-white/24 hover:text-emerald-50 disabled:opacity-45"
 							>
 								{seeding ? "Wird vorbereitet…" : snapshot.testModeActive ? "Testmodus aktiv" : "+ Testdaten"}

@@ -12,6 +12,7 @@ import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLink
 import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { CopyOverlayButton } from "./CopyOverlayButton";
+import { getMatchControlContext } from "@/lib/match-control";
 
 function CrownIcon() {
 	return (
@@ -40,27 +41,37 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 	const ctx = await getTournamentContext();
 	const { teams } = ctx;
 	const [wheel, state] = await Promise.all([getTournamentWheelState(), readTournamentState(ctx.groupMatches)]);
+	const control = isAzTournament ? null : await getMatchControlContext();
 	const currentAssignment = wheel.currentAssignment;
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
-	const allMatches = [
-		...ctx.groupMatches.map((match) => ({
-			id: match.id,
-			teamA: match.teamA,
-			teamB: match.teamB,
-			round: match.round,
-			status: state.matches[match.id]?.status ?? match.status,
-			poolAssignment: poolFor(match.id),
-		})),
-		...resolvePlayoffMatches(state.matches, teams, ctx.groupMatches).map((match) => ({
-			id: match.id,
-			teamA: match.teamALabel,
-			teamB: match.teamBLabel,
-			round: match.round,
-			status: state.matches[match.id]?.status ?? match.status,
-			poolAssignment: poolFor(match.id),
-		})),
-	];
+	const allMatches = control
+		? control.matches.map((match) => ({
+				id: match.id,
+				teamA: match.teamALabel,
+				teamB: match.teamBLabel,
+				round: match.round,
+				status: match.status,
+				poolAssignment: match.poolAssignment,
+			}))
+		: [
+				...ctx.groupMatches.map((match) => ({
+					id: match.id,
+					teamA: match.teamA,
+					teamB: match.teamB,
+					round: match.round,
+					status: state.matches[match.id]?.status ?? match.status,
+					poolAssignment: poolFor(match.id),
+				})),
+				...resolvePlayoffMatches(state.matches, teams, ctx.groupMatches).map((match) => ({
+					id: match.id,
+					teamA: match.teamALabel,
+					teamB: match.teamBLabel,
+					round: match.round,
+					status: state.matches[match.id]?.status ?? match.status,
+					poolAssignment: poolFor(match.id),
+				})),
+			];
 	const ownerTeam = previewEnabled ? (teams.find((team) => team.players.some((player) => player.discordId === session?.user?.discordId)) ?? null) : null;
 	const previewMatch =
 		previewEnabled && ownerTeam

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveUltimateBraveryActionTarget } from "../src/lib/ultimate-bravery-access.ts";
 import { getUltimateBraveryDraftStatus } from "../src/lib/ultimate-bravery-state.ts";
-import { computeUltimateBraverySwissSeeds, resolveUltimateBraveryPlayoffMatches } from "../src/lib/ultimate-bravery-playoffs.ts";
+import { computeUltimateBraveryGroupSeeds, computeUltimateBraverySwissSeeds, resolveUltimateBraveryPlayoffMatches } from "../src/lib/ultimate-bravery-playoffs.ts";
 
 function players(count = 10) {
 	return Array.from({ length: count }, (_, index) => ({
@@ -138,7 +138,10 @@ test("turns a completed eight-team Swiss stage into #1-vs-#8 seeded playoffs", (
 	);
 	assert.equal(matches[0].status, "Scheduled");
 	assert.equal(matches[4].status, "Locked");
-	assert.equal(matches.some((match) => match.id === "gf-reset"), false);
+	assert.equal(
+		matches.some((match) => match.id === "gf-reset"),
+		false
+	);
 	assert.equal(matches.filter((match) => match.bracket === "Grand").length, 1);
 });
 
@@ -166,7 +169,10 @@ test("builds double-elimination light with top-seed byes and bottom seeds in low
 	assert.equal(byId.get("lb-r1-2")?.teamBName, seeds[8]);
 	assert.equal(byId.get("ub-r2-1")?.status, "Locked");
 	assert.equal(byId.get("lb-r1-1")?.status, "Locked");
-	assert.equal(matches.some((match) => match.id === "gf-reset"), false);
+	assert.equal(
+		matches.some((match) => match.id === "gf-reset"),
+		false
+	);
 	assert.equal(matches.filter((match) => match.bracket === "Grand").length, 1);
 });
 
@@ -177,4 +183,107 @@ test("keeps playoff seeds locked until every configured Swiss result exists", ()
 		Object.values(seeds).every((value) => value === null),
 		true
 	);
+});
+
+test("builds the six-team light bracket with seeds five and six entering lower", () => {
+	const teams = Array.from({ length: 6 }, (_, index) => ({ id: String(index + 1), name: `Team ${index + 1}` }));
+	const seedNames = Object.fromEntries(teams.map((team, index) => [index + 1, team.name]));
+	const matches = resolveUltimateBraveryPlayoffMatches({
+		format: "double-elimination-light",
+		teams,
+		stored: {},
+		seedNames,
+		playoffTeamCount: 6,
+		seedSourceLabel: "Gruppenphasen-Seed",
+	});
+	const byId = new Map(matches.map((match) => [match.id, match]));
+
+	assert.deepEqual(
+		matches.slice(0, 2).map((match) => [match.teamAName, match.teamBName]),
+		[
+			["Team 1", "Team 4"],
+			["Team 2", "Team 3"],
+		]
+	);
+	assert.equal(byId.get("lb-r1-1")?.teamBName, "Team 5");
+	assert.equal(byId.get("lb-r1-2")?.teamBName, "Team 6");
+	assert.equal(byId.get("ub-r2-1")?.sideSelectionTeamName, "Team 1");
+	assert.equal(byId.get("ub-r2-1")?.sideSelectionSeed, 1);
+	assert.equal(
+		matches.some((match) => match.id === "gf-reset"),
+		false
+	);
+	assert.equal(matches.filter((match) => match.bracket === "Grand").length, 1);
+});
+
+test("turns a completed one-group table into six playoff seeds", () => {
+	const teams = Array.from({ length: 6 }, (_, index) => ({ id: String(index + 1), name: `Team ${index + 1}` }));
+	const standings = {
+		A: teams.map((team, index) => ({ team, played: 5, rank: index + 1, tiebreakerRequired: false })),
+		B: [],
+	};
+	const groupMatches = [];
+	for (let first = 0; first < teams.length; first += 1) {
+		for (let second = first + 1; second < teams.length; second += 1) {
+			groupMatches.push({ group: "A", teamA: teams[first].name, teamB: teams[second].name });
+		}
+	}
+	const seeds = computeUltimateBraveryGroupSeeds(standings, groupMatches, 6);
+
+	assert.equal(groupMatches.length, 15);
+	assert.deepEqual(
+		Object.values(seeds),
+		teams.map((team) => team.name)
+	);
+});
+
+test("builds standard double elimination for four teams", () => {
+	const teams = Array.from({ length: 4 }, (_, index) => ({ id: String(index + 1), name: `Team ${index + 1}` }));
+	const matches = resolveUltimateBraveryPlayoffMatches({
+		format: "double-elimination",
+		teams,
+		stored: {},
+		seedNames: Object.fromEntries(teams.map((team, index) => [index + 1, team.name])),
+		playoffTeamCount: 4,
+	});
+
+	assert.deepEqual(
+		matches.slice(0, 2).map((match) => [match.teamAName, match.teamBName]),
+		[
+			["Team 1", "Team 4"],
+			["Team 2", "Team 3"],
+		]
+	);
+	assert.equal(
+		matches.some((match) => match.id === "lb-r1"),
+		true
+	);
+	assert.equal(matches.filter((match) => match.bracket === "Grand").length, 1);
+});
+
+test("ignores a stored playoff result after its pairing identity changed", () => {
+	const teams = Array.from({ length: 6 }, (_, index) => ({ id: String(index + 1), name: `Team ${index + 1}` }));
+	const matches = resolveUltimateBraveryPlayoffMatches({
+		format: "double-elimination-light",
+		teams,
+		stored: {
+			"ub-r2-1": {
+				id: "ub-r2-1",
+				teamAName: "Former Team 1",
+				teamBName: "Former Team 4",
+				status: "Finished",
+				scoreA: 1,
+				scoreB: 0,
+			},
+		},
+		seedNames: Object.fromEntries(teams.map((team, index) => [index + 1, team.name])),
+		playoffTeamCount: 6,
+	});
+	const match = matches.find((entry) => entry.id === "ub-r2-1");
+
+	assert.equal(match?.teamAName, "Team 1");
+	assert.equal(match?.teamBName, "Team 4");
+	assert.equal(match?.status, "Scheduled");
+	assert.equal(match?.scoreA, undefined);
+	assert.equal(match?.winner, undefined);
 });

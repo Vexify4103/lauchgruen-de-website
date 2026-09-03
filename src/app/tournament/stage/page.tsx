@@ -12,8 +12,6 @@ import { SwissStageLiveView } from "@/components/SwissStageLiveView";
 import { StageMatchAutoFocus } from "@/components/StageMatchAutoFocus";
 import { resolveGroupFocusMatchId } from "@/lib/tournament-stage-focus";
 
-const groups = ["A", "B"] as const;
-
 export default async function GroupsPage() {
 	const settings = await getTournamentSettings();
 	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
@@ -36,6 +34,11 @@ export default async function GroupsPage() {
 		poolAssignment: wheel.currentAssignment?.matchId === match.id ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === match.id) ?? null),
 	}));
 	const focusedGroupMatchId = resolveGroupFocusMatchId(matchesWithScores);
+	const groups = [...new Set(ctx.teams.map((team) => team.group))].sort((a, b) => a.localeCompare(b));
+	const config = settings.ultimateBravery;
+	const configuredGroupStage = settings.activeTournament.id === "ultimate-bravery";
+	const totalMatches = ctx.groupMatches.length;
+	const gamesPerTeam = ctx.teams.length > 0 ? Math.round((totalMatches * 2) / ctx.teams.length) : 0;
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
@@ -43,10 +46,15 @@ export default async function GroupsPage() {
 			<section className="mx-auto w-full max-w-7xl">
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Gruppenphase</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Zwei Vierergruppen. Alle Teams ziehen in die Playoffs ein.</h1>
+					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
+						{configuredGroupStage
+							? `${groups.length} ${groups.length === 1 ? "Gruppe" : "Gruppen"}. ${config.advanceTeamCount === config.teamCount ? "Alle Teams ziehen in die Playoffs ein." : `${config.advanceTeamCount} Teams ziehen weiter.`}`
+							: "Zwei Vierergruppen. Alle Teams ziehen in die Playoffs ein."}
+					</h1>
 					<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-						Zwölf BO1-Spiele pro Gruppe, also sechs Spiele pro Team mit Hin- und Rückrunde. Die Gruppensieger überspringen die erste Upper-Bracket-Runde. Platz 2 spielt
-						dort mit vier Bans gegen Platz 3 der anderen Gruppe. Die Viertplatzierten starten in Runde 1 des Lower Brackets.
+						{configuredGroupStage
+							? `${totalMatches} BO1-Spiele insgesamt, ${gamesPerTeam} pro Team ${config.groupRoundRobinLegs === 2 ? "mit Hin- und Rückrunde" : "in einer einfachen Round-Robin-Runde"}. Die Abschlusstabelle bestimmt die Playoff-Seeds #1 bis #${config.advanceTeamCount}.`
+							: "Zwölf BO1-Spiele pro Gruppe, also sechs Spiele pro Team mit Hin- und Rückrunde. Die Gruppensieger überspringen die erste Upper-Bracket-Runde. Platz 2 spielt dort mit vier Bans gegen Platz 3 der anderen Gruppe. Die Viertplatzierten starten in Runde 1 des Lower Brackets."}
 					</p>
 					<div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] p-4 text-sm leading-7 text-amber-50/82">
 						<strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz. Bei Gleichstand zählen die direkten Siege zwischen den betroffenen Teams. Bleibt
@@ -55,7 +63,7 @@ export default async function GroupsPage() {
 					</div>
 				</div>
 
-				<div className="mt-8 grid gap-5 lg:grid-cols-2">
+				<div className={`mt-8 grid gap-5 ${groups.length > 1 ? "lg:grid-cols-2" : "grid-cols-1"}`}>
 					{groups.map((group) => {
 						const groupStandings = standings[group];
 						const matches = matchesWithScores.filter((match) => match.group === group);
@@ -67,7 +75,13 @@ export default async function GroupsPage() {
 										<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/60">Gruppe</div>
 										<h2 className="mt-2 text-4xl font-black text-lime-100">{group}</h2>
 									</div>
-									<div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-2 text-sm font-black text-emerald-100/70">12 Matches · 6 pro Team</div>
+									<div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-2 text-sm font-black text-emerald-100/70">
+										{matches.length} Matches ·{" "}
+										{groupStandings[0]
+											? matches.filter((match) => match.teamA === groupStandings[0].team.name || match.teamB === groupStandings[0].team.name).length
+											: 0}{" "}
+										pro Team
+									</div>
 								</div>
 
 								<div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
@@ -83,23 +97,26 @@ export default async function GroupsPage() {
 										const rankStyle =
 											standing.rank === 1
 												? "border-lime-200/22 bg-gradient-to-r from-lime-200/16 via-emerald-300/8 to-transparent shadow-[inset_3px_0_0_rgb(190_242_100/0.8)]"
-												: standing.rank === 4
+												: standing.rank === groupStandings.length
 													? "border-orange-300/18 bg-gradient-to-r from-orange-400/12 via-amber-300/[0.04] to-transparent shadow-[inset_3px_0_0_rgb(251_146_60/0.72)]"
 													: "border-white/8 bg-black/8";
-										const rankTone = standing.rank === 1 ? "text-lime-100" : standing.rank === 4 ? "text-orange-200" : "text-emerald-100/72";
+										const rankTone =
+											standing.rank === 1 ? "text-lime-100" : standing.rank === groupStandings.length ? "text-orange-200" : "text-emerald-100/72";
 										return (
 											<div key={standing.team.id} className={`grid grid-cols-[2rem_1fr_3rem_3rem_4rem_5rem] gap-2 border-t px-4 py-3 text-sm ${rankStyle}`}>
 												<span className={`font-black ${rankTone}`}>{standing.rank}</span>
 												<span className="min-w-0">
 													<span className="block truncate font-bold text-emerald-50">{standing.team.name}</span>
 													<span className={`mt-0.5 block text-[9px] font-black uppercase tracking-[0.15em] ${rankTone}`}>
-														{standing.rank === 1
-															? "Freilos · Einstieg Upper R2"
-															: standing.rank === 2
-																? "Upper R1 · 4 Bans"
-																: standing.rank === 3
-																	? "Upper R1"
-																	: "Start im Lower Bracket"}
+														{configuredGroupStage
+															? groupPlacementLabel(standing.rank, config.advanceTeamCount, config.format)
+															: standing.rank === 1
+																? "Freilos · Einstieg Upper R2"
+																: standing.rank === 2
+																	? "Upper R1 · 4 Bans"
+																	: standing.rank === 3
+																		? "Upper R1"
+																		: "Start im Lower Bracket"}
 													</span>
 												</span>
 												<span className="text-right font-black text-lime-100">
@@ -296,4 +313,12 @@ function statusLabel(status: string) {
 		default:
 			return status;
 	}
+}
+
+function groupPlacementLabel(rank: number, advancing: number, format: Awaited<ReturnType<typeof getTournamentSettings>>["ultimateBravery"]["format"]) {
+	if (rank > advancing) return "Ausgeschieden";
+	if (format === "double-elimination-light" && advancing === 6) {
+		return rank <= 4 ? `Playoff-Seed #${rank} · Start im Upper Bracket` : `Playoff-Seed #${rank} · Start im Lower Bracket`;
+	}
+	return `Playoff-Seed #${rank}`;
 }

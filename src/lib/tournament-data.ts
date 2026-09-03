@@ -22,7 +22,7 @@ export type TournamentTeam = {
 	name: string;
 	seed: number;
 	record: string;
-	group: "A" | "B";
+	group: string;
 	/** Display string for the captain — derived from captainRef when present, else placeholder. */
 	captain: string;
 	/** Structured reference to a verified captain (Discord + Riot). Optional. */
@@ -36,7 +36,7 @@ export type TournamentTeam = {
 
 export type GroupMatch = {
 	id: string;
-	group: "A" | "B";
+	group: string;
 	round: string;
 	time: string;
 	teamA: string;

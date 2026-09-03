@@ -72,7 +72,9 @@ export async function POST(request: Request) {
 		? { id: match.id, status: match.status }
 		: await upsertMatch(match.id, {
 				id: match.id,
-				status: ultimateBravery ? "Live" : "Scheduled",
+				teamAName: match.teamAName,
+				teamBName: match.teamBName,
+				status: ultimateBravery ? "Pending" : "Scheduled",
 				updatedAt: new Date().toISOString(),
 			});
 	const discordWarnings: string[] = [];

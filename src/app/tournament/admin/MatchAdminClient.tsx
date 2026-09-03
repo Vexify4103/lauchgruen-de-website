@@ -22,7 +22,7 @@ const statusToneClass: Record<MatchStatus, string> = {
 export type AdminMatch = {
 	id: string;
 	phase: "groups" | "playoffs";
-	group?: "A" | "B";
+	group?: string;
 	round: string;
 	teamA: string; // resolved display name or a group-placement placeholder
 	teamB: string;
@@ -154,7 +154,7 @@ export function MatchAdminClient({
 function groupMatchesByRound(matches: AdminMatch[]) {
 	const sections = new Map<string, AdminMatch[]>();
 	for (const match of matches) {
-		const groupRound = match.phase === "groups" ? /^[ab]-r(\d+)-\d+$/.exec(match.id)?.[1] : null;
+		const groupRound = match.phase === "groups" ? /^[a-p]-r(\d+)-\d+$/.exec(match.id)?.[1] : null;
 		const label = groupRound ? `Gruppenphase · Runde ${groupRound}` : `Playoffs · ${match.round}`;
 		sections.set(label, [...(sections.get(label) ?? []), match]);
 	}

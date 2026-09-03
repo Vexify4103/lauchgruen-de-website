@@ -74,9 +74,7 @@ export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config
 							key={roundIndex}
 							data-swiss-round={roundIndex + 1}
 							className={`rounded-[1.6rem] border p-3 transition ${
-								roundIndex + 1 === activeRound
-									? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]"
-									: "border-white/8 bg-black/16"
+								roundIndex + 1 === activeRound ? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]" : "border-white/8 bg-black/16"
 							}`}
 						>
 							<div className="flex items-center justify-between border-b border-white/8 pb-3">
@@ -426,15 +424,36 @@ export function GroupStagePlan({ config, teamNames }: { config: StageConfig; tea
 	);
 }
 
-export function SwissPlayoffSeedBracket({ format }: { format: StageConfig["format"] }) {
+export function SwissPlayoffSeedBracket({ format, teamCount = 8 }: { format: StageConfig["format"]; teamCount?: number }) {
 	const isLight = format === "double-elimination-light";
+	const isSixTeamLight = isLight && teamCount === 6;
+	const isFourTeamBracket = teamCount === 4;
 	return (
 		<div className="overflow-hidden rounded-[2.4rem] border border-lime-200/14 bg-[#07140e]/92 shadow-2xl shadow-black/30">
 			<div className="border-b border-white/8 bg-gradient-to-r from-lime-200/[0.075] via-transparent to-cyan-300/[0.045] px-6 py-5">
 				<div className="text-[10px] font-black uppercase tracking-[0.28em] text-lime-100/52">Seeded Bracket · Tag 2</div>
-				<h2 className="mt-2 text-3xl font-black text-emerald-50">{isLight ? "Vorteil für die Top-Seeds." : "#1 gegen #8. #2 gegen #7."}</h2>
+				<h2 className="mt-2 text-3xl font-black text-emerald-50">
+					{isSixTeamLight
+						? "Vier starten oben. Zwei steigen unten ein."
+						: isLight
+							? "Vorteil für die Top-Seeds."
+							: isFourTeamBracket
+								? "#1 gegen #4. #2 gegen #3."
+								: "#1 gegen #8. #2 gegen #7."}
+				</h2>
 			</div>
-			{isLight ? (
+			{isSixTeamLight ? (
+				<div className="grid gap-4 p-5 lg:grid-cols-2">
+					<SeedEntryGroup title="Upper-Halbfinals" accent="lime" detail="Alle vier Teams besitzen zwei Leben">
+						<SeedMatch first={1} second={4} />
+						<SeedMatch first={2} second={3} />
+					</SeedEntryGroup>
+					<SeedEntryGroup title="Lower-Einstieg" accent="amber" detail="#5 und #6 treffen auf die Upper-Verlierer">
+						<SeedDestination seed={5} destination="Lower Runde 1 · Match 1" />
+						<SeedDestination seed={6} destination="Lower Runde 1 · Match 2" />
+					</SeedEntryGroup>
+				</div>
+			) : isLight ? (
 				<div className="grid gap-4 p-5 lg:grid-cols-3">
 					<SeedEntryGroup title="Upper-Freilos" accent="lime" detail="Direkt im Upper-Halbfinale">
 						<SeedDestination seed={1} destination="Upper Halbfinale 2" />
@@ -448,6 +467,11 @@ export function SwissPlayoffSeedBracket({ format }: { format: StageConfig["forma
 						<SeedDestination seed={7} destination="Lower Runde 1" />
 						<SeedDestination seed={8} destination="Lower Runde 1" />
 					</SeedEntryGroup>
+				</div>
+			) : isFourTeamBracket ? (
+				<div className="grid gap-5 p-5 lg:grid-cols-2">
+					<BracketHalf title="Obere Hälfte" accent="lime" quarterfinals={[[1, 4]]} semifinal="Sieger erreicht das Upper Final" />
+					<BracketHalf title="Untere Hälfte" accent="cyan" quarterfinals={[[2, 3]]} semifinal="Sieger erreicht das Upper Final" />
 				</div>
 			) : (
 				<div className="grid gap-5 p-5 lg:grid-cols-2">
@@ -474,7 +498,9 @@ export function SwissPlayoffSeedBracket({ format }: { format: StageConfig["forma
 			<div className="grid gap-3 border-t border-white/8 px-6 py-5 text-xs leading-6 text-emerald-100/54 md:grid-cols-2">
 				<div>
 					<strong className="text-emerald-50">Seeding:</strong>{" "}
-					{isLight ? "Die Swiss-Platzierung bestimmt den Einstieg und damit die Zahl der verbleibenden Leben." : "Die Swiss-Platzierung bestimmt ausschließlich diese erste Playoff-Runde."}
+					{isLight
+						? "Die Platzierung an Tag 1 bestimmt den Einstieg und damit die Zahl der verbleibenden Leben."
+						: "Die Platzierung an Tag 1 bestimmt die erste Playoff-Runde."}
 				</div>
 				<div>
 					<strong className="text-emerald-50">{playoffFormatLabel(format) ? `${playoffFormatLabel(format)}:` : "Format offen:"}</strong>{" "}
@@ -489,17 +515,7 @@ export function SwissPlayoffSeedBracket({ format }: { format: StageConfig["forma
 	);
 }
 
-function SeedEntryGroup({
-	title,
-	accent,
-	detail,
-	children,
-}: {
-	title: string;
-	accent: "lime" | "cyan" | "amber";
-	detail: string;
-	children: ReactNode;
-}) {
+function SeedEntryGroup({ title, accent, detail, children }: { title: string; accent: "lime" | "cyan" | "amber"; detail: string; children: ReactNode }) {
 	const tone = {
 		lime: "border-lime-200/20 bg-lime-200/[0.065] text-lime-100",
 		cyan: "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100",

@@ -12,6 +12,8 @@ import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
 import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLinks";
 import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { getMatchControlContext } from "@/lib/match-control";
+import { playoffFormatLabel } from "@/lib/tournament-format";
 
 type ScheduleMatch = {
 	id: string;
@@ -28,52 +30,105 @@ type ScheduleMatch = {
 	pool: WheelMatchAssignment | null;
 };
 
-const PLAYOFF_ORDER = ["ub-r1-1", "ub-r1-2", "lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2", "lb-r2-1", "lb-r2-2", "ub-f", "lb-sf", "lb-f", "gf"] as const;
+const PLAYOFF_ORDER = [
+	"ub-r1-1",
+	"ub-r1-2",
+	"ub-r1-3",
+	"ub-r1-4",
+	"ub-r2-1",
+	"ub-r2-2",
+	"lb-r1",
+	"lb-r1-1",
+	"lb-r1-2",
+	"lb-r2-1",
+	"lb-r2-2",
+	"ub-f",
+	"lb-sf",
+	"lb-r3",
+	"lb-f",
+	"gf",
+] as const;
 
 export default async function TournamentSchedulePage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
-	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
+	const settings = await getTournamentSettings();
+	if (settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
 	const ctx = await getTournamentContext();
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
-	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
+	const control = settings.activeTournament.id === "ultimate-bravery" ? await getMatchControlContext() : null;
+	const playoffs = control ? [] : resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
 
-	const friday = ctx.groupMatches
-		.map((match) => ({
-			id: match.id,
-			day: "Freitag, 19.06.",
-			phase: "Gruppenphase",
-			round: match.round,
-			time: match.time,
-			teamA: match.teamA,
-			teamB: match.teamB,
-			scoreA: state.matches[match.id]?.scoreA,
-			scoreB: state.matches[match.id]?.scoreB,
-			status: state.matches[match.id]?.status ?? match.status,
-			isCasted: Boolean(state.matches[match.id]?.isCasted),
-			pool: poolFor(match.id),
-		}))
-		.sort(compareGroupMatches);
+	const friday = (
+		control
+			? control.matches
+					.filter((match) => match.phase === "groups")
+					.map((match) => ({
+						id: match.id,
+						day: formatScheduleDay(settings.ultimateBravery.startAt, "Spieltag 1"),
+						phase: settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase",
+						round: match.round,
+						time: match.time,
+						teamA: match.teamALabel,
+						teamB: match.teamBLabel,
+						scoreA: match.scoreA,
+						scoreB: match.scoreB,
+						status: match.status,
+						isCasted: Boolean(match.isCasted),
+						pool: match.poolAssignment,
+					}))
+			: ctx.groupMatches.map((match) => ({
+					id: match.id,
+					day: "Freitag, 19.06.",
+					phase: "Gruppenphase",
+					round: match.round,
+					time: match.time,
+					teamA: match.teamA,
+					teamB: match.teamB,
+					scoreA: state.matches[match.id]?.scoreA,
+					scoreB: state.matches[match.id]?.scoreB,
+					status: state.matches[match.id]?.status ?? match.status,
+					isCasted: Boolean(state.matches[match.id]?.isCasted),
+					pool: poolFor(match.id),
+				}))
+	).sort(compareGroupMatches);
 
-	const saturday = playoffs
-		.map((match) => ({
-			id: match.id,
-			day: "Samstag, 20.06.",
-			phase: "Playoffs",
-			round: match.round,
-			time: match.time,
-			teamA: match.teamALabel,
-			teamB: match.teamBLabel,
-			scoreA: match.scoreA,
-			scoreB: match.scoreB,
-			status: match.status,
-			isCasted: Boolean(state.matches[match.id]?.isCasted),
-			pool: poolFor(match.id),
-		}))
-		.sort((a, b) => PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number]) - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number]));
+	const saturday = (
+		control
+			? control.matches
+					.filter((match) => match.phase === "playoffs")
+					.map((match) => ({
+						id: match.id,
+						day: formatScheduleDay(settings.ultimateBravery.dayTwoStartAt, "Spieltag 2"),
+						phase: "Playoffs",
+						round: match.round,
+						time: match.time,
+						teamA: match.teamALabel,
+						teamB: match.teamBLabel,
+						scoreA: match.scoreA,
+						scoreB: match.scoreB,
+						status: match.status,
+						isCasted: Boolean(match.isCasted),
+						pool: match.poolAssignment,
+					}))
+			: playoffs.map((match) => ({
+					id: match.id,
+					day: "Samstag, 20.06.",
+					phase: "Playoffs",
+					round: match.round,
+					time: match.time,
+					teamA: match.teamALabel,
+					teamB: match.teamBLabel,
+					scoreA: match.scoreA,
+					scoreB: match.scoreB,
+					status: match.status,
+					isCasted: Boolean(state.matches[match.id]?.isCasted),
+					pool: poolFor(match.id),
+				}))
+	).sort((a, b) => PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number]) - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number]));
 	const ownerTeam = previewEnabled ? (ctx.teams.find((team) => team.players.some((player) => player.discordId === session?.user?.discordId)) ?? null) : null;
 	const previewMatch =
 		previewEnabled && ownerTeam
@@ -88,12 +143,18 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	const sections = [
 		{
 			title: "Spieltag 1",
-			description: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
+			description:
+				settings.activeTournament.id === "ultimate-bravery"
+					? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches insgesamt.`
+					: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
 			batches: groupScheduleBatches(friday),
 		},
 		{
 			title: "Spieltag 2",
-			description: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket. Upper R1 beginnt um 16:00 Uhr; Lower R1 und Upper R2 folgen parallel ab 17:00 Uhr.",
+			description:
+				settings.activeTournament.id === "ultimate-bravery"
+					? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · Grand Final ohne Bracket Reset.`
+					: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
 			batches: playoffScheduleBatches(saturday),
 		},
 	];
@@ -122,14 +183,14 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Zeitplan</div>
 					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Wann wird was gespielt?</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/68">
-						Spieltag 1 startet am Freitag, 19.06. um 18:00 Uhr CEST. Spieltag 2 startet am Samstag, 20.06. um 16:00 Uhr CEST. Alle Uhrzeiten danach sind Richtzeiten
-						eines rollierenden Spielplans: Das nächste Match startet, sobald der vorherige Block abgeschlossen ist.
+						Die Startzeiten der beiden Spieltage stehen oben in den jeweiligen Matchblöcken. Alle folgenden Uhrzeiten sind Richtzeiten eines rollierenden Spielplans:
+						Das nächste Match startet, sobald der vorherige Block abgeschlossen ist.
 					</p>
 				</div>
 
 				<div className="mt-6 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] p-4 text-sm leading-7 text-cyan-50/78">
-					<strong>Rollierender Ablauf:</strong> Pro Gruppenrunde laufen vier Matches gleichzeitig: zwei aus Gruppe A und zwei aus Gruppe B. Die sechs Richtblöcke starten
-					ungefähr um 18:00, 19:00, 20:00, 21:00, 22:00 und 23:00 Uhr. Verzögerungen verschieben alle folgenden Blöcke gemeinsam.
+					<strong>Rollierender Ablauf:</strong> Eine Runde bildet einen gemeinsamen Matchblock. Paarungen innerhalb desselben Blocks können parallel laufen; Verzögerungen
+					verschieben die folgenden Blöcke gemeinsam.
 				</div>
 
 				<div className="mt-8 grid gap-6">
@@ -233,8 +294,8 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 }
 
 function compareGroupMatches(a: ScheduleMatch, b: ScheduleMatch) {
-	const aParts = /^([ab])-r(\d+)-(\d+)$/.exec(a.id);
-	const bParts = /^([ab])-r(\d+)-(\d+)$/.exec(b.id);
+	const aParts = /^([a-p])-r(\d+)-(\d+)$/.exec(a.id);
+	const bParts = /^([a-p])-r(\d+)-(\d+)$/.exec(b.id);
 	if (!aParts || !bParts) return a.id.localeCompare(b.id);
 	return Number(aParts[2]) - Number(bParts[2]) || Number(aParts[3]) - Number(bParts[3]) || aParts[1].localeCompare(bParts[1]);
 }
@@ -242,7 +303,7 @@ function compareGroupMatches(a: ScheduleMatch, b: ScheduleMatch) {
 function groupScheduleBatches(matches: ScheduleMatch[]) {
 	const batches = new Map<string, ScheduleMatch[]>();
 	for (const match of matches) {
-		const parts = /^[ab]-r(\d+)-(\d+)$/.exec(match.id);
+		const parts = /^[a-p]-r(\d+)-(\d+)$/.exec(match.id);
 		const label = parts ? `Gruppenrunde ${parts[1]}` : match.round;
 		batches.set(label, [...(batches.get(label) ?? []), match]);
 	}
@@ -253,22 +314,54 @@ function groupScheduleBatches(matches: ScheduleMatch[]) {
 }
 
 function playoffScheduleBatches(matches: ScheduleMatch[]) {
-	const definitions = [
-		{ label: "16:00 · Upper Runde 1 · A/B #2 mit viertem Ban", ids: ["ub-r1-1", "ub-r1-2"] },
-		{ label: "17:00 · Lower Runde 1 und Upper Runde 2", ids: ["lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2"] },
-		{ label: "18:00 · Upper Final und Lower Runde 2", ids: ["ub-f", "lb-r2-1", "lb-r2-2"] },
-		{ label: "19:00 · Lower-Halbfinale", ids: ["lb-sf"] },
-		{ label: "20:00 · Lower Final", ids: ["lb-f"] },
-		{ label: "21:00 · Grand Final", ids: ["gf"] },
-	];
+	const ids = new Set(matches.map((match) => match.id));
+	const definitions = ids.has("ub-r1-3")
+		? [
+				{ label: "Upper Runde 1", ids: ["ub-r1-1", "ub-r1-2", "ub-r1-3", "ub-r1-4"] },
+				{ label: "Lower Runde 1 und Upper-Halbfinals", ids: ["lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2"] },
+				{ label: "Lower Runde 2", ids: ["lb-r2-1", "lb-r2-2"] },
+				{ label: "Upper Final und Lower-Halbfinale", ids: ["ub-f", "lb-r3"] },
+				{ label: "Lower Final", ids: ["lb-f"] },
+				{ label: "Grand Final", ids: ["gf"] },
+			]
+		: ids.has("lb-r2-1")
+			? [
+					{ label: "Upper Runde 1", ids: ["ub-r1-1", "ub-r1-2"] },
+					{ label: "Lower Runde 1 und Upper-Halbfinals", ids: ["lb-r1-1", "lb-r1-2", "ub-r2-1", "ub-r2-2"] },
+					{ label: "Upper Final und Lower Runde 2", ids: ["ub-f", "lb-r2-1", "lb-r2-2"] },
+					{ label: "Lower-Halbfinale", ids: ["lb-r3", "lb-sf"] },
+					{ label: "Lower Final", ids: ["lb-f"] },
+					{ label: "Grand Final", ids: ["gf"] },
+				]
+			: ids.has("lb-r1-1")
+				? [
+						{ label: "Upper-Halbfinals", ids: ["ub-r2-1", "ub-r2-2"] },
+						{ label: "Lower Runde 1", ids: ["lb-r1-1", "lb-r1-2"] },
+						{ label: "Upper Final und Lower-Halbfinale", ids: ["ub-f", "lb-r3"] },
+						{ label: "Lower Final", ids: ["lb-f"] },
+						{ label: "Grand Final", ids: ["gf"] },
+					]
+				: [
+						{ label: "Upper-Halbfinals", ids: ["ub-r2-1", "ub-r2-2"] },
+						{ label: "Upper Final und Lower Runde 1", ids: ["ub-f", "lb-r1"] },
+						{ label: "Lower Final", ids: ["lb-f"] },
+						{ label: "Grand Final", ids: ["gf"] },
+					];
 	const byId = new Map(matches.map((match) => [match.id, match]));
-	return definitions.map((definition, index) => ({
-		label: definition.label,
-		matches: definition.ids
-			.map((id) => byId.get(id))
-			.filter((match): match is ScheduleMatch => Boolean(match))
-			.map((match) => ({ ...match, time: playoffRollingTime(index) })),
-	}));
+	return definitions
+		.map((definition, index) => ({
+			label: definition.label,
+			matches: definition.ids
+				.map((id) => byId.get(id))
+				.filter((match): match is ScheduleMatch => Boolean(match))
+				.map((match) => ({ ...match, time: playoffRollingTime(index) })),
+		}))
+		.filter((batch) => batch.matches.length > 0);
+}
+
+function formatScheduleDay(value: string | null, fallback: string) {
+	if (!value) return fallback;
+	return new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
 function statusLabel(status: string) {

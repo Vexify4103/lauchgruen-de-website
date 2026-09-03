@@ -11,6 +11,7 @@ import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState, upsertMatch } from "
 import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
+import { getMatchControlContext } from "@/lib/match-control";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,11 @@ export async function PATCH(request: Request) {
 	const state = await readTournamentState(ctx.groupMatches);
 	const swiss = settings.ultimateBravery.dayOneFormat === "swiss" ? await getSwissStageState(settings.activeTournament.id) : null;
 	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === parsed.data.id && !pairing.bye);
-	const isGroupMatch = ctx.groupMatches.some((match) => match.id === parsed.data.id);
+	const groupMatch = ctx.groupMatches.find((match) => match.id === parsed.data.id);
+	const isGroupMatch = Boolean(groupMatch);
+	const controlMatch = settings.activeTournament.id === "ultimate-bravery" ? (await getMatchControlContext()).matches.find((match) => match.id === parsed.data.id) : null;
+	const teamAName = swissPairing?.teamAName ?? groupMatch?.teamA ?? controlMatch?.teamAName ?? undefined;
+	const teamBName = swissPairing?.teamBName ?? groupMatch?.teamB ?? controlMatch?.teamBName ?? undefined;
 	const currentStatus = state.matches[parsed.data.id]?.status ?? "Scheduled";
 	const hasAnyScore = parsed.data.scoreA !== undefined || parsed.data.scoreB !== undefined;
 	const hasFinalScore = parsed.data.scoreA !== undefined && parsed.data.scoreB !== undefined && parsed.data.scoreA !== parsed.data.scoreB;
@@ -87,13 +92,15 @@ export async function PATCH(request: Request) {
 	}
 
 	const winner =
-		hasFinalScore && swissPairing
+		hasFinalScore && teamAName && teamBName
 			? parsed.data.scoreA! > parsed.data.scoreB!
-				? swissPairing.teamAName
-				: swissPairing.teamBName
+				? teamAName
+				: teamBName
 			: deriveWinner(parsed.data.id, parsed.data.scoreA, parsed.data.scoreB, state.matches, ctx.teams, ctx.groupMatches);
 	const match = await upsertMatch(parsed.data.id, {
 		id: parsed.data.id,
+		teamAName,
+		teamBName,
 		scoreA: parsed.data.scoreA,
 		scoreB: parsed.data.scoreB,
 		gameDurationSeconds,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { clearTestApplicants, seedTestApplicants, startTestRosterMode, stopTestRosterMode } from "@/lib/test-data";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,13 @@ export async function POST(request: Request) {
 	if (body?.confirmation !== "TESTDATEN ANLEGEN") {
 		return NextResponse.json({ message: "Bestätigung für das Anlegen der Testdaten fehlt." }, { status: 400 });
 	}
-	const count = 40;
-	const [appsInserted, rosterResult] = await Promise.all([seedTestApplicants(count), startTestRosterMode()]);
+	const settings = await getTournamentSettings();
+	const config = settings.ultimateBravery;
+	const count = config.teamCount * config.playersPerTeam;
+	const [appsInserted, rosterResult] = await Promise.all([
+		seedTestApplicants(count),
+		startTestRosterMode({ teamCount: config.teamCount, playersPerTeam: config.playersPerTeam, groupCount: config.groupCount }),
+	]);
 
 	return NextResponse.json({
 		ok: true,

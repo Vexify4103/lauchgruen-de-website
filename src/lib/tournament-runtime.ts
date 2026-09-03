@@ -30,7 +30,7 @@ type TeamCaptainRef = {
 };
 
 type TeamMeta = {
-	group?: "A" | "B";
+	group?: string;
 	seed?: number;
 	accent?: string;
 	/** Stable public identifier for URLs such as the OBS browser source. */
@@ -118,35 +118,48 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
 
 /**
  * Assign default group/seed when admin hasn't set metadata yet:
- * - Round-robin teams alphabetically into groups A and B
+ * - Fill the configured group slots alphabetically
  * - Seed by alphabetical index within group
  *
  * Once admin sets `meta.group` / `meta.seed` on the bot side, those override.
  */
-function withDefaults(stored: StoredTeam[]): TournamentTeam[] {
+function groupName(index: number): string {
+	return String.fromCharCode("A".charCodeAt(0) + index);
+}
+
+function withDefaults(stored: StoredTeam[], groupCount: number, plannedTeamCount: number): TournamentTeam[] {
 	const sorted = [...stored].sort((a, b) => a.name.localeCompare(b.name));
+	const rosterSize = Math.min(sorted.length, Math.max(0, plannedTeamCount));
+	const safeGroupCount = Math.max(1, Math.min(groupCount, 16, rosterSize || 1));
+	const baseGroupSize = Math.floor(rosterSize / safeGroupCount);
+	const largerGroups = rosterSize % safeGroupCount;
+	const groupSizes = Array.from({ length: safeGroupCount }, (_, index) => baseGroupSize + (index < largerGroups ? 1 : 0));
+	const validGroupSizes = new Map(groupSizes.map((size, index) => [groupName(index), size]));
 
 	// First pass: respect explicit meta where present.
 	const claimed = new Map<string, TournamentTeam>();
 	const unclaimed: StoredTeam[] = [];
 	for (const t of sorted) {
-		if (t.meta?.group && t.meta?.seed) {
-			claimed.set(`${t.meta.group}-${t.meta.seed}`, makeTeam(t, t.meta.group, t.meta.seed));
+		const groupSize = t.meta?.group ? validGroupSizes.get(t.meta.group) : undefined;
+		const slotKey = t.meta?.group && t.meta?.seed ? `${t.meta.group}-${t.meta.seed}` : null;
+		if (t.meta?.group && t.meta?.seed && groupSize !== undefined && t.meta.seed <= groupSize && slotKey && !claimed.has(slotKey)) {
+			claimed.set(slotKey, makeTeam(t, t.meta.group, t.meta.seed));
 		} else {
 			unclaimed.push(t);
 		}
 	}
 
 	// Second pass: assign unclaimed teams to remaining (group, seed) slots in order.
-	const slots: Array<{ group: "A" | "B"; seed: number }> = [];
-	for (const group of ["A", "B"] as const) {
-		for (let seed = 1; seed <= 4; seed += 1) {
+	const slots: Array<{ group: string; seed: number }> = [];
+	for (let groupIndex = 0; groupIndex < safeGroupCount; groupIndex += 1) {
+		const group = groupName(groupIndex);
+		for (let seed = 1; seed <= groupSizes[groupIndex]; seed += 1) {
 			if (!claimed.has(`${group}-${seed}`)) slots.push({ group, seed });
 		}
 	}
 	for (const team of unclaimed) {
 		const slot = slots.shift();
-		if (!slot) break; // more than 8 teams — drop extras silently for now
+		if (!slot) break;
 		claimed.set(`${slot.group}-${slot.seed}`, makeTeam(team, slot.group, slot.seed));
 	}
 
@@ -191,8 +204,9 @@ function resolveCaptainRef(stored: StoredTeam): TeamCaptainRef | undefined {
 	};
 }
 
-function makeTeam(stored: StoredTeam, group: "A" | "B", seed: number): TournamentTeam {
-	const accentIndex = (group === "A" ? 0 : 4) + Math.min(3, Math.max(0, seed - 1));
+function makeTeam(stored: StoredTeam, group: string, seed: number): TournamentTeam {
+	const groupIndex = Math.max(0, group.charCodeAt(0) - "A".charCodeAt(0));
+	const accentIndex = (groupIndex * 4 + Math.max(0, seed - 1)) % DEFAULT_ACCENTS.length;
 	const captainRef = resolveCaptainRef(stored);
 	const captainText = captainRef ? (captainRef.discordUsername ? `${captainRef.discordUsername} · ${captainRef.riotId}` : captainRef.riotId) : "Captain TBA";
 	return {
@@ -216,15 +230,15 @@ function makeTeam(stored: StoredTeam, group: "A" | "B", seed: number): Tournamen
 }
 
 /**
- * Build a double round-robin schedule for each four-team group. Every team
- * plays the other three teams twice. A slot contains one match from group A
- * and one from group B, so exactly two matches run in parallel.
+ * Build the configured single or double round-robin schedule for every group.
+ * Odd-sized groups receive one bye per round through the circle algorithm.
  */
-function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
+function buildGroupMatches(teams: TournamentTeam[], legs: 1 | 2): GroupMatch[] {
 	const out: GroupMatch[] = [];
-	for (const group of ["A", "B"] as const) {
+	const groups = [...new Set(teams.map((team) => team.group))].sort((a, b) => a.localeCompare(b));
+	for (const group of groups) {
 		const groupTeams = teams.filter((t) => t.group === group).sort((a, b) => a.seed - b.seed);
-		if (groupTeams.length !== 4) continue;
+		if (groupTeams.length < 2) continue;
 
 		const rotation: Array<string | null> = groupTeams.map((team) => team.name);
 		if (rotation.length % 2 !== 0) rotation.push(null);
@@ -255,17 +269,19 @@ function buildGroupMatches(teams: TournamentTeam[]): GroupMatch[] {
 				status: "Scheduled",
 			});
 		}
-		for (const match of firstLeg) {
-			const returnRound = match.round + rounds;
-			out.push({
-				id: `${group.toLowerCase()}-r${returnRound}-${match.slot}`,
-				group,
-				round: `Runde ${returnRound} · Slot ${match.slot}`,
-				time: groupRollingTime(returnRound),
-				teamA: match.teamB,
-				teamB: match.teamA,
-				status: "Scheduled",
-			});
+		if (legs === 2) {
+			for (const match of firstLeg) {
+				const returnRound = match.round + rounds;
+				out.push({
+					id: `${group.toLowerCase()}-r${returnRound}-${match.slot}`,
+					group,
+					round: `Runde ${returnRound} · Slot ${match.slot}`,
+					time: groupRollingTime(returnRound),
+					teamA: match.teamB,
+					teamB: match.teamA,
+					status: "Scheduled",
+				});
+			}
 		}
 	}
 	return out;
@@ -288,7 +304,10 @@ export async function getTournamentContext(): Promise<TournamentContext> {
 			source: "placeholder",
 		};
 	}
-	const teams = withDefaults(stored);
-	const groupMatches = buildGroupMatches(teams);
+	const groupCount = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.groupCount : 2;
+	const legs = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.groupRoundRobinLegs : 2;
+	const plannedTeamCount = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.teamCount : stored.length;
+	const teams = withDefaults(stored, groupCount, plannedTeamCount);
+	const groupMatches = buildGroupMatches(teams, legs);
 	return { teams, groupMatches, source: "bot" };
 }
