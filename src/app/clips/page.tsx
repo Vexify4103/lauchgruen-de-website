@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ClipsArchive } from "./ClipsArchive";
+import { CreatorCredit } from "@/components/CreatorCredit";
 
 export const metadata: Metadata = {
 	title: "Clips",
@@ -67,11 +68,14 @@ export default function ClipsPage() {
 			</main>
 
 			<footer className="relative z-10 mt-8 border-t border-white/7 px-5 py-8 sm:px-8">
-				<div className="mx-auto flex w-full max-w-[90rem] flex-col gap-3 text-xs text-emerald-100/40 sm:flex-row sm:items-center sm:justify-between">
-					<span>Clips werden direkt über Twitch geladen.</span>
-					<Link href="/" className="font-bold uppercase tracking-[0.14em] transition hover:text-lime-100">
-						Zurück zu lauchgruen.de
-					</Link>
+				<div className="mx-auto w-full max-w-[90rem]">
+					<CreatorCredit />
+					<div className="mt-5 flex flex-col gap-3 text-xs text-emerald-100/40 sm:flex-row sm:items-center sm:justify-between">
+						<span>Clips werden direkt über Twitch geladen.</span>
+						<Link href="/" className="font-bold uppercase tracking-[0.14em] transition hover:text-lime-100">
+							Zurück zu lauchgruen.de
+						</Link>
+					</div>
 				</div>
 			</footer>
 		</div>

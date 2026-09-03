@@ -117,10 +117,11 @@ export function OverlayBuilderClient({
 		// captured goal baselines describe the already rendered rank and therefore
 		// must not force a second iframe load.
 		const usesRiotId = deferredPreviewRiotId.includes("#");
-		const usesAutomaticGoalStart = automaticGoalStart
-			&& deferredConfig.goalStartScore === automaticGoalStart.score
-			&& deferredConfig.goalStartLabel === automaticGoalStart.label
-			&& deferredConfig.goalStartLp === automaticGoalStart.lp;
+		const usesAutomaticGoalStart =
+			automaticGoalStart &&
+			deferredConfig.goalStartScore === automaticGoalStart.score &&
+			deferredConfig.goalStartLabel === automaticGoalStart.label &&
+			deferredConfig.goalStartLp === automaticGoalStart.lp;
 		const previewConfig = {
 			...deferredConfig,
 			ingame: usesRiotId ? deferredPreviewRiotId : deferredConfig.ingame,
@@ -180,11 +181,7 @@ export function OverlayBuilderClient({
 				const accountId = typeof event.data.accountId === "string" && /^[a-z\d_-]{12,64}$/i.test(event.data.accountId) ? event.data.accountId : "";
 				const riotId = typeof event.data.riotId === "string" && event.data.riotId.includes("#") ? event.data.riotId.slice(0, 64) : "";
 				if (accountId && riotId) {
-					setConfig((current) =>
-						current.accountId === accountId && current.ingame === riotId
-							? current
-							: { ...current, accountId, ingame: riotId }
-					);
+					setConfig((current) => (current.accountId === accountId && current.ingame === riotId ? current : { ...current, accountId, ingame: riotId }));
 				}
 				const score = Number(event.data.score);
 				const label = typeof event.data.label === "string" ? event.data.label.slice(0, 32) : "";
@@ -424,9 +421,7 @@ export function OverlayBuilderClient({
 					<div className="max-w-4xl">
 						<div className="text-[10px] font-black uppercase tracking-[0.34em] text-lime-200/65">Lauchgruen · Stream Tools</div>
 						<h1 className="mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl">Dein League-Overlay. Deine Farben.</h1>
-						<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">
-							Erstelle kostenlos eine OBS-Browserquelle aus Riot-ID und optionalem Twitch-Kanal.
-						</p>
+						<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">Erstelle kostenlos eine OBS-Browserquelle aus Riot-ID und optionalem Twitch-Kanal.</p>
 					</div>
 					<div className="flex flex-wrap gap-2">
 						<a
@@ -435,7 +430,10 @@ export function OverlayBuilderClient({
 						>
 							Streamer-Profil
 						</a>
-						<a href={apexUrl} className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/35 hover:text-lime-100">
+						<a
+							href={apexUrl}
+							className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/35 hover:text-lime-100"
+						>
 							Zurück zu lauchgruen.de
 						</a>
 					</div>
@@ -456,12 +454,19 @@ export function OverlayBuilderClient({
 							<Field label="Riot-ID" hint="Pflichtfeld · Name#Tag">
 								<input
 									value={config.ingame}
-								onChange={(event) => {
-									setPreviewRank(null);
-									setAutomaticGoalStart(null);
-									setPreviewRiotId(event.target.value);
-									setConfig((current) => ({ ...current, ingame: event.target.value, accountId: "", goalStartScore: null, goalStartLabel: "", goalStartLp: null }));
-								}}
+									onChange={(event) => {
+										setPreviewRank(null);
+										setAutomaticGoalStart(null);
+										setPreviewRiotId(event.target.value);
+										setConfig((current) => ({
+											...current,
+											ingame: event.target.value,
+											accountId: "",
+											goalStartScore: null,
+											goalStartLabel: "",
+											goalStartLp: null,
+										}));
+									}}
 									placeholder="Spielername#TAG"
 									className={inputClass}
 								/>
@@ -469,10 +474,10 @@ export function OverlayBuilderClient({
 							<Field label="Region" hint="Eine automatische weltweite Namenssuche wäre nicht eindeutig.">
 								<ThemedSelect
 									value={config.region}
-								onChange={(value) => {
-									setPreviewRank(null);
-									setAutomaticGoalStart(null);
-									setConfig((current) => ({ ...current, region: value, goalStartScore: null, goalStartLabel: "", goalStartLp: null }));
+									onChange={(value) => {
+										setPreviewRank(null);
+										setAutomaticGoalStart(null);
+										setConfig((current) => ({ ...current, region: value, goalStartScore: null, goalStartLabel: "", goalStartLp: null }));
 									}}
 									options={COMMUNITY_OVERLAY_REGIONS.map((region) => ({ value: region.value, label: region.label }))}
 									ariaLabel="Riot-Region"
@@ -497,27 +502,28 @@ export function OverlayBuilderClient({
 							<TwitchSearchResult
 								lookup={twitchLookup}
 								selectedLogin={config.streamer}
-									onSelect={(user) => {
-										update("streamer", user.login);
-										setTwitchInput(user.login);
-									}}
-								/>
-								<Toggle
-									label="Nur bei League of Legends anzeigen"
-									checked={config.hideOutsideLeague}
-									onChange={(value) => update("hideOutsideLeague", value)}
-									disabled={!config.streamer}
-								/>
-								<p className="text-[10px] leading-5 text-emerald-100/38">
-									{config.streamer
-										? "Blendet die OBS-Quelle aus, wenn der Kanal live ist, aber eine andere Twitch-Kategorie nutzt."
-										: "Wähle zuerst einen gefundenen Twitch-Kanal aus, um die Kategorie-Erkennung zu aktivieren."}
-								</p>
-								<div className="rounded-2xl border border-[#9146ff]/20 bg-gradient-to-br from-[#9146ff]/[0.12] to-black/10 p-4">
+								onSelect={(user) => {
+									update("streamer", user.login);
+									setTwitchInput(user.login);
+								}}
+							/>
+							<Toggle
+								label="Nur bei League of Legends anzeigen"
+								checked={config.hideOutsideLeague}
+								onChange={(value) => update("hideOutsideLeague", value)}
+								disabled={!config.streamer}
+							/>
+							<p className="text-[10px] leading-5 text-emerald-100/38">
+								{config.streamer
+									? "Blendet die OBS-Quelle aus, wenn der Kanal live ist, aber eine andere Twitch-Kategorie nutzt."
+									: "Wähle zuerst einen gefundenen Twitch-Kanal aus, um die Kategorie-Erkennung zu aktivieren."}
+							</p>
+							<div className="rounded-2xl border border-[#9146ff]/20 bg-gradient-to-br from-[#9146ff]/[0.12] to-black/10 p-4">
 								<div className="text-[9px] font-black uppercase tracking-[0.22em] text-[#d8c2ff]/65">Streamer-Erkennung</div>
 								<div className="mt-1 text-sm font-black text-white">Im Live-Spiel violett erscheinen</div>
 								<p className="mt-2 text-[11px] leading-5 text-emerald-100/52">
-									Verbinde Twitch und verifiziere deine Riot-ID einmalig. Danach kannst du freiwillig erlauben, dass Community-Overlays deinen Twitch-Namen bei Live-Game-Teilnehmern anzeigen.
+									Verbinde Twitch und verifiziere deine Riot-ID einmalig. Danach kannst du freiwillig erlauben, dass Community-Overlays deinen Twitch-Namen bei
+									Live-Game-Teilnehmern anzeigen.
 								</p>
 								<a
 									href={accountUrl}
@@ -543,15 +549,31 @@ export function OverlayBuilderClient({
 										}));
 										if (style === "freeform" && !selectedFreeformElement) setSelectedFreeformElement(config.freeformLayout[0]?.type ?? null);
 									}}
-									options={COMMUNITY_OVERLAY_STYLES.map((style) => ({ value: style, label: STYLE_LABELS[style], description: `Empfohlen: ${DIMENSIONS[style]}` }))}
+									options={COMMUNITY_OVERLAY_STYLES.map((style) => ({
+										value: style,
+										label: STYLE_LABELS[style],
+										description: `Empfohlen: ${DIMENSIONS[style]}`,
+									}))}
 									ariaLabel="Overlay-Stil"
 								/>
 							</Field>
 							{config.style === "freeform" ? (
 								<div className="grid gap-2">
-									<div className="rounded-xl border border-cyan-100/12 bg-cyan-200/[0.05] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/58">In der Vorschau kannst du Bausteine direkt verschieben und am Griff unten rechts skalieren.</div>
-									<Toggle label="Nur aktuelle Stream-Session" checked={config.sessionOnly} onChange={(value) => update("sessionOnly", value)} disabled={!hasFreeformHistory} />
-									<Toggle label="Berechnete MVP-/ACE-Badges" checked={config.showBadges} onChange={(value) => update("showBadges", value)} disabled={!hasFreeformHistory} />
+									<div className="rounded-xl border border-cyan-100/12 bg-cyan-200/[0.05] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/58">
+										In der Vorschau kannst du Bausteine direkt verschieben und am Griff unten rechts skalieren.
+									</div>
+									<Toggle
+										label="Nur aktuelle Stream-Session"
+										checked={config.sessionOnly}
+										onChange={(value) => update("sessionOnly", value)}
+										disabled={!hasFreeformHistory}
+									/>
+									<Toggle
+										label="Berechnete MVP-/ACE-Badges"
+										checked={config.showBadges}
+										onChange={(value) => update("showBadges", value)}
+										disabled={!hasFreeformHistory}
+									/>
 									<Toggle
 										label="Streamer im Live-Spiel anzeigen"
 										checked={config.showStreamerParticipants}
@@ -561,7 +583,8 @@ export function OverlayBuilderClient({
 								</div>
 							) : config.style === "portrait" ? (
 								<div className="rounded-xl border border-cyan-100/12 bg-cyan-200/[0.05] px-3 py-3 text-[11px] leading-5 text-cyan-50/58">
-									Profilicon, animierter Rahmen in der aktuellen Rangfarbe und eine wechselnde Zeile für Rang, Session-W/L und Gesamt-W/L. Farben und Inhalt werden automatisch aus den Riot-Daten erzeugt.
+									Profilicon, animierter Rahmen in der aktuellen Rangfarbe und eine wechselnde Zeile für Rang, Session-W/L und Gesamt-W/L. Farben und Inhalt
+									werden automatisch aus den Riot-Daten erzeugt.
 								</div>
 							) : (
 								<div className="grid gap-2">
@@ -570,9 +593,19 @@ export function OverlayBuilderClient({
 									<Toggle label="Session-Winrate" checked={config.showWinRate} onChange={(value) => update("showWinRate", value)} />
 									<Toggle label="Fortschritt zum Rangziel" checked={config.showGoal} onChange={(value) => update("showGoal", value)} />
 									<Toggle label="Matchhistorie" checked={config.showHistory} onChange={(value) => update("showHistory", value)} />
-									<Toggle label="Nur aktuelle Stream-Session" checked={config.sessionOnly} onChange={(value) => update("sessionOnly", value)} disabled={!config.showHistory} />
+									<Toggle
+										label="Nur aktuelle Stream-Session"
+										checked={config.sessionOnly}
+										onChange={(value) => update("sessionOnly", value)}
+										disabled={!config.showHistory}
+									/>
 									<Toggle label="Session-LP anzeigen" checked={config.showLp} onChange={(value) => update("showLp", value)} />
-									<Toggle label="Berechnete MVP-/ACE-Badges" checked={config.showBadges} onChange={(value) => update("showBadges", value)} disabled={!config.showHistory} />
+									<Toggle
+										label="Berechnete MVP-/ACE-Badges"
+										checked={config.showBadges}
+										onChange={(value) => update("showBadges", value)}
+										disabled={!config.showHistory}
+									/>
 									{supportsLiveGame ? (
 										<Toggle
 											label="Live-Game-Teilnehmer"
@@ -590,7 +623,11 @@ export function OverlayBuilderClient({
 										checked={config.showStreamerParticipants}
 										onChange={(value) => update("showStreamerParticipants", value)}
 									/>
-									{supportsLiveGame && config.showLiveGame ? <div className="col-span-full text-[10px] leading-5 text-emerald-100/42">Erscheint nur während eines von Riot erkannten Live-Spiels. Rollen werden anhand von Smite und Champion-Rollen sortiert.</div> : null}
+									{supportsLiveGame && config.showLiveGame ? (
+										<div className="col-span-full text-[10px] leading-5 text-emerald-100/42">
+											Erscheint nur während eines von Riot erkannten Live-Spiels. Rollen werden anhand von Smite und Champion-Rollen sortiert.
+										</div>
+									) : null}
 									{config.showStreamerParticipants ? (
 										<div className="col-span-full rounded-xl border border-[#9146ff]/20 bg-[#9146ff]/[0.08] px-3 py-2.5 text-[10px] leading-5 text-[#d8c2ff]/70">
 											{config.showLiveGame
@@ -603,14 +640,30 @@ export function OverlayBuilderClient({
 											freigegeben haben.
 										</div>
 									) : null}
-									<Toggle label="Alle 30 Sek. zur letzten Partie wechseln" checked={config.rotateLastGame} onChange={(value) => update("rotateLastGame", value)} />
-									{config.rotateLastGame ? <div className="col-span-full text-[10px] leading-5 text-emerald-100/42">Ohne vorhandenes Session-Spiel bleibt die normale Overlay-Ansicht dauerhaft sichtbar.</div> : null}
+									<Toggle
+										label="Alle 30 Sek. zur letzten Partie wechseln"
+										checked={config.rotateLastGame}
+										onChange={(value) => update("rotateLastGame", value)}
+									/>
+									{config.rotateLastGame ? (
+										<div className="col-span-full text-[10px] leading-5 text-emerald-100/42">
+											Ohne vorhandenes Session-Spiel bleibt die normale Overlay-Ansicht dauerhaft sichtbar.
+										</div>
+									) : null}
 									<Toggle label="Layout horizontal spiegeln" checked={config.flip} onChange={(value) => update("flip", value)} />
 								</div>
 							)}
 							{config.style !== "portrait" && (config.showHistory || (config.style === "freeform" && hasFreeformHistory)) ? (
 								<Field label="Zeilen Matchhistorie">
-									<ThemedSelect value={String(config.historyRows)} onChange={(value) => update("historyRows", Number(value) as 1 | 2 | 3)} options={[1, 2, 3].map((rows) => ({ value: String(rows), label: `${rows} ${rows === 1 ? "Zeile" : "Zeilen"} · bis zu ${rows * 5} Spiele` }))} ariaLabel="Zeilen Matchhistorie" />
+									<ThemedSelect
+										value={String(config.historyRows)}
+										onChange={(value) => update("historyRows", Number(value) as 1 | 2 | 3)}
+										options={[1, 2, 3].map((rows) => ({
+											value: String(rows),
+											label: `${rows} ${rows === 1 ? "Zeile" : "Zeilen"} · bis zu ${rows * 5} Spiele`,
+										}))}
+										ariaLabel="Zeilen Matchhistorie"
+									/>
 								</Field>
 							) : null}
 							{config.style !== "portrait" && (config.showGoal || (config.style === "freeform" && hasFreeformGoal)) ? (
@@ -643,8 +696,8 @@ export function OverlayBuilderClient({
 							) : null}
 							{config.style !== "portrait" ? (
 								<div className="rounded-xl border border-amber-200/14 bg-amber-200/[0.05] px-3 py-2.5 text-[11px] leading-5 text-amber-50/55">
-									LP pro einzelner Partie und ein offizieller MVP-/ACE-Status werden von Riot nicht bereitgestellt. Das Overlay zeigt ein LP-Delta, sobald das Tracking rechtzeitig
-									vor dem ersten Session-Spiel aktiv war; Badges sind eine berechnete Performance-Auszeichnung.
+									LP pro einzelner Partie und ein offizieller MVP-/ACE-Status werden von Riot nicht bereitgestellt. Das Overlay zeigt ein LP-Delta, sobald das
+									Tracking rechtzeitig vor dem ersten Session-Spiel aktiv war; Badges sind eine berechnete Performance-Auszeichnung.
 								</div>
 							) : null}
 						</Panel>
@@ -652,8 +705,22 @@ export function OverlayBuilderClient({
 						{config.style === "freeform" ? (
 							<Panel kicker="Free Format" title="Bausteine und Position" defaultOpen>
 								<div className="grid grid-cols-2 gap-2">
-									<button type="button" onClick={undoFreeformLayout} disabled={!freeformUndo.length} className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/65 disabled:opacity-25">Rückgängig</button>
-									<button type="button" onClick={redoFreeformLayout} disabled={!freeformRedo.length} className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/65 disabled:opacity-25">Wiederholen</button>
+									<button
+										type="button"
+										onClick={undoFreeformLayout}
+										disabled={!freeformUndo.length}
+										className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/65 disabled:opacity-25"
+									>
+										Rückgängig
+									</button>
+									<button
+										type="button"
+										onClick={redoFreeformLayout}
+										disabled={!freeformRedo.length}
+										className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/65 disabled:opacity-25"
+									>
+										Wiederholen
+									</button>
 								</div>
 								<div className="grid gap-2 rounded-xl border border-white/8 bg-black/15 p-2">
 									<Toggle label="20-Pixel-Raster" checked={freeformGrid} onChange={setFreeformGrid} />
@@ -672,7 +739,9 @@ export function OverlayBuilderClient({
 												className={`rounded-xl border px-3 py-3 text-left transition ${selected ? "border-cyan-200/55 bg-cyan-200/[0.12]" : active ? "border-lime-200/18 bg-lime-200/[0.06] hover:border-lime-200/35" : "border-dashed border-white/12 bg-black/15 opacity-60 hover:opacity-100"}`}
 											>
 												<span className="block text-[10px] font-black text-emerald-50">{FREEFORM_ELEMENT_META[type].label}</span>
-												<span className="mt-1 block text-[8px] leading-4 text-emerald-100/42">{active ? FREEFORM_ELEMENT_META[type].description : "+ Hinzufügen"}</span>
+												<span className="mt-1 block text-[8px] leading-4 text-emerald-100/42">
+													{active ? FREEFORM_ELEMENT_META[type].description : "+ Hinzufügen"}
+												</span>
 											</button>
 										);
 									})}
@@ -685,51 +754,153 @@ export function OverlayBuilderClient({
 												<div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/42">Ausgewählt</div>
 												<div className="mt-1 text-sm font-black">{FREEFORM_ELEMENT_META[activeFreeformElement.type].label}</div>
 											</div>
-											<button type="button" onClick={() => removeFreeformElement(activeFreeformElement.type)} className="rounded-lg border border-rose-200/18 bg-rose-300/[0.07] px-2.5 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-rose-100/75 transition hover:border-rose-200/35 hover:bg-rose-300/[0.12]">Entfernen</button>
+											<button
+												type="button"
+												onClick={() => removeFreeformElement(activeFreeformElement.type)}
+												className="rounded-lg border border-rose-200/18 bg-rose-300/[0.07] px-2.5 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-rose-100/75 transition hover:border-rose-200/35 hover:bg-rose-300/[0.12]"
+											>
+												Entfernen
+											</button>
 										</div>
 
 										<div className="mt-4 grid grid-cols-2 gap-2">
-											<NumberField label="X" value={activeFreeformElement.x} min={0} max={FREEFORM_CANVAS.width - activeFreeformElement.width} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { x: value })} />
-											<NumberField label="Y" value={activeFreeformElement.y} min={0} max={FREEFORM_CANVAS.height - activeFreeformElement.height} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { y: value })} />
-											<NumberField label="Breite" value={activeFreeformElement.width} min={150} max={FREEFORM_CANVAS.width - activeFreeformElement.x} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { width: value })} />
-											<NumberField label="Höhe" value={activeFreeformElement.height} min={72} max={FREEFORM_CANVAS.height - activeFreeformElement.y} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { height: value })} />
-											<NumberField label="Ebene" value={activeFreeformElement.zIndex} min={1} max={20} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { zIndex: value })} />
+											<NumberField
+												label="X"
+												value={activeFreeformElement.x}
+												min={0}
+												max={FREEFORM_CANVAS.width - activeFreeformElement.width}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { x: value })}
+											/>
+											<NumberField
+												label="Y"
+												value={activeFreeformElement.y}
+												min={0}
+												max={FREEFORM_CANVAS.height - activeFreeformElement.height}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { y: value })}
+											/>
+											<NumberField
+												label="Breite"
+												value={activeFreeformElement.width}
+												min={150}
+												max={FREEFORM_CANVAS.width - activeFreeformElement.x}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { width: value })}
+											/>
+											<NumberField
+												label="Höhe"
+												value={activeFreeformElement.height}
+												min={72}
+												max={FREEFORM_CANVAS.height - activeFreeformElement.y}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { height: value })}
+											/>
+											<NumberField
+												label="Ebene"
+												value={activeFreeformElement.zIndex}
+												min={1}
+												max={20}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { zIndex: value })}
+											/>
 										</div>
 										<div className="mt-3 grid grid-cols-3 gap-2">
-											<button type="button" onClick={() => moveFreeformLayer(activeFreeformElement.type, "back")} className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100/58">Nach hinten</button>
-											<button type="button" onClick={() => keepFreeformElementSafe(activeFreeformElement.type)} className="rounded-xl border border-amber-200/14 bg-amber-200/[0.05] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/65">Safe Area</button>
-											<button type="button" onClick={() => moveFreeformLayer(activeFreeformElement.type, "front")} className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100/58">Nach vorne</button>
+											<button
+												type="button"
+												onClick={() => moveFreeformLayer(activeFreeformElement.type, "back")}
+												className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100/58"
+											>
+												Nach hinten
+											</button>
+											<button
+												type="button"
+												onClick={() => keepFreeformElementSafe(activeFreeformElement.type)}
+												className="rounded-xl border border-amber-200/14 bg-amber-200/[0.05] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/65"
+											>
+												Safe Area
+											</button>
+											<button
+												type="button"
+												onClick={() => moveFreeformLayer(activeFreeformElement.type, "front")}
+												className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100/58"
+											>
+												Nach vorne
+											</button>
 										</div>
 
 										<div className="mt-4 grid grid-cols-2 gap-2">
-											<ColorField label="Text" value={activeFreeformElement.textColor || config.text} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { textColor: value })} />
-											<ColorField label="Akzent" value={activeFreeformElement.accentColor || config.primary} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { accentColor: value })} />
-											<ColorField label="Hintergrund" value={activeFreeformElement.backgroundColor || config.background} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { backgroundColor: value })} />
-											<ColorField label="Rand" value={activeFreeformElement.borderColor || config.border} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { borderColor: value })} />
+											<ColorField
+												label="Text"
+												value={activeFreeformElement.textColor || config.text}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { textColor: value })}
+											/>
+											<ColorField
+												label="Akzent"
+												value={activeFreeformElement.accentColor || config.primary}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { accentColor: value })}
+											/>
+											<ColorField
+												label="Hintergrund"
+												value={activeFreeformElement.backgroundColor || config.background}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { backgroundColor: value })}
+											/>
+											<ColorField
+												label="Rand"
+												value={activeFreeformElement.borderColor || config.border}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { borderColor: value })}
+											/>
 										</div>
 										<div className="mt-3 grid gap-2">
-											<Toggle label="Hintergrund" checked={activeFreeformElement.showBackground} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { showBackground: value })} />
-											<Toggle label="Rahmen" checked={activeFreeformElement.showBorder} onChange={(value) => updateFreeformElement(activeFreeformElement.type, { showBorder: value })} />
+											<Toggle
+												label="Hintergrund"
+												checked={activeFreeformElement.showBackground}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { showBackground: value })}
+											/>
+											<Toggle
+												label="Rahmen"
+												checked={activeFreeformElement.showBorder}
+												onChange={(value) => updateFreeformElement(activeFreeformElement.type, { showBorder: value })}
+											/>
 											{activeFreeformElement.showBackground ? (
 												<Field label="Deckkraft" hint={`${activeFreeformElement.backgroundOpacity}%`}>
-													<input type="range" min="0" max="100" value={activeFreeformElement.backgroundOpacity} onChange={(event) => updateFreeformElement(activeFreeformElement.type, { backgroundOpacity: Number(event.target.value) })} className="w-full accent-cyan-200" />
+													<input
+														type="range"
+														min="0"
+														max="100"
+														value={activeFreeformElement.backgroundOpacity}
+														onChange={(event) => updateFreeformElement(activeFreeformElement.type, { backgroundOpacity: Number(event.target.value) })}
+														className="w-full accent-cyan-200"
+													/>
 												</Field>
 											) : null}
 										</div>
-										<button type="button" onClick={() => updateFreeformElement(activeFreeformElement.type, { textColor: "", accentColor: "", backgroundColor: "", borderColor: "" })} className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-emerald-100/58 transition hover:border-white/20 hover:text-emerald-50">Globale Farben übernehmen</button>
+										<button
+											type="button"
+											onClick={() =>
+												updateFreeformElement(activeFreeformElement.type, { textColor: "", accentColor: "", backgroundColor: "", borderColor: "" })
+											}
+											className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-emerald-100/58 transition hover:border-white/20 hover:text-emerald-50"
+										>
+											Globale Farben übernehmen
+										</button>
 									</div>
 								) : (
-									<div className="rounded-xl border border-dashed border-white/12 px-3 py-4 text-center text-[10px] leading-5 text-emerald-100/42">Wähle einen Baustein aus oder füge einen hinzu.</div>
+									<div className="rounded-xl border border-dashed border-white/12 px-3 py-4 text-center text-[10px] leading-5 text-emerald-100/42">
+										Wähle einen Baustein aus oder füge einen hinzu.
+									</div>
 								)}
 
-								<button type="button" onClick={resetFreeformLayout} className="w-full rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.16em] text-amber-50/68 transition hover:border-amber-200/30 hover:bg-amber-200/[0.09]">Standardlayout wiederherstellen</button>
+								<button
+									type="button"
+									onClick={resetFreeformLayout}
+									className="w-full rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.16em] text-amber-50/68 transition hover:border-amber-200/30 hover:bg-amber-200/[0.09]"
+								>
+									Standardlayout wiederherstellen
+								</button>
 							</Panel>
 						) : null}
 
 						<Panel kicker="Theme" title="Farben und Oberfläche">
 							{config.style === "portrait" ? (
 								<div className="rounded-xl border border-cyan-100/12 bg-cyan-100/[0.04] px-3 py-3 text-[11px] leading-5 text-cyan-50/50">
-									Der Porträt-Rahmen ist transparent. Leuchten, Rahmen und Statistikfarbe wechseln automatisch passend zu Iron, Bronze, Silber, Gold, Platin, Smaragd, Diamant, Master, Grandmaster oder Challenger.
+									Der Porträt-Rahmen ist transparent. Leuchten, Rahmen und Statistikfarbe wechseln automatisch passend zu Iron, Bronze, Silber, Gold, Platin,
+									Smaragd, Diamant, Master, Grandmaster oder Challenger.
 								</div>
 							) : null}
 							{config.style !== "portrait" && config.style !== "floating" && config.style !== "freeform" ? (
@@ -738,22 +909,39 @@ export function OverlayBuilderClient({
 									<Toggle label="Rahmen anzeigen" checked={config.showBorder} onChange={(value) => update("showBorder", value)} />
 								</div>
 							) : null}
-							{config.style !== "portrait" ? <div className="grid grid-cols-2 gap-3">
-								<ColorField label="Primär" value={config.primary} onChange={(value) => update("primary", value)} />
-								<ColorField label="Sekundär" value={config.secondary} onChange={(value) => update("secondary", value)} />
-								<ColorField label="Highlight" value={config.highlight} onChange={(value) => update("highlight", value)} />
-								<ColorField label="Text" value={config.text} onChange={(value) => update("text", value)} />
-								{config.style !== "floating" && config.showBackground ? <ColorField label="Hintergrund" value={config.background} onChange={(value) => update("background", value)} /> : null}
-								{config.style !== "floating" && config.showBorder ? <ColorField label="Rand" value={config.border} onChange={(value) => update("border", value)} /> : null}
-							</div> : null}
+							{config.style !== "portrait" ? (
+								<div className="grid grid-cols-2 gap-3">
+									<ColorField label="Primär" value={config.primary} onChange={(value) => update("primary", value)} />
+									<ColorField label="Sekundär" value={config.secondary} onChange={(value) => update("secondary", value)} />
+									<ColorField label="Highlight" value={config.highlight} onChange={(value) => update("highlight", value)} />
+									<ColorField label="Text" value={config.text} onChange={(value) => update("text", value)} />
+									{config.style !== "floating" && config.showBackground ? (
+										<ColorField label="Hintergrund" value={config.background} onChange={(value) => update("background", value)} />
+									) : null}
+									{config.style !== "floating" && config.showBorder ? (
+										<ColorField label="Rand" value={config.border} onChange={(value) => update("border", value)} />
+									) : null}
+								</div>
+							) : null}
 							{config.style !== "portrait" && config.style !== "floating" && config.style !== "freeform" && config.showBackground ? (
 								<Field label="Hintergrund-Deckkraft" hint={`${config.backgroundOpacity}%`}>
-									<input type="range" min="0" max="100" value={config.backgroundOpacity} onChange={(event) => update("backgroundOpacity", Number(event.target.value))} className="w-full accent-lime-300" />
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={config.backgroundOpacity}
+										onChange={(event) => update("backgroundOpacity", Number(event.target.value))}
+										className="w-full accent-lime-300"
+									/>
 								</Field>
 							) : config.style === "floating" ? (
-								<div className="rounded-xl border border-cyan-100/12 bg-cyan-100/[0.04] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/50">Das freie HUD besitzt bewusst weder Hintergrund noch Rand.</div>
+								<div className="rounded-xl border border-cyan-100/12 bg-cyan-100/[0.04] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/50">
+									Das freie HUD besitzt bewusst weder Hintergrund noch Rand.
+								</div>
 							) : config.style === "freeform" ? (
-								<div className="rounded-xl border border-cyan-100/12 bg-cyan-100/[0.04] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/50">Diese Farben sind die Standardpalette. Ausgewählte Bausteine können sie individuell überschreiben.</div>
+								<div className="rounded-xl border border-cyan-100/12 bg-cyan-100/[0.04] px-3 py-2.5 text-[11px] leading-5 text-cyan-50/50">
+									Diese Farben sind die Standardpalette. Ausgewählte Bausteine können sie individuell überschreiben.
+								</div>
 							) : null}
 						</Panel>
 					</aside>
@@ -762,25 +950,42 @@ export function OverlayBuilderClient({
 						<div className="overflow-hidden rounded-[2.2rem] border border-cyan-100/13 bg-[#07140d]/85 shadow-2xl shadow-black/30">
 							<div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-5 py-3.5 sm:px-6">
 								<div>
-									<div className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-100/48">{config.style === "freeform" ? "Interaktiver Editor" : "Live Preview"}</div>
+									<div className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-100/48">
+										{config.style === "freeform" ? "Interaktiver Editor" : "Live Preview"}
+									</div>
 									<h2 className="mt-1 text-xl font-black">{config.style === "freeform" ? "Ziehen, skalieren, gestalten." : "So erscheint es in OBS."}</h2>
 								</div>
 								<div className="flex flex-wrap items-center gap-2">
-									<div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-100/55">OBS-Größe {DIMENSIONS[config.style]}</div>
-									<button type="button" onClick={copyUrl} aria-disabled={!canCopyOverlay} className={`rounded-full bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-2 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-950 transition ${canCopyOverlay ? "hover:-translate-y-0.5" : "cursor-not-allowed opacity-35"}`}>
+									<div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-100/55">
+										OBS-Größe {DIMENSIONS[config.style]}
+									</div>
+									<button
+										type="button"
+										onClick={copyUrl}
+										aria-disabled={!canCopyOverlay}
+										className={`rounded-full bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-2 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-950 transition ${canCopyOverlay ? "hover:-translate-y-0.5" : "cursor-not-allowed opacity-35"}`}
+									>
 										{copied ? "URL kopiert" : "OBS-URL kopieren"}
 									</button>
 								</div>
 							</div>
 							<div className="themed-scrollbar min-h-[30rem] max-h-[67vh] overflow-auto bg-[linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%),linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%)] bg-[length:32px_32px] bg-[position:0_0,16px_16px] p-4">
 								{canPreviewOverlay ? (
-									<iframe src={previewUrl} title="Overlay Live Preview" className={`${config.style === "rail" ? "h-[800px]" : config.style === "freeform" ? "h-[720px]" : config.style === "portrait" ? "h-[440px]" : "h-[600px]"} w-[1280px] max-w-none border-0`} />
+									<iframe
+										src={previewUrl}
+										title="Overlay Live Preview"
+										className={`${config.style === "rail" ? "h-[800px]" : config.style === "freeform" ? "h-[720px]" : config.style === "portrait" ? "h-[440px]" : "h-[600px]"} w-[1280px] max-w-none border-0`}
+									/>
 								) : (
 									<div className={`${config.style === "rail" ? "h-[800px]" : "h-[600px]"} grid w-[1280px] max-w-none place-items-center`}>
 										<div className="max-w-md rounded-[2rem] border border-cyan-100/14 bg-[#07140d]/92 px-7 py-8 text-center shadow-2xl shadow-black/30">
-											<div className="mx-auto grid size-12 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/[0.07] text-xl font-black text-lime-100">#</div>
+											<div className="mx-auto grid size-12 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/[0.07] text-xl font-black text-lime-100">
+												#
+											</div>
 											<h3 className="mt-4 text-xl font-black text-emerald-50">Riot-ID eingeben</h3>
-											<p className="mt-2 text-sm leading-6 text-emerald-100/52">Sobald eine vollständige Riot-ID im Format Name#Tag eingetragen ist, laden wir hier die Live-Vorschau.</p>
+											<p className="mt-2 text-sm leading-6 text-emerald-100/52">
+												Sobald eine vollständige Riot-ID im Format Name#Tag eingetragen ist, laden wir hier die Live-Vorschau.
+											</p>
 										</div>
 									</div>
 								)}
@@ -793,13 +998,27 @@ export function OverlayBuilderClient({
 									<div className="text-[8px] font-black uppercase tracking-[0.24em] text-lime-200/58">Browserquelle</div>
 									<h3 className="mt-0.5 truncate text-sm font-black">URL ansehen oder bestehendes Overlay laden</h3>
 								</div>
-								<span className="grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-100/55 transition group-open:rotate-180 group-open:border-lime-200/20 group-open:text-lime-100" aria-hidden="true">
-									<svg viewBox="0 0 20 20" className="size-4" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+								<span
+									className="grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-100/55 transition group-open:rotate-180 group-open:border-lime-200/20 group-open:text-lime-100"
+									aria-hidden="true"
+								>
+									<svg viewBox="0 0 20 20" className="size-4" fill="none">
+										<path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+									</svg>
 								</span>
 							</summary>
 							<div className="border-t border-white/8 px-4 pb-4 pt-4">
-								<input readOnly value={canCopyOverlay ? overlayUrl : validRiotId ? "Stabile Riot-Account-ID wird ermittelt..." : "Bitte zuerst eine vollständige Riot-ID eingeben."} onFocus={(event) => event.currentTarget.select()} className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 font-mono text-[10px] text-emerald-100/62 outline-none focus:border-lime-200/35" />
-								<p className="mt-2 text-[11px] leading-5 text-emerald-100/46">In OBS als Browserquelle einfügen. Die empfohlene Größe steht direkt über der Vorschau.</p>
+								<input
+									readOnly
+									value={
+										canCopyOverlay ? overlayUrl : validRiotId ? "Stabile Riot-Account-ID wird ermittelt..." : "Bitte zuerst eine vollständige Riot-ID eingeben."
+									}
+									onFocus={(event) => event.currentTarget.select()}
+									className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 font-mono text-[10px] text-emerald-100/62 outline-none focus:border-lime-200/35"
+								/>
+								<p className="mt-2 text-[11px] leading-5 text-emerald-100/46">
+									In OBS als Browserquelle einfügen. Die empfohlene Größe steht direkt über der Vorschau.
+								</p>
 
 								<div className="mt-4 border-t border-white/9 pt-4">
 									<div className="flex flex-wrap items-center justify-between gap-2">
@@ -807,27 +1026,66 @@ export function OverlayBuilderClient({
 											<div className="text-[8px] font-black uppercase tracking-[0.22em] text-lime-100/52">Meine Presets</div>
 											<p className="mt-1 text-[10px] text-emerald-100/42">Bis zu zwölf Konfigurationen pro Lauchgruen-Konto.</p>
 										</div>
-										{presetSignedIn === false ? <a href={accountUrl} className="rounded-xl border border-[#9146ff]/30 bg-[#9146ff]/12 px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-purple-100">Anmelden</a> : null}
+										{presetSignedIn === false ? (
+											<a
+												href={accountUrl}
+												className="rounded-xl border border-[#9146ff]/30 bg-[#9146ff]/12 px-3 py-2 text-[8px] font-black uppercase tracking-[0.15em] text-purple-100"
+											>
+												Anmelden
+											</a>
+										) : null}
 									</div>
 									{presetSignedIn ? (
 										<>
 											<div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-												<input value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={48} placeholder="Preset-Name" className={inputClass} />
-												<button type="button" onClick={savePreset} disabled={!canCopyOverlay || !presetName.trim() || presetBusy} className="h-12 rounded-2xl bg-lime-200 px-4 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-950 transition disabled:cursor-not-allowed disabled:opacity-35">{presetBusy ? "Speichert …" : "Preset speichern"}</button>
+												<input
+													value={presetName}
+													onChange={(event) => setPresetName(event.target.value)}
+													maxLength={48}
+													placeholder="Preset-Name"
+													className={inputClass}
+												/>
+												<button
+													type="button"
+													onClick={savePreset}
+													disabled={!canCopyOverlay || !presetName.trim() || presetBusy}
+													className="h-12 rounded-2xl bg-lime-200 px-4 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-950 transition disabled:cursor-not-allowed disabled:opacity-35"
+												>
+													{presetBusy ? "Speichert …" : "Preset speichern"}
+												</button>
 											</div>
 											{presets.length ? (
 												<div className="mt-3 grid gap-2 sm:grid-cols-2">
 													{presets.map((preset) => (
 														<div key={preset.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/9 bg-black/18 p-2">
-															<button type="button" onClick={() => loadPreset(preset)} className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-[10px] font-black text-emerald-50 transition hover:bg-white/[0.05]">{preset.name}</button>
-															<button type="button" onClick={() => deletePreset(preset)} aria-label={`${preset.name} löschen`} className="grid size-8 shrink-0 place-items-center rounded-lg border border-red-200/12 bg-red-400/[0.05] text-xs font-black text-red-100/55 transition hover:border-red-200/28 hover:text-red-100">×</button>
+															<button
+																type="button"
+																onClick={() => loadPreset(preset)}
+																className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-[10px] font-black text-emerald-50 transition hover:bg-white/[0.05]"
+															>
+																{preset.name}
+															</button>
+															<button
+																type="button"
+																onClick={() => deletePreset(preset)}
+																aria-label={`${preset.name} löschen`}
+																className="grid size-8 shrink-0 place-items-center rounded-lg border border-red-200/12 bg-red-400/[0.05] text-xs font-black text-red-100/55 transition hover:border-red-200/28 hover:text-red-100"
+															>
+																×
+															</button>
 														</div>
 													))}
 												</div>
-											) : <p className="mt-3 text-[10px] text-emerald-100/36">Noch keine Presets gespeichert.</p>}
+											) : (
+												<p className="mt-3 text-[10px] text-emerald-100/36">Noch keine Presets gespeichert.</p>
+											)}
 										</>
 									) : null}
-									{presetMessage ? <p aria-live="polite" className="mt-2 text-[10px] font-bold text-lime-100/65">{presetMessage}</p> : null}
+									{presetMessage ? (
+										<p aria-live="polite" className="mt-2 text-[10px] font-bold text-lime-100/65">
+											{presetMessage}
+										</p>
+									) : null}
 								</div>
 
 								<div className="mt-4 border-t border-white/9 pt-4">
@@ -849,23 +1107,34 @@ export function OverlayBuilderClient({
 											aria-label="Bestehende Overlay-URL"
 											className={inputClass}
 										/>
-										<button type="submit" className="h-12 rounded-2xl border border-cyan-100/18 bg-cyan-200/[0.09] px-5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-100/38 hover:bg-cyan-200/[0.14]">
+										<button
+											type="submit"
+											className="h-12 rounded-2xl border border-cyan-100/18 bg-cyan-200/[0.09] px-5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-100/38 hover:bg-cyan-200/[0.14]"
+										>
 											URL laden
 										</button>
 									</form>
 									{importMessage ? (
-										<div aria-live="polite" className={`mt-3 rounded-xl border px-3 py-2.5 text-[11px] font-bold leading-5 ${importMessage.tone === "success" ? "border-lime-200/20 bg-lime-200/[0.07] text-lime-50/75" : "border-rose-200/20 bg-rose-300/[0.07] text-rose-50/75"}`}>
+										<div
+											aria-live="polite"
+											className={`mt-3 rounded-xl border px-3 py-2.5 text-[11px] font-bold leading-5 ${importMessage.tone === "success" ? "border-lime-200/20 bg-lime-200/[0.07] text-lime-50/75" : "border-rose-200/20 bg-rose-300/[0.07] text-rose-50/75"}`}
+										>
 											{importMessage.text}
 										</div>
 									) : (
-										<p className="mt-2 text-[11px] leading-5 text-emerald-100/42">Lädt alle Einstellungen direkt aus den URL-Parametern. Es wird nichts gespeichert.</p>
+										<p className="mt-2 text-[11px] leading-5 text-emerald-100/42">
+											Lädt alle Einstellungen direkt aus den URL-Parametern. Es wird nichts gespeichert.
+										</p>
 									)}
 								</div>
 							</div>
 						</details>
 					</section>
 				</div>
-				<RiotDisclaimer productName="Lauchgruen Overlay Builder" className="mx-auto mt-6 max-w-5xl border-t border-white/8 pt-4 text-center text-[10px] leading-5 text-emerald-100/35" />
+				<RiotDisclaimer
+					productName="Lauchgruen Overlay Builder"
+					className="mx-auto mt-6 max-w-5xl border-t border-white/8 pt-4 text-center text-[10px] leading-5 text-emerald-100/35"
+				/>
 			</main>
 		</div>
 	);
@@ -892,7 +1161,11 @@ function TwitchSearchResult({ lookup, selectedLogin, onSelect }: { lookup: Twitc
 		);
 	}
 	if (lookup.status === "missing" || lookup.status === "error") {
-		return <div aria-live="polite" className="rounded-xl border border-rose-200/16 bg-rose-300/[0.06] px-3 py-2.5 text-[10px] font-bold leading-5 text-rose-50/68">{lookup.message}</div>;
+		return (
+			<div aria-live="polite" className="rounded-xl border border-rose-200/16 bg-rose-300/[0.06] px-3 py-2.5 text-[10px] font-bold leading-5 text-rose-50/68">
+				{lookup.message}
+			</div>
+		);
 	}
 
 	const selected = selectedLogin === lookup.user.login;
@@ -924,14 +1197,26 @@ function TwitchSearchResult({ lookup, selectedLogin, onSelect }: { lookup: Twitc
 function Panel({ kicker, title, children, defaultOpen = false }: { kicker: string; title: string; children: React.ReactNode; defaultOpen?: boolean }) {
 	const [open, setOpen] = useState(defaultOpen);
 	return (
-		<section className={`overflow-hidden rounded-[1.5rem] border bg-[#08170f]/90 shadow-xl shadow-black/20 backdrop-blur-xl transition ${open ? "border-lime-100/16" : "border-white/9 hover:border-white/15"}`}>
-			<button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left">
+		<section
+			className={`overflow-hidden rounded-[1.5rem] border bg-[#08170f]/90 shadow-xl shadow-black/20 backdrop-blur-xl transition ${open ? "border-lime-100/16" : "border-white/9 hover:border-white/15"}`}
+		>
+			<button
+				type="button"
+				onClick={() => setOpen((current) => !current)}
+				aria-expanded={open}
+				className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left"
+			>
 				<span className="min-w-0">
 					<span className="block text-[8px] font-black uppercase tracking-[0.24em] text-lime-200/48">{kicker}</span>
 					<span className="mt-0.5 block truncate text-sm font-black text-emerald-50">{title}</span>
 				</span>
-				<span className={`grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-100/55 transition ${open ? "rotate-180 border-lime-200/20 text-lime-100" : ""}`} aria-hidden="true">
-					<svg viewBox="0 0 20 20" className="size-4" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+				<span
+					className={`grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-100/55 transition ${open ? "rotate-180 border-lime-200/20 text-lime-100" : ""}`}
+					aria-hidden="true"
+				>
+					<svg viewBox="0 0 20 20" className="size-4" fill="none">
+						<path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+					</svg>
 				</span>
 			</button>
 			{open ? <div className="grid gap-4 border-t border-white/8 px-4 pb-4 pt-4">{children}</div> : null}
@@ -942,7 +1227,10 @@ function Panel({ kicker, title, children, defaultOpen = false }: { kicker: strin
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
 	return (
 		<label className="grid gap-1.5">
-			<span className="flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100/60"><span>{label}</span>{hint ? <span className="text-right normal-case tracking-normal text-emerald-100/34">{hint}</span> : null}</span>
+			<span className="flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100/60">
+				<span>{label}</span>
+				{hint ? <span className="text-right normal-case tracking-normal text-emerald-100/34">{hint}</span> : null}
+			</span>
 			{children}
 		</label>
 	);
@@ -984,7 +1272,9 @@ function rankTierFromLabel(label: string) {
 
 function Toggle({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
 	return (
-		<label className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/9 bg-black/18 px-3 py-2.5 text-xs font-bold text-emerald-100/72 transition hover:border-lime-200/20 ${disabled ? "cursor-not-allowed opacity-35" : ""}`}>
+		<label
+			className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/9 bg-black/18 px-3 py-2.5 text-xs font-bold text-emerald-100/72 transition hover:border-lime-200/20 ${disabled ? "cursor-not-allowed opacity-35" : ""}`}
+		>
 			<span>{label}</span>
 			<input type="checkbox" className="peer sr-only" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
 			<span className="relative h-5 w-9 shrink-0 rounded-full border border-white/12 bg-black/35 transition peer-checked:border-lime-200/40 peer-checked:bg-lime-300/25 after:absolute after:left-0.5 after:top-0.5 after:size-3.5 after:rounded-full after:bg-emerald-100/45 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:bg-lime-100" />
@@ -992,4 +1282,5 @@ function Toggle({ label, checked, onChange, disabled = false }: { label: string;
 	);
 }
 
-const inputClass = "h-12 w-full rounded-2xl border border-white/10 bg-[#07110c] px-4 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/25 focus:border-lime-200/45 focus:ring-2 focus:ring-lime-200/10";
+const inputClass =
+	"h-12 w-full rounded-2xl border border-white/10 bg-[#07110c] px-4 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/25 focus:border-lime-200/45 focus:ring-2 focus:ring-lime-200/10";

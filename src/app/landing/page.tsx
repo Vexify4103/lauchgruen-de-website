@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Image from "next/image";
+import { CreatorCredit } from "@/components/CreatorCredit";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { normalizeTwitchLogin } from "@/lib/community-overlay-config";
@@ -10,7 +11,6 @@ import { RecentClips } from "./RecentClips";
 
 const TWITCH_LOGIN = "lauchgruen";
 const TWITCH_URL = `https://twitch.tv/${TWITCH_LOGIN}`;
-const VEXIFY_URL = "https://twitch.tv/vexi_fy";
 const QUIZ_ENABLED = process.env.QUIZ_ENABLED !== "false";
 
 const STREAM_GAMES = [
@@ -316,19 +316,20 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 			</main>
 
 			<footer className="relative z-10 mt-5 border-t border-white/7 px-5 py-8 sm:px-8">
-				<div className="mx-auto flex w-full max-w-[90rem] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-					<div className="flex items-center gap-3">
-						<Image src="/bear-logo.png" alt="" aria-hidden width={34} height={34} className="size-9 rounded-xl border border-lime-200/14 object-cover opacity-75" />
-						<div>
-							<div className="text-[9px] font-black uppercase tracking-[0.28em] text-lime-200/42">lauchgruen.de</div>
-							<div className="mt-1 text-xs text-emerald-100/38">Stream, Turniere, Shows und Tools.</div>
+				<div className="mx-auto w-full max-w-[90rem]">
+					<CreatorCredit />
+					<div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+						<div className="flex items-center gap-3">
+							<Image src="/bear-logo.png" alt="" aria-hidden width={34} height={34} className="size-9 rounded-xl border border-lime-200/14 object-cover opacity-75" />
+							<div>
+								<div className="text-[9px] font-black uppercase tracking-[0.28em] text-lime-200/42">lauchgruen.de</div>
+								<div className="mt-1 text-xs text-emerald-100/38">Stream, Turniere, Shows und Tools.</div>
+							</div>
 						</div>
-					</div>
-					<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/42">
-						<span>© {new Date().getFullYear()} Lauchgruen</span>
-						<a href={VEXIFY_URL} target="_blank" rel="noreferrer" className="transition hover:text-lime-100">
-							Crafted by Vexify
-						</a>
+						<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/42">
+							<span>© {new Date().getFullYear()} Lauchgruen</span>
+							<span>Stream · Community · Turniere</span>
+						</div>
 					</div>
 				</div>
 			</footer>
