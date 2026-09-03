@@ -23,16 +23,10 @@ export function CreatorCredit({ className = "" }: { className?: string }) {
 			/>
 
 			<div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-				<div className="flex min-w-0 items-center gap-4">
-					<div className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-lime-200/18 bg-black/25 shadow-[0_0_28px_rgba(163,230,53,0.1)]">
-						<div aria-hidden className="absolute inset-2 rotate-45 rounded-md border border-cyan-200/12" />
-						<span className="relative font-mono text-sm font-black tracking-[-0.08em] text-lime-100">VX</span>
-					</div>
-					<div className="min-w-0">
-						<div className="text-[8px] font-black uppercase tracking-[0.3em] text-lime-200/52">Creator-Credit · Hinter den Kulissen</div>
-						<h2 className="mt-1.5 text-xl font-black tracking-[-0.035em] text-emerald-50 sm:text-2xl">Website von Vexify.</h2>
-						<p className="mt-1 text-[11px] leading-5 text-emerald-100/43">Design, Entwicklung und Plattform-Engineering für Lauchgruens Stream, Tools und Turniere.</p>
-					</div>
+				<div className="min-w-0 pl-1 sm:pl-2">
+					<div className="text-[8px] font-black uppercase tracking-[0.3em] text-lime-200/52">Creator-Credit · Hinter den Kulissen</div>
+					<h2 className="mt-1.5 text-xl font-black tracking-[-0.035em] text-emerald-50 sm:text-2xl">Website von Vexify.</h2>
+					<p className="mt-1 text-[11px] leading-5 text-emerald-100/43">Design, Entwicklung und Plattform-Engineering für Lauchgruens Stream, Tools und Turniere.</p>
 				</div>
 
 				<div className="grid gap-2 sm:grid-cols-2">
@@ -47,21 +41,21 @@ export function CreatorCredit({ className = "" }: { className?: string }) {
 function CreatorLink({ href, label, value, tone, icon }: { href: string; label: string; value: string; tone: "twitch" | "discord"; icon: React.ReactNode }) {
 	const colors =
 		tone === "twitch"
-			? "border-fuchsia-200/12 bg-fuchsia-300/[0.065] hover:border-fuchsia-200/28 hover:bg-fuchsia-300/[0.1]"
-			: "border-indigo-200/12 bg-indigo-300/[0.065] hover:border-indigo-200/28 hover:bg-indigo-300/[0.1]";
+			? "border-white/10 bg-[#9146ff] shadow-[0_10px_28px_rgba(145,70,255,0.16)] hover:bg-[#a263ff] hover:shadow-[0_14px_34px_rgba(145,70,255,0.24)]"
+			: "border-white/10 bg-[#5865f2] shadow-[0_10px_28px_rgba(88,101,242,0.16)] hover:bg-[#6d78f5] hover:shadow-[0_14px_34px_rgba(88,101,242,0.24)]";
 	return (
 		<a
 			href={href}
 			target="_blank"
 			rel="noreferrer"
-			className={`group grid min-h-14 min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition hover:-translate-y-0.5 ${colors}`}
+			className={`group grid min-h-14 min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-white transition duration-200 hover:-translate-y-0.5 ${colors}`}
 		>
-			<span className="grid size-8 place-items-center rounded-xl border border-white/8 bg-black/18 text-emerald-50/82">{icon}</span>
+			<span className="grid size-8 place-items-center rounded-xl border border-white/15 bg-black/15 text-white">{icon}</span>
 			<span className="min-w-0">
-				<small className="block truncate text-[7px] font-black uppercase tracking-[0.18em] text-emerald-100/42">{label}</small>
-				<strong className="mt-0.5 block truncate text-[11px] font-black text-emerald-50">{value}</strong>
+				<small className="block truncate text-[7px] font-black uppercase tracking-[0.18em] text-white/65">{label}</small>
+				<strong className="mt-0.5 block truncate text-[11px] font-black text-white">{value}</strong>
 			</span>
-			<span aria-hidden className="text-xs font-black text-emerald-100/32 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-emerald-50">
+			<span aria-hidden className="text-xs font-black text-white/55 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white">
 				↗
 			</span>
 		</a>
