@@ -1,6 +1,7 @@
 "use client";
 
 import type { TournamentSettings } from "@/lib/tournament-settings";
+import type { SwissPairing, SwissStageState } from "@/lib/tournament-swiss";
 import { playoffFormatLabel } from "@/lib/tournament-format";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
@@ -24,10 +25,50 @@ function recordBuckets(round: number, targetWins: number) {
 	);
 }
 
-export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config: StageConfig; teamNames: string[]; activeRound?: number }) {
-	const matchCount = Math.floor(config.teamCount / 2);
+function recordKey(wins: number, losses: number) {
+	return `${wins}-${losses}`;
+}
+
+function pairingRecordKey(pairing: SwissPairing) {
+	const first = pairing.recordA ?? "0-0";
+	const second = pairing.recordB ?? first;
+	return first === second ? first : `${first} ↔ ${second}`;
+}
+
+function nextRecordText(wins: number, losses: number, targetWins: number) {
+	const winRecord = recordKey(wins + 1, losses);
+	const lossRecord = recordKey(wins, losses + 1);
+	const winTerminal = wins + 1 >= targetWins;
+	const lossTerminal = losses + 1 >= targetWins;
+	if (winTerminal && lossTerminal) return "Beide Platzierungen werden entschieden";
+	if (winTerminal) return `Sieger qualifiziert · Verlierer → ${lossRecord}`;
+	if (lossTerminal) return `Sieger → ${winRecord} · Verlierer ausgeschieden`;
+	return `Sieger → ${winRecord} · Verlierer → ${lossRecord}`;
+}
+
+const placementMatchCounts: Record<number, Record<string, number>> = {
+	1: { "0-0": 4 },
+	2: { "1-0": 2, "0-1": 2 },
+	3: { "2-0": 1, "1-1": 2, "0-2": 1 },
+	4: { "2-1": 1, "1-2": 1 },
+};
+
+const placementNextLabels: Record<string, string> = {
+	"1:0-0": "Sieger → 1-0 · Verlierer → 0-1",
+	"2:1-0": "Sieger → 2-0 · Verlierer → 1-1",
+	"2:0-1": "Sieger → 1-1 · Verlierer → 0-2",
+	"3:2-0": "Sieger = Seed #1 · Verlierer = Seed #2",
+	"3:1-1": "Sieger → Spiel um #3/#4 · Verlierer → Spiel um #5/#6",
+	"3:0-2": "Sieger = Seed #7 · Verlierer = Seed #8",
+	"4:2-1": "Sieger = Seed #3 · Verlierer = Seed #4",
+	"4:1-2": "Sieger = Seed #5 · Verlierer = Seed #6",
+};
+
+export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: { config: StageConfig; teamNames: string[]; state: SwissStageState; activeRound?: number }) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const lastFocusedRound = useRef<number | null>(null);
+	const targetWins = Math.floor(config.swissRounds / 2) + 1;
+	const placementSwiss = config.teamCount === 8 && config.advanceTeamCount === 8 && config.swissRounds === 4;
 
 	useLayoutEffect(() => {
 		if (lastFocusedRound.current === activeRound) return;
@@ -48,9 +89,9 @@ export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config
 				<div className="flex flex-wrap items-end justify-between gap-4">
 					<div>
 						<div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-100/54">Random Swiss · ohne Rematches</div>
-						<h2 className="mt-2 text-3xl font-black text-emerald-50">{config.swissRounds} zufällige Runden.</h2>
+						<h2 className="mt-2 text-3xl font-black text-emerald-50">Jeder Weg durch die Swiss Stage.</h2>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/54">
-							Jede Runde wird unabhängig ausgelost. Bereits gespielte Gegner sind für alle späteren Ziehungen gesperrt.
+							Leere Plätze werden bei der Auslosung automatisch gefüllt. Bereits gespielte Gegner bleiben für alle späteren Runden gesperrt.
 						</p>
 					</div>
 					<span className="rounded-full border border-lime-200/18 bg-lime-200/8 px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-lime-100">
@@ -68,41 +109,65 @@ export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config
 				) : null}
 			</header>
 			<div ref={scrollRef} className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
-				<div className="grid min-w-max gap-3" style={{ gridTemplateColumns: `repeat(${config.swissRounds}, minmax(14rem, 1fr))` }}>
-					{Array.from({ length: config.swissRounds }, (_, roundIndex) => (
-						<section
-							key={roundIndex}
-							data-swiss-round={roundIndex + 1}
-							className={`rounded-[1.6rem] border p-3 transition ${
-								roundIndex + 1 === activeRound ? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]" : "border-white/8 bg-black/16"
-							}`}
-						>
-							<div className="flex items-center justify-between border-b border-white/8 pb-3">
-								<div>
-									<div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/42">Auslosung</div>
-									<strong className="mt-1 block text-lg text-emerald-50">Runde {roundIndex + 1}</strong>
+				<div className="grid min-w-max items-stretch gap-4" style={{ gridTemplateColumns: `repeat(${config.swissRounds}, minmax(17rem, 1fr)) minmax(14rem, 0.8fr)` }}>
+					{Array.from({ length: config.swissRounds }, (_, roundIndex) => {
+						const roundNumber = roundIndex + 1;
+						const expectedBuckets = recordBuckets(roundNumber, targetWins);
+						const actualRound = state.rounds.find((round) => round.round === roundNumber);
+						const expectedKeys = new Set(expectedBuckets.map((record) => recordKey(record.wins, record.losses)));
+						const unexpectedKeys = [...new Set((actualRound?.pairings ?? []).map(pairingRecordKey).filter((key) => !expectedKeys.has(key)))];
+						return (
+							<section
+								key={roundNumber}
+								data-swiss-round={roundNumber}
+								className={`relative flex min-h-[34rem] flex-col rounded-[1.7rem] border p-3 transition ${
+									roundNumber === activeRound
+										? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]"
+										: roundNumber > activeRound
+											? "border-white/7 bg-black/10 opacity-70"
+											: "border-white/8 bg-black/16"
+								}`}
+							>
+								<div className="flex items-center justify-between border-b border-white/8 px-1 pb-3">
+									<div>
+										<div className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/42">Runde {String(roundNumber).padStart(2, "0")}</div>
+										<strong className="mt-1 block text-sm text-emerald-50">
+											{roundNumber === activeRound ? "Aktueller Swiss-Pfad" : roundNumber < activeRound ? "Abgeschlossen" : "Folgt nach Ergebnissen"}
+										</strong>
+									</div>
+									<span className="rounded-full border border-white/8 px-2 py-1 text-[8px] font-black text-emerald-100/38">BO1</span>
 								</div>
-								<span className="rounded-full border border-white/8 px-2 py-1 text-[8px] font-black text-emerald-100/38">BO1</span>
-							</div>
-							<div className="mt-3 grid gap-2">
-								{Array.from({ length: matchCount }, (_, matchIndex) => (
-									<div
-										key={matchIndex}
-										className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg border border-white/[0.055] bg-black/20 px-2 py-2 text-[10px] font-black text-emerald-100/32"
-									>
-										<span className="text-right">Offen</span>
-										<span className="text-cyan-200/60">VS</span>
-										<span>Offen</span>
-									</div>
-								))}
-								{config.teamCount % 2 ? (
-									<div className="rounded-lg border border-amber-200/10 bg-amber-200/[0.035] px-2 py-2 text-center text-[9px] font-black text-amber-100/48">
-										1 faires Freilos
-									</div>
+								<div className="flex flex-1 flex-col justify-around gap-3 py-3">
+									{[
+										...expectedBuckets.map((record) => ({ key: recordKey(record.wins, record.losses), ...record })),
+										...unexpectedKeys.map((key) => ({ key, wins: -1, losses: -1 })),
+									].map((record) => {
+										const pairings = (actualRound?.pairings ?? []).filter((pairing) => pairingRecordKey(pairing) === record.key);
+										const estimatedTeams = record.wins < 0 ? pairings.length * 2 : estimateTeamsInRecord(config.teamCount, roundNumber - 1, record.wins);
+										const expectedMatches = placementSwiss
+											? (placementMatchCounts[roundNumber]?.[record.key] ?? pairings.length)
+											: Math.max(1, Math.floor(estimatedTeams / 2));
+										return (
+											<SwissPathCard
+												key={`${roundNumber}-${record.key}`}
+												record={record.key}
+												pairings={pairings}
+												placeholderCount={Math.max(0, expectedMatches - pairings.length)}
+												next={
+													placementNextLabels[`${roundNumber}:${record.key}`] ??
+													(record.wins >= 0 ? nextRecordText(record.wins, record.losses, targetWins) : "Bilanzübergreifende Paarung")
+												}
+											/>
+										);
+									})}
+								</div>
+								{roundNumber < config.swissRounds ? (
+									<div aria-hidden className="absolute -right-4 top-1/2 h-px w-4 bg-gradient-to-r from-cyan-200/45 to-lime-200/30" />
 								) : null}
-							</div>
-						</section>
-					))}
+							</section>
+						);
+					})}
+					<SwissOutcome config={config} />
 				</div>
 			</div>
 			<footer className="grid gap-3 border-t border-white/8 px-6 py-5 text-xs leading-5 text-emerald-100/52 sm:grid-cols-3 sm:px-8">
@@ -117,6 +182,71 @@ export function SwissStageBoard({ config, teamNames, activeRound = 1 }: { config
 				</div>
 			</footer>
 		</div>
+	);
+}
+
+function SwissPathCard({ record, pairings, placeholderCount, next }: { record: string; pairings: SwissPairing[]; placeholderCount: number; next: string }) {
+	const positive = record.startsWith("2-") || record.startsWith("3-");
+	const danger = record.endsWith("-2") || record.endsWith("-3");
+	return (
+		<article
+			className={`rounded-2xl border p-3 shadow-lg shadow-black/15 ${
+				positive ? "border-lime-200/20 bg-lime-200/[0.065]" : danger ? "border-amber-200/18 bg-amber-200/[0.05]" : "border-white/10 bg-white/[0.045]"
+			}`}
+		>
+			<div className="flex items-center justify-between gap-3">
+				<span className="font-mono text-lg font-black text-cyan-100">{record.replaceAll("-", "–")}</span>
+				<span className="text-[8px] font-black uppercase tracking-[0.16em] text-emerald-100/38">Score-Pool</span>
+			</div>
+			<div className="mt-2 grid gap-1.5">
+				{pairings.map((pairing) => (
+					<div
+						key={pairing.id}
+						className="grid min-h-9 grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg border border-white/[0.07] bg-black/24 px-2 py-2 text-[10px] font-black text-emerald-50"
+					>
+						<span className={`truncate text-right ${pairing.winnerTeamKey === pairing.teamAKey ? "text-lime-100" : ""}`}>{pairing.teamAName}</span>
+						<span className="text-cyan-200/72">{pairing.bye ? "FREI" : "VS"}</span>
+						<span className={`truncate ${pairing.winnerTeamKey === pairing.teamBKey ? "text-lime-100" : ""}`}>{pairing.teamBName ?? "Freilos"}</span>
+					</div>
+				))}
+				{Array.from({ length: placeholderCount }, (_, index) => (
+					<div
+						key={`open-${index}`}
+						className="grid min-h-9 grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg border border-dashed border-white/[0.07] bg-black/14 px-2 py-2 text-[10px] font-black text-emerald-100/30"
+					>
+						<span className="text-right">Offen</span>
+						<span className="text-cyan-200/50">VS</span>
+						<span>Offen</span>
+					</div>
+				))}
+			</div>
+			<div className="mt-2 border-t border-white/8 pt-2 text-[9px] font-black leading-4 text-emerald-100/48">{next}</div>
+		</article>
+	);
+}
+
+function SwissOutcome({ config }: { config: StageConfig }) {
+	const allAdvance = config.advanceTeamCount >= config.teamCount;
+	return (
+		<section className="flex min-h-[34rem] flex-col rounded-[1.7rem] border border-lime-200/16 bg-gradient-to-b from-lime-200/[0.075] to-black/15 p-4">
+			<div className="border-b border-lime-200/12 pb-3">
+				<div className="text-[9px] font-black uppercase tracking-[0.22em] text-lime-100/50">Abschluss</div>
+				<div className="mt-1 text-xl font-black text-lime-50">{allAdvance ? "Playoff-Seeds" : "Qualifiziert"}</div>
+			</div>
+			<div className="my-auto grid gap-2 py-4">
+				{Array.from({ length: config.advanceTeamCount }, (_, index) => (
+					<div key={index} className="flex items-center justify-between rounded-xl border border-white/8 bg-black/18 px-3 py-2.5">
+						<span className="font-mono text-sm font-black text-lime-100">#{index + 1}</span>
+						<span className="text-[9px] font-black uppercase tracking-[0.13em] text-emerald-100/48">Qualifiziert</span>
+					</div>
+				))}
+			</div>
+			{!allAdvance ? (
+				<div className="rounded-xl border border-amber-200/14 bg-amber-200/[0.05] px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.13em] text-amber-100/58">
+					Platz {config.advanceTeamCount + 1}–{config.teamCount} ausgeschieden
+				</div>
+			) : null}
+		</section>
 	);
 }
 

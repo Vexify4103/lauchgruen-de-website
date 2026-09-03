@@ -4,7 +4,6 @@ import { useEffect, useEffectEvent, useState } from "react";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 import type { SwissStageState } from "@/lib/tournament-swiss";
 import { resolveSwissFocusRound } from "@/lib/tournament-stage-focus";
-import { SwissLivePairings } from "@/components/SwissLivePairings";
 import { SwissStageBoard } from "@/components/SwissStageBoard";
 
 export function SwissStageLiveView({
@@ -36,13 +35,8 @@ export function SwissStageLiveView({
 	}, [complete, live]);
 
 	return (
-		<>
-			<div className="mt-9">
-				<SwissLivePairings state={state} configuredRounds={config.swissRounds} live={live} activeRound={activeRound} />
-			</div>
-			<div className="mt-6">
-				<SwissStageBoard config={config} teamNames={teamNames} activeRound={activeRound} />
-			</div>
-		</>
+		<div className="mt-9">
+			<SwissStageBoard config={config} teamNames={teamNames} state={state} activeRound={activeRound} />
+		</div>
 	);
 }

@@ -209,10 +209,10 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 								<div className="rounded-[1.5rem] border border-white/8 bg-black/16 p-4">
 									<div className="flex flex-wrap items-center justify-between gap-3">
 										<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-100/62">
-											{isAzTournament || settings.ultimateBravery.dayOneFormat === "groups"
-												? `Gruppe ${team.group} · Seed ${team.seed}`
-												: settings.ultimateBravery.dayOneFormat === "swiss"
-													? "Swiss-Stage-Team"
+											{settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "swiss"
+												? "Swiss Stage · Setzung offen"
+												: isAzTournament || settings.ultimateBravery.dayOneFormat === "groups"
+													? `Gruppe ${team.group} · Seed ${team.seed}`
 													: "Turnierteam"}
 										</div>
 										<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
