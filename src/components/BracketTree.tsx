@@ -125,7 +125,7 @@ function buildBracketLayout(ids: Set<string>) {
 	};
 }
 
-export function BracketTree({ matches }: { matches: BracketMatch[] }) {
+export function BracketTree({ matches, showPools = true }: { matches: BracketMatch[]; showPools?: boolean }) {
 	const matchIds = matches.map((match) => match.id).join("|");
 	const layout = buildBracketLayout(new Set(matches.map((match) => match.id)));
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -227,6 +227,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 						rows={layout.upperRows}
 						positions={layout.upperPositions}
 						matches={matches}
+						showPools={showPools}
 						registerCard={registerCard}
 						lookup={lookup}
 					/>
@@ -240,6 +241,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 							rows={4}
 							positions={layout.lowerPositions}
 							matches={matches}
+							showPools={showPools}
 							registerCard={registerCard}
 							lookup={lookup}
 						/>
@@ -256,6 +258,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[] }) {
 						rows={1}
 						positions={GF_POSITIONS}
 						matches={matches}
+						showPools={showPools}
 						registerCard={registerCard}
 						lookup={lookup}
 					/>
@@ -296,6 +299,7 @@ function BracketSection({
 	positions,
 	registerCard,
 	lookup,
+	showPools,
 }: {
 	label: string;
 	accent: Accent;
@@ -306,6 +310,7 @@ function BracketSection({
 	matches: BracketMatch[];
 	registerCard: (id: string) => (el: HTMLDivElement | null) => void;
 	lookup: (id: string) => BracketMatch | undefined;
+	showPools: boolean;
 }) {
 	const tone = accentClasses[accent];
 	const gridCols = `repeat(${columns}, minmax(9rem, 1fr))`;
@@ -337,7 +342,7 @@ function BracketSection({
 					if (!match) return null;
 					return (
 						<div key={id} ref={registerCard(id)} className="flex items-center" style={position}>
-							<BracketCard match={match} />
+							<BracketCard match={match} showPools={showPools} />
 						</div>
 					);
 				})}
@@ -362,7 +367,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 	);
 }
 
-function BracketCard({ match }: { match: BracketMatch }) {
+function BracketCard({ match, showPools }: { match: BracketMatch; showPools: boolean }) {
 	const winnerIsA = !!match.winner && match.winner === match.teamAName;
 	const winnerIsB = !!match.winner && match.winner === match.teamBName;
 	const scoreA = match.scoreA;
@@ -407,23 +412,27 @@ function BracketCard({ match }: { match: BracketMatch }) {
 				pool={match.poolAssignment?.teamBPool ?? null}
 				bottom
 			/>
-			<footer className="flex flex-wrap items-center gap-2 border-t border-white/6 bg-black/18 px-3 py-1.5">
-				{match.status === "Live" ? (
-					<span className="rounded-full border border-red-300/30 bg-red-500/16 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-red-100">Current</span>
-				) : null}
-				{match.poolAssignment ? (
-					<Link
-						href={`/tournament/champ-select/${match.id}/spectate`}
-						className="rounded-full border border-sky-200/20 bg-sky-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-sky-50/82"
-					>
-						Draft bereit
-					</Link>
-				) : (
-					<span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/34">
-						Keine Pools
-					</span>
-				)}
-			</footer>
+			{showPools || match.status === "Live" ? (
+				<footer className="flex flex-wrap items-center gap-2 border-t border-white/6 bg-black/18 px-3 py-1.5">
+					{match.status === "Live" ? (
+						<span className="rounded-full border border-red-300/30 bg-red-500/16 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-red-100">
+							Current
+						</span>
+					) : null}
+					{showPools && match.poolAssignment ? (
+						<Link
+							href={`/tournament/champ-select/${match.id}/spectate`}
+							className="rounded-full border border-sky-200/20 bg-sky-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-sky-50/82"
+						>
+							Draft bereit
+						</Link>
+					) : showPools ? (
+						<span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/34">
+							Keine Pools
+						</span>
+					) : null}
+				</footer>
+			) : null}
 		</article>
 	);
 }

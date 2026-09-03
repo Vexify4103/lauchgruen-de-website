@@ -7,11 +7,12 @@ const POLL_INTERVAL_MS = 15_000;
 
 export type LivePlayoffMatch = BracketMatch;
 
-export function LivePlayoffs({ initialMatches }: { initialMatches: LivePlayoffMatch[] }) {
+export function LivePlayoffs({ initialMatches, autoRefresh = true, showPools = true }: { initialMatches: LivePlayoffMatch[]; autoRefresh?: boolean; showPools?: boolean }) {
 	const [matches, setMatches] = useState(initialMatches);
 	const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
 	useEffect(() => {
+		if (!autoRefresh) return;
 		let cancelled = false;
 		const markUpdated = () => setLastUpdated(new Date().toLocaleTimeString("de-DE"));
 
@@ -62,14 +63,16 @@ export function LivePlayoffs({ initialMatches }: { initialMatches: LivePlayoffMa
 			stop();
 			document.removeEventListener("visibilitychange", onVisibility);
 		};
-	}, []);
+	}, [autoRefresh]);
 
 	return (
 		<div>
-			<BracketTree matches={matches} />
-			<div className="mt-3 px-2 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-100/40">
-				Live-Aktualisierung{lastUpdated ? ` · zuletzt ${lastUpdated}` : ""}
-			</div>
+			<BracketTree matches={matches} showPools={showPools} />
+			{autoRefresh ? (
+				<div className="mt-3 px-2 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-100/40">
+					Live-Aktualisierung{lastUpdated ? ` · zuletzt ${lastUpdated}` : ""}
+				</div>
+			) : null}
 		</div>
 	);
 }
