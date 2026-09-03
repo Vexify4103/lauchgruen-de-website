@@ -268,7 +268,8 @@ function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): 
 function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
 	const now = new Date().toISOString();
 	const discordUsername = player.discordUsername?.replace(/^@+/, "").trim();
-	const displayName = player.displayName?.trim() || discordUsername || player.riotId.split("#")[0] || "Ersatzspieler";
+	const displayName = player.displayName?.trim() || discordUsername || player.riotId.split("#")[0] || "Manueller Spieler";
+	const assignedRole = player.role ?? "Sub";
 	return {
 		discordId: player.discordId ?? "",
 		discordHandle: discordUsername ? `@${discordUsername}` : (player.discordId ?? ""),
@@ -278,10 +279,10 @@ function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
 		puuid: player.puuid,
 		currentRank: null,
 		manualRankOverride: null,
-		mainRole: "Sub",
-		preferredRoles: ["Sub"],
+		mainRole: assignedRole,
+		preferredRoles: [assignedRole],
 		availableAllDates: false,
-		notes: "Manuell durch die Turnierleitung als Ersatzspieler eingetragen.",
+		notes: "Manuell durch die Turnierleitung ohne Website-Bewerbung eingetragen.",
 		acceptedRules: false,
 		acceptedDataStorage: false,
 		createdAt: now,
@@ -303,7 +304,7 @@ export type RosterSavePayload = {
 	teamPlayers: Record<string, Array<{ discordId: string; role: PlayerRole | null }>>;
 	/** Optional captain change per team (discordId or null to clear). */
 	captains?: Record<string, string | null>;
-	/** Emergency substitutes entered by an admin without account verification. */
+	/** Players entered by an admin without a completed website application. */
 	manualPlayers?: Record<
 		string,
 		{
@@ -524,10 +525,18 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 		if (teams.length !== config.teamCount) {
 			throw new Error(`Zum Veröffentlichen werden genau ${config.teamCount} Teams benötigt; aktuell sind ${teams.length} angelegt.`);
 		}
-		const incompleteTeams = teams.filter((team) => (team.players?.length ?? 0) !== config.playersPerTeam);
+		const incompleteTeams = teams
+			.map((team) => {
+				const activePlayers = (team.players ?? []).filter((player) => player.role !== "Sub").length;
+				const substitutes = (team.players ?? []).filter((player) => player.role === "Sub").length;
+				return { team, activePlayers, substitutes };
+			})
+			.filter(({ activePlayers }) => activePlayers !== config.playersPerTeam);
 		if (incompleteTeams.length > 0) {
 			throw new Error(
-				`Jedes Team benötigt genau ${config.playersPerTeam} Spieler. Unvollständig: ${incompleteTeams.map((team) => `${team.name} (${team.players?.length ?? 0})`).join(", ")}.`
+				`Jedes Team benötigt genau ${config.playersPerTeam} aktive Spieler; zusätzliche Subs sind erlaubt. Bitte prüfen: ${incompleteTeams
+					.map(({ team, activePlayers, substitutes }) => `${team.name} (${activePlayers} aktiv, ${substitutes} ${substitutes === 1 ? "Sub" : "Subs"})`)
+					.join(", ")}.`
 			);
 		}
 		if (config.dayOneFormat === "groups") {

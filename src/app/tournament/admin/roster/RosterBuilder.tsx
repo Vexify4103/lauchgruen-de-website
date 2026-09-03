@@ -216,6 +216,7 @@ export function RosterBuilder({
 	const [manualSubDisplayName, setManualSubDisplayName] = useState("");
 	const [manualSubRiotId, setManualSubRiotId] = useState("");
 	const [manualSubTeamKey, setManualSubTeamKey] = useState("");
+	const [manualSubRole, setManualSubRole] = useState<PlayerRole>("Sub");
 	const usesGroups = dayOneFormat === "groups";
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
@@ -442,6 +443,7 @@ export function RosterBuilder({
 			setManualSubDiscordUsername("");
 			setManualSubDisplayName("");
 			setManualSubRiotId("");
+			setManualSubRole("Sub");
 			setManualSubOpen(true);
 		},
 		[snapshot.teams]
@@ -522,10 +524,10 @@ export function RosterBuilder({
 			puuid: `manual-${discordId}`,
 			currentRank: null,
 			manualRankOverride: null,
-			mainRole: "Sub",
-			preferredRoles: ["Sub"],
+			mainRole: manualSubRole,
+			preferredRoles: [manualSubRole],
 			availableAllDates: false,
-			notes: "Manuell durch die Turnierleitung als Ersatzspieler eingetragen.",
+			notes: "Manuell durch die Turnierleitung ohne Website-Bewerbung eingetragen.",
 			acceptedRules: false,
 			acceptedDataStorage: false,
 			createdAt: now,
@@ -536,7 +538,7 @@ export function RosterBuilder({
 
 		setState((previous) => {
 			const assignments = new Map(previous.assignments);
-			assignments.set(discordId, { teamKey, role: "Sub" });
+			assignments.set(discordId, { teamKey, role: manualSubRole });
 			const manualPlayers = new Map(previous.manualPlayers);
 			manualPlayers.set(discordId, manualPlayer);
 			return { ...previous, assignments, manualPlayers };
@@ -544,7 +546,7 @@ export function RosterBuilder({
 		setManualSubOpen(false);
 		setMessage({
 			tone: "ok",
-			text: `${displayName} wurde als nicht verifizierter Ersatzspieler vorgemerkt. Bitte den Entwurf speichern und später bewusst veröffentlichen.`,
+			text: `${displayName} wurde ohne Bewerbung als ${manualSubRole} vorgemerkt. Bitte den Entwurf speichern und später bewusst veröffentlichen.`,
 		});
 	}
 
@@ -1484,10 +1486,11 @@ export function RosterBuilder({
 				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
 					<button type="button" aria-label="Schließen" onClick={() => setManualSubOpen(false)} className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
 					<div className="relative w-full max-w-lg rounded-[1.8rem] border border-amber-200/18 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/50">
-						<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-200/72">Notfall-Ersatzspieler</div>
+						<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-200/72">Manueller Roster-Eintrag</div>
 						<h2 className="mt-2 text-2xl font-black text-emerald-50">Spieler manuell eintragen</h2>
 						<p className="mt-2 text-sm leading-6 text-emerald-100/58">
-							Dieser Spieler wird dem Team als Substitute hinzugefügt, erhält die Discord-Rollen, gilt aber sichtbar als nicht verifiziert.
+							Diese Person kann einen aktiven Slot oder einen Substitute-Slot erhalten, bekommt beim Veröffentlichen die Discord-Rollen und bleibt sichtbar als nicht
+							verifiziert markiert.
 						</p>
 
 						<div className="mt-5 grid gap-3">
@@ -1499,6 +1502,16 @@ export function RosterBuilder({
 									ariaLabel="Team für den Ersatzspieler"
 									options={snapshot.teams.map((team) => ({ value: team.key, label: team.name }))}
 								/>
+							</label>
+							<label className="grid gap-1.5">
+								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Roster-Rolle</span>
+								<ThemedSelect
+									value={manualSubRole}
+									onChange={(value) => setManualSubRole(value as PlayerRole)}
+									ariaLabel="Roster-Rolle des manuellen Spielers"
+									options={ALL_ROLES.map((role) => ({ value: role, label: role === "Sub" ? "Substitute" : role }))}
+								/>
+								<span className="text-[10px] leading-4 text-emerald-100/36">Für ein vollständiges Team zählen alle Rollen außer „Sub“ als aktive Spieler.</span>
 							</label>
 							<div className="grid gap-3 sm:grid-cols-2">
 								<label className="grid gap-1.5">
@@ -1558,7 +1571,7 @@ export function RosterBuilder({
 								onClick={addManualSubstitute}
 								className="rounded-xl bg-gradient-to-r from-amber-200 via-lime-200 to-emerald-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
 							>
-								Als Ersatzspieler hinzufügen
+								Manuell hinzufügen
 							</button>
 						</div>
 					</div>
@@ -2215,7 +2228,7 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 	if (applicant.source === "manual") {
 		return (
 			<div className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2 text-[10px] leading-5 text-amber-100/72`}>
-				Manuell eingetragener Ersatzspieler. Discord- und Riot-Konto wurden nicht über die Website verifiziert.
+				Manuell ohne Bewerbung eingetragen. Discord- und Riot-Konto wurden nicht über die Website verifiziert.
 			</div>
 		);
 	}
