@@ -99,7 +99,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	const saturday = (
 		control
 			? control.matches
-					.filter((match) => match.phase === "playoffs")
+					.filter((match) => match.phase === "playoffs" && match.teamAName && match.teamBName)
 					.map((match) => ({
 						id: match.id,
 						day: formatScheduleDay(settings.ultimateBravery.dayTwoStartAt, "Spieltag 2"),
@@ -145,9 +145,15 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			title: "Spieltag 1",
 			description:
 				settings.activeTournament.id === "ultimate-bravery"
-					? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches insgesamt.`
+					? friday.length
+						? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches aktuell angesetzt.`
+						: `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · Paarungen folgen durch die Turnierleitung.`
 					: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
 			batches: groupScheduleBatches(friday),
+			emptyText:
+				settings.ultimateBravery.dayOneFormat === "swiss"
+					? "Die erste Swiss-Runde wurde noch nicht ausgelost. Sobald eine Paarung gezogen wurde, erscheint sie automatisch hier."
+					: "Für den ersten Spieltag wurden noch keine konkreten Paarungen veröffentlicht.",
 		},
 		{
 			title: "Spieltag 2",
@@ -156,6 +162,8 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · Grand Final ohne Bracket Reset.`
 					: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
 			batches: playoffScheduleBatches(saturday),
+			emptyText:
+				"Die Playoff-Paarungen werden erst nach den finalen Seeds aus Spieltag 1 in den Zeitplan übernommen. Den vollständigen TBD-Weg siehst du bereits im Bracket.",
 		},
 	];
 
@@ -207,83 +215,89 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 							</div>
 
 							<div className="mt-5 grid gap-6">
-								{section.batches.map((batch) => (
-									<section key={batch.label}>
-										<div className="mb-3 flex items-center gap-3">
-											<h3 className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/68">{batch.label}</h3>
-											<span className="h-px flex-1 bg-white/10" />
-											{batch.matches.length > 1 ? (
-												<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/42">parallel</span>
-											) : null}
-										</div>
-										<div className="grid gap-3 xl:grid-cols-2">
-											{batch.matches.map((match) => {
-												const isPreview = match.id === previewMatch?.id;
-												const isLive = match.status === "Live" || isPreview;
-												const hasTeams = !/seed|winner|loser|sieger|verlierer|tbd/i.test(`${match.teamA} ${match.teamB}`);
-												const matchStreams = isLive
-													? liveStreams.filter((stream) => stream.teamName === match.teamA || stream.teamName === match.teamB)
-													: [];
-												return (
-													<div
-														key={match.id}
-														className={`rounded-2xl border p-4 ${
-															isLive ? "border-red-300/34 bg-red-500/12 shadow-lg shadow-red-950/20" : "border-white/10 bg-black/18"
-														}`}
-													>
-														<div className="flex flex-wrap items-center justify-between gap-3">
-															<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/58">
-																{match.day} · {match.phase} · {match.round}
+								{section.batches.length ? (
+									section.batches.map((batch) => (
+										<section key={batch.label}>
+											<div className="mb-3 flex items-center gap-3">
+												<h3 className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/68">{batch.label}</h3>
+												<span className="h-px flex-1 bg-white/10" />
+												{batch.matches.length > 1 ? (
+													<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/42">parallel</span>
+												) : null}
+											</div>
+											<div className="grid gap-3 xl:grid-cols-2">
+												{batch.matches.map((match) => {
+													const isPreview = match.id === previewMatch?.id;
+													const isLive = match.status === "Live" || isPreview;
+													const hasTeams = !/seed|winner|loser|sieger|verlierer|tbd/i.test(`${match.teamA} ${match.teamB}`);
+													const matchStreams = isLive
+														? liveStreams.filter((stream) => stream.teamName === match.teamA || stream.teamName === match.teamB)
+														: [];
+													return (
+														<div
+															key={match.id}
+															className={`rounded-2xl border p-4 ${
+																isLive ? "border-red-300/34 bg-red-500/12 shadow-lg shadow-red-950/20" : "border-white/10 bg-black/18"
+															}`}
+														>
+															<div className="flex flex-wrap items-center justify-between gap-3">
+																<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/58">
+																	{match.day} · {match.phase} · {match.round}
+																</div>
+																<div className="flex flex-wrap items-center gap-2">
+																	<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
+																		{match.time}
+																	</span>
+																	<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
+																		{statusLabel(match.status)}
+																	</span>
+																</div>
 															</div>
-															<div className="flex flex-wrap items-center gap-2">
-																<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
-																	{match.time}
-																</span>
-																<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
-																	{statusLabel(match.status)}
-																</span>
-															</div>
-														</div>
 
-														<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-															<TeamLine team={match.teamA} pool={match.pool?.teamAPool ?? null} />
-															<div className="text-center text-2xl font-black text-lime-100">
-																{match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA}:${match.scoreB}` : "vs."}
+															<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+																<TeamLine team={match.teamA} pool={match.pool?.teamAPool ?? null} />
+																<div className="text-center text-2xl font-black text-lime-100">
+																	{match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA}:${match.scoreB}` : "vs."}
+																</div>
+																<TeamLine team={match.teamB} pool={match.pool?.teamBPool ?? null} right />
 															</div>
-															<TeamLine team={match.teamB} pool={match.pool?.teamBPool ?? null} right />
-														</div>
 
-														<div className="mt-3 flex flex-wrap gap-2">
-															{isLive ? (
-																<span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
-																	{isPreview ? "Live-Vorschau" : "Aktuelles Match"}
-																</span>
-															) : null}
-															{match.isCasted ? (
-																<span className="rounded-full border border-fuchsia-200/26 bg-fuchsia-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-50">
-																	Live gecastet
-																</span>
-															) : null}
-															{match.pool ? (
-																<Link
-																	href={`/tournament/champ-select/${match.id}/spectate`}
-																	className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-50/82"
-																>
-																	Spectator Draft
-																</Link>
-															) : hasTeams ? (
-																<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/38">
-																	Pools noch offen
-																</span>
-															) : null}
+															<div className="mt-3 flex flex-wrap gap-2">
+																{isLive ? (
+																	<span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
+																		{isPreview ? "Live-Vorschau" : "Aktuelles Match"}
+																	</span>
+																) : null}
+																{match.isCasted ? (
+																	<span className="rounded-full border border-fuchsia-200/26 bg-fuchsia-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-50">
+																		Live gecastet
+																	</span>
+																) : null}
+																{settings.activeTournament.id !== "ultimate-bravery" && match.pool ? (
+																	<Link
+																		href={`/tournament/champ-select/${match.id}/spectate`}
+																		className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-50/82"
+																	>
+																		Spectator Draft
+																	</Link>
+																) : settings.activeTournament.id !== "ultimate-bravery" && hasTeams ? (
+																	<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/38">
+																		Pools noch offen
+																	</span>
+																) : null}
+															</div>
+															<TournamentLiveStreamLinks streams={matchStreams} />
 														</div>
-														<TournamentLiveStreamLinks streams={matchStreams} />
-													</div>
-												);
-											})}
-										</div>
-									</section>
-								))}
+													);
+												})}
+											</div>
+										</section>
+									))
+								) : (
+									<div className="rounded-2xl border border-dashed border-white/12 bg-black/14 px-5 py-6 text-sm font-bold leading-6 text-emerald-100/52">
+										{section.emptyText}
+									</div>
+								)}
 							</div>
 						</article>
 					))}

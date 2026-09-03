@@ -34,7 +34,8 @@ export default async function TournamentHomePage() {
 		settings.applicationDeadline,
 		settings.applicationOpenAt
 	);
-	if (settings.activeTournament.mode !== "live") return <UltimateBraveryOverview archiveCount={archives.length} settings={settings} applicationsOpen={applicationsOpen} />;
+	if (settings.activeTournament.id === "ultimate-bravery" || settings.activeTournament.mode !== "live")
+		return <UltimateBraveryOverview archiveCount={archives.length} settings={settings} applicationsOpen={applicationsOpen} />;
 
 	return (
 		<div className="px-5 py-8 sm:py-12">
@@ -257,14 +258,20 @@ function UltimateBraveryOverview({
 	const playoffLabel = playoffFormatLabel(config.format);
 	const qualificationLabel =
 		config.advanceTeamCount === config.teamCount ? "Alle Teams ziehen weiter." : `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams ziehen weiter.`;
+	const live = settings.activeTournament.mode === "live";
 	return (
 		<div className="px-5 py-10 sm:py-14">
 			<section className="mx-auto grid w-full max-w-7xl gap-5 lg:grid-cols-[1.08fr_0.92fr]">
 				<div className="relative isolate overflow-hidden rounded-[2.5rem] border border-lime-200/14 bg-[#0a1a11]/92 p-7 shadow-2xl shadow-black/35 sm:p-10">
 					<div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-cyan-300/10 blur-3xl" />
 					<div className="relative">
-						<div className="inline-flex rounded-full border border-cyan-200/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100">
-							Nächstes Community-Turnier
+						<div
+							className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.24em] ${
+								live ? "border-red-300/24 bg-red-500/12 text-red-100" : "border-cyan-200/20 bg-cyan-300/10 text-cyan-100"
+							}`}
+						>
+							{live ? <span className="size-2 animate-pulse rounded-full bg-red-300" /> : null}
+							{live ? "Turnier läuft" : "Nächstes Community-Turnier"}
 						</div>
 						<h1 className="mt-7 text-5xl font-black leading-[0.9] tracking-[-0.055em] text-emerald-50 sm:text-7xl">
 							Ultimate
@@ -293,7 +300,14 @@ function UltimateBraveryOverview({
 							/>
 						</div>
 						<div className="mt-8 flex flex-wrap gap-3">
-							{applicationsOpen ? (
+							{live ? (
+								<Link
+									href="/tournament/live"
+									className="rounded-2xl bg-gradient-to-r from-red-200 via-amber-100 to-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-red-950/20"
+								>
+									Zur Live-Zentrale
+								</Link>
+							) : applicationsOpen ? (
 								<Link
 									href="/tournament/apply"
 									className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
@@ -302,9 +316,17 @@ function UltimateBraveryOverview({
 								</Link>
 							) : (
 								<span className="cursor-not-allowed rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/40">
-									Bewerbung folgt
+									Bewerbungen geschlossen
 								</span>
 							)}
+							{live ? (
+								<Link
+									href="/tournament/schedule"
+									className="rounded-2xl border border-cyan-200/20 bg-cyan-300/[0.07] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-cyan-50"
+								>
+									Zeitplan
+								</Link>
+							) : null}
 							<Link
 								href="/tournament/winners"
 								className="rounded-2xl border border-lime-200/20 bg-lime-200/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50"

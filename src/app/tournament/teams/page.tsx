@@ -139,11 +139,11 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 														{compactPoolLabel(match.poolAssignment.teamBPool)}
 													</span>
 												</>
-											) : (
+											) : isAzTournament ? (
 												<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/38">
 													Wartet auf Pools
 												</span>
-											)}
+											) : null}
 										</div>
 										<TournamentLiveStreamLinks streams={matchStreams} />
 										{match.poolAssignment ? (

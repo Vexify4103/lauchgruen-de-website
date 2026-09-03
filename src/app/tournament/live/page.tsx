@@ -8,7 +8,9 @@ import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
 export const dynamic = "force-dynamic";
 
 export default async function TournamentLivePage() {
-	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
+	const settings = await getTournamentSettings();
+	if (settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
+	const ultimateBravery = settings.activeTournament.id === "ultimate-bravery";
 	const ctx = await getMatchControlContext();
 	const playable = ctx.matches.filter((match) => match.teamAName && match.teamBName);
 	const live = playable.filter((match) => match.status === "Live" || match.status === "Pending");
@@ -24,7 +26,9 @@ export default async function TournamentLivePage() {
 					</div>
 					<h1 className="mt-6 text-5xl font-black tracking-tight text-emerald-50 sm:text-6xl">Was läuft gerade?</h1>
 					<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-						Aktive Drafts, parallele Matches und die nächsten Begegnungen. Aktualisiert sich automatisch.
+						{ultimateBravery
+							? "Aktive Rolls, parallele Matches und die nächsten ausgelosten Begegnungen. Aktualisiert sich automatisch."
+							: "Aktive Drafts, parallele Matches und die nächsten Begegnungen. Aktualisiert sich automatisch."}
 					</p>
 				</div>
 
@@ -32,7 +36,7 @@ export default async function TournamentLivePage() {
 					<h2 className="text-xs font-black uppercase tracking-[0.28em] text-red-100/72">Jetzt aktiv</h2>
 					<div className="mt-4 grid gap-4 lg:grid-cols-2">
 						{live.length ? (
-							live.map((match) => <LiveMatchCard key={match.id} match={match} active />)
+							live.map((match) => <LiveMatchCard key={match.id} match={match} active ultimateBravery={ultimateBravery} />)
 						) : (
 							<Empty text="Gerade läuft kein Match. Die nächsten Begegnungen erscheinen darunter." />
 						)}
@@ -43,7 +47,7 @@ export default async function TournamentLivePage() {
 					<h2 className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Als Nächstes</h2>
 					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						{next.map((match) => (
-							<LiveMatchCard key={match.id} match={match} />
+							<LiveMatchCard key={match.id} match={match} ultimateBravery={ultimateBravery} />
 						))}
 					</div>
 				</section>
@@ -52,7 +56,15 @@ export default async function TournamentLivePage() {
 	);
 }
 
-function LiveMatchCard({ match, active = false }: { match: Awaited<ReturnType<typeof getMatchControlContext>>["matches"][number]; active?: boolean }) {
+function LiveMatchCard({
+	match,
+	active = false,
+	ultimateBravery,
+}: {
+	match: Awaited<ReturnType<typeof getMatchControlContext>>["matches"][number];
+	active?: boolean;
+	ultimateBravery: boolean;
+}) {
 	return (
 		<article className={`rounded-[1.8rem] border p-5 shadow-xl shadow-black/20 ${active ? "border-red-300/28 bg-red-500/[0.08]" : "border-white/10 bg-white/[0.045]"}`}>
 			<div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/54">
@@ -66,9 +78,9 @@ function LiveMatchCard({ match, active = false }: { match: Awaited<ReturnType<ty
 				<p className="mt-3 text-sm font-bold text-lime-100/76">
 					Pools: {compactPoolLabel(match.poolAssignment.teamAPool)} gegen {compactPoolLabel(match.poolAssignment.teamBPool)}
 				</p>
-			) : (
+			) : !ultimateBravery ? (
 				<p className="mt-3 text-sm font-bold text-emerald-100/46">Pools noch offen</p>
-			)}
+			) : null}
 			<div className="mt-5 flex flex-wrap gap-2">
 				<Link
 					href={`/tournament/matches/${match.id}`}
