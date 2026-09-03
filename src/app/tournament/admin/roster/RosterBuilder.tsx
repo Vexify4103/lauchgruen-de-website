@@ -218,6 +218,16 @@ export function RosterBuilder({
 	const [manualSubTeamKey, setManualSubTeamKey] = useState("");
 	const [manualSubRole, setManualSubRole] = useState<PlayerRole>("Sub");
 	const usesGroups = dayOneFormat === "groups";
+	const markStagePlanDirty = useCallback(() => {
+		setSnapshot((current) => ({
+			...current,
+			publication: {
+				...current.publication,
+				draftUpdatedAt: new Date().toISOString(),
+				hasUnpublishedChanges: !current.testModeActive,
+			},
+		}));
+	}, []);
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
 	const createTeamDirty = Boolean(createOpen && newTeamName.trim());
@@ -1438,7 +1448,22 @@ export function RosterBuilder({
 					</section>
 				) : null}
 				{usesGroups && snapshot.teams.length > 0 ? (
-					<GroupAssignmentBoard key={`${groupCount}-${plannedTeamCount}`} teams={snapshot.teams} groupCount={groupCount} plannedTeamCount={plannedTeamCount} />
+					<GroupAssignmentBoard
+						key={`${groupCount}-${plannedTeamCount}`}
+						teams={snapshot.teams}
+						groupCount={groupCount}
+						plannedTeamCount={plannedTeamCount}
+						onSaved={markStagePlanDirty}
+					/>
+				) : dayOneFormat === "swiss" && snapshot.teams.length > 0 ? (
+					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08160f]/86 p-5 shadow-xl shadow-black/22">
+						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">Tag 1 · Swiss Stage</div>
+						<h2 className="mt-1 text-xl font-black text-emerald-50">Kein manuelles Seeding nötig</h2>
+						<p className="mt-2 max-w-3xl text-xs leading-6 text-emerald-100/50">
+							Die erste Runde wird im Live-Cockpit zufällig gezogen. Weitere Runden losen nur Teams mit gleicher Bilanz gegeneinander und vermeiden Wiederholungen.
+							Die endgültige Seed-Reihenfolge entsteht automatisch aus den abgeschlossenen Swiss-Ergebnissen.
+						</p>
+					</section>
 				) : null}
 
 				{snapshot.teams.length > 0 ? (

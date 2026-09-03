@@ -182,6 +182,7 @@ export default async function AdminLiveDashboardPage() {
 							<h2 className="mt-2 text-xl font-black text-emerald-50">Orga-Werkzeuge</h2>
 							<div className="mt-4 grid gap-2">
 								<QuickLink href="/tournament/admin/roster" title="Roster-Builder" detail="Teams, Rollen und Captains" />
+								<QuickLink href="/tournament/admin/roster#stage-seeding" title="Seeding & Gruppen" detail="Tag-1-Reihenfolge festlegen" />
 								<QuickLink href="/tournament/admin/applicants" title="Bewerbungen" detail="Teilnehmer und Verifizierung" />
 								<QuickLink href="/tournament/admin" title="Turniersteuerung" detail="Modus, Format und Discord" />
 							</div>

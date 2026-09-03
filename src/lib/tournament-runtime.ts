@@ -117,11 +117,8 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
 }
 
 /**
- * Assign default group/seed when admin hasn't set metadata yet:
- * - Fill the configured group slots alphabetically
- * - Seed by alphabetical index within group
- *
- * Once admin sets `meta.group` / `meta.seed` on the bot side, those override.
+ * Supply stable presentation slots for team views while setup is incomplete.
+ * Match generation separately requires explicit, published assignments.
  */
 function groupName(index: number): string {
 	return String.fromCharCode("A".charCodeAt(0) + index);
@@ -168,6 +165,25 @@ function withDefaults(stored: StoredTeam[], groupCount: number, plannedTeamCount
 		if (a.group !== b.group) return a.group < b.group ? -1 : 1;
 		return a.seed - b.seed;
 	});
+}
+
+function hasCompleteGroupAssignments(stored: StoredTeam[], groupCount: number, plannedTeamCount: number): boolean {
+	if (stored.length !== plannedTeamCount || plannedTeamCount < 2) return false;
+	const safeGroupCount = Math.max(1, Math.min(groupCount, 16, plannedTeamCount));
+	const baseGroupSize = Math.floor(plannedTeamCount / safeGroupCount);
+	const largerGroups = plannedTeamCount % safeGroupCount;
+	const validGroupSizes = new Map(Array.from({ length: safeGroupCount }, (_, index) => [groupName(index), baseGroupSize + (index < largerGroups ? 1 : 0)] as const));
+	const occupied = new Set<string>();
+	for (const team of stored) {
+		const group = team.meta?.group;
+		const seed = team.meta?.seed;
+		const groupSize = group ? validGroupSizes.get(group) : undefined;
+		if (!group || !seed || !Number.isInteger(seed) || groupSize === undefined || seed > groupSize) return false;
+		const slot = `${group}-${seed}`;
+		if (occupied.has(slot)) return false;
+		occupied.add(slot);
+	}
+	return occupied.size === plannedTeamCount;
 }
 
 const ROLE_DISPLAY_ORDER: Record<NonNullable<StoredPlayer["role"]>, number> = {
@@ -308,6 +324,7 @@ export async function getTournamentContext(): Promise<TournamentContext> {
 	const legs = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.groupRoundRobinLegs : 2;
 	const plannedTeamCount = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.teamCount : stored.length;
 	const teams = withDefaults(stored, groupCount, plannedTeamCount);
-	const groupMatches = buildGroupMatches(teams, legs);
+	const requiresPublishedGroupSetup = settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "groups";
+	const groupMatches = requiresPublishedGroupSetup && !hasCompleteGroupAssignments(stored, groupCount, plannedTeamCount) ? [] : buildGroupMatches(teams, legs);
 	return { teams, groupMatches, source: "bot" };
 }

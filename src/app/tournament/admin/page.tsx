@@ -88,7 +88,7 @@ export default async function TournamentAdminPage() {
 						{settings ? <AdminStatusGrid settings={settings} applicationsOpen={applicationsOpen} /> : null}
 					</div>
 					{isOwner ? (
-						<nav aria-label="Admin-Bereiche" className="grid border-t border-white/8 bg-black/14 sm:grid-cols-2 xl:grid-cols-4">
+						<nav aria-label="Admin-Bereiche" className="grid border-t border-white/8 bg-black/14 sm:grid-cols-2 xl:grid-cols-5">
 							<AdminAreaLink
 								href="/tournament/admin/live"
 								eyebrow="Operativer Betrieb"
@@ -98,6 +98,13 @@ export default async function TournamentAdminPage() {
 							/>
 							<AdminAreaLink href="/tournament/admin/applicants" eyebrow="Teilnehmer" title="Bewerbungen" detail="Profile, Blacklist und Wunschgruppen" tone="cyan" />
 							<AdminAreaLink href="/tournament/admin/roster" eyebrow="Teambau" title="Roster-Builder" detail="Rollen, Balance und Discord-Sync" tone="lime" />
+							<AdminAreaLink
+								href="/tournament/admin/roster#stage-seeding"
+								eyebrow="Stage Setup"
+								title="Seeding"
+								detail="Reihenfolge oder Gruppen festlegen"
+								tone="cyan"
+							/>
 							<AdminAreaLink href="/tournament/admin/status" eyebrow="Betrieb" title="Systemstatus" detail="APIs, Cache und Queue" tone="cyan" />
 						</nav>
 					) : null}
