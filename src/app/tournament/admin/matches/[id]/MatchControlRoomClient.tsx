@@ -890,12 +890,15 @@ function EmergencySubPanel({
 	const [teamKey, setTeamKey] = useState("");
 	const [incomingDiscordId, setIncomingDiscordId] = useState("");
 	const [outgoingDiscordId, setOutgoingDiscordId] = useState("");
-	const [role, setRole] = useState("Sub");
+	const [role, setRole] = useState("Top");
 	const [isPending, startTransition] = useTransition();
 	const matchTeams = roster.teams.filter((team) => team.name === match.teamAName || team.name === match.teamBName);
 	const selectedTeam = roster.teams.find((team) => team.key === teamKey) ?? matchTeams[0] ?? null;
-	const incomingOptions = roster.applicants.filter((applicant) => !selectedTeam?.players.some((player) => player.discordId === applicant.discordId));
-	const substituteDirty = Boolean(teamKey || incomingDiscordId || outgoingDiscordId || role !== "Sub");
+	const incomingOptions = roster.applicants.filter((applicant) => {
+		const currentAssignment = selectedTeam?.players.find((player) => player.discordId === applicant.discordId);
+		return !currentAssignment || currentAssignment.role === "Sub";
+	});
+	const substituteDirty = Boolean(teamKey || incomingDiscordId || outgoingDiscordId || role !== "Top");
 
 	async function persistSubstitute(): Promise<boolean> {
 		const targetTeamKey = teamKey || selectedTeam?.key || "";
@@ -903,11 +906,16 @@ function EmergencySubPanel({
 			onMessage("Bitte Team und Ersatzspieler auswählen.");
 			return false;
 		}
+		if (!outgoingDiscordId) {
+			onMessage("Bitte wähle den aktiven Spieler aus, den der Substitute ersetzt.");
+			return false;
+		}
 
 		const response = await fetch("/api/tournament/substitute", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
+				matchId: match.id,
 				teamKey: targetTeamKey,
 				incomingDiscordId,
 				outgoingDiscordId: outgoingDiscordId || undefined,
@@ -929,7 +937,7 @@ function EmergencySubPanel({
 		setTeamKey("");
 		setIncomingDiscordId("");
 		setOutgoingDiscordId("");
-		setRole("Sub");
+		setRole("Top");
 		router.refresh();
 		return true;
 	}
@@ -952,7 +960,10 @@ function EmergencySubPanel({
 	return (
 		<form onSubmit={submit} className={embedded ? "" : "rounded-[2rem] border border-amber-200/16 bg-amber-200/[0.055] p-5 shadow-xl shadow-black/20"}>
 			<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-100/72">Emergency Substitute</div>
-			<p className="mt-2 text-xs leading-5 text-amber-50/62">Tauscht einen Spieler im aktiven Roster, ohne Match-Historie oder Scores anzufassen.</p>
+			<p className="mt-2 text-xs leading-5 text-amber-50/62">
+				Aktiviert einen Ersatzspieler für dieses Match. Bereits bestätigte Rolls der übrigen neun Spieler bleiben erhalten; nur der Roll des ausgewechselten Spielers wird
+				entfernt.
+			</p>
 			<div className="mt-4 grid gap-3">
 				<label className="grid gap-2">
 					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Team</span>
@@ -982,17 +993,23 @@ function EmergencySubPanel({
 					/>
 				</label>
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Optional raus</span>
+					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Wird ersetzt</span>
 					<ThemedSelect
 						name="outgoing"
 						value={outgoingDiscordId}
-						onChange={setOutgoingDiscordId}
+						onChange={(value) => {
+							setOutgoingDiscordId(value);
+							const outgoing = selectedTeam?.players.find((player) => player.discordId === value);
+							if (outgoing?.role && ["Top", "Jungle", "Mid", "Bot", "Support"].includes(outgoing.role)) setRole(outgoing.role);
+						}}
 						options={[
-							{ value: "", label: "Niemanden entfernen" },
-							...(selectedTeam?.players ?? []).map((player) => ({
-								value: player.discordId,
-								label: `${player.role ?? "Fill"} · ${player.riotId}`,
-							})),
+							{ value: "", label: "Aktiven Spieler wählen" },
+							...(selectedTeam?.players ?? [])
+								.filter((player) => player.role !== "Sub")
+								.map((player) => ({
+									value: player.discordId,
+									label: `${player.role ?? "Fill"} · ${player.riotId}`,
+								})),
 						]}
 					/>
 				</label>
@@ -1002,7 +1019,7 @@ function EmergencySubPanel({
 						name="role"
 						value={role}
 						onChange={setRole}
-						options={["Sub", "Top", "Jungle", "Mid", "Bot", "Support", "Fill"].map((value) => ({
+						options={["Top", "Jungle", "Mid", "Bot", "Support"].map((value) => ({
 							value,
 							label: value,
 						}))}

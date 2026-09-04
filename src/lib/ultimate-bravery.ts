@@ -132,10 +132,10 @@ function sample<T>(values: T[], count: number): T[] {
 	return result;
 }
 
-function sampleCompatibleItems(values: CatalogItem[], count: number): CatalogItem[] {
+function sampleCompatibleItems(values: CatalogItem[], count: number, initialGroups: readonly string[] = []): CatalogItem[] {
 	const available = [...values];
 	const result: CatalogItem[] = [];
-	const usedGroups = new Set<string>();
+	const usedGroups = new Set(initialGroups);
 	while (available.length && result.length < count) {
 		const item = available.splice(randomInt(available.length), 1)[0];
 		const groups = ultimateBraveryItemGroups(itemName(item));
@@ -145,6 +145,25 @@ function sampleCompatibleItems(values: CatalogItem[], count: number): CatalogIte
 	}
 	if (result.length < count) throw new Error("Es konnten nicht genug miteinander kompatible Items zugelost werden.");
 	return result;
+}
+
+const SPELLBLADE_ITEM_IDS = new Set(["3057", "3078", "3100", "6662"]);
+
+function storedAssetGroups(item: UltimateBraveryAsset): readonly string[] {
+	const groups = ultimateBraveryItemGroups(item.name.replace(/\s*\(Quest-Upgrade\)\s*$/i, ""));
+	if (groups.length) return groups;
+	if (/bloodsong|blutgesang/i.test(item.name) || SPELLBLADE_ITEM_IDS.has(item.id)) return ["spellblade"];
+	return [];
+}
+
+function rollContainsConflictingItems(roll: UltimateBraveryRoll) {
+	const usedGroups = new Set<string>();
+	for (const item of [...roll.startingItems, ...roll.items]) {
+		const groups = storedAssetGroups(item);
+		if (groups.some((group) => usedGroups.has(group))) return true;
+		groups.forEach((group) => usedGroups.add(group));
+	}
+	return false;
 }
 
 function imageUrl(version: string, type: "champion" | "item" | "spell", file: string) {
@@ -266,7 +285,8 @@ async function generateRoll(input: {
 	);
 	const selectedBoots = role === "mid" && midBoots.length ? pick(midBoots) : pick(boots);
 	const legendaryCount = role === "bot" ? 6 : role === "support" ? 4 : 5;
-	const legendaryItems = sampleCompatibleItems(finishedItems, legendaryCount);
+	const fixedItemGroups = [fixedStartItem, supportUpgrade, laneStartItem].flatMap((item) => (item ? ultimateBraveryItemGroups(itemName(item)) : []));
+	const legendaryItems = sampleCompatibleItems(finishedItems, legendaryCount, fixedItemGroups);
 	const selectedItems = [legendaryItems[0], selectedBoots, ...legendaryItems.slice(1)];
 
 	const riftSpells = catalog.spells.filter((spell) => spell.modes.includes("CLASSIC") && !["SummonerSmite", "SummonerSnowball"].includes(spell.id));
@@ -311,7 +331,7 @@ function strip(doc: RollDoc): UltimateBraveryRoll {
 
 export async function listUltimateBraveryRolls(matchId: string): Promise<UltimateBraveryRoll[]> {
 	const docs = await (await rollsCollection()).find({ matchId }, { sort: { teamName: 1, role: 1 } }).toArray();
-	return docs.map(strip);
+	return docs.filter((doc) => !rollContainsForbiddenItem(doc) && !rollContainsConflictingItems(doc)).map(strip);
 }
 
 export async function getUltimateBraveryRoll(matchId: string, discordId: string): Promise<UltimateBraveryRoll | null> {
@@ -332,7 +352,7 @@ export async function createUltimateBraveryRoll(input: {
 }): Promise<UltimateBraveryRoll> {
 	const col = await rollsCollection();
 	let existing = await col.findOne({ _id: `${input.matchId}:${input.discordId}` });
-	if (existing && rollContainsForbiddenItem(existing)) {
+	if (existing && (rollContainsForbiddenItem(existing) || rollContainsConflictingItems(existing))) {
 		await col.deleteOne({ _id: existing._id });
 		existing = null;
 	}

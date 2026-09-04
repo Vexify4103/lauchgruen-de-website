@@ -4,6 +4,7 @@ const ITEM_EXCLUSIVITY_GROUPS = new Map<string, readonly string[]>(
 		"Doran's Blade": ["starter"],
 		"Doran's Shield": ["starter"],
 		"Doran's Ring": ["starter"],
+		Bloodsong: ["spellblade"],
 		"Scorchclaw Pup": ["starter"],
 		"Gustwalker Hatchling": ["starter"],
 		"Mosstomper Seedling": ["starter"],

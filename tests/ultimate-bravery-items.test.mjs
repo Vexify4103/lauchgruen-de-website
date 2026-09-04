@@ -5,6 +5,8 @@ import { ultimateBraveryItemGroups, ultimateBraveryItemsConflict } from "../src/
 test("blocks items from the same exclusive group", () => {
 	assert.equal(ultimateBraveryItemsConflict("Lord Dominik's Regards", "Mortal Reminder"), true);
 	assert.equal(ultimateBraveryItemsConflict("Trinity Force", "Iceborn Gauntlet"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Sheen"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Lich Bane"), true);
 	assert.equal(ultimateBraveryItemsConflict("Maw of Malmortius", "Sterak's Gage"), true);
 	assert.equal(ultimateBraveryItemsConflict("Ravenous Hydra", "Stridebreaker"), true);
 });
