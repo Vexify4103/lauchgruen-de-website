@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { drawNextSwissMatchup, getSwissStageState, listSwissAudit, listSwissTeams, resetSwissStage, setSwissPairingWinner } from "@/lib/tournament-swiss";
+import { drawNextSwissMatchup, getSwissStageState, listSwissAudit, listSwissTeams, resetLatestSwissRound, resetSwissStage, setSwissPairingWinner } from "@/lib/tournament-swiss";
 import { buildSwissTestTeams, SWISS_TEST_ID } from "@/lib/tournament-swiss-test";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { writeAuditLog } from "@/lib/tournament-audit";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const actionSchema = z.object({
-	action: z.enum(["draw", "reset", "result"]),
+	action: z.enum(["draw", "redraw", "reset", "result"]),
 	confirmation: z.string().optional(),
 	test: z.boolean().optional(),
 	pairingId: z.string().optional(),
@@ -77,6 +77,25 @@ export async function POST(request: Request) {
 		return NextResponse.json({ ok: true, state: await getSwissStageState(tournamentId) });
 	}
 
+	if (parsed.data.action === "redraw") {
+		if (parsed.data.confirmation !== "RUNDE NEU AUSLOSEN") return NextResponse.json({ message: "Bestätigung stimmt nicht überein." }, { status: 400 });
+		try {
+			const state = await resetLatestSwissRound(tournamentId);
+			if (!test)
+				await writeAuditLog({
+					action: "swiss.round_reset",
+					targetType: "stage",
+					targetId: tournamentId,
+					summary: "Aktuelle, noch nicht gestartete Swiss-Runde zur erneuten Auslosung entfernt.",
+					actorDiscordId: discordId,
+					actorLabel: session.user.discordHandle ?? discordId,
+				});
+			return NextResponse.json({ ok: true, state });
+		} catch (error) {
+			return NextResponse.json({ message: error instanceof Error ? error.message : "Aktuelle Runde konnte nicht zurückgesetzt werden." }, { status: 409 });
+		}
+	}
+
 	try {
 		const result = await drawNextSwissMatchup({
 			tournamentId,
@@ -86,6 +105,10 @@ export async function POST(request: Request) {
 			matchPrefix,
 			persistMatches: !test,
 			pairByRecord: true,
+			placementSwiss:
+				settings.ultimateBravery.teamCount === 8 &&
+				settings.ultimateBravery.advanceTeamCount === 8 &&
+				settings.ultimateBravery.swissRounds === 4,
 			requireCompletedRound: true,
 			syncMatchResults: !test,
 		});

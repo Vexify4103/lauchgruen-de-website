@@ -70,7 +70,7 @@ function swissRound(round, matches) {
 		round,
 		complete: true,
 		drawnAt: `2026-09-0${round}T12:00:00.000Z`,
-		pairings: matches.map(([first, second, winnerKey], index) => ({
+		pairings: matches.map(([first, second, winnerKey, record], index) => ({
 			id: `swiss-r${round}-m${index + 1}`,
 			round,
 			slot: index + 1,
@@ -80,6 +80,7 @@ function swissRound(round, matches) {
 			teamBName: `Team ${second}`,
 			bye: false,
 			winnerTeamKey: winnerKey,
+			...(record ? { recordA: record, recordB: record } : {}),
 		})),
 	};
 }
@@ -102,16 +103,14 @@ const completeSwiss = {
 			["7", "6", "7"],
 		]),
 		swissRound(3, [
-			["1", "2", "1"],
-			["4", "8", "4"],
-			["3", "7", "3"],
-			["5", "6", "5"],
+			["1", "2", "1", "2-0"],
+			["4", "8", "4", "1-1"],
+			["3", "7", "3", "1-1"],
+			["5", "6", "5", "0-2"],
 		]),
 		swissRound(4, [
-			["3", "1", "3"],
-			["2", "4", "2"],
-			["8", "6", "8"],
-			["7", "5", "7"],
+			["4", "3", "4", "2-1"],
+			["8", "7", "8", "1-2"],
 		]),
 	],
 };
@@ -119,6 +118,16 @@ const completeSwiss = {
 test("turns a completed eight-team Swiss stage into #1-vs-#8 seeded playoffs", () => {
 	const seeds = computeUltimateBraverySwissSeeds(completeSwiss, swissTeams, 4);
 	assert.deepEqual(new Set(Object.values(seeds)), new Set(swissTeams.map((team) => team.name)));
+	assert.deepEqual(seeds, {
+		1: "Team 1",
+		2: "Team 2",
+		3: "Team 4",
+		4: "Team 3",
+		5: "Team 8",
+		6: "Team 7",
+		7: "Team 5",
+		8: "Team 6",
+	});
 
 	const matches = resolveUltimateBraveryPlayoffMatches({
 		format: "double-elimination",

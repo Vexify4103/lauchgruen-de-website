@@ -121,11 +121,41 @@ type SwissStanding = {
 	buchholz: number;
 };
 
+function computeEightTeamPlacementSeeds(swiss: SwissStageState, teams: TournamentTeam[]): Record<number, string | null> | null {
+	const thirdRound = swiss.rounds.find((round) => round.round === 3);
+	const fourthRound = swiss.rounds.find((round) => round.round === 4);
+	if (!thirdRound || !fourthRound) return null;
+
+	const seeds: Record<number, string | null> = Object.fromEntries(Array.from({ length: 8 }, (_, index) => [index + 1, null]));
+	const assignments = [
+		{ round: thirdRound, record: "2-0", winnerSeed: 1, loserSeed: 2 },
+		{ round: fourthRound, record: "2-1", winnerSeed: 3, loserSeed: 4 },
+		{ round: fourthRound, record: "1-2", winnerSeed: 5, loserSeed: 6 },
+		{ round: thirdRound, record: "0-2", winnerSeed: 7, loserSeed: 8 },
+	];
+	for (const assignment of assignments) {
+		const pairing = assignment.round.pairings.find((entry) => entry.recordA === assignment.record && entry.recordB === assignment.record);
+		if (!pairing?.teamBKey || !pairing.teamBName || !pairing.winnerTeamKey) return null;
+		const winnerName = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamAName : pairing.teamBName;
+		const loserName = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamBName : pairing.teamAName;
+		seeds[assignment.winnerSeed] = winnerName;
+		seeds[assignment.loserSeed] = loserName;
+	}
+
+	const names = Object.values(seeds);
+	const expectedNames = new Set(teams.map((team) => team.name));
+	return names.every((name): name is string => typeof name === "string" && expectedNames.has(name)) && new Set(names).size === 8 ? seeds : null;
+}
+
 export function computeUltimateBraverySwissSeeds(swiss: SwissStageState, teams: TournamentTeam[], requiredRounds: number): Record<number, string | null> {
 	const empty = Object.fromEntries(Array.from({ length: teams.length }, (_, index) => [index + 1, null])) as Record<number, string | null>;
 	if (swiss.rounds.length < requiredRounds) return empty;
 	const relevantRounds = swiss.rounds.slice(0, requiredRounds);
 	if (relevantRounds.some((round) => !round.complete || round.pairings.some((pairing) => !pairing.bye && !pairing.winnerTeamKey))) return empty;
+	if (teams.length === 8 && requiredRounds === 4) {
+		const placementSeeds = computeEightTeamPlacementSeeds(swiss, teams);
+		if (placementSeeds) return placementSeeds;
+	}
 
 	const swissKeysByName = new Map<string, string>();
 	for (const round of relevantRounds)

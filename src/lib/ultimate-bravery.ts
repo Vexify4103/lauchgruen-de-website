@@ -149,7 +149,7 @@ function sampleCompatibleItems(values: CatalogItem[], count: number, initialGrou
 	return result;
 }
 
-const SPELLBLADE_ITEM_IDS = new Set(["3057", "3078", "3100", "6662"]);
+const SPELLBLADE_ITEM_IDS = new Set(["2510", "3057", "3078", "3100", "3508", "3877", "6662"]);
 const STORED_ITEM_GROUPS_BY_ID = new Map<string, readonly string[]>([
 	["2525", ["lifeline"]],
 	["3003", ["manaflow", "lifeline"]],

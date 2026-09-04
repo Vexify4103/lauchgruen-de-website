@@ -13,6 +13,7 @@ const ITEM_EXCLUSIVITY_GROUPS = new Map<string, readonly string[]>(
 		Hexdrinker: ["lifeline"],
 		Manamune: ["manaflow"],
 		"Iceborn Gauntlet": ["spellblade"],
+		"Essence Reaver": ["spellblade"],
 		"Dead Man's Plate": ["momentum"],
 		Terminus: ["blight", "fatality"],
 		"Black Cleaver": ["fatality"],

@@ -7,6 +7,10 @@ test("blocks items from the same exclusive group", () => {
 	assert.equal(ultimateBraveryItemsConflict("Trinity Force", "Iceborn Gauntlet"), true);
 	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Sheen"), true);
 	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Lich Bane"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Essence Reaver"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Dusk and Dawn"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Trinity Force"), true);
+	assert.equal(ultimateBraveryItemsConflict("Bloodsong", "Iceborn Gauntlet"), true);
 	assert.equal(ultimateBraveryItemsConflict("Maw of Malmortius", "Sterak's Gage"), true);
 	assert.equal(ultimateBraveryItemsConflict("Ravenous Hydra", "Stridebreaker"), true);
 });

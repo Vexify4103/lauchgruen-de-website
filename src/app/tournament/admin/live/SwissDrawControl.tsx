@@ -18,6 +18,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
 	const [resetOpen, setResetOpen] = useState(false);
+	const [redrawOpen, setRedrawOpen] = useState(false);
 	const [drawing, setDrawing] = useState(false);
 	const [roulette, setRoulette] = useState<[string, string] | null>(null);
 	const [revealed, setRevealed] = useState(false);
@@ -91,6 +92,29 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 		})();
 	}
 
+	function redrawCurrentRound() {
+		setDrawing(true);
+		setError("");
+		void (async () => {
+			const response = await fetch("/api/tournament/swiss", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ action: "redraw", confirmation: "RUNDE NEU AUSLOSEN", test: testMode }),
+			});
+			const json = (await response.json().catch(() => null)) as { state?: SwissStageState; message?: string } | null;
+			if (!response.ok || !json?.state) setError(json?.message ?? "Aktuelle Runde konnte nicht zurückgesetzt werden.");
+			else {
+				setState(json.state);
+				setMessage("Die aktuelle Runde wurde entfernt und kann jetzt korrekt neu ausgelost werden.");
+				void refreshAudit();
+			}
+			setRedrawOpen(false);
+			setRoulette(null);
+			setRevealed(false);
+			setDrawing(false);
+		})();
+	}
+
 	async function refreshAudit() {
 		if (testMode) return;
 		const response = await fetch("/api/tournament/swiss?audit=1", { cache: "no-store" });
@@ -155,6 +179,16 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 						<button
 							type="button"
 							disabled={drawing}
+							onClick={() => setRedrawOpen(true)}
+							className="rounded-xl border border-amber-200/18 bg-amber-200/[0.07] px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 disabled:opacity-40"
+						>
+							Aktuelle Runde neu
+						</button>
+					) : null}
+					{state.rounds.length ? (
+						<button
+							type="button"
+							disabled={drawing}
 							onClick={() => setResetOpen(true)}
 							className="rounded-xl border border-red-300/18 bg-red-500/[0.07] px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 disabled:opacity-40"
 						>
@@ -193,6 +227,16 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 					</div>
 				</details>
 			) : null}
+			<ConfirmDialog
+				open={redrawOpen}
+				title="Aktuelle Swiss-Runde neu auslosen?"
+				description="Nur die neueste, noch nicht gestartete Runde wird entfernt. Frühere Ergebnisse bleiben erhalten. Sobald ein Match vorbereitet, gewürfelt oder gestartet wurde, blockiert der Server diese Aktion."
+				confirmLabel="Runde neu auslosen"
+				cancelLabel="Abbrechen"
+				tone="danger"
+				onConfirm={redrawCurrentRound}
+				onCancel={() => setRedrawOpen(false)}
+			/>
 			<ConfirmDialog
 				open={resetOpen}
 				title="Swiss-Auslosung zurücksetzen?"
