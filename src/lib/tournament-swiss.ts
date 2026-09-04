@@ -30,7 +30,7 @@ type SwissMatchDoc = { _id: string; id: string; status: string; scoreA?: number;
 export type SwissAuditEntry = {
 	id: string;
 	tournamentId: string;
-	action: "round-created" | "pairing-revealed" | "result-set" | "round-repaired" | "round-reset" | "reset";
+	action: "round-created" | "pairing-revealed" | "result-set" | "round-repaired" | "history-corrected" | "round-reset" | "reset";
 	createdAt: string;
 	actor?: string;
 	round?: number;
