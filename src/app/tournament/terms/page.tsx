@@ -59,9 +59,15 @@ const ruleSections = [
 		],
 	},
 	{
-		title: "Falsche Champions oder Builds",
-		text: "Abweichungen vom gespeicherten Roll müssen sofort gemeldet werden.",
-		footer: "Das Orga-Team entscheidet im Einzelfall über Korrektur, Neustart, Matchverlust oder weitere Maßnahmen.",
+		title: "Falsche Runen oder Items",
+		text: "Abweichungen vom gespeicherten Ultimate-Bravery-Roll müssen sofort gemeldet werden. Ein Fehler darf nicht verschwiegen oder spielerisch ausgenutzt werden.",
+		list: [
+			"Falsches Item in einem gecasteten Match: Das Spiel wird pausiert und das falsche Item muss sofort verkauft werden. Fortgesetzt wird erst nach Freigabe durch die Orga.",
+			"Falsche Runen bei Spielbeginn: Das Match wird neu gestartet (Remake).",
+			"Falsches Item in einem nicht gecasteten Match: Das Spiel wird pausiert und das falsche Item muss sofort verkauft werden.",
+			"Wird ein falsches Item in einem nicht gecasteten Match erst nach Spielende durch die Orga festgestellt, wird das Match als Niederlage für das betreffende Team gewertet.",
+		],
+		footer: "In Zweifelsfällen entscheidet die Orga, ob das Item tatsächlich vom verbindlichen Roll abweicht und wie das laufende Match sicher fortgesetzt wird.",
 	},
 	{
 		title: "Spectator Delay",
