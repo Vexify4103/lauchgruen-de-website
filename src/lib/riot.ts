@@ -21,7 +21,7 @@ export class RiotApiError extends Error {
 	}
 }
 
-export type RiotApiCredential = "tournament" | "obs_public" | "obs_lauchgruen" | "obs_akuma" | "obs_happygiganto" | "obs_hippokrate" | "obs_n4cht4r4" | "obs_nachtdienst";
+export type RiotApiCredential = "tournament" | "obs_public" | "obs_lauchgruen" | "obs_akuma" | "obs_hippokrate" | "obs_n4cht4r4" | "obs_nachtdienst";
 
 export type ObsRiotCredential = Exclude<RiotApiCredential, "tournament">;
 
@@ -29,7 +29,6 @@ export const OBS_RIOT_CREDENTIALS = {
 	public: "obs_public",
 	lauchgruen: "obs_lauchgruen",
 	akuma: "obs_akuma",
-	happygiganto: "obs_happygiganto",
 	hippokrate: "obs_hippokrate",
 	n4cht4r4: "obs_n4cht4r4",
 	nachtdienst: "obs_nachtdienst",
@@ -212,7 +211,6 @@ const RIOT_API_KEY_ENV_NAMES = {
 	obs_public: "RIOT_API_KEY_OBS_PUBLIC",
 	obs_lauchgruen: "RIOT_API_KEY_OBS_LAUCHGRUEN",
 	obs_akuma: "RIOT_API_KEY_OBS_AKUMA",
-	obs_happygiganto: "RIOT_API_KEY_OBS_HAPPYGIGANTO",
 	obs_hippokrate: "RIOT_API_KEY_OBS_HIPPOKRATE",
 	obs_n4cht4r4: "RIOT_API_KEY_OBS_N4CHT4R4",
 	obs_nachtdienst: "RIOT_API_KEY_OBS_NACHTDIENST",
@@ -224,7 +222,6 @@ function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> 
 		obs_public: process.env.RIOT_API_KEY_OBS_PUBLIC,
 		obs_lauchgruen: process.env.RIOT_API_KEY_OBS_LAUCHGRUEN,
 		obs_akuma: process.env.RIOT_API_KEY_OBS_AKUMA,
-		obs_happygiganto: process.env.RIOT_API_KEY_OBS_HAPPYGIGANTO,
 		obs_hippokrate: process.env.RIOT_API_KEY_OBS_HIPPOKRATE,
 		obs_n4cht4r4: process.env.RIOT_API_KEY_OBS_N4CHT4R4,
 		obs_nachtdienst: process.env.RIOT_API_KEY_OBS_NACHTDIENST,

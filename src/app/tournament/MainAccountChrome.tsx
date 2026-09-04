@@ -1,7 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { RiotDisclaimer } from "@/components/RiotDisclaimer";
-import { CreatorCredit } from "@/components/CreatorCredit";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export function MainAccountChrome({ children, apexUrl, tournamentUrl }: { children: ReactNode; apexUrl: string; tournamentUrl: string }) {
 	return (
@@ -58,18 +57,7 @@ export function MainAccountChrome({ children, apexUrl, tournamentUrl }: { childr
 				{children}
 			</main>
 
-			<footer className="relative z-10 border-t border-white/8 px-5 py-7 text-sm text-emerald-100/45">
-				<div className="mx-auto w-full max-w-7xl">
-					<CreatorCredit />
-					<div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-						<span>Discord, Riot, Twitch und Stream-Tools an einem Ort.</span>
-						<a href={apexUrl} className="font-bold text-lime-200/75 hover:text-lime-100">
-							Zurück zu lauchgruen.de
-						</a>
-					</div>
-					<RiotDisclaimer productName="Lauchgruen Overlay Builder" className="mt-4 max-w-5xl border-t border-white/8 pt-4 text-[10px] leading-5 text-emerald-100/32" />
-				</div>
-			</footer>
+			<SiteFooter apexUrl={apexUrl} tournamentUrl={tournamentUrl} />
 		</div>
 	);
 }

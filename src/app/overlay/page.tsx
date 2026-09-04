@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getTwitchLink, getVerifiedAccount } from "@/lib/tournament-storage";
 import { headers } from "next/headers";
 import { getSiteUrls } from "@/lib/site-urls";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -35,5 +36,10 @@ export default async function OverlayBuilderPage({ searchParams }: { searchParam
 	const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "lauchgruen.de";
 	const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
 	const apexUrl = getSiteUrls(host).apex;
-	return <OverlayBuilderClient initialConfig={initialConfig} baseUrl={`${protocol}://${host}`} apexUrl={apexUrl} accountUrl={`${apexUrl}/overlay/account`} />;
+	return (
+		<>
+			<OverlayBuilderClient initialConfig={initialConfig} baseUrl={`${protocol}://${host}`} apexUrl={apexUrl} accountUrl={`${apexUrl}/overlay/account`} />
+			<SiteFooter apexUrl={apexUrl} tournamentUrl={getSiteUrls(host).tournament} />
+		</>
+	);
 }

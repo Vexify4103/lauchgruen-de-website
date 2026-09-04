@@ -46,11 +46,7 @@ function pairWithoutRematches<T extends SwissRuleTeam>(teams: T[], previousOppon
 	return null;
 }
 
-export function findExactSwissRecordMatching<T extends SwissRuleTeam>(
-	teams: T[],
-	records: Map<string, SwissRuleRecord>,
-	previousOpponents: Set<string>
-): Array<[T, T]> | null {
+export function findExactSwissRecordMatching<T extends SwissRuleTeam>(teams: T[], records: Map<string, SwissRuleRecord>, previousOpponents: Set<string>): Array<[T, T]> | null {
 	const pools = new Map<string, T[]>();
 	for (const team of teams) {
 		const record = records.get(team.key);

@@ -154,6 +154,23 @@ test("turns a completed eight-team Swiss stage into #1-vs-#8 seeded playoffs", (
 	assert.equal(matches.filter((match) => match.bracket === "Grand").length, 1);
 });
 
+test("uses a complete finalized seeding when played Swiss pairings cannot produce standard placement seeds", () => {
+	const finalSeedNames = Object.fromEntries(swissTeams.map((_, index) => [index + 1, swissTeams.at(-index - 1).name]));
+	const correctedSwiss = { ...completeSwiss, finalSeedNames };
+
+	assert.deepEqual(computeUltimateBraverySwissSeeds(correctedSwiss, swissTeams, 4), finalSeedNames);
+	assert.deepEqual(computeUltimateBraverySwissSeeds({ ...correctedSwiss, finalSeedNames: { 1: "Team 1" } }, swissTeams, 4), {
+		1: "Team 1",
+		2: "Team 2",
+		3: "Team 4",
+		4: "Team 3",
+		5: "Team 8",
+		6: "Team 7",
+		7: "Team 5",
+		8: "Team 6",
+	});
+});
+
 test("builds double-elimination light with top-seed byes and bottom seeds in lower", () => {
 	const seeds = computeUltimateBraverySwissSeeds(completeSwiss, swissTeams, 4);
 	const matches = resolveUltimateBraveryPlayoffMatches({

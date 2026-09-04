@@ -50,7 +50,6 @@ const DIVISION_ORDER = ["IV", "III", "II", "I"] as const;
 const OBS_OVERLAY_BY_STREAMER = {
 	lauchgruen: "lauchgruen",
 	akuma: "akuma",
-	happygiganto: "happygiganto",
 	hippokrate: "hippokrate",
 	n4cht4r4: "n4cht4r4",
 	nachtdienst: "nachtdienst",

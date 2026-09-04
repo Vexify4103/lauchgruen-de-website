@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RiotDisclaimer } from "@/components/RiotDisclaimer";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import {
 	COMMUNITY_OVERLAY_REGIONS,
@@ -1131,10 +1130,6 @@ export function OverlayBuilderClient({
 						</details>
 					</section>
 				</div>
-				<RiotDisclaimer
-					productName="Lauchgruen Overlay Builder"
-					className="mx-auto mt-6 max-w-5xl border-t border-white/8 pt-4 text-center text-[10px] leading-5 text-emerald-100/35"
-				/>
 			</main>
 		</div>
 	);

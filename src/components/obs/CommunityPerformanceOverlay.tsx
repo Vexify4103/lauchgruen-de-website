@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { CommunityObsGame, CommunityObsSnapshot } from "@/lib/community-obs";
-import { RankPortraitOverlay } from "@/components/obs/happygiganto/RankPortraitOverlay";
+import { RankPortraitOverlay } from "@/components/obs/shared/RankPortraitOverlay";
 import { FREEFORM_CANVAS, communityOverlayParams, type CommunityOverlayConfig, type FreeformElementType, type FreeformOverlayElement } from "@/lib/community-overlay-config";
 
 export function CommunityPerformanceOverlay({

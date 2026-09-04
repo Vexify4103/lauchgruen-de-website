@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LauchgruenObsResponse } from "@/lib/streamer-obs";
 import { AkumaOverlay } from "@/components/obs/akuma/AkumaOverlay";
-import { RankPortraitOverlay } from "@/components/obs/happygiganto/RankPortraitOverlay";
 import { HippokrateOverlay } from "@/components/obs/hippokrate/HippokrateOverlay";
 import { LauchgruenOverlay } from "@/components/obs/lauchgruen/LauchgruenOverlay";
 import { LauchgruenSmallOverlay } from "@/components/obs/lauchgruen/LauchgruenSmallOverlay";
@@ -13,7 +12,7 @@ import { germanTierName, lpTone, overlaySignature } from "@/components/obs/share
 
 const POLL_INTERVAL_MS = 20_000;
 
-export type StreamerOverlayLayout = "default" | "hippokrate" | "rankPortrait" | "nachtdienst" | "akuma" | "n4cht4r4";
+export type StreamerOverlayLayout = "default" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4";
 
 export function StreamerPerformanceOverlay({
 	initial,
@@ -83,17 +82,6 @@ export function StreamerPerformanceOverlay({
 		if (!forceVisible && (!data.leagueLive || !rankedQueueLive)) return null;
 		return <NachtdienstOverlay key={pulseKey} data={data} />;
 	}
-	if (layout === "rankPortrait") {
-		if (!forceVisible && !data.leagueLive) return null;
-		return (
-			<RankPortraitOverlay
-				riotId={data.riotId}
-				profileIconUrl={data.profileIconUrl}
-				soloRank={toPortraitRank(data.soloRank ?? (data.rank?.queueType === "RANKED_SOLO_5x5" ? data.rank : null))}
-				flexRank={toPortraitRank(data.flexRank ?? (data.rank?.queueType === "RANKED_FLEX_SR" ? data.rank : null))}
-			/>
-		);
-	}
 	if (layout === "akuma") {
 		if (!forceVisible && !data.leagueLive) return null;
 		return <AkumaOverlay key={pulseKey} data={data} />;
@@ -106,8 +94,4 @@ export function StreamerPerformanceOverlay({
 	if (layout === "hippokrate") return <HippokrateOverlay data={data} lpTone={tone} />;
 	if (variant === "small") return <LauchgruenSmallOverlay data={data} pulseKey={pulseKey} title={title} rankProgress={rankProgress} lpTone={tone} />;
 	return <LauchgruenOverlay data={data} pulseKey={pulseKey} displayDurationSeconds={displayDurationSeconds} title={title} rankProgress={rankProgress} lpTone={tone} />;
-}
-
-function toPortraitRank(rank: LauchgruenObsResponse["rank"]) {
-	return rank ? { tier: rank.tier, division: rank.rank, leaguePoints: rank.leaguePoints, wins: rank.wins, losses: rank.losses } : null;
 }

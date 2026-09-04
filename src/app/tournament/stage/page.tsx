@@ -259,6 +259,12 @@ function SwissStagePage({
 					</p>
 				</div>
 				<SwissStageLiveView initialState={swissState} config={config} teamNames={teamNames} live={settings.tournamentLive} />
+				{swissState.seedingMethod === "results-and-average-win-duration" ? (
+					<div className="mx-auto mt-5 max-w-4xl rounded-2xl border border-amber-200/18 bg-amber-200/[0.055] px-5 py-4 text-center text-xs font-bold leading-6 text-amber-50/72">
+						Hinweis der Turnierleitung: Bei der Swiss-Auslosung ist uns ein Fehler unterlaufen. Für ein möglichst faires Seeding wurden alle tatsächlich gespielten
+						Ergebnisse berücksichtigt; ab Seed #3 entschieden zuerst die Anzahl der Siege und danach die durchschnittliche Dauer der gewonnenen Spiele.
+					</div>
+				) : null}
 				{teamNames.length === 0 ? (
 					<div className="mx-auto mt-5 max-w-3xl rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] px-5 py-4 text-center text-sm font-bold leading-6 text-amber-50/76">
 						Die Grafik zeigt aktuell den geplanten Ablauf. Teamnamen und Paarungen erscheinen, sobald die Roster veröffentlicht und die jeweilige Runde freigegeben

@@ -13,6 +13,9 @@ import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { CopyOverlayButton } from "./CopyOverlayButton";
 import { getMatchControlContext } from "@/lib/match-control";
+import { teamMatchRecord } from "@/lib/tournament-team-records";
+import { getSwissStageState } from "@/lib/tournament-swiss";
+import { computeUltimateBraverySwissSeeds } from "@/lib/ultimate-bravery-playoffs";
 
 function CrownIcon() {
 	return (
@@ -42,6 +45,10 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 	const { teams } = ctx;
 	const [wheel, state] = await Promise.all([getTournamentWheelState(), readTournamentState(ctx.groupMatches)]);
 	const control = isAzTournament ? null : await getMatchControlContext();
+	const swissSeeds =
+		!isAzTournament && settings.ultimateBravery.dayOneFormat === "swiss"
+			? computeUltimateBraverySwissSeeds(await getSwissStageState(settings.activeTournament.id), teams, settings.ultimateBravery.swissRounds)
+			: {};
 	const currentAssignment = wheel.currentAssignment;
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
@@ -201,6 +208,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				<div className="mt-8 grid gap-5 lg:grid-cols-2">
 					{teams.map((team) => {
 						const teamStreams = liveStreams.filter((stream) => stream.teamName === team.name);
+						const finalSeed = Object.entries(swissSeeds).find(([, name]) => name === team.name)?.[0];
 						return (
 							<article
 								key={team.id}
@@ -210,7 +218,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 									<div className="flex flex-wrap items-center justify-between gap-3">
 										<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-100/62">
 											{settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "swiss"
-												? "Swiss Stage · Setzung offen"
+												? `Swiss Stage · ${finalSeed ? `Playoff-Seed #${finalSeed}` : "Setzung offen"}`
 												: isAzTournament || settings.ultimateBravery.dayOneFormat === "groups"
 													? `Gruppe ${team.group} · Seed ${team.seed}`
 													: "Turnierteam"}
@@ -224,7 +232,12 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 											>
 												Team OP.GG
 											</a>
-											<div className="rounded-2xl border border-white/12 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">{team.record}</div>
+											<div
+												title="Gewonnene und verlorene Matches"
+												className="rounded-2xl border border-white/12 bg-black/20 px-4 py-2 text-sm font-black text-lime-100"
+											>
+												{control ? teamMatchRecord(team.name, control.matches) : team.record}
+											</div>
 											<CopyOverlayButton teamId={team.id} />
 										</div>
 									</div>

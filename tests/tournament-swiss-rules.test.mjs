@@ -53,10 +53,22 @@ test("computes the exact Round 3 pools from two completed rounds", () => {
 	assert.deepEqual(
 		matching.map(([first, second]) => [records.get(first.key), records.get(second.key)]),
 		[
-			[{ wins: 2, losses: 0 }, { wins: 2, losses: 0 }],
-			[{ wins: 1, losses: 1 }, { wins: 1, losses: 1 }],
-			[{ wins: 1, losses: 1 }, { wins: 1, losses: 1 }],
-			[{ wins: 0, losses: 2 }, { wins: 0, losses: 2 }],
+			[
+				{ wins: 2, losses: 0 },
+				{ wins: 2, losses: 0 },
+			],
+			[
+				{ wins: 1, losses: 1 },
+				{ wins: 1, losses: 1 },
+			],
+			[
+				{ wins: 1, losses: 1 },
+				{ wins: 1, losses: 1 },
+			],
+			[
+				{ wins: 0, losses: 2 },
+				{ wins: 0, losses: 2 },
+			],
 		]
 	);
 });

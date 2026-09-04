@@ -3,8 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { RiotDisclaimer } from "@/components/RiotDisclaimer";
-import { CreatorCredit } from "@/components/CreatorCredit";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TournamentLink as Link, TournamentUrlProvider } from "./TournamentLink";
 
 type NavItem = {
@@ -64,39 +63,7 @@ export function TournamentChrome({
 					{children}
 				</main>
 
-				{focusedDraft ? null : (
-					<div className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-8 pt-4">
-						<CreatorCredit />
-					</div>
-				)}
-
-				{focusedDraft ? null : (
-					<footer className="relative z-10 border-t border-lime-200/10 px-5 py-8">
-						<div className="mx-auto w-full max-w-7xl text-sm text-emerald-100/54">
-							<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-								<p>{footerTournamentLabel}</p>
-								<div className="flex flex-wrap gap-x-4 gap-y-2">
-									<Link href="/tournament/privacy" className="font-bold text-lime-200/80 hover:text-lime-100">
-										Datenschutz
-									</Link>
-									<Link href="/tournament/terms" className="font-bold text-lime-200/80 hover:text-lime-100">
-										Teilnahmebedingungen
-									</Link>
-									<Link href="/tournament/winners" className="font-bold text-lime-200/80 hover:text-lime-100">
-										Archiv & Hall of Fame
-									</Link>
-									<a href={apexUrl} className="font-bold text-lime-200/80 hover:text-lime-100">
-										Zurück zu lauchgruen.de
-									</a>
-								</div>
-							</div>
-							<RiotDisclaimer
-								productName="Lauchgruen Tournament Hub"
-								className="mt-5 max-w-5xl border-t border-white/8 pt-4 text-[10px] leading-5 text-emerald-100/35"
-							/>
-						</div>
-					</footer>
-				)}
+				{focusedDraft ? null : <SiteFooter apexUrl={apexUrl} tournamentUrl={cleanUrls ? "" : "/tournament"} label={footerTournamentLabel} />}
 			</div>
 		</TournamentUrlProvider>
 	);

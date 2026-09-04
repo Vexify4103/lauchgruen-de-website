@@ -69,6 +69,8 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 	const lastFocusedRound = useRef<number | null>(null);
 	const targetWins = Math.floor(config.swissRounds / 2) + 1;
 	const placementSwiss = config.teamCount === 8 && config.advanceTeamCount === 8 && config.swissRounds === 4;
+	const recovered = state.seedingMethod === "results-and-average-win-duration";
+	const displayedSeedNames = state.finalSeedNames ?? (placementSwiss ? placementSeedNames(state) : undefined);
 
 	useLayoutEffect(() => {
 		if (lastFocusedRound.current === activeRound) return;
@@ -91,7 +93,9 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 						<div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-100/54">Random Swiss · ohne Rematches</div>
 						<h2 className="mt-2 text-3xl font-black text-emerald-50">Jeder Weg durch die Swiss Stage.</h2>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/54">
-							Leere Plätze werden bei der Auslosung automatisch gefüllt. Bereits gespielte Gegner bleiben für alle späteren Runden gesperrt.
+							{recovered
+								? "Alle tatsächlich gespielten Matches bleiben dokumentiert. Fehlerhafte Paarungen sind markiert; rechts steht die finale Playoff-Setzung."
+								: "Leere Plätze werden bei der Auslosung automatisch gefüllt. Bereits gespielte Gegner bleiben für alle späteren Runden gesperrt."}
 						</p>
 					</div>
 					<span className="rounded-full border border-lime-200/18 bg-lime-200/8 px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-lime-100">
@@ -109,7 +113,7 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 				) : null}
 			</header>
 			<div ref={scrollRef} className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
-				<div className="grid min-w-max items-stretch gap-4" style={{ gridTemplateColumns: `repeat(${config.swissRounds}, minmax(17rem, 1fr)) minmax(14rem, 0.8fr)` }}>
+				<div className="grid min-w-max items-stretch gap-4" style={{ gridTemplateColumns: `repeat(${config.swissRounds}, minmax(17rem, 1fr)) minmax(16rem, 0.9fr)` }}>
 					{Array.from({ length: config.swissRounds }, (_, roundIndex) => {
 						const roundNumber = roundIndex + 1;
 						const expectedBuckets = recordBuckets(roundNumber, targetWins);
@@ -132,7 +136,11 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 									<div>
 										<div className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/42">Runde {String(roundNumber).padStart(2, "0")}</div>
 										<strong className="mt-1 block text-sm text-emerald-50">
-											{roundNumber === activeRound ? "Aktueller Swiss-Pfad" : roundNumber < activeRound ? "Abgeschlossen" : "Folgt nach Ergebnissen"}
+											{recovered || roundNumber < activeRound
+												? "Abgeschlossen"
+												: roundNumber === activeRound
+													? "Aktueller Swiss-Pfad"
+													: "Folgt nach Ergebnissen"}
 										</strong>
 									</div>
 									<span className="rounded-full border border-white/8 px-2 py-1 text-[8px] font-black text-emerald-100/38">BO1</span>
@@ -143,6 +151,7 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 										...unexpectedKeys.map((key) => ({ key, wins: -1, losses: -1 })),
 									].map((record) => {
 										const pairings = (actualRound?.pairings ?? []).filter((pairing) => pairingRecordKey(pairing) === record.key);
+										if (recovered && !pairings.length) return null;
 										const estimatedTeams = record.wins < 0 ? pairings.length * 2 : estimateTeamsInRecord(config.teamCount, roundNumber - 1, record.wins);
 										const expectedMatches = placementSwiss
 											? (placementMatchCounts[roundNumber]?.[record.key] ?? pairings.length)
@@ -152,10 +161,12 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 												key={`${roundNumber}-${record.key}`}
 												record={record.key}
 												pairings={pairings}
-												placeholderCount={Math.max(0, expectedMatches - pairings.length)}
+												placeholderCount={recovered ? 0 : Math.max(0, expectedMatches - pairings.length)}
 												next={
-													placementNextLabels[`${roundNumber}:${record.key}`] ??
-													(record.wins >= 0 ? nextRecordText(record.wins, record.losses, targetWins) : "Bilanzübergreifende Paarung")
+													recovered
+														? "Ergebnis zählt für die finale Setzung nach Siegen und Ø-Siegzeit."
+														: (placementNextLabels[`${roundNumber}:${record.key}`] ??
+															(record.wins >= 0 ? nextRecordText(record.wins, record.losses, targetWins) : "Bilanzübergreifende Paarung"))
 												}
 											/>
 										);
@@ -167,7 +178,7 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 							</section>
 						);
 					})}
-					<SwissOutcome config={config} />
+					<SwissOutcome config={config} seedNames={displayedSeedNames} />
 				</div>
 			</div>
 			<footer className="grid gap-3 border-t border-white/8 px-6 py-5 text-xs leading-5 text-emerald-100/52 sm:grid-cols-3 sm:px-8">
@@ -185,6 +196,27 @@ export function SwissStageBoard({ config, teamNames, state, activeRound = 1 }: {
 	);
 }
 
+function placementSeedNames(state: SwissStageState): Record<number, string> | undefined {
+	const thirdRound = state.rounds.find((round) => round.round === 3);
+	const fourthRound = state.rounds.find((round) => round.round === 4);
+	if (!thirdRound?.complete || !fourthRound?.complete) return undefined;
+
+	const assignments = [
+		{ round: thirdRound, record: "2-0", winnerSeed: 1, loserSeed: 2 },
+		{ round: fourthRound, record: "2-1", winnerSeed: 3, loserSeed: 4 },
+		{ round: fourthRound, record: "1-2", winnerSeed: 5, loserSeed: 6 },
+		{ round: thirdRound, record: "0-2", winnerSeed: 7, loserSeed: 8 },
+	];
+	const seeds: Record<number, string> = {};
+	for (const assignment of assignments) {
+		const pairing = assignment.round.pairings.find((entry) => entry.recordA === assignment.record && entry.recordB === assignment.record);
+		if (!pairing?.teamBName || !pairing.winnerTeamKey) return undefined;
+		seeds[assignment.winnerSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamAName : pairing.teamBName;
+		seeds[assignment.loserSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamBName : pairing.teamAName;
+	}
+	return seeds;
+}
+
 function SwissPathCard({ record, pairings, placeholderCount, next }: { record: string; pairings: SwissPairing[]; placeholderCount: number; next: string }) {
 	const positive = record.startsWith("2-") || record.startsWith("3-");
 	const danger = record.endsWith("-2") || record.endsWith("-3");
@@ -200,13 +232,18 @@ function SwissPathCard({ record, pairings, placeholderCount, next }: { record: s
 			</div>
 			<div className="mt-2 grid gap-1.5">
 				{pairings.map((pairing) => (
-					<div
-						key={pairing.id}
-						className="grid min-h-9 grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg border border-white/[0.07] bg-black/24 px-2 py-2 text-[10px] font-black text-emerald-50"
-					>
-						<span className={`truncate text-right ${pairing.winnerTeamKey === pairing.teamAKey ? "text-lime-100" : ""}`}>{pairing.teamAName}</span>
-						<span className="text-cyan-200/72">{pairing.bye ? "FREI" : "VS"}</span>
-						<span className={`truncate ${pairing.winnerTeamKey === pairing.teamBKey ? "text-lime-100" : ""}`}>{pairing.teamBName ?? "Freilos"}</span>
+					<div key={pairing.id} className="rounded-lg border border-white/[0.07] bg-black/24 px-2 py-2">
+						{pairing.integrityStatus === "faulty-pairing" ? (
+							<div className="mb-2 rounded-md border border-red-300/24 bg-red-500/12 px-2 py-1.5 text-center text-[7px] font-black uppercase tracking-[0.12em] text-red-100">
+								Fehlerhafte Swiss-Paarung
+								{pairing.integrityNote ? <span className="mt-1 block normal-case tracking-normal text-red-100/68">{pairing.integrityNote}</span> : null}
+							</div>
+						) : null}
+						<div className="grid min-h-5 grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] font-black text-emerald-50">
+							<span className={`truncate text-right ${pairing.winnerTeamKey === pairing.teamAKey ? "text-lime-100" : ""}`}>{pairing.teamAName}</span>
+							<span className="text-cyan-200/72">{pairing.bye ? "FREI" : "VS"}</span>
+							<span className={`truncate ${pairing.winnerTeamKey === pairing.teamBKey ? "text-lime-100" : ""}`}>{pairing.teamBName ?? "Freilos"}</span>
+						</div>
 					</div>
 				))}
 				{Array.from({ length: placeholderCount }, (_, index) => (
@@ -225,7 +262,7 @@ function SwissPathCard({ record, pairings, placeholderCount, next }: { record: s
 	);
 }
 
-function SwissOutcome({ config }: { config: StageConfig }) {
+function SwissOutcome({ config, seedNames }: { config: StageConfig; seedNames?: Record<number, string> }) {
 	const allAdvance = config.advanceTeamCount >= config.teamCount;
 	return (
 		<section className="flex min-h-[34rem] flex-col rounded-[1.7rem] border border-lime-200/16 bg-gradient-to-b from-lime-200/[0.075] to-black/15 p-4">
@@ -237,7 +274,7 @@ function SwissOutcome({ config }: { config: StageConfig }) {
 				{Array.from({ length: config.advanceTeamCount }, (_, index) => (
 					<div key={index} className="flex items-center justify-between rounded-xl border border-white/8 bg-black/18 px-3 py-2.5">
 						<span className="font-mono text-sm font-black text-lime-100">#{index + 1}</span>
-						<span className="text-[9px] font-black uppercase tracking-[0.13em] text-emerald-100/48">Qualifiziert</span>
+						<span className="max-w-[11rem] truncate text-right text-[10px] font-black text-emerald-50/76">{seedNames?.[index + 1] ?? "Auslosung offen"}</span>
 					</div>
 				))}
 			</div>

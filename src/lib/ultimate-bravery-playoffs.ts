@@ -152,6 +152,13 @@ export function computeUltimateBraverySwissSeeds(swiss: SwissStageState, teams: 
 	if (swiss.rounds.length < requiredRounds) return empty;
 	const relevantRounds = swiss.rounds.slice(0, requiredRounds);
 	if (relevantRounds.some((round) => !round.complete || round.pairings.some((pairing) => !pairing.bye && !pairing.winnerTeamKey))) return empty;
+	if (swiss.finalSeedNames) {
+		const names = Array.from({ length: teams.length }, (_, index) => swiss.finalSeedNames?.[index + 1]);
+		const expectedNames = new Set(teams.map((team) => team.name));
+		if (names.every((name): name is string => typeof name === "string" && expectedNames.has(name)) && new Set(names).size === teams.length) {
+			return Object.fromEntries(names.map((name, index) => [index + 1, name]));
+		}
+	}
 	if (teams.length === 8 && requiredRounds === 4) {
 		const placementSeeds = computeEightTeamPlacementSeeds(swiss, teams);
 		if (placementSeeds) return placementSeeds;

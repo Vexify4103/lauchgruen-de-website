@@ -43,8 +43,6 @@ LAUCHGRUEN_OBS_ALT_RIOT_IDS=
 LAUCHGRUEN_OBS_ALT_RIOT_PUUIDS=
 HIPPOKRATE_OBS_ALT_RIOT_IDS=
 HIPPOKRATE_OBS_ALT_RIOT_PUUIDS=
-HAPPYGIGANTO_OBS_ALT_RIOT_IDS=baby princess#twin
-HAPPYGIGANTO_OBS_ALT_RIOT_PUUIDS=
 NACHTDIENST_OBS_ALT_RIOT_IDS=
 NACHTDIENST_OBS_ALT_RIOT_PUUIDS=
 AKUMA_OBS_ALT_RIOT_IDS=
@@ -53,9 +51,7 @@ N4CHT4R4_OBS_ALT_RIOT_IDS=
 N4CHT4R4_OBS_ALT_RIOT_PUUIDS=
 ```
 
-The two lists must use the same order when PUUIDs are supplied. HappyGiganto's
-`baby princess#twin` account is also the built-in fallback when her Riot-ID list
-is omitted.
+The two lists must use the same order when PUUIDs are supplied.
 
 ## Docker
 

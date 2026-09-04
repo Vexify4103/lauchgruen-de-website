@@ -17,10 +17,20 @@ export type SwissPairing = {
 	recordA?: string;
 	recordB?: string;
 	winnerTeamKey?: string;
+	integrityStatus?: "faulty-pairing";
+	integrityNote?: string;
 };
 
 export type SwissRound = { round: number; pairings: SwissPairing[]; complete: boolean; drawnAt: string; drawnBy?: string };
-export type SwissStageState = { tournamentId: string; rounds: SwissRound[]; updatedAt: string; nextBracket?: string };
+export type SwissStageState = {
+	tournamentId: string;
+	rounds: SwissRound[];
+	updatedAt: string;
+	nextBracket?: string;
+	finalSeedNames?: Record<number, string>;
+	seedingMethod?: "results-and-average-win-duration";
+	seedingNote?: string;
+};
 type SwissRoundDoc = SwissRound & { pendingPairings?: SwissPairing[] };
 type SwissStageDoc = Omit<SwissStageState, "rounds"> & { _id: string; rounds: SwissRoundDoc[] };
 export type SwissTeam = { key: string; name: string };
@@ -47,7 +57,9 @@ async function writeSwissAudit(entry: Omit<SwissAuditEntry, "id" | "createdAt">)
 }
 
 export async function listSwissAudit(tournamentId: string, limit = 30): Promise<SwissAuditEntry[]> {
-	const documents = await (await getDb())
+	const documents = await (
+		await getDb()
+	)
 		.collection<SwissAuditDoc>(AUDIT_COLLECTION)
 		.find({ tournamentId })
 		.sort({ createdAt: -1 })
@@ -141,6 +153,9 @@ export async function getSwissStageState(tournamentId: string): Promise<SwissSta
 					drawnBy: round.drawnBy,
 				})),
 				updatedAt: doc.updatedAt,
+				finalSeedNames: doc.finalSeedNames,
+				seedingMethod: doc.seedingMethod,
+				seedingNote: doc.seedingNote,
 				nextBracket: doc.rounds.at(-1)?.pendingPairings?.[0]
 					? doc.rounds.at(-1)!.pendingPairings![0].recordA === doc.rounds.at(-1)!.pendingPairings![0].recordB
 						? doc.rounds.at(-1)!.pendingPairings![0].recordA
@@ -263,7 +278,9 @@ export async function drawNextSwissMatchup(input: {
 		previousOpponents: teams.filter((opponent) => previousOpponents.has(opponentKey(team.key, opponent.key))).map((opponent) => opponent.key),
 	}));
 	const exactMatching = input.pairByRecord ? findExactSwissRecordMatching(shuffle(candidates), records, previousOpponents) : null;
-	const matching = exactMatching ?? (placementSwiss ? null : input.pairByRecord ? findRecordMatching(candidates, records, previousOpponents) : findRandomMatching(candidates, previousOpponents));
+	const matching =
+		exactMatching ??
+		(placementSwiss ? null : input.pairByRecord ? findRecordMatching(candidates, records, previousOpponents) : findRandomMatching(candidates, previousOpponents));
 	if (!matching) {
 		throw new Error(
 			placementSwiss
@@ -384,7 +401,12 @@ export async function resetLatestSwissRound(tournamentId: string) {
 	}
 
 	const [matches, draftCount, rollCount, checkInCount, reportCount] = await Promise.all([
-		matchIds.length ? db.collection<SwissMatchDoc>("tournament_matches").find({ id: { $in: matchIds } }).toArray() : [],
+		matchIds.length
+			? db
+					.collection<SwissMatchDoc>("tournament_matches")
+					.find({ id: { $in: matchIds } })
+					.toArray()
+			: [],
 		matchIds.length ? db.collection<{ _id: string }>("tournament_drafts").countDocuments({ _id: { $in: matchIds } }) : 0,
 		matchIds.length ? db.collection("ultimate_bravery_rolls").countDocuments({ matchId: { $in: matchIds } }) : 0,
 		matchIds.length ? db.collection("tournament_captain_checkins").countDocuments({ matchId: { $in: matchIds } }) : 0,

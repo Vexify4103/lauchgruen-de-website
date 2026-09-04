@@ -62,29 +62,22 @@ const CREST_ROOT = "https://raw.communitydragon.org/latest/game/assets/loadouts/
 export function RankPortraitOverlay({
 	riotId,
 	profileIconUrl,
-	rank: singleRank,
-	soloRank,
-	flexRank,
+	rank,
 	sessionWins = 0,
 	sessionLosses = 0,
 }: {
 	riotId: string;
 	profileIconUrl: string | null;
-	rank?: RankPortraitRank;
-	soloRank?: RankPortraitRank;
-	flexRank?: RankPortraitRank;
+	rank: RankPortraitRank;
 	sessionWins?: number;
 	sessionLosses?: number;
 }) {
 	const [scene, setScene] = useState(0);
 	const flameFilterId = `rank-flame-${useId().replaceAll(":", "")}`;
-	const rotatesQueues = soloRank !== undefined || flexRank !== undefined;
-	const rank = rotatesQueues ? (scene === 0 ? (soloRank ?? null) : (flexRank ?? null)) : (singleRank ?? null);
 	const tier = rank?.tier.toUpperCase() ?? "UNRANKED";
 	const palette = RANK_PALETTES[tier] ?? RANK_PALETTES.UNRANKED;
-	const [rawGameName, rawTagLine] = riotId.split("#");
+	const [rawGameName] = riotId.split("#");
 	const gameName = rawGameName?.trim() || "Summoner";
-	const tagLine = rawTagLine?.trim();
 	const overallWins = rank?.wins ?? 0;
 	const overallLosses = rank?.losses ?? 0;
 	const crest = RANK_CRESTS[tier];
@@ -98,9 +91,9 @@ export function RankPortraitOverlay({
 	} as CSSProperties;
 
 	useEffect(() => {
-		const interval = window.setInterval(() => setScene((current) => (current + 1) % (rotatesQueues ? 2 : 3)), rotatesQueues ? 15_000 : 30_000);
+		const interval = window.setInterval(() => setScene((current) => (current + 1) % 3), 30_000);
 		return () => window.clearInterval(interval);
-	}, [rotatesQueues]);
+	}, []);
 
 	return (
 		<div
@@ -158,42 +151,26 @@ export function RankPortraitOverlay({
 
 			<div className="relative z-10 -mt-6 flex max-w-full items-baseline justify-center gap-1.5 truncate px-3 [text-shadow:0_3px_12px_rgba(0,0,0,.95)]">
 				<span className="truncate text-[25px] font-black tracking-[-0.035em] text-white">{gameName}</span>
-				{rotatesQueues && tagLine ? <span className="shrink-0 text-[16px] font-black text-white/65">#{tagLine}</span> : null}
 			</div>
-			{rotatesQueues ? (
-				<>
-					<div key={scene} className="rank-portrait-stat mt-1.5 flex min-h-12 flex-col items-center [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
-						<span className="mb-0.5 rounded-full border border-[var(--rank-primary)]/45 bg-black/35 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.19em] text-[var(--rank-highlight)]">
-							{scene === 0 ? "Solo/Duo" : "Ranked Flex"}
+			<div key={scene} className="rank-portrait-stat mt-1.5 min-h-8 text-[19px] font-black [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
+				{scene === 0 ? (
+					<RankLine rank={rank} tier={tier} />
+				) : scene === 1 ? (
+					<>
+						<span className="text-[var(--rank-primary)]">Session</span>
+						<span className="ml-2 text-white">
+							{sessionWins}W · {sessionLosses}L
 						</span>
-						<RankLine rank={rank} tier={tier} />
-					</div>
-					<div className="mt-1 flex items-center gap-1.5" aria-label={scene === 0 ? "Solo/Duo wird angezeigt" : "Ranked Flex wird angezeigt"}>
-						<span className={`h-1 rounded-full transition-all duration-500 ${scene === 0 ? "w-5 bg-[var(--rank-primary)]" : "w-1.5 bg-white/30"}`} />
-						<span className={`h-1 rounded-full transition-all duration-500 ${scene === 1 ? "w-5 bg-[var(--rank-primary)]" : "w-1.5 bg-white/30"}`} />
-					</div>
-				</>
-			) : (
-				<div key={scene} className="rank-portrait-stat mt-1.5 min-h-8 text-[19px] font-black [text-shadow:0_2px_10px_rgba(0,0,0,.98)]">
-					{scene === 0 ? (
-						<RankLine rank={rank} tier={tier} />
-					) : scene === 1 ? (
-						<>
-							<span className="text-[var(--rank-primary)]">Session</span>
-							<span className="ml-2 text-white">
-								{sessionWins}W · {sessionLosses}L
-							</span>
-						</>
-					) : (
-						<>
-							<span className="text-[var(--rank-primary)]">Gesamt</span>
-							<span className="ml-2 text-white">
-								{overallWins}W · {overallLosses}L
-							</span>
-						</>
-					)}
-				</div>
-			)}
+					</>
+				) : (
+					<>
+						<span className="text-[var(--rank-primary)]">Gesamt</span>
+						<span className="ml-2 text-white">
+							{overallWins}W · {overallLosses}L
+						</span>
+					</>
+				)}
+			</div>
 
 			<style>{`
 				@keyframes rank-portrait-breathe {

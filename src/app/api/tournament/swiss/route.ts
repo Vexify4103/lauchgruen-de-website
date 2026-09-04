@@ -105,10 +105,7 @@ export async function POST(request: Request) {
 			matchPrefix,
 			persistMatches: !test,
 			pairByRecord: true,
-			placementSwiss:
-				settings.ultimateBravery.teamCount === 8 &&
-				settings.ultimateBravery.advanceTeamCount === 8 &&
-				settings.ultimateBravery.swissRounds === 4,
+			placementSwiss: settings.ultimateBravery.teamCount === 8 && settings.ultimateBravery.advanceTeamCount === 8 && settings.ultimateBravery.swissRounds === 4,
 			requireCompletedRound: true,
 			syncMatchResults: !test,
 		});
