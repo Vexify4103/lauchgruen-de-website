@@ -22,6 +22,13 @@ test("treats semi-unique manaflow items as mutually exclusive", () => {
 	assert.equal(ultimateBraveryItemsConflict("Winter's Approach", "Whispering Circlet"), true);
 });
 
+test("treats Archangel's Staff as both Manaflow and Lifeline", () => {
+	assert.deepEqual(ultimateBraveryItemGroups("Archangel's Staff"), ["manaflow", "lifeline"]);
+	assert.equal(ultimateBraveryItemsConflict("Archangel's Staff", "Protoplasm Harness"), true);
+	assert.equal(ultimateBraveryItemsConflict("Archangel's Staff", "Maw of Malmortius"), true);
+	assert.equal(ultimateBraveryItemsConflict("Protoplasm Harness", "Immortal Shieldbow"), true);
+});
+
 test("allows items whose exclusivity groups do not overlap", () => {
 	assert.equal(ultimateBraveryItemsConflict("Lord Dominik's Regards", "Banshee's Veil"), false);
 	assert.equal(ultimateBraveryItemsConflict("Sunfire Aegis", "Trinity Force"), false);

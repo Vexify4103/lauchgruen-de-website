@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
+import { ultimateBraveryHasFlash, ultimateBraveryIsHexflash, ultimateBraveryRunesMatchSpells } from "@/lib/ultimate-bravery-constraints";
 import { ultimateBraveryChampionCanUseRunaans, ultimateBraveryItemGroups } from "@/lib/ultimate-bravery-items";
 
 const COLLECTION = "ultimate_bravery_rolls";
@@ -149,11 +150,23 @@ function sampleCompatibleItems(values: CatalogItem[], count: number, initialGrou
 }
 
 const SPELLBLADE_ITEM_IDS = new Set(["3057", "3078", "3100", "6662"]);
+const STORED_ITEM_GROUPS_BY_ID = new Map<string, readonly string[]>([
+	["2525", ["lifeline"]],
+	["3003", ["manaflow", "lifeline"]],
+	["3040", ["manaflow", "lifeline"]],
+	["3053", ["lifeline"]],
+	["3155", ["lifeline"]],
+	["3156", ["lifeline"]],
+	["6673", ["lifeline"]],
+]);
 
 function storedAssetGroups(item: UltimateBraveryAsset): readonly string[] {
+	const idGroups = STORED_ITEM_GROUPS_BY_ID.get(item.id);
+	if (idGroups) return idGroups;
 	const groups = ultimateBraveryItemGroups(item.name.replace(/\s*\(Quest-Upgrade\)\s*$/i, ""));
 	if (groups.length) return groups;
 	if (/bloodsong|blutgesang/i.test(item.name) || SPELLBLADE_ITEM_IDS.has(item.id)) return ["spellblade"];
+	if (/protoplasm/i.test(item.name)) return ["lifeline"];
 	return [];
 }
 
@@ -175,8 +188,17 @@ function rollContainsChampionRestrictedItem(roll: UltimateBraveryRoll) {
 	return roll.items.some(isRunaansHurricane) && roll.runaanEligible !== true;
 }
 
+function rollContainsRuneSpellConflict(roll: UltimateBraveryRoll) {
+	return !ultimateBraveryRunesMatchSpells(roll.runes.runes, roll.summonerSpells);
+}
+
 function rollNeedsRegeneration(roll: UltimateBraveryRoll) {
-	return rollContainsForbiddenItem(roll) || rollContainsConflictingItems(roll) || rollContainsChampionRestrictedItem(roll);
+	return (
+		rollContainsForbiddenItem(roll) ||
+		rollContainsConflictingItems(roll) ||
+		rollContainsChampionRestrictedItem(roll) ||
+		rollContainsRuneSpellConflict(roll)
+	);
 }
 
 function imageUrl(version: string, type: "champion" | "item" | "spell", file: string) {
@@ -218,12 +240,13 @@ function toAsset(version: string, type: "champion" | "item" | "spell", value: { 
 	return { id: value.id ?? value.key, name: value.name, imageUrl: imageUrl(version, type, value.image.full) };
 }
 
-function buildRunes(catalog: Catalog): UltimateBraveryRunePage {
+function buildRunes(catalog: Catalog, hasFlash: boolean): UltimateBraveryRunePage {
 	const primary = pick(catalog.runes);
 	const secondary = pick(catalog.runes.filter((tree) => tree.id !== primary.id));
-	const primaryRunes = primary.slots.map((slot) => pick(slot.runes));
+	const eligibleRunes = (slot: RuneSlot) => (hasFlash ? slot.runes : slot.runes.filter((rune) => !ultimateBraveryIsHexflash(rune)));
+	const primaryRunes = primary.slots.map((slot) => pick(eligibleRunes(slot)));
 	const secondarySlots = sample(secondary.slots.slice(1), 2);
-	const secondaryRunes = secondarySlots.map((slot) => pick(slot.runes));
+	const secondaryRunes = secondarySlots.map((slot) => pick(eligibleRunes(slot)));
 	return {
 		primary: primary.name,
 		secondary: secondary.name,
@@ -307,6 +330,7 @@ async function generateRoll(input: {
 	const riftSpells = catalog.spells.filter((spell) => spell.modes.includes("CLASSIC") && !["SummonerSmite", "SummonerSnowball"].includes(spell.id));
 	const smite = catalog.spells.find((spell) => spell.id === "SummonerSmite");
 	const spells = role === "jungle" && smite ? [smite, pick(riftSpells)] : sample(riftSpells, 2);
+	const hasFlash = ultimateBraveryHasFlash(spells);
 	const now = new Date().toISOString();
 	return {
 		id: `${input.matchId}:${input.discordId}`,
@@ -330,7 +354,7 @@ async function generateRoll(input: {
 		],
 		items: selectedItems.map((item) => toAsset(catalog.version, "item", { id: item.id, key: item.id, name: item.name, image: item.image })),
 		summonerSpells: spells.map((spell) => toAsset(catalog.version, "spell", spell)),
-		runes: buildRunes(catalog),
+		runes: buildRunes(catalog, hasFlash),
 		runaanEligible,
 		status: input.rerollsUsed >= input.rerollLimit ? "locked" : "selecting",
 		...(input.rerollsUsed >= input.rerollLimit ? { confirmedAt: now } : {}),
