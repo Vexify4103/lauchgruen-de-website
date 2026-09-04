@@ -69,3 +69,10 @@ export function ultimateBraveryItemsConflict(firstName: string, secondName: stri
 	const secondGroups = new Set(ultimateBraveryItemGroups(secondName));
 	return firstGroups.some((group) => secondGroups.has(group));
 }
+
+export function ultimateBraveryChampionCanUseRunaans(attackRange: number): boolean {
+	// Data Dragon does not expose Riot's internal melee/ranged shop flag. A
+	// conservative threshold keeps Runaan's away from melee and ambiguous
+	// short-range champions while retaining it for standard ranged champions.
+	return Number.isFinite(attackRange) && attackRange >= 350;
+}

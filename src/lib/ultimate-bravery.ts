@@ -1,12 +1,12 @@
 import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
-import { ultimateBraveryItemGroups } from "@/lib/ultimate-bravery-items";
+import { ultimateBraveryChampionCanUseRunaans, ultimateBraveryItemGroups } from "@/lib/ultimate-bravery-items";
 
 const COLLECTION = "ultimate_bravery_rolls";
 const DATA_DRAGON = "https://ddragon.leagueoflegends.com";
 
 type DataDragonImage = { full: string };
-type ChampionData = { id: string; key: string; name: string; image: DataDragonImage };
+type ChampionData = { id: string; key: string; name: string; image: DataDragonImage; stats: { attackrange: number } };
 type ItemData = {
 	name: string;
 	description: string;
@@ -46,6 +46,7 @@ export type UltimateBraveryRoll = {
 	items: UltimateBraveryAsset[];
 	summonerSpells: UltimateBraveryAsset[];
 	runes: UltimateBraveryRunePage;
+	runaanEligible?: boolean;
 	rollNumber: number;
 	rerollsUsed: number;
 	exceptionRerollsUsed?: number;
@@ -166,6 +167,18 @@ function rollContainsConflictingItems(roll: UltimateBraveryRoll) {
 	return false;
 }
 
+function isRunaansHurricane(item: { id: string; name: string }) {
+	return item.id === "3085" || /runaan'?s hurricane|runaans wirbelsturm/i.test(item.name);
+}
+
+function rollContainsChampionRestrictedItem(roll: UltimateBraveryRoll) {
+	return roll.items.some(isRunaansHurricane) && roll.runaanEligible !== true;
+}
+
+function rollNeedsRegeneration(roll: UltimateBraveryRoll) {
+	return rollContainsForbiddenItem(roll) || rollContainsConflictingItems(roll) || rollContainsChampionRestrictedItem(roll);
+}
+
 function imageUrl(version: string, type: "champion" | "item" | "spell", file: string) {
 	return `${DATA_DRAGON}/cdn/${version}/img/${type}/${file}`;
 }
@@ -237,6 +250,7 @@ async function generateRoll(input: {
 }): Promise<UltimateBraveryRoll> {
 	const catalog = await getCatalog();
 	const champion = pick(catalog.champions.filter((entry) => !input.excludedChampionIds.includes(entry.id)));
+	const runaanEligible = ultimateBraveryChampionCanUseRunaans(champion.stats.attackrange);
 	const finishedItems = catalog.items.filter(
 		(item) =>
 			isSummonersRiftStoreItem(item) &&
@@ -245,7 +259,8 @@ async function generateRoll(input: {
 			!item.tags.includes("Consumable") &&
 			!item.tags.includes("Trinket") &&
 			!isSupportQuestUpgrade(item) &&
-			!isJungleCompanion(item)
+			!isJungleCompanion(item) &&
+			(runaanEligible || !isRunaansHurricane({ id: item.id, name: itemName(item) }))
 	);
 	// Tier-2 boots build directly from basic Boots (1001). Tier-3 role-quest
 	// upgrades build from a Tier-2 pair and are reserved for Mid below.
@@ -316,6 +331,7 @@ async function generateRoll(input: {
 		items: selectedItems.map((item) => toAsset(catalog.version, "item", { id: item.id, key: item.id, name: item.name, image: item.image })),
 		summonerSpells: spells.map((spell) => toAsset(catalog.version, "spell", spell)),
 		runes: buildRunes(catalog),
+		runaanEligible,
 		status: input.rerollsUsed >= input.rerollLimit ? "locked" : "selecting",
 		...(input.rerollsUsed >= input.rerollLimit ? { confirmedAt: now } : {}),
 		rolledAt: now,
@@ -331,7 +347,7 @@ function strip(doc: RollDoc): UltimateBraveryRoll {
 
 export async function listUltimateBraveryRolls(matchId: string): Promise<UltimateBraveryRoll[]> {
 	const docs = await (await rollsCollection()).find({ matchId }, { sort: { teamName: 1, role: 1 } }).toArray();
-	return docs.filter((doc) => !rollContainsForbiddenItem(doc) && !rollContainsConflictingItems(doc)).map(strip);
+	return docs.filter((doc) => !rollNeedsRegeneration(doc)).map(strip);
 }
 
 export async function getUltimateBraveryRoll(matchId: string, discordId: string): Promise<UltimateBraveryRoll | null> {
@@ -352,7 +368,7 @@ export async function createUltimateBraveryRoll(input: {
 }): Promise<UltimateBraveryRoll> {
 	const col = await rollsCollection();
 	let existing = await col.findOne({ _id: `${input.matchId}:${input.discordId}` });
-	if (existing && (rollContainsForbiddenItem(existing) || rollContainsConflictingItems(existing))) {
+	if (existing && rollNeedsRegeneration(existing)) {
 		await col.deleteOne({ _id: existing._id });
 		existing = null;
 	}

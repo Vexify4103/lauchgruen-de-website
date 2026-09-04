@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ultimateBraveryItemGroups, ultimateBraveryItemsConflict } from "../src/lib/ultimate-bravery-items.ts";
+import { ultimateBraveryChampionCanUseRunaans, ultimateBraveryItemGroups, ultimateBraveryItemsConflict } from "../src/lib/ultimate-bravery-items.ts";
 
 test("blocks items from the same exclusive group", () => {
 	assert.equal(ultimateBraveryItemsConflict("Lord Dominik's Regards", "Mortal Reminder"), true);
@@ -25,4 +25,11 @@ test("treats semi-unique manaflow items as mutually exclusive", () => {
 test("allows items whose exclusivity groups do not overlap", () => {
 	assert.equal(ultimateBraveryItemsConflict("Lord Dominik's Regards", "Banshee's Veil"), false);
 	assert.equal(ultimateBraveryItemsConflict("Sunfire Aegis", "Trinity Force"), false);
+});
+
+test("only allows Runaan's Hurricane for clearly ranged champions", () => {
+	assert.equal(ultimateBraveryChampionCanUseRunaans(550), true);
+	assert.equal(ultimateBraveryChampionCanUseRunaans(350), true);
+	assert.equal(ultimateBraveryChampionCanUseRunaans(325), false);
+	assert.equal(ultimateBraveryChampionCanUseRunaans(175), false);
 });
