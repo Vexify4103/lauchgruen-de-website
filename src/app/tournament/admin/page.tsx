@@ -208,7 +208,7 @@ export default async function TournamentAdminPage() {
 }
 
 function AdminStatusGrid({ settings, applicationsOpen }: { settings: Awaited<ReturnType<typeof getTournamentSettings>>; applicationsOpen: boolean }) {
-	const modeLabels = { teaser: "Ankündigung", registration: "Anmeldung", preparation: "Vorbereitung", live: "Live", paused: "Pausiert" } as const;
+	const modeLabels = { teaser: "Ankündigung", registration: "Anmeldung", preparation: "Vorbereitung", live: "Live", paused: "Pausiert", finished: "Abgeschlossen" } as const;
 	const dayOne = settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss" : settings.ultimateBravery.dayOneFormat === "groups" ? "Gruppen" : "Offen";
 	const dayTwo = playoffFormatLabel(settings.ultimateBravery.format, true) ?? "Offen";
 	return (

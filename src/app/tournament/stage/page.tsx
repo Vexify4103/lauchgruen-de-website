@@ -23,7 +23,7 @@ export default async function GroupsPage() {
 		return <SwissStagePage settings={settings} teamNames={swissTeams.map((team) => team.name)} swissState={swissState} />;
 	}
 	const ctx = await getTournamentContext();
-	if (settings.activeTournament.id === "ultimate-bravery" && settings.activeTournament.mode !== "live") {
+	if (settings.activeTournament.id === "ultimate-bravery" && !["live", "finished"].includes(settings.activeTournament.mode)) {
 		return <GroupStagePlanningPage settings={settings} teamNames={ctx.teams.map((team) => team.name)} />;
 	}
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);

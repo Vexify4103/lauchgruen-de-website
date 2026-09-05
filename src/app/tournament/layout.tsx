@@ -32,6 +32,7 @@ const ultimateBraveryNavItems = [
 	{ href: "/tournament/teams", label: "Teams" },
 	{ href: "/tournament/live", label: "Live" },
 	{ href: "/tournament/schedule", label: "Zeitplan" },
+	{ href: "/tournament/captain", label: "Captain" },
 	{ href: "/tournament/stage", label: "Gruppen" },
 	{ href: "/tournament/playoffs", label: "Bracket" },
 ];
@@ -53,6 +54,15 @@ const registrationNavItems = [
 	{ href: "/tournament/schedule", label: "Zeitplan", disabled: true },
 	{ href: "/tournament/stage", label: "Gruppen" },
 	{ href: "/tournament/playoffs", label: "Playoffs" },
+];
+
+const finishedNavItems = [
+	{ href: "/tournament", label: "Champion" },
+	{ href: "/tournament/teams", label: "Teams" },
+	{ href: "/tournament/schedule", label: "Ergebnisse" },
+	{ href: "/tournament/stage", label: "Swiss Stage" },
+	{ href: "/tournament/playoffs", label: "Bracket" },
+	{ href: "/tournament/winners", label: "Archiv" },
 ];
 
 export const metadata: Metadata = {
@@ -93,13 +103,15 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 	const tournamentStatus =
 		settings.activeTournament.mode === "live"
 			? "Live"
-			: settings.activeTournament.mode === "paused"
-				? "Pausiert"
-				: settings.activeTournament.mode === "registration"
-					? "Anmeldung"
-					: settings.activeTournament.mode === "teaser"
-						? "Ankündigung"
-						: "Vorbereitung";
+			: settings.activeTournament.mode === "finished"
+				? "Abgeschlossen"
+				: settings.activeTournament.mode === "paused"
+					? "Pausiert"
+					: settings.activeTournament.mode === "registration"
+						? "Anmeldung"
+						: settings.activeTournament.mode === "teaser"
+							? "Ankündigung"
+							: "Vorbereitung";
 	const account = discordId
 		? {
 				discordHandle: session.user.discordHandle ?? session.user.name ?? "Discord",
@@ -114,9 +126,11 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 			? settings.activeTournament.id === "ultimate-bravery"
 				? ultimateBraveryNavItems
 				: navItems
-			: settings.activeTournament.mode === "registration"
-				? registrationNavItems
-				: teaserNavItems;
+			: settings.activeTournament.mode === "finished"
+				? finishedNavItems
+				: settings.activeTournament.mode === "registration"
+					? registrationNavItems
+					: teaserNavItems;
 	const dynamicNavItems = selectedNavItems.map((item) => {
 		const itemDisabled = "disabled" in item ? item.disabled === true : false;
 		if (item.href === "/tournament/teams") return { ...item, disabled: !rosterPublication.published };
@@ -138,7 +152,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 							startDate: "2026-09-04T18:00:00+02:00",
 							endDate: "2026-09-05T23:59:00+02:00",
 							eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
-							eventStatus: "https://schema.org/EventScheduled",
+							eventStatus: settings.activeTournament.mode === "finished" ? "https://schema.org/EventCompleted" : "https://schema.org/EventScheduled",
 							location: { "@type": "VirtualLocation", url: "https://tournament.lauchgruen.de" },
 							organizer: { "@type": "Person", name: "Lauchgruen", url: "https://lauchgruen.de" },
 						}),

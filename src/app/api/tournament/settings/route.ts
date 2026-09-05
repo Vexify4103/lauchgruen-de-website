@@ -7,6 +7,8 @@ import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings, updateTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_MODES } from "@/lib/tournament-mode";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { getMatchControlContext } from "@/lib/match-control";
+import { resolveTournamentCompletion } from "@/lib/tournament-completion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,6 +73,17 @@ export async function PATCH(request: Request) {
 		}
 	}
 
+	const currentSettings = await getTournamentSettings();
+	if (parsed.data.tournamentMode === "finished") {
+		const completion = resolveTournamentCompletion((await getMatchControlContext()).matches);
+		if (!completion) {
+			return NextResponse.json(
+				{ message: "Das Turnier kann erst nach einem abgeschlossenen Grand Final mit einem Ergebnis von 1:0 oder 0:1 beendet werden." },
+				{ status: 409 }
+			);
+		}
+	}
+
 	const versionClaim = await claimAdminVersion({
 		resource: "settings",
 		expectedVersion: parsed.data.expectedVersion,
@@ -80,7 +93,6 @@ export async function PATCH(request: Request) {
 		return NextResponse.json(versionClaim.conflict, { status: 409 });
 	}
 
-	const currentSettings = await getTournamentSettings();
 	const settings = await updateTournamentSettings({
 		patch: {
 			activeTournament: parsed.data.tournamentMode ? { ...currentSettings.activeTournament, mode: parsed.data.tournamentMode } : undefined,

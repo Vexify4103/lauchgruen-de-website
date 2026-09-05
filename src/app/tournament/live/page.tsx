@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 
 export default async function TournamentLivePage() {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
+	if (settings.activeTournament.mode !== "live") {
+		redirect(settings.activeTournament.id === "ultimate-bravery" ? "/tournament" : "/tournament/archive/az-2026");
+	}
 	const ultimateBravery = settings.activeTournament.id === "ultimate-bravery";
 	const ctx = await getMatchControlContext();
 	const playable = ctx.matches.filter((match) => match.teamAName && match.teamBName);

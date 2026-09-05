@@ -12,7 +12,7 @@ type NavItem = {
 	disabled?: boolean;
 };
 
-type TournamentStatus = "Ankündigung" | "Anmeldung" | "Vorbereitung" | "Live" | "Pausiert";
+type TournamentStatus = "Ankündigung" | "Anmeldung" | "Vorbereitung" | "Live" | "Pausiert" | "Abgeschlossen";
 
 export function TournamentChrome({
 	children,
@@ -204,6 +204,8 @@ function statusTone(status: TournamentStatus) {
 			return "border-lime-200/24 bg-lime-200/10 text-lime-100";
 		case "Ankündigung":
 			return "border-cyan-200/20 bg-cyan-300/10 text-cyan-100";
+		case "Abgeschlossen":
+			return "border-amber-200/24 bg-amber-200/10 text-amber-100";
 		case "Pausiert":
 			return "border-slate-200/18 bg-slate-300/10 text-slate-100/72";
 		default:

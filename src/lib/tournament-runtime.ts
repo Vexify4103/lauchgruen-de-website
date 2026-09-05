@@ -17,8 +17,10 @@ type StoredPlayer = {
 	puuid: string;
 	discordId?: string;
 	discordUsername?: string;
+	displayName?: string;
 	role?: TournamentPlayer["role"];
 	verificationStatus?: "verified" | "manual";
+	rosterSource?: "application" | "manual";
 };
 
 type TeamCaptainRef = {

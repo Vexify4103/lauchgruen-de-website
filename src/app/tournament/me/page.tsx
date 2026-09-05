@@ -24,7 +24,7 @@ import { AccountLogoutButton } from "./AccountLogoutButton";
 import { TournamentDmPreferenceCard } from "./TournamentDmPreferenceCard";
 import { getSiteUrls } from "@/lib/site-urls";
 import { isTournamentHost } from "@/lib/tournament-url";
-import { formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 
 export const metadata: Metadata = {
@@ -91,7 +91,15 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
 	const discordAvatarUrl = session.user.discordAvatar ?? "https://cdn.discordapp.com/embed/avatars/0.png";
 	const application = applications.find((entry) => entry.discordId === discordId) ?? null;
-	const applicationDeadlinePassed = isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const now = new Date();
+	const applicationsOpen = areTournamentApplicationsOpen(
+		settings.applicationsOpen,
+		now,
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
+	const applicationDeadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
 	const applicationDeadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
 	const team =
 		ctx.teams.find((entry) => entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase()) || entry.captainRef?.discordId === discordId) ??
@@ -113,11 +121,13 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 			? "Anmeldung geöffnet"
 			: settings.activeTournament.mode === "live"
 				? "Turnier läuft"
-				: settings.activeTournament.mode === "paused"
-					? "Turnier pausiert"
-					: settings.activeTournament.mode === "preparation"
-						? "Vorbereitung"
-						: "Ankündigung";
+				: settings.activeTournament.mode === "finished"
+					? "Turnier abgeschlossen"
+					: settings.activeTournament.mode === "paused"
+						? "Turnier pausiert"
+						: settings.activeTournament.mode === "preparation"
+							? "Vorbereitung"
+							: "Ankündigung";
 
 	const checks = [
 		{
@@ -223,11 +233,11 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								<p className="text-sm font-bold text-emerald-100/64">
 									{application
 										? "Deine Bewerbung ist hinterlegt. Wunschgruppe und Twitch kannst du unten jederzeit verwalten."
-										: settings.activeTournament.mode === "registration"
+										: applicationsOpen
 											? "Die Anmeldung ist geöffnet. Vervollständige jetzt dein Turnierprofil."
 											: "Die Anmeldung startet, sobald Termin und Format feststehen."}
 								</p>
-								{!application && settings.activeTournament.mode === "registration" ? (
+								{!application && applicationsOpen ? (
 									<Link
 										href={tournamentHref("/apply")}
 										className="rounded-xl bg-lime-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20"
@@ -308,7 +318,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 											Champ Select öffnen
 										</Link>
 									) : null}
-									{isCaptain && !isUltimateBravery ? (
+									{isCaptain ? (
 										<Link
 											href={tournamentHref("/captain")}
 											className="rounded-2xl border border-white/12 bg-white/[0.05] px-6 py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-emerald-100 hover:text-lime-100"

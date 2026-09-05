@@ -35,6 +35,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
 	const [settings, publication] = await Promise.all([getTournamentSettings(), getRosterPublicationStatus()]);
+	const live = settings.activeTournament.mode === "live";
 	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
 	if (!publication.published) return <TeamsNotPublished tournamentName={settings.activeTournament.name} />;
 	const isAzTournament = settings.activeTournament.id !== "ultimate-bravery";
@@ -89,14 +90,16 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 		previewMatch && !liveMatches.some((match) => match.id === previewMatch.id)
 			? [{ ...previewMatch, preview: true }, ...liveMatches.map((match) => ({ ...match, preview: false }))]
 			: liveMatches.map((match) => ({ ...match, preview: false }));
-	const liveStreams = await getTournamentLiveStreams(
-		teams,
-		displayedLiveMatches.flatMap((match) => [match.teamA, match.teamB]),
-		{ previewOffline: previewEnabled }
-	);
+	const liveStreams = live
+		? await getTournamentLiveStreams(
+				teams,
+				displayedLiveMatches.flatMap((match) => [match.teamA, match.teamB]),
+				{ previewOffline: previewEnabled }
+			)
+		: [];
 	return (
 		<div className="px-5 py-10 sm:py-14">
-			<TournamentLiveRefresh />
+			{live ? <TournamentLiveRefresh /> : null}
 			<section className="mx-auto w-full max-w-7xl">
 				{previewEnabled ? (
 					<div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">

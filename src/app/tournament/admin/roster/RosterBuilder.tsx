@@ -1988,7 +1988,11 @@ const PlayerRow = memo(function PlayerRow({
 							Master+ Komfort
 						</span>
 					) : null}
-					{applicant?.verified === false ? (
+					{applicant?.source === "manual" ? (
+						<span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+							Ohne Bewerbung
+						</span>
+					) : applicant?.verified === false ? (
 						<span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
 							Nicht verifiziert
 						</span>
@@ -2253,7 +2257,9 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 	if (applicant.source === "manual") {
 		return (
 			<div className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2 text-[10px] leading-5 text-amber-100/72`}>
-				Manuell ohne Bewerbung eingetragen. Discord- und Riot-Konto wurden nicht über die Website verifiziert.
+				{applicant.verified
+					? "Manuell ohne Bewerbung eingetragen. Der Riot-Account ist verifiziert."
+					: "Manuell ohne Bewerbung eingetragen. Discord- und Riot-Konto wurden nicht über die Website verifiziert."}
 			</div>
 		);
 	}

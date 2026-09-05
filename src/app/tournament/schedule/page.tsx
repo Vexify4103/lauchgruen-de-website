@@ -51,7 +51,10 @@ const PLAYOFF_ORDER = [
 
 export default async function TournamentSchedulePage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026");
+	const live = settings.activeTournament.mode === "live";
+	if (!live && settings.activeTournament.mode !== "finished") {
+		redirect(settings.activeTournament.id === "ultimate-bravery" ? "/tournament" : "/tournament/archive/az-2026");
+	}
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
@@ -134,11 +137,13 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 		previewEnabled && ownerTeam
 			? ([...friday, ...saturday].find((match) => match.status !== "Finished" && (match.teamA === ownerTeam.name || match.teamB === ownerTeam.name)) ?? null)
 			: null;
-	const liveStreams = await getTournamentLiveStreams(
-		ctx.teams,
-		[...friday, ...saturday].filter((match) => match.status === "Live" || match.id === previewMatch?.id).flatMap((match) => [match.teamA, match.teamB]),
-		{ previewOffline: previewEnabled }
-	);
+	const liveStreams = live
+		? await getTournamentLiveStreams(
+				ctx.teams,
+				[...friday, ...saturday].filter((match) => match.status === "Live" || match.id === previewMatch?.id).flatMap((match) => [match.teamA, match.teamB]),
+				{ previewOffline: previewEnabled }
+			)
+		: [];
 
 	const sections = [
 		{
@@ -169,7 +174,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
-			<TournamentLiveRefresh />
+			{live ? <TournamentLiveRefresh /> : null}
 			<section className="mx-auto w-full max-w-7xl">
 				{previewEnabled ? (
 					<div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">

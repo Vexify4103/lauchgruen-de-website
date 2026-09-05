@@ -29,7 +29,18 @@ const rules = [
 
 export default async function ApplyPage() {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.mode !== "registration") {
+	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
+	const now = new Date();
+	const openReached = isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt);
+	const deadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
+	const applicationsOpen = areTournamentApplicationsOpen(
+		settings.applicationsOpen,
+		now,
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
+	if (settings.activeTournament.mode !== "registration" && !applicationsOpen) {
 		return (
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-cyan-200/16 bg-cyan-300/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
@@ -49,17 +60,6 @@ export default async function ApplyPage() {
 			</div>
 		);
 	}
-	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
-	const now = new Date();
-	const openReached = isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt);
-	const deadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
-	const applicationsOpen = areTournamentApplicationsOpen(
-		settings.applicationsOpen,
-		new Date(),
-		settings.applicationDeadlineOverride,
-		settings.applicationDeadline,
-		settings.applicationOpenAt
-	);
 	if (!applicationsOpen) {
 		return (
 			<div className="px-5 py-10 sm:py-14">

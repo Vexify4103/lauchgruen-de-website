@@ -25,6 +25,7 @@ const modeLabels: Record<TournamentMode, { label: string; detail: string }> = {
 	preparation: { label: "Vorbereitung", detail: "Orga richtet Teams, Format und Ablauf ein." },
 	live: { label: "Live", detail: "Das Turnier läuft öffentlich." },
 	paused: { label: "Pausiert", detail: "Öffentliche Turnierabläufe sind vorübergehend angehalten." },
+	finished: { label: "Abgeschlossen", detail: "Zeigt den Champion und alle finalen Ergebnisse, ohne das Turnier bereits zu archivieren." },
 };
 
 function toDateTimeLocalValue(isoDate: string): string {
@@ -160,6 +161,7 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 	}
 
 	function saveTournamentMode(mode: TournamentMode) {
+		if (mode === "finished" && !window.confirm("Turnier abschließen? Matchzugriff und Live-Betrieb werden deaktiviert, alle Ergebnisse bleiben erhalten.")) return;
 		const previousSettings = settings;
 		const safetyPatch: SettingsPatch =
 			mode === "registration"
@@ -569,7 +571,7 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 					<CompactSetting
 						label="Deadline-Override"
 						value={settings.applicationDeadlineOverride ? "Aktiv" : "Aus"}
-						detail="Nur für Notfälle: ignoriert den Bewerbungsschluss."
+						detail="Nur für Notfälle: öffnet /apply trotz Frist und laufendem Turnier."
 						active={settings.applicationDeadlineOverride}
 						disabled={isPending}
 						onClick={() => toggle("applicationDeadlineOverride")}

@@ -6,6 +6,8 @@ import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { listTournamentArchives } from "@/lib/tournament-next";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
+import { getMatchControlContext } from "@/lib/match-control";
+import { resolveTournamentCompletion, type TournamentCompletion } from "@/lib/tournament-completion";
 
 const formatSteps = [
 	{
@@ -27,6 +29,11 @@ const formatSteps = [
 
 export default async function TournamentHomePage() {
 	const [{ teams, groupMatches }, settings, archives] = await Promise.all([getTournamentContext(), getTournamentSettings(), listTournamentArchives()]);
+	const completion =
+		settings.activeTournament.id === "ultimate-bravery" && settings.activeTournament.mode === "finished"
+			? resolveTournamentCompletion((await getMatchControlContext()).matches)
+			: null;
+	const championRoster = completion ? (teams.find((team) => team.name === completion.championTeamName)?.players.map((player) => player.riotId) ?? []) : [];
 	const applicationsOpen = areTournamentApplicationsOpen(
 		settings.applicationsOpen,
 		new Date(),
@@ -35,7 +42,15 @@ export default async function TournamentHomePage() {
 		settings.applicationOpenAt
 	);
 	if (settings.activeTournament.id === "ultimate-bravery" || settings.activeTournament.mode !== "live")
-		return <UltimateBraveryOverview archiveCount={archives.length} settings={settings} applicationsOpen={applicationsOpen} />;
+		return (
+			<UltimateBraveryOverview
+				archiveCount={archives.length}
+				settings={settings}
+				applicationsOpen={applicationsOpen}
+				completion={completion}
+				championRoster={championRoster}
+			/>
+		);
 
 	return (
 		<div className="px-5 py-8 sm:py-12">
@@ -242,11 +257,19 @@ function UltimateBraveryOverview({
 	archiveCount,
 	settings,
 	applicationsOpen,
+	completion,
+	championRoster,
 }: {
 	archiveCount: number;
 	settings: Awaited<ReturnType<typeof getTournamentSettings>>;
 	applicationsOpen: boolean;
+	completion: TournamentCompletion | null;
+	championRoster: string[];
 }) {
+	if (settings.activeTournament.mode === "finished") {
+		return <FinishedTournamentOverview settings={settings} completion={completion} championRoster={championRoster} />;
+	}
+
 	const config = settings.ultimateBravery;
 	const dateLabels = formatTournamentDays(config.startAt, config.dayTwoStartAt);
 	const dayOneLabel =
@@ -362,6 +385,115 @@ function UltimateBraveryOverview({
 					</div>
 				</aside>
 			</section>
+		</div>
+	);
+}
+
+function FinishedTournamentOverview({
+	settings,
+	completion,
+	championRoster,
+}: {
+	settings: Awaited<ReturnType<typeof getTournamentSettings>>;
+	completion: TournamentCompletion | null;
+	championRoster: string[];
+}) {
+	const dateLabels = formatTournamentDays(settings.ultimateBravery.startAt, settings.ultimateBravery.dayTwoStartAt);
+	return (
+		<div className="px-5 py-10 sm:py-14">
+			<section className="mx-auto w-full max-w-7xl">
+				<div className="relative isolate overflow-hidden rounded-[2.75rem] border border-amber-200/24 bg-[linear-gradient(135deg,#08170e_0%,#102417_48%,#082129_100%)] p-7 shadow-2xl shadow-black/40 sm:p-10 lg:p-14">
+					<div className="pointer-events-none absolute -left-24 -top-28 size-96 rounded-full bg-lime-300/10 blur-3xl" />
+					<div className="pointer-events-none absolute -bottom-32 right-0 size-[30rem] rounded-full bg-cyan-300/10 blur-3xl" />
+					<div className="pointer-events-none absolute right-[8%] top-10 hidden text-[18rem] font-black leading-none text-amber-100/[0.035] lg:block">1</div>
+
+					<div className="relative max-w-4xl">
+						<div className="inline-flex items-center gap-3 rounded-full border border-amber-200/24 bg-amber-200/[0.09] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-amber-100">
+							<CrownIcon /> Turnier abgeschlossen
+						</div>
+						<div className="mt-8 text-xs font-black uppercase tracking-[0.34em] text-lime-200/62">Ultimate Bravery Champion</div>
+						<h1 className="mt-3 text-5xl font-black leading-[0.92] tracking-[-0.055em] text-emerald-50 sm:text-7xl lg:text-[6rem]">
+							{completion?.championTeamName ?? "Ergebnis wird bestätigt"}
+						</h1>
+						<p className="mt-6 max-w-2xl text-base leading-8 text-emerald-100/66 sm:text-lg">
+							{completion
+								? `${completion.championTeamName} gewinnt das Grand Final gegen ${completion.finalistTeamName} und holt sich den Titel.`
+								: "Das Turnier ist beendet. Die Turnierleitung bestätigt gerade das finale Ergebnis."}
+						</p>
+
+						{completion ? (
+							<div className="mt-8 inline-grid min-w-[18rem] grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-[1.6rem] border border-white/10 bg-black/24 px-5 py-4 shadow-xl shadow-black/20">
+								<div className={`truncate text-right text-sm font-black ${completion.scoreA > completion.scoreB ? "text-lime-100" : "text-emerald-100/48"}`}>
+									{completion.teamAName}
+								</div>
+								<div className="rounded-xl border border-amber-100/20 bg-amber-200/10 px-3 py-2 text-xl font-black text-amber-50">
+									{completion.scoreA}:{completion.scoreB}
+								</div>
+								<div className={`truncate text-sm font-black ${completion.scoreB > completion.scoreA ? "text-lime-100" : "text-emerald-100/48"}`}>
+									{completion.teamBName}
+								</div>
+							</div>
+						) : null}
+
+						{championRoster.length > 0 ? (
+							<div className="mt-8">
+								<div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/42">Champion-Roster</div>
+								<div className="mt-3 flex flex-wrap gap-2">
+									{championRoster.map((riotId) => (
+										<span key={riotId} className="rounded-xl border border-lime-200/14 bg-lime-200/[0.07] px-3 py-2 text-xs font-black text-lime-50">
+											{riotId}
+										</span>
+									))}
+								</div>
+							</div>
+						) : null}
+
+						<div className="mt-9 flex flex-wrap gap-3">
+							<Link
+								href="/tournament/playoffs"
+								className="rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+							>
+								Finales Bracket
+							</Link>
+							<Link
+								href="/tournament/teams"
+								className="rounded-2xl border border-lime-200/20 bg-lime-200/[0.08] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50"
+							>
+								Alle Teams
+							</Link>
+							<Link
+								href="/tournament/schedule"
+								className="rounded-2xl border border-cyan-200/20 bg-cyan-300/[0.07] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-cyan-50"
+							>
+								Alle Ergebnisse
+							</Link>
+						</div>
+					</div>
+				</div>
+
+				<div className="mt-5 grid gap-5 md:grid-cols-3">
+					<CompletedFact label="Turnier" value={settings.activeTournament.season} />
+					<CompletedFact label="Spieltage" value={`${dateLabels[0]} · ${dateLabels[1]}`} />
+					<CompletedFact label="Status" value="Abgeschlossen · Archivierung folgt später" />
+				</div>
+			</section>
+		</div>
+	);
+}
+
+function CrownIcon() {
+	return (
+		<svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="currentColor">
+			<path d="M3 18h18l-1.6-10-4.5 4.2L12 5l-2.9 7.2L4.6 8 3 18Zm1 2h16v2H4v-2Z" />
+		</svg>
+	);
+}
+
+function CompletedFact({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="rounded-[1.6rem] border border-white/9 bg-white/[0.035] p-5 shadow-lg shadow-black/15">
+			<div className="text-[9px] font-black uppercase tracking-[0.24em] text-emerald-100/38">{label}</div>
+			<div className="mt-2 text-sm font-black leading-6 text-emerald-50">{value}</div>
 		</div>
 	);
 }

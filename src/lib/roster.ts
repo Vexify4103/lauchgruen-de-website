@@ -12,6 +12,7 @@ import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queu
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { resolveManualRosterIdentity } from "@/lib/roster-manual-player";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
 export type PlayerRole = (typeof VALID_ROLES)[number];
@@ -28,6 +29,7 @@ export type BotStoredPlayer = {
 	displayName?: string;
 	role?: PlayerRole;
 	verificationStatus?: "verified" | "manual";
+	rosterSource?: "application" | "manual";
 };
 
 export type BotTeamMeta = {
@@ -173,7 +175,7 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 
 	for (const team of Object.values(teamsObj)) {
 		for (const player of team.players ?? []) {
-			if (!player.discordId || player.verificationStatus !== "manual" || applicantIds.has(player.discordId)) {
+			if (!player.discordId || applicantIds.has(player.discordId)) {
 				continue;
 			}
 			applicants.push(toManualApplicant(player));
@@ -235,7 +237,15 @@ function rosterSignature(teams: Record<string, BotTeam>): string {
 				group: team.meta?.group ?? null,
 				seed: team.meta?.seed ?? null,
 				players: (team.players ?? [])
-					.map((player) => ({ discordId: player.discordId ?? "", riotId: player.riotId, role: player.role ?? null }))
+					.map((player) => ({
+						discordId: player.discordId ?? "",
+						riotId: player.riotId,
+						role: player.role ?? null,
+						discordUsername: player.discordUsername ?? null,
+						displayName: player.displayName ?? null,
+						verificationStatus: player.verificationStatus ?? null,
+						rosterSource: player.rosterSource ?? null,
+					}))
 					.sort((left, right) => left.discordId.localeCompare(right.discordId)),
 			}))
 	);
@@ -265,16 +275,15 @@ function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): 
 	};
 }
 
-function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
+export function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
 	const now = new Date().toISOString();
-	const discordUsername = player.discordUsername?.replace(/^@+/, "").trim();
-	const displayName = player.displayName?.trim() || discordUsername || player.riotId.split("#")[0] || "Manueller Spieler";
+	const identity = resolveManualRosterIdentity(player);
 	const assignedRole = player.role ?? "Sub";
 	return {
 		discordId: player.discordId ?? "",
-		discordHandle: discordUsername ? `@${discordUsername}` : (player.discordId ?? ""),
-		discordUsername,
-		displayName,
+		discordHandle: identity.discordHandle,
+		discordUsername: identity.discordUsername,
+		displayName: identity.displayName,
 		riotId: player.riotId,
 		puuid: player.puuid,
 		currentRank: null,
@@ -287,7 +296,7 @@ function toManualApplicant(player: BotStoredPlayer): RosterApplicant {
 		acceptedDataStorage: false,
 		createdAt: now,
 		updatedAt: now,
-		verified: false,
+		verified: identity.verified,
 		source: "manual",
 	};
 }
@@ -401,13 +410,14 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 				riotId: account.riotId,
 				puuid: account.puuid,
 				discordId: account.discordId,
-				...(manual && !verified
+				...(manual
 					? {
 							discordUsername: manual.discordUsername,
 							displayName: manual.displayName,
-							verificationStatus: "manual" as const,
+							rosterSource: "manual" as const,
 						}
-					: { verificationStatus: "verified" as const }),
+					: { rosterSource: "application" as const }),
+				verificationStatus: verified ? ("verified" as const) : ("manual" as const),
 				...(slot.role ? { role: slot.role } : {}),
 			};
 		});
