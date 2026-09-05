@@ -209,7 +209,8 @@ export async function PATCH(request: Request) {
 		}
 	}
 
-	if (newKey !== oldKey && teamsObj[newKey]) {
+	const duplicateName = Object.entries(teamsObj).find(([key, team]) => key !== oldKey && teamKey(team.name) === newKey);
+	if (duplicateName) {
 		return NextResponse.json({ message: `Team "${newName}" existiert bereits.` }, { status: 409 });
 	}
 
@@ -251,17 +252,10 @@ export async function PATCH(request: Request) {
 		nextTeam.textChannelId = existing.textChannelId;
 	}
 
-	const update: Record<string, unknown> = {
-		$set: { [`teams.${newKey}`]: nextTeam },
-	};
-	if (newKey !== oldKey) {
-		update.$unset = { [`teams.${oldKey}`]: "" };
-	}
-
-	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, update);
+	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { [`teams.${oldKey}`]: nextTeam } });
 
 	if (nameChanged) {
-		await migrateStoredTeamName(db, existing.name, newName);
+		await migrateStoredTeamName(db, settings.activeTournament.id, existing.name, newName);
 	}
 	const discordJob = nameChanged
 		? await enqueueDiscordJob({
@@ -270,7 +264,7 @@ export async function PATCH(request: Request) {
 				operations: [
 					{
 						kind: "team-rename",
-						teamKey: newKey,
+						teamKey: oldKey,
 						name: newName,
 						roleId: existing.roleId,
 						voiceChannelId: existing.voiceChannelId,
@@ -284,7 +278,7 @@ export async function PATCH(request: Request) {
 
 	return NextResponse.json({
 		ok: true,
-		key: newKey,
+		key: oldKey,
 		name: newName,
 		group: newGroup,
 		seed: newSeed ?? null,
@@ -293,7 +287,7 @@ export async function PATCH(request: Request) {
 	});
 }
 
-async function migrateStoredTeamName(db: Awaited<ReturnType<typeof getDb>>, oldName: string, newName: string) {
+async function migrateStoredTeamName(db: Awaited<ReturnType<typeof getDb>>, tournamentId: string, oldName: string, newName: string) {
 	type WheelRenameDoc = {
 		_id: string;
 		usedPoolsByTeam?: Record<string, unknown>;
@@ -335,7 +329,49 @@ async function migrateStoredTeamName(db: Awaited<ReturnType<typeof getDb>>, oldN
 		}
 	}
 
-	await db.collection<{ _id: string; winner?: string }>("tournament_matches").updateMany({ winner: oldName }, { $set: { winner: newName } });
+	type SwissRenameDoc = {
+		_id: string;
+		rounds?: Array<{
+			pairings?: Array<Record<string, unknown>>;
+			pendingPairings?: Array<Record<string, unknown>>;
+			[key: string]: unknown;
+		}>;
+		finalSeedNames?: Record<string, string>;
+	};
+	const swissCollection = db.collection<SwissRenameDoc>("tournament_swiss_stages");
+	const swiss = await swissCollection.findOne({ _id: tournamentId });
+	if (swiss) {
+		const renamePairing = (pairing: Record<string, unknown>) => ({
+			...pairing,
+			teamAName: pairing.teamAName === oldName ? newName : pairing.teamAName,
+			teamBName: pairing.teamBName === oldName ? newName : pairing.teamBName,
+		});
+		const rounds = (swiss.rounds ?? []).map((round) => ({
+			...round,
+			pairings: (round.pairings ?? []).map(renamePairing),
+			...(round.pendingPairings ? { pendingPairings: round.pendingPairings.map(renamePairing) } : {}),
+		}));
+		const finalSeedNames = swiss.finalSeedNames
+			? Object.fromEntries(Object.entries(swiss.finalSeedNames).map(([seed, name]) => [seed, name === oldName ? newName : name]))
+			: undefined;
+		await swissCollection.updateOne({ _id: tournamentId }, { $set: { rounds, ...(finalSeedNames ? { finalSeedNames } : {}), updatedAt: new Date().toISOString() } });
+	}
+
+	const matches = db.collection("tournament_matches");
+	await Promise.all([
+		matches.updateMany({ teamAName: oldName }, { $set: { teamAName: newName } }),
+		matches.updateMany({ teamBName: oldName }, { $set: { teamBName: newName } }),
+		matches.updateMany({ winner: oldName }, { $set: { winner: newName } }),
+		db.collection("ultimate_bravery_rolls").updateMany({ teamName: oldName }, { $set: { teamName: newName } }),
+		db.collection("tournament_match_reports").updateMany({ teamName: oldName }, { $set: { teamName: newName } }),
+	]);
+
+	const checkIns = db.collection<Record<string, unknown> & { _id: string; matchId: string; teamName: string }>("tournament_captain_checkins");
+	for (const checkIn of await checkIns.find({ teamName: oldName }).toArray()) {
+		const nextId = `${checkIn.matchId}|${newName}`;
+		await checkIns.replaceOne({ _id: nextId }, { ...checkIn, _id: nextId, teamName: newName }, { upsert: true });
+		if (checkIn._id !== nextId) await checkIns.deleteOne({ _id: checkIn._id });
+	}
 }
 
 /**

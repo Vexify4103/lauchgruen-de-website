@@ -19,6 +19,8 @@ export type TeamCaptainRef = {
 
 export type TournamentTeam = {
 	id: string;
+	/** Stable MongoDB map key. Display-name changes must never change this identity. */
+	storageKey?: string;
 	name: string;
 	seed: number;
 	record: string;

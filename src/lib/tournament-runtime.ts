@@ -41,6 +41,7 @@ type TeamMeta = {
 };
 
 type StoredTeam = {
+	storageKey?: string;
 	name: string;
 	players: StoredPlayer[];
 	playedChampions: string[];
@@ -82,7 +83,7 @@ async function readBotTeams(): Promise<StoredTeam[] | null> {
 		const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
 		const teamsObj = doc?.teams;
 		if (!teamsObj) return null;
-		const values = Object.values(teamsObj);
+		const values = Object.entries(teamsObj).map(([storageKey, team]) => ({ ...team, storageKey }));
 		return values.length > 0 ? values : null;
 	} catch (error) {
 		console.warn("[tournament-runtime] could not read bot teams:", error);
@@ -231,6 +232,7 @@ function makeTeam(stored: StoredTeam, group: string, seed: number): TournamentTe
 		// Never derive public browser-source URLs from a mutable display name.
 		// Legacy teams fall back to their current slug until their next rename.
 		id: stored.meta?.overlayId ?? slugify(stored.name),
+		storageKey: stored.storageKey,
 		name: stored.name,
 		// Within-group seed (1–4). The overall cross-bracket seed (#1..#6) is a
 		// separate concept computed by the resolver from group standings.

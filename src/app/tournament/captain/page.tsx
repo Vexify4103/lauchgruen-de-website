@@ -77,10 +77,10 @@ export default async function CaptainPortalPage() {
 						<p className="mt-3 text-sm leading-7 text-emerald-100/68">Dein schneller Überblick für Match, Pool, Roster und nützliche Links.</p>
 					</div>
 
-					<RenameTeamForm teamKey={team.name.trim().toLowerCase()} initialName={team.name} />
+					<RenameTeamForm teamKey={team.storageKey ?? team.name.trim().toLowerCase()} initialName={team.name} />
 
 					<TransferCaptainCard
-						teamKey={team.name.trim().toLowerCase()}
+						teamKey={team.storageKey ?? team.name.trim().toLowerCase()}
 						candidates={team.players
 							.filter((player) => Boolean(player.discordId) && player.discordId !== discordId)
 							.map((player) => ({
