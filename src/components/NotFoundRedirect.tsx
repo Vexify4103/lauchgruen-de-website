@@ -58,7 +58,9 @@ export function NotFoundRedirect() {
 						<span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100/35">Automatische Weiterleitung aktiv</span>
 					</div>
 				</section>
-				<CreatorCredit />
+				<div className="flex justify-center text-[10px] font-bold tracking-wide text-emerald-100/45">
+					<CreatorCredit />
+				</div>
 			</div>
 		</main>
 	);

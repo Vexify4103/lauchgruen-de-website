@@ -85,10 +85,15 @@ export function SiteFooter({
 						</nav>
 					))}
 				</div>
-				<CreatorCredit />
-				<RiotDisclaimer productName="Lauchgruen" className="mt-7 max-w-5xl text-[10px] leading-5 text-emerald-100/40" />
-				<div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-white/10 pt-5 text-[10px] font-bold tracking-wide text-emerald-100/45">
-					<span>© Lauchgruen</span>
+				<RiotDisclaimer productName="Lauchgruen" className="max-w-5xl border-t border-white/10 pt-6 text-[10px] leading-5 text-emerald-100/40" />
+				<div className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-5 text-[10px] font-bold tracking-wide text-emerald-100/45 sm:flex-row sm:items-center sm:justify-between">
+					<div className="flex flex-wrap items-center gap-2">
+						<span>© 2026 Lauchgruen</span>
+						<span aria-hidden className="text-emerald-100/25">
+							·
+						</span>
+						<CreatorCredit />
+					</div>
 					<span>League, Community und ein bisschen Chaos.</span>
 				</div>
 			</div>

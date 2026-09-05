@@ -16,7 +16,9 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
 						Erneut versuchen
 					</button>
 				</main>
-				<CreatorCredit />
+				<div className="flex justify-center text-[10px] font-bold tracking-wide text-emerald-100/45">
+					<CreatorCredit />
+				</div>
 			</div>
 		</div>
 	);
