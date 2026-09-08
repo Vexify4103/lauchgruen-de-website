@@ -31,7 +31,7 @@ export function LauchgruenSmallOverlay({
 	return (
 		<div className="flex min-h-screen items-start justify-start p-2">
 			<div
-				key={`${pulseKey}:${showLastGame ? "last-game" : "rank"}`}
+				key={pulseKey}
 				className="obs-performance-card relative h-[5.9rem] w-[22rem] overflow-hidden rounded-2xl border border-white/12 bg-[#171c1f]/92 px-3 py-2 text-emerald-50 shadow-2xl shadow-black/70 backdrop-blur-xl"
 			>
 				<div
@@ -52,10 +52,28 @@ export function LauchgruenSmallOverlay({
 				</div>
 				<style>{`
 					@keyframes obs-rank-pulse { 0% { transform: scale(1); } 28% { transform: scale(1.008); box-shadow: 0 0 0 4px rgba(190,242,100,.12); } 100% { transform: scale(1); } }
-					@keyframes obs-small-scene-in { 0% { opacity: 0; transform: translateX(18px) scale(.985); filter: blur(7px); } 60% { opacity: 1; transform: translateX(-2px) scale(1.004); filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } }
 					.obs-performance-card { animation: obs-rank-pulse 700ms ease-out; }
-					.obs-small-scene { transition: opacity 520ms ease, transform 520ms ease, filter 520ms ease; will-change: opacity, transform, filter; }
-					.obs-small-scene-active { animation: obs-small-scene-in 680ms cubic-bezier(.2,.8,.2,1); }
+					.obs-small-scene {
+						opacity: 0;
+						filter: blur(5px);
+						transform: translate3d(var(--obs-small-scene-offset), 0, 0) scale(.988);
+						transition:
+							opacity 360ms ease,
+							filter 440ms ease,
+							transform 620ms cubic-bezier(.22,.8,.2,1);
+						will-change: opacity, transform, filter;
+					}
+					.obs-small-scene[data-active="true"] {
+						z-index: 1;
+						opacity: 1;
+						filter: blur(0);
+						transform: translate3d(0, 0, 0) scale(1);
+						transition-delay: 70ms, 70ms, 0ms;
+					}
+					@media (prefers-reduced-motion: reduce) {
+						.obs-performance-card { animation: none; }
+						.obs-small-scene { transition: opacity 120ms linear; transform: none; filter: none; }
+					}
 				`}</style>
 			</div>
 		</div>

@@ -20,7 +20,9 @@ export function LauchgruenLastGameScene({
 
 	return (
 		<div
-			className={`obs-small-scene absolute inset-0 grid h-full grid-cols-[auto_1fr_auto] items-center gap-3 ${active ? "obs-small-scene-active opacity-100 blur-0" : "pointer-events-none translate-x-4 opacity-0 blur-md"}`}
+			data-active={active}
+			style={{ "--obs-small-scene-offset": "18px" } as React.CSSProperties}
+			className={`obs-small-scene absolute inset-0 grid h-full grid-cols-[auto_1fr_auto] items-center gap-3 ${active ? "" : "pointer-events-none"}`}
 		>
 			{featured ? (
 				<div

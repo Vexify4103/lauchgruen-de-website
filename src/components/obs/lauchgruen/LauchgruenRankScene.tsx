@@ -21,7 +21,9 @@ export function LauchgruenRankScene({
 }) {
 	return (
 		<div
-			className={`obs-small-scene absolute inset-0 flex h-full flex-col justify-between ${active ? "obs-small-scene-active opacity-100 blur-0" : "pointer-events-none -translate-x-4 opacity-0 blur-md"}`}
+			data-active={active}
+			style={{ "--obs-small-scene-offset": "-18px" } as React.CSSProperties}
+			className={`obs-small-scene absolute inset-0 flex h-full flex-col justify-between ${active ? "" : "pointer-events-none"}`}
 		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
