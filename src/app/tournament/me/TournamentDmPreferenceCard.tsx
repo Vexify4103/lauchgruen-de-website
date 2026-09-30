@@ -26,12 +26,12 @@ export function TournamentDmPreferenceCard({ initialEnabled }: { initialEnabled:
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-indigo-200/14 bg-gradient-to-br from-indigo-300/[0.08] via-white/[0.035] to-cyan-300/[0.05] p-5 shadow-xl shadow-black/18 sm:p-6">
+		<section className="account-panel">
 			<div className="flex flex-wrap items-start justify-between gap-4">
 				<div className="max-w-2xl">
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-indigo-100/64">Discord-DMs</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Wichtige Turnier-News direkt erhalten.</h2>
-					<p className="mt-2 text-sm leading-7 text-emerald-100/58">
+					<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">Wichtige Turnier-News direkt erhalten.</h2>
+					<p className="mt-2 text-sm leading-7 text-[var(--muted)]">
 						Der Bot informiert dich, wenn Teams veröffentlicht werden, du einem Team zugeteilt wurdest oder Captain bist. Du kannst diese Nachrichten jederzeit
 						abschalten.
 					</p>
@@ -43,7 +43,7 @@ export function TournamentDmPreferenceCard({ initialEnabled }: { initialEnabled:
 					disabled={saving}
 					onClick={() => void updatePreference(!enabled)}
 					className={`relative flex min-w-32 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.14em] transition disabled:cursor-wait disabled:opacity-60 ${
-						enabled ? "border-lime-200/30 bg-lime-200/12 text-lime-50" : "border-white/12 bg-black/20 text-emerald-100/52"
+						enabled ? "border-lime-200/30 bg-lime-200/12 text-lime-50" : "border-white/12 bg-black/20 text-[var(--muted)]"
 					}`}
 				>
 					<span>{saving ? "Speichert…" : enabled ? "Aktiv" : "Aus"}</span>

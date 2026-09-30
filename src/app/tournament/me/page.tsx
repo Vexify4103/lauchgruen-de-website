@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { PageIntro } from "@/components/site/PageIntro";
 import { auth } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
@@ -59,18 +60,13 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	if (!discordId) {
 		return (
 			<Shell>
-				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-6">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Status</div>
-					<h1 className="mt-3 text-3xl font-black text-emerald-50">Bitte mit Discord anmelden.</h1>
+				<section className="account-panel mx-auto w-full max-w-3xl">
+					<PageIntro kicker="Dein Konto" title="Willkommen bei Lauchgruen." />
 					<p className="mt-3 text-sm leading-7 text-emerald-100/64">
-						Danach zeigen wir dir, ob deine Bewerbung, Discord-Mitgliedschaft, Riot-Verifizierung und Teamzuweisung bereit sind.
+						Melde dich mit Discord an, um deine Bewerbung, Discord-Mitgliedschaft, Riot-Verifizierung und Teamzuweisung zu verwalten.
 					</p>
 					<div className="mt-5">
-						<DiscordSignInButton
-							redirectTo={accountUrl}
-							pendingLabel="Weiter zu Discord…"
-							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
-						>
+						<DiscordSignInButton redirectTo={accountUrl} pendingLabel="Weiter zu Discord…" className="button primary">
 							Mit Discord anmelden
 						</DiscordSignInButton>
 					</div>
@@ -165,12 +161,12 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 
 	return (
 		<Shell>
-			<section className="mx-auto w-full max-w-6xl">
+			<section className="w-full">
+				<PageIntro kicker="Dein Profil" title="Alles an einem Ort.">
+					Discord, Riot und Twitch verbinden, deinen Stream sichtbar machen und deine Turnierteilnahme verwalten.
+				</PageIntro>
 				<div className="grid gap-6">
-					<nav
-						aria-label="Kontobereich verlassen"
-						className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/9 bg-black/18 p-2.5 shadow-lg shadow-black/15"
-					>
+					<nav aria-label="Kontobereich verlassen" className="account-nav">
 						<a href={returnTarget.href} className="rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-black text-emerald-50 transition hover:bg-white/[0.1]">
 							← {returnTarget.label}
 						</a>
@@ -195,8 +191,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							</a>
 						</div>
 					</nav>
-					<div className="relative overflow-hidden rounded-[2.4rem] border border-lime-200/12 bg-gradient-to-br from-lime-200/14 via-emerald-400/8 to-cyan-400/10 shadow-2xl shadow-black/24">
-						<div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-cyan-300/10 blur-3xl" />
+					<div className="account-hero">
 						<div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
 							<div className="size-20 overflow-hidden rounded-[1.6rem] border border-lime-200/30 bg-[#09160d] shadow-lg shadow-lime-300/10">
 								{/* eslint-disable-next-line @next/next/no-img-element */}
@@ -210,9 +205,9 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							</div>
 							<div className="min-w-0">
 								<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Lauchgruen-Konto</div>
-								<h1 className="mt-2 truncate text-4xl font-black tracking-tight text-emerald-50">
+								<h2 className="mt-2 break-words font-display text-4xl font-bold tracking-tight text-[var(--text)]">
 									{application?.displayName ?? session.user.discordHandle ?? "Teilnehmer"}
-								</h1>
+								</h2>
 								<p className="mt-2 max-w-2xl text-sm leading-7 text-emerald-100/68">
 									Deine zentrale Stelle für Discord, Riot, Twitch, Community-Overlays und Turnierteilnahmen.
 								</p>
@@ -341,7 +336,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						</section>
 					) : null}
 
-					<section className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-xl shadow-black/18 sm:p-6">
+					<section className="account-panel">
 						<div className="flex flex-wrap items-end justify-between gap-3">
 							<div>
 								<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Konto-Fortschritt</div>
@@ -372,7 +367,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					<div className="grid gap-6">
 						{application ? <TournamentDmPreferenceCard initialEnabled={application.discordDmOptIn !== false} /> : null}
 						{application ? (
-							<section className="rounded-[2rem] border border-rose-300/14 bg-rose-400/[0.045] p-5 shadow-xl shadow-black/16 sm:p-6">
+							<section className="account-panel border-[var(--danger)]/25">
 								<div className="text-xs font-black uppercase tracking-[0.28em] text-rose-200/64">Turnierteilnahme</div>
 								<h2 className="mt-2 text-xl font-black text-emerald-50">Deine Bewerbung verwalten</h2>
 								<p className="mt-2 text-sm leading-6 text-emerald-100/58">
@@ -416,7 +411,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					</div>
 
 					{team ? (
-						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+						<div className="account-panel">
 							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Deine Turnierhistorie</div>
 							<div className="mt-4 grid gap-3 sm:grid-cols-3">
 								<Info label="Matches" value={String(finishedMatches.length)} />
@@ -457,10 +452,10 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							Discord beitreten, um fortzufahren
 						</a>
 					) : null}
-					<div className="rounded-[2rem] border border-white/10 bg-black/18 p-5 shadow-xl shadow-black/24">
+					<div className="account-panel">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Team</div>
 						{team ? (
-							<div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+							<div className="account-team">
 								<h2 className="text-2xl font-black text-emerald-50">{team.name}</h2>
 								{team.players.map((player) => (
 									<div key={player.riotId} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
@@ -481,12 +476,12 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 }
 
 function Shell({ children }: { children: ReactNode }) {
-	return <div className="px-5 py-10 sm:py-14">{children}</div>;
+	return <div className="account-page">{children}</div>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+		<div className="account-fact">
 			<div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/42">{label}</div>
 			<div className="mt-1 text-lg font-black text-lime-100">{value}</div>
 		</div>

@@ -27,12 +27,7 @@ function formatDate(iso: string): string {
 
 export function TwitchClipCard({ clip }: { clip: TwitchClipCardData }) {
 	return (
-		<a
-			href={clip.url}
-			target="_blank"
-			rel="noreferrer"
-			className="group flex min-w-0 flex-col overflow-hidden rounded-[1.7rem] border border-white/10 bg-white/[0.045] shadow-xl shadow-black/24 transition duration-300 hover:-translate-y-1 hover:border-lime-200/30 hover:bg-white/[0.06]"
-		>
+		<a href={clip.url} target="_blank" rel="noreferrer" className="clip-card group flex min-w-0 flex-col overflow-hidden">
 			<div className="relative aspect-video overflow-hidden bg-emerald-950">
 				{/* eslint-disable-next-line @next/next/no-img-element */}
 				<img
@@ -50,7 +45,7 @@ export function TwitchClipCard({ clip }: { clip: TwitchClipCardData }) {
 				<div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/65 px-2.5 py-1 text-[10px] font-bold text-emerald-100 backdrop-blur-md">
 					{clip.viewCount.toLocaleString("de-DE")} Views
 				</div>
-				<span className="absolute bottom-4 left-4 grid size-10 translate-y-2 place-items-center rounded-full border border-white/15 bg-lime-200 text-emerald-950 opacity-0 shadow-lg shadow-black/25 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+				<span className="absolute bottom-4 left-4 grid size-10 translate-y-2 place-items-center rounded-full border border-white/15 bg-lime-200 text-emerald-950 opacity-0 shadow-lg shadow-black/25 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
 					<svg aria-hidden="true" viewBox="0 0 24 24" className="ml-0.5 size-4 fill-current">
 						<path d="M8 5v14l11-7z" />
 					</svg>
@@ -58,8 +53,8 @@ export function TwitchClipCard({ clip }: { clip: TwitchClipCardData }) {
 			</div>
 
 			<div className="flex flex-1 flex-col justify-between gap-4 p-5">
-				<div className="line-clamp-2 text-base font-black leading-snug text-emerald-50 transition group-hover:text-lime-100">{clip.title}</div>
-				<div className="flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-100/48">
+				<div className="line-clamp-2 text-base font-semibold leading-snug text-[var(--text)] transition-colors group-hover:text-[var(--accent)]">{clip.title}</div>
+				<div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
 					<span className="truncate">von {clip.creatorName}</span>
 					<span className="shrink-0">{formatDate(clip.createdAt)}</span>
 				</div>

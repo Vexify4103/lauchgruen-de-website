@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingOrb } from "@/components/LoadingIndicator";
+
 import Image from "next/image";
 import { TournamentLink as Link } from "../TournamentLink";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -677,7 +679,7 @@ function RiotVerifyPanel({
 
 			{status.kind === "loading" ? (
 				<div role="status" className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] px-4 py-3 text-xs font-bold text-cyan-50">
-					<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" aria-hidden="true" />
+					<LoadingOrb state="searching" />
 					{status.message}
 				</div>
 			) : null}

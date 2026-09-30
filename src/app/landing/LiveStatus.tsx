@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { useEffect, useState } from "react";
 
 interface ApiUser {
@@ -43,8 +44,7 @@ function formatUptime(startedAtIso: string): string {
 	return hours ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
 }
 
-const shellClass =
-	"group relative flex h-full min-h-[27rem] overflow-hidden rounded-[2.6rem] border border-white/10 bg-[#04140d] shadow-2xl shadow-black/30 sm:min-h-[30rem] lg:min-h-[32rem]";
+const shellClass = "stream-card group";
 
 export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Props) {
 	const [data, setData] = useState<ApiResponse | null>(null);
@@ -86,9 +86,10 @@ export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Pr
 
 function LoadingState() {
 	return (
-		<div className={`${shellClass} animate-pulse`}>
+		<div className={shellClass} aria-busy="true">
 			<div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(6,78,59,0.45),rgba(2,11,7,0.92))]" />
-			<div className="relative mt-auto w-full p-6">
+			<LoadingIndicator label="Stream-Status wird geladen…" state="connecting" className="absolute inset-0" />
+			<div aria-hidden="true" className="relative mt-auto w-full p-6 motion-safe:animate-pulse">
 				<div className="h-3 w-24 rounded-full bg-emerald-100/10" />
 				<div className="mt-4 h-7 w-4/5 rounded-full bg-emerald-100/10" />
 				<div className="mt-3 h-4 w-2/5 rounded-full bg-emerald-100/8" />
@@ -114,7 +115,7 @@ function LiveState({ data, login }: { data: ApiResponse; login: string }) {
 				<div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,9,6,0.04),rgba(2,9,6,0.18)_65%,rgba(2,9,6,0.58))]" />
 				<div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:p-4">
 					<span className="inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-red-950/30">
-						<span className="size-1.5 animate-pulse rounded-full bg-white" /> Live
+						<span className="size-1.5 rounded-full bg-white" /> Live
 					</span>
 					<div className="flex flex-wrap justify-end gap-2">
 						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">
@@ -143,7 +144,7 @@ function LiveState({ data, login }: { data: ApiResponse; login: string }) {
 					) : null}
 					<div className="min-w-0 flex-1">
 						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-lime-200/72">{stream.gameName}</div>
-						<div className="mt-1 truncate text-xs font-bold text-emerald-100/42">{data.user?.displayName ?? stream.userName}</div>
+						<div className="mt-1 truncate text-xs font-bold text-[var(--muted)]">{data.user?.displayName ?? stream.userName}</div>
 					</div>
 				</div>
 				<h3 className="mt-5 line-clamp-2 text-xl font-black leading-tight text-white sm:text-2xl">{stream.title}</h3>
@@ -200,7 +201,7 @@ function OfflineState({ user, login }: { user: ApiUser | null; login: string }) 
 					) : null}
 					<div className="mt-6 text-[9px] font-black uppercase tracking-[0.28em] text-lime-200/50">Nächster Stream</div>
 					<h3 className="mt-3 max-w-sm text-3xl font-black leading-[0.98] tracking-[-0.035em]">Noch nichts live. Aber meistens nicht lange.</h3>
-					<p className="mt-4 max-w-sm text-sm leading-7 text-emerald-100/52">
+					<p className="mt-4 max-w-sm text-sm leading-7 text-[var(--muted)]">
 						Auf Twitch folgen und die Benachrichtigung aktivieren, damit der nächste Abend nicht ohne dich startet.
 					</p>
 				</div>

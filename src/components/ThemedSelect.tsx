@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingOrb } from "@/components/LoadingIndicator";
+
 import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
@@ -136,7 +138,7 @@ function MenuShell({
 }
 
 function TriggerIcon({ open, loading }: { open: boolean; loading: boolean }) {
-	if (loading) return <span aria-hidden className="size-4 shrink-0 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" />;
+	if (loading) return <LoadingOrb state="searching" />;
 	return (
 		<svg
 			aria-hidden

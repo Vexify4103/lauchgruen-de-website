@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { TwitchClipCard, type TwitchClipCardData } from "@/components/TwitchClipCard";
 
 interface ApiResponse {
@@ -38,23 +39,24 @@ export function RecentClips({ login = "lauchgruen", count = 6 }: { login?: strin
 
 	if (loading) {
 		return (
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{Array.from({ length: count }).map((_, index) => (
-					<div key={index} className="animate-pulse rounded-[1.7rem] border border-white/10 bg-white/[0.045] p-4">
-						<div className="aspect-video w-full rounded-2xl bg-emerald-900/40" />
-						<div className="mt-4 h-4 w-3/4 rounded-full bg-emerald-900/40" />
-						<div className="mt-3 h-3 w-1/2 rounded-full bg-emerald-900/30" />
-					</div>
-				))}
+			<div aria-busy="true">
+				<LoadingIndicator label="Clips werden geladen…" state="searching" compact className="mb-5" />
+				<div aria-hidden="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: count }).map((_, index) => (
+						<div key={index} className="content-panel motion-safe:animate-pulse p-4">
+							<div className="aspect-video w-full rounded-2xl bg-emerald-900/40" />
+							<div className="mt-4 h-4 w-3/4 rounded-full bg-emerald-900/40" />
+							<div className="mt-3 h-3 w-1/2 rounded-full bg-emerald-900/30" />
+						</div>
+					))}
+				</div>
 			</div>
 		);
 	}
 
 	if (!clips || clips.length === 0) {
 		return (
-			<div className="rounded-[1.7rem] border border-white/10 bg-white/[0.045] p-6 text-sm leading-7 text-emerald-100/68">
-				Noch keine Clips aus den letzten 30 Tagen. Sobald wieder live ist und der Chat den Highlight-Knopf drückt, tauchen sie hier auf.
-			</div>
+			<div className="content-panel leading-7 text-[var(--muted)]">Aktuell sind keine Clips verfügbar. Schau später noch einmal vorbei oder besuche den Twitch-Kanal.</div>
 		);
 	}
 

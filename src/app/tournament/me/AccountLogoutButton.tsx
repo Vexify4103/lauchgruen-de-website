@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
+import { LoadingOrb } from "@/components/LoadingIndicator";
 import { useState } from "react";
 
 export function AccountLogoutButton({
@@ -33,9 +34,19 @@ export function AccountLogoutButton({
 			onClick={logout}
 			disabled={pending}
 			aria-busy={pending}
-			className={className ?? "rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/74 transition hover:border-red-200/30 hover:bg-red-500/10 hover:text-red-100 disabled:cursor-wait disabled:opacity-55"}
+			className={
+				className ??
+				"rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/74 transition hover:border-red-200/30 hover:bg-red-500/10 hover:text-red-100 disabled:cursor-wait disabled:opacity-55"
+			}
 		>
-			{pending ? pendingLabel : label}
+			{pending ? (
+				<span role="status" className="inline-flex items-center gap-2">
+					<LoadingOrb state="connecting" />
+					{pendingLabel}
+				</span>
+			) : (
+				label
+			)}
 		</button>
 	);
 }

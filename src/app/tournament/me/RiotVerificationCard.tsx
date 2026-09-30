@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingOrb } from "@/components/LoadingIndicator";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -124,12 +126,12 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 
 	if (verified) {
 		return (
-			<section className="rounded-[2rem] border border-lime-200/18 bg-lime-200/[0.055] p-5 shadow-xl shadow-black/20">
+			<section className="account-panel">
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>
-						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Riot-Account</div>
-						<h2 className="mt-2 text-2xl font-black text-emerald-50">{verified.riotId}</h2>
-						<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/60">
+						<div className="panel-kicker">Riot-Account</div>
+						<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">{verified.riotId}</h2>
+						<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
 							Dein League-Account ist verifiziert und kann für Turniere sowie freigegebene Community-Overlays verwendet werden.
 						</p>
 					</div>
@@ -177,10 +179,10 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-amber-200/20 bg-amber-200/[0.055] p-5 shadow-xl shadow-black/20">
+		<section className="account-panel">
 			<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/68">Riot-Verifizierung</div>
 			<h2 className="mt-2 text-2xl font-black text-emerald-50">Riot-ID einmalig bestätigen.</h2>
-			<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/60">
+			<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
 				Diese Verknüpfung gilt auch ohne Turnierbewerbung und wird für spätere Overlays wiederverwendet. Als Besitznachweis wechselst du kurz dein League-Profilicon.
 			</p>
 
@@ -225,7 +227,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 					{challenge.checkedAt && challenge.currentIconUrl ? (
 						<div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/8 pt-4">
 							<IconState label="Von Riot gemeldet" iconUrl={challenge.currentIconUrl} iconId={challenge.currentIconId} tone="current" />
-							<div className="text-xs leading-5 text-emerald-100/52">
+							<div className="text-xs leading-5 text-[var(--muted)]">
 								Letzte direkte Riot-Abfrage: <strong className="text-emerald-50">{formatTime(challenge.checkedAt)}</strong>
 								<br />
 								Wenn hier noch dein altes Icon erscheint, hat Riot die Änderung serverseitig noch nicht übernommen.
@@ -272,7 +274,7 @@ function AccountInfo({ label, value }: { label: string; value: string }) {
 function StatusMessage({ message }: { message: string }) {
 	return (
 		<div role="status" className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-3 text-xs font-bold text-cyan-50">
-			<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" aria-hidden="true" />
+			<LoadingOrb state="searching" />
 			{message}
 		</div>
 	);

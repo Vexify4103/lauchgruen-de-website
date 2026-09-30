@@ -81,12 +81,12 @@ export function TwitchLinkCard({
 	}
 
 	return (
-		<section id="streamer-overlay" className="scroll-mt-6 rounded-[2rem] border border-[#9146ff]/25 bg-[#9146ff]/[0.08] p-5 shadow-xl shadow-black/20">
+		<section id="streamer-overlay" className="account-panel">
 			<div className="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-[#c9a8ff]">Twitch</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">{link ? link.displayName : "Stream mit deinem Profil verbinden"}</h2>
-					<p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100/60">
+					<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">{link ? link.displayName : "Stream mit deinem Profil verbinden"}</h2>
+					<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
 						Deine Twitch-Verknüpfung kann sowohl für Turniermatches als auch freiwillig für das öffentliche League-Overlay verwendet werden.
 					</p>
 				</div>
@@ -116,7 +116,7 @@ export function TwitchLinkCard({
 						}
 						onChange={(value) => void updateSetting("showInCommunityOverlay", value)}
 					/>
-					<div className="rounded-2xl border border-[#c9a8ff]/15 bg-black/15 px-4 py-3 text-xs leading-5 text-emerald-100/48">
+					<div className="rounded-2xl border border-[#c9a8ff]/15 bg-black/15 px-4 py-3 text-xs leading-5 text-[var(--muted)]">
 						Die Freigabe zeigt nur deinen Twitch-Anzeigenamen, nicht deine Discord-ID. Du kannst sie hier jederzeit wieder ausschalten.
 					</div>
 					<div className="flex flex-wrap gap-2">
@@ -198,7 +198,7 @@ function SettingToggle({
 			<input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-5 accent-[#9146ff]" />
 			<span>
 				<span className="block text-sm font-black text-emerald-50">{title}</span>
-				<span className="mt-1 block text-xs leading-5 text-emerald-100/48">{description}</span>
+				<span className="mt-1 block text-xs leading-5 text-[var(--muted)]">{description}</span>
 			</span>
 		</label>
 	);

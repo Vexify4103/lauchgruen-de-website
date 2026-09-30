@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingOrb } from "@/components/LoadingIndicator";
+
 import { useEffect, useEffectEvent, useState, useTransition } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { NicknameSyncButton } from "./NicknameSyncButton";
@@ -314,7 +316,7 @@ function JobRow({ job, busy, onRetry }: { job: Job; busy: boolean; onRetry: () =
 						{job.failed ? ` · ${job.failed} Fehler` : ""}
 					</div>
 				</div>
-				{running ? <span className="size-3 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" /> : null}
+				{running ? <LoadingOrb state="searching" /> : null}
 			</div>
 			{job.current ? <div className="mt-2 truncate text-[10px] text-emerald-100/42">{job.current}</div> : null}
 			{job.status === "failed" ? (

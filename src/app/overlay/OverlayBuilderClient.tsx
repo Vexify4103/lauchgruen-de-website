@@ -1,5 +1,9 @@
 "use client";
 
+import { LoadingOrb } from "@/components/LoadingIndicator";
+
+import { PageIntro } from "@/components/site/PageIntro";
+
 import { useEffect, useMemo, useState } from "react";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -415,33 +419,27 @@ export function OverlayBuilderClient({
 	}
 
 	return (
-		<div className="min-h-screen overflow-x-hidden bg-[#03100a] text-emerald-50">
-			<div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_4%,rgba(190,242,100,0.13),transparent_30%),radial-gradient(circle_at_88%_20%,rgba(34,211,238,0.11),transparent_30%),linear-gradient(145deg,#03100a_0%,#061b12_48%,#020906_100%)]" />
-			<main id="main-content" tabIndex={-1} className="relative mx-auto w-full max-w-[112rem] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-				<header className="grid gap-5 rounded-[1.8rem] border border-lime-100/12 bg-black/20 px-5 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:grid-cols-[1fr_auto] lg:items-center lg:px-7">
-					<div className="max-w-4xl">
-						<div className="text-[10px] font-black uppercase tracking-[0.34em] text-lime-200/65">Lauchgruen · Stream Tools</div>
-						<h1 className="mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl">Dein League-Overlay. Deine Farben.</h1>
-						<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">Erstelle kostenlos eine OBS-Browserquelle aus Riot-ID und optionalem Twitch-Kanal.</p>
-					</div>
-					<div className="flex flex-wrap gap-2">
-						<a
-							href={accountUrl}
-							className="rounded-2xl bg-[#9146ff] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-[#9146ff]/20 transition hover:-translate-y-0.5 hover:bg-[#a970ff]"
-						>
-							Streamer-Profil
-						</a>
-						<a
-							href={apexUrl}
-							className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/35 hover:text-lime-100"
-						>
-							Zurück zu lauchgruen.de
-						</a>
-					</div>
-				</header>
+		<div className="text-[var(--text)]">
+			<main id="main-content" tabIndex={-1} className="builder-page">
+				<PageIntro
+					kicker="Kostenlose OBS-Tools"
+					title="Dein Stream. Dein Overlay."
+					aside={
+						<div className="flex flex-wrap gap-2">
+							<a href={accountUrl} className="button primary small">
+								Streamer-Profil
+							</a>
+							<a href={apexUrl} className="button ghost small">
+								Zur Hauptseite
+							</a>
+						</div>
+					}
+				>
+					Gestalte deine League-Browserquelle mit Rang, Session und Matchhistorie. Die Vorschau zeigt deine Änderungen direkt.
+				</PageIntro>
 
-				<div className="mt-5 grid items-start gap-5 xl:grid-cols-[25rem_minmax(0,1fr)]">
-					<aside className="themed-scrollbar grid content-start gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-2">
+				<div className="builder-layout">
+					<aside className="builder-controls themed-scrollbar">
 						<div className="rounded-[1.5rem] border border-cyan-100/12 bg-gradient-to-r from-cyan-300/[0.08] to-lime-300/[0.06] px-4 py-3">
 							<div className="flex items-center justify-between gap-3">
 								<div>
@@ -956,8 +954,8 @@ export function OverlayBuilderClient({
 						</Panel>
 					</aside>
 
-					<section className="min-w-0 xl:sticky xl:top-4 xl:self-start">
-						<div className="overflow-hidden rounded-[2.2rem] border border-cyan-100/13 bg-[#07140d]/85 shadow-2xl shadow-black/30">
+					<section className="builder-preview">
+						<div className="builder-panel">
 							<div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-5 py-3.5 sm:px-6">
 								<div>
 									<div className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-100/48">
@@ -987,8 +985,8 @@ export function OverlayBuilderClient({
 										className={`${config.style === "rail" ? "h-[800px]" : config.style === "freeform" ? "h-[720px]" : config.style === "portrait" ? "h-[440px]" : "h-[600px]"} w-[1280px] max-w-none border-0`}
 									/>
 								) : (
-									<div className={`${config.style === "rail" ? "h-[800px]" : "h-[600px]"} grid w-[1280px] max-w-none place-items-center`}>
-										<div className="max-w-md rounded-[2rem] border border-cyan-100/14 bg-[#07140d]/92 px-7 py-8 text-center shadow-2xl shadow-black/30">
+									<div className="grid min-h-[26rem] place-items-center">
+										<div className="max-w-md px-5 py-8 text-center">
 											<div className="mx-auto grid size-12 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/[0.07] text-xl font-black text-lime-100">
 												#
 											</div>
@@ -1184,7 +1182,7 @@ function TwitchSearchResult({ lookup, selectedLogin, onSelect }: { lookup: Twitc
 	if (lookup.status === "loading") {
 		return (
 			<div aria-live="polite" className="flex items-center gap-2 rounded-xl border border-cyan-100/10 bg-cyan-200/[0.04] px-3 py-2.5 text-[10px] font-bold text-cyan-50/55">
-				<span className="size-3 animate-spin rounded-full border-2 border-cyan-100/20 border-t-cyan-100/70" /> Suche nach @{lookup.login} …
+				<LoadingOrb state="searching" /> Suche nach @{lookup.login} …
 			</div>
 		);
 	}
@@ -1225,9 +1223,7 @@ function TwitchSearchResult({ lookup, selectedLogin, onSelect }: { lookup: Twitc
 function Panel({ kicker, title, children, defaultOpen = false }: { kicker: string; title: string; children: React.ReactNode; defaultOpen?: boolean }) {
 	const [open, setOpen] = useState(defaultOpen);
 	return (
-		<section
-			className={`overflow-hidden rounded-[1.5rem] border bg-[#08170f]/90 shadow-xl shadow-black/20 backdrop-blur-xl transition ${open ? "border-lime-100/16" : "border-white/9 hover:border-white/15"}`}
-		>
+		<section className="builder-panel" data-open={open}>
 			<button
 				type="button"
 				onClick={() => setOpen((current) => !current)}
@@ -1235,8 +1231,8 @@ function Panel({ kicker, title, children, defaultOpen = false }: { kicker: strin
 				className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left"
 			>
 				<span className="min-w-0">
-					<span className="block text-[8px] font-black uppercase tracking-[0.24em] text-lime-200/48">{kicker}</span>
-					<span className="mt-0.5 block truncate text-sm font-black text-emerald-50">{title}</span>
+					<span className="panel-kicker">{kicker}</span>
+					<span className="builder-panel-title">{title}</span>
 				</span>
 				<span
 					className={`grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-100/55 transition ${open ? "rotate-180 border-lime-200/20 text-lime-100" : ""}`}
@@ -1255,9 +1251,9 @@ function Panel({ kicker, title, children, defaultOpen = false }: { kicker: strin
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
 	return (
 		<label className="grid gap-1.5">
-			<span className="flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100/60">
+			<span className="builder-field">
 				<span>{label}</span>
-				{hint ? <span className="text-right normal-case tracking-normal text-emerald-100/34">{hint}</span> : null}
+				{hint ? <small>{hint}</small> : null}
 			</span>
 			{children}
 		</label>
@@ -1302,9 +1298,7 @@ function rankTierFromLabel(label: string) {
 
 function Toggle({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
 	return (
-		<label
-			className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/9 bg-black/18 px-3 py-2.5 text-xs font-bold text-emerald-100/72 transition hover:border-lime-200/20 ${disabled ? "cursor-not-allowed opacity-35" : ""}`}
-		>
+		<label className={`builder-toggle ${disabled ? "cursor-not-allowed opacity-45" : ""}`}>
 			<span>{label}</span>
 			<input type="checkbox" className="peer sr-only" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
 			<span className="relative h-5 w-9 shrink-0 rounded-full border border-white/12 bg-black/35 transition peer-checked:border-lime-200/40 peer-checked:bg-lime-300/25 after:absolute after:left-0.5 after:top-0.5 after:size-3.5 after:rounded-full after:bg-emerald-100/45 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:bg-lime-100" />
@@ -1312,5 +1306,4 @@ function Toggle({ label, checked, onChange, disabled = false }: { label: string;
 	);
 }
 
-const inputClass =
-	"h-12 w-full rounded-2xl border border-white/10 bg-[#07110c] px-4 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/25 focus:border-lime-200/45 focus:ring-2 focus:ring-lime-200/10";
+const inputClass = "builder-input";

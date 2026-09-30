@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingIndicator } from "@/components/LoadingIndicator";
+
 import { useEffect, useState, useTransition } from "react";
 
 export type CaptainRoleStatus = {
@@ -153,7 +155,7 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 				</div>
 			) : null}
 			<div className="mt-4 rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm font-black text-lime-100">
-				{isLoading ? "Captain-Rollen werden geprüft…" : `${synced}/${roleStatuses.length} Captain-Rollen synced`}
+				{isLoading ? <LoadingIndicator compact label="Captain-Rollen werden geprüft…" state="connecting" /> : `${synced}/${roleStatuses.length} Captain-Rollen synced`}
 			</div>
 			<div className="mt-4 grid gap-2 md:grid-cols-2">
 				{roleStatuses.map((entry) => (
@@ -164,7 +166,9 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 					</div>
 				))}
 				{isLoading && roleStatuses.length === 0
-					? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-black/18" />)
+					? Array.from({ length: 4 }).map((_, index) => (
+							<div key={index} aria-hidden="true" className="h-20 motion-safe:animate-pulse rounded-2xl border border-white/10 bg-black/18" />
+						))
 					: null}
 			</div>
 			{message ? (

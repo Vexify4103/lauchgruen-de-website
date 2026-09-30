@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import { LoadingOrb } from "@/components/LoadingIndicator";
 import { useState, type ReactNode } from "react";
 
 export function DiscordSignInButton({
@@ -31,16 +32,15 @@ export function DiscordSignInButton({
 	}
 
 	return (
-		<button
-			type="button"
-			onClick={startSignIn}
-			disabled={pending}
-			aria-busy={pending}
-			aria-label={ariaLabel}
-			title={title}
-			className={className}
-		>
-			{pending && pendingLabel ? pendingLabel : children}
+		<button type="button" onClick={startSignIn} disabled={pending} aria-busy={pending} aria-label={ariaLabel} title={title} className={className}>
+			{pending ? (
+				<span role="status" className="inline-flex items-center gap-2">
+					<LoadingOrb state="connecting" />
+					{pendingLabel ?? "Weiter zu Discord…"}
+				</span>
+			) : (
+				children
+			)}
 		</button>
 	);
 }

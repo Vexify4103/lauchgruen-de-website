@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./design-system.css";
 @import "./admin-system.css";
+@import "./site-pages.css";
 
 :root {
 	color-scheme: dark;

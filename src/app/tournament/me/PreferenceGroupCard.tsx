@@ -85,11 +85,11 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-cyan-200/14 bg-cyan-300/[0.045] p-5 shadow-xl shadow-black/20 sm:p-6">
+		<section className="account-panel">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/64">Wunschgruppe</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Mit Freunden zusammenspielen</h2>
+					<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">Mit Freunden zusammenspielen</h2>
 				</div>
 				{group ? (
 					<span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50/74">
@@ -98,7 +98,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 				) : null}
 			</div>
 
-			<p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-100/60">
+			<p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)]">
 				Teile deinen privaten Code mit bis zu vier weiteren Personen. Eine Wunschgruppe kann insgesamt ein bis fünf Mitglieder haben. Die Orga sieht euren Wunsch beim
 				Team-Building, eine gemeinsame Einteilung kann wegen der Balance aber nicht garantiert werden.
 			</p>
@@ -135,7 +135,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 				<div className="mt-5 grid gap-4 lg:grid-cols-2">
 					<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
 						<div className="text-sm font-black text-emerald-50">Neue Wunschgruppe</div>
-						<p className="mt-1 text-xs leading-5 text-emerald-100/48">Erzeuge einen Code und teile ihn privat mit deinen Mitspielern.</p>
+						<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Erzeuge einen Code und teile ihn privat mit deinen Mitspielern.</p>
 						<button
 							type="button"
 							onClick={() => mutate("create")}
@@ -156,7 +156,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 						<label htmlFor="preference-group-code" className="text-sm font-black text-emerald-50">
 							Bestehendem Code beitreten
 						</label>
-						<p className="mt-1 text-xs leading-5 text-emerald-100/48">Den Code erhältst du von einem Mitglied der Wunschgruppe.</p>
+						<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Den Code erhältst du von einem Mitglied der Wunschgruppe.</p>
 						<div className="mt-4 flex gap-2">
 							<input
 								id="preference-group-code"
