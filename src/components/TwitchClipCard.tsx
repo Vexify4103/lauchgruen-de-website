@@ -38,6 +38,8 @@ export function TwitchClipCard({ clip }: { clip: TwitchClipCardData }) {
 				<img
 					src={clip.thumbnailUrl}
 					alt={clip.title}
+					width={480}
+					height={272}
 					loading="lazy"
 					className="absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.045]"
 				/>

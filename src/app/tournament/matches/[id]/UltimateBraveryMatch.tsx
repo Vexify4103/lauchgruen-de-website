@@ -233,7 +233,11 @@ export function UltimateBraveryMatch({
 					);
 				})}
 			</div>
-			{message ? <div className="border-t border-white/8 px-5 py-4 text-sm font-bold text-emerald-100/72">{message}</div> : null}
+			{message ? (
+				<div role="status" className="border-t border-white/8 px-5 py-4 text-sm font-bold text-emerald-100/72">
+					{message}
+				</div>
+			) : null}
 			<ConfirmDialog
 				open={Boolean(adminRerollPlayer)}
 				title="Ausnahme-Reroll wirklich ausführen?"
@@ -378,7 +382,7 @@ function EnemyChampion({ roll }: { roll: UltimateBraveryRoll }) {
 		<div className="mt-4 flex items-center gap-3 rounded-xl border border-red-200/12 bg-red-300/[0.04] p-3">
 			{/* Remote Data Dragon assets are already size-specific and do not benefit from Next image optimization here. */}
 			{/* eslint-disable-next-line @next/next/no-img-element */}
-			<img src={roll.champion.imageUrl} alt={roll.champion.name} className="size-16 rounded-xl border border-white/12 object-cover" />
+			<img src={roll.champion.imageUrl} alt={roll.champion.name} width={64} height={64} className="size-16 rounded-xl border border-white/12 object-cover" />
 			<div>
 				<div className="text-[9px] font-black uppercase tracking-[0.18em] text-red-100/48">Gegnerischer Champion</div>
 				<div className="mt-1 text-base font-black text-emerald-50">{roll.champion.name}</div>
@@ -393,7 +397,13 @@ function RollDetails({ roll, controls }: { roll: UltimateBraveryRoll; controls: 
 		<div className="mt-4 grid items-start gap-4 sm:grid-cols-[8.5rem_1fr]">
 			<div className="grid gap-2">
 				<div className="mx-auto w-[5.5rem] overflow-hidden rounded-xl border border-lime-200/18 bg-black/30">
-					<img src={roll.champion.imageUrl} alt={roll.champion.name} className="aspect-square w-full object-cover" /* eslint-disable-line @next/next/no-img-element */ />
+					<img
+						src={roll.champion.imageUrl}
+						alt={roll.champion.name}
+						width={120}
+						height={120}
+						className="aspect-square w-full object-cover" /* eslint-disable-line @next/next/no-img-element */
+					/>
 					<div className="p-1.5 text-center text-[10px] font-black text-lime-50">{roll.champion.name}</div>
 				</div>
 				{controls}
@@ -433,7 +443,14 @@ function ItemRow({ label, items, numbered = false }: { label: string; items: Arr
 						title={`${numbered ? `${index + 1}. ` : ""}${item.name}`}
 						className="relative size-9 overflow-hidden rounded-lg border border-white/14 bg-black/30"
 					>
-						<img src={item.imageUrl} alt={item.name} className="size-full object-cover" /* eslint-disable-line @next/next/no-img-element */ />
+						<img
+							src={item.imageUrl}
+							alt={item.name}
+							width={64}
+							height={64}
+							loading="lazy"
+							className="size-full object-cover" /* eslint-disable-line @next/next/no-img-element */
+						/>
 						{numbered ? (
 							<span className="absolute left-0 top-0 grid size-3.5 place-items-center rounded-br bg-black/80 text-[8px] font-black text-white">{index + 1}</span>
 						) : null}

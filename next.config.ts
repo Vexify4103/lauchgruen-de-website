@@ -27,6 +27,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+	// Lets a second local dev server (e.g. against a throwaway database) run beside the usual one.
+	distDir: process.env.NEXT_DIST_DIR || ".next",
 	poweredByHeader: false,
 	allowedDevOrigins: ["lauchgruen.localhost", "tournament.lauchgruen.localhost"],
 	experimental: {

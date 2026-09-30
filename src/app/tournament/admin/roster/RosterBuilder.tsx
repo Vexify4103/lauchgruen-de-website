@@ -1107,6 +1107,7 @@ export function RosterBuilder({
 						<div className="flex flex-wrap items-center justify-end gap-2">
 							{message ? (
 								<div
+									role="status"
 									className={`rounded-xl border px-3 py-1.5 text-xs ${
 										message.tone === "ok" ? "border-lime-200/30 bg-lime-200/10 text-lime-50" : "border-red-300/30 bg-red-500/10 text-red-100"
 									}`}
@@ -1219,7 +1220,7 @@ export function RosterBuilder({
 								{snapshot.publication.hasUnpublishedChanges
 									? "Privater Entwurf wartet auf Veröffentlichung."
 									: snapshot.publication.publishedAt
-										? `Zuletzt veröffentlicht: ${new Date(snapshot.publication.publishedAt).toLocaleString("de-DE")}`
+										? `Zuletzt veröffentlicht: ${new Date(snapshot.publication.publishedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}`
 										: "Noch kein Roster veröffentlicht."}
 							</p>
 						</div>
@@ -1336,7 +1337,7 @@ export function RosterBuilder({
 										<div key={teamKey} className="flex flex-col items-center gap-1">
 											<div className="relative h-16 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
 												<div
-													className="absolute bottom-0 left-0 right-0 rounded-md bg-gradient-to-t from-lime-400/40 to-emerald-400/20 transition-all duration-500"
+													className="absolute bottom-0 left-0 right-0 rounded-md bg-gradient-to-t from-lime-400/40 to-emerald-400/20 transition-[height] duration-500"
 													style={{ height: `${Math.min(barHeight, 150)}%` }}
 												/>
 												<span className="absolute inset-0 flex items-center justify-center text-[10px] font-black tabular-nums text-emerald-50">
@@ -1508,11 +1509,13 @@ export function RosterBuilder({
 			) : null}
 
 			{manualSubOpen ? (
-				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="manual-player-title" className="fixed inset-0 z-50 grid place-items-center px-5">
 					<button type="button" aria-label="Schließen" onClick={() => setManualSubOpen(false)} className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
 					<div className="relative w-full max-w-lg rounded-[1.8rem] border border-amber-200/18 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/50">
 						<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-200/72">Manueller Roster-Eintrag</div>
-						<h2 className="mt-2 text-2xl font-black text-emerald-50">Spieler manuell eintragen</h2>
+						<h2 id="manual-player-title" className="mt-2 text-2xl font-black text-emerald-50">
+							Spieler manuell eintragen
+						</h2>
 						<p className="mt-2 text-sm leading-6 text-emerald-100/58">
 							Diese Person kann einen aktiven Slot oder einen Substitute-Slot erhalten, bekommt beim Veröffentlichen die Discord-Rollen und bleibt sichtbar als nicht
 							verifiziert markiert.
@@ -1542,19 +1545,25 @@ export function RosterBuilder({
 								<label className="grid gap-1.5">
 									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Discord-ID</span>
 									<input
+										name="discord-id"
+										autoComplete="off"
+										spellCheck={false}
 										value={manualSubDiscordId}
 										onChange={(event) => setManualSubDiscordId(event.target.value)}
 										inputMode="numeric"
-										placeholder="337568120028004362"
+										placeholder="337568120028004362…"
 										className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
 									/>
 								</label>
 								<label className="grid gap-1.5">
 									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Discord-Benutzername</span>
 									<input
+										name="discord-username"
+										autoComplete="off"
+										spellCheck={false}
 										value={manualSubDiscordUsername}
 										onChange={(event) => setManualSubDiscordUsername(event.target.value)}
-										placeholder="lethalfluff"
+										placeholder="lethalfluff…"
 										className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
 									/>
 								</label>
@@ -1562,10 +1571,12 @@ export function RosterBuilder({
 							<label className="grid gap-1.5">
 								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Gewünschter Discord-Nickname</span>
 								<input
+									name="discord-nickname"
+									autoComplete="off"
 									value={manualSubDisplayName}
 									onChange={(event) => setManualSubDisplayName(event.target.value)}
 									maxLength={32}
-									placeholder="So soll die Person heißen"
+									placeholder="So soll die Person heißen…"
 									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
 								/>
 								<span className="text-[10px] leading-4 text-emerald-100/36">
@@ -1575,9 +1586,12 @@ export function RosterBuilder({
 							<label className="grid gap-1.5">
 								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Riot-ID</span>
 								<input
+									name="riot-id"
+									autoComplete="off"
+									spellCheck={false}
 									value={manualSubRiotId}
 									onChange={(event) => setManualSubRiotId(event.target.value)}
-									placeholder="LethalFluff#poof"
+									placeholder="LethalFluff#poof…"
 									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
 								/>
 							</label>
@@ -1668,11 +1682,13 @@ export function RosterBuilder({
 			/>
 
 			{createOpen ? (
-				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="fixed inset-0 z-50 grid place-items-center px-5">
 					<button type="button" aria-label="Schließen" onClick={() => setCreateOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 					<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
 						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Neues Team</div>
-						<h2 className="mt-2 text-lg font-black text-emerald-50">Team anlegen</h2>
+						<h2 id="create-team-title" className="mt-2 text-lg font-black text-emerald-50">
+							Team anlegen
+						</h2>
 						<p className="mt-1 text-xs text-emerald-100/52">
 							Das Team wird gespeichert. Discord-Rolle sowie privater Text- und Voice-Channel werden anschließend automatisch über die Job-Queue erstellt.
 						</p>
@@ -1681,9 +1697,11 @@ export function RosterBuilder({
 							<label className="grid gap-1">
 								<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Teamname</span>
 								<input
+									name="team-name"
+									autoComplete="off"
 									value={newTeamName}
 									onChange={(e) => setNewTeamName(e.target.value)}
-									placeholder="z. B. Sprout Squad"
+									placeholder="z. B. Sprout Squad…"
 									className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
 								/>
 							</label>
@@ -1716,11 +1734,13 @@ export function RosterBuilder({
 			) : null}
 
 			{editTeamTarget ? (
-				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="edit-team-title" className="fixed inset-0 z-50 grid place-items-center px-5">
 					<button type="button" aria-label="Schließen" onClick={() => setEditTeamTarget(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 					<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
 						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Team bearbeiten</div>
-						<h2 className="mt-2 text-lg font-black text-emerald-50">{editTeamTarget.name}</h2>
+						<h2 id="edit-team-title" className="mt-2 text-lg font-black text-emerald-50">
+							{editTeamTarget.name}
+						</h2>
 						<p className="mt-1 text-xs text-emerald-100/52">
 							Ändert den Teamnamen sowie die zugehörigen Discord-Ressourcen. Gruppe und Seed werden zentral im Gruppenplaner verwaltet.
 						</p>
@@ -1729,6 +1749,8 @@ export function RosterBuilder({
 							<label className="grid gap-1">
 								<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Teamname</span>
 								<input
+									name="team-name"
+									autoComplete="off"
 									value={editTeamName}
 									onChange={(e) => setEditTeamName(e.target.value)}
 									className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
@@ -2184,7 +2206,7 @@ function ApplicantCard({
 											onSaveRank(formatRankString(editingTier, undefined, Number(event.currentTarget.value) || undefined));
 										}
 									}}
-									placeholder="LP"
+									placeholder="LP…"
 									ariaLabel={`LP von ${applicant.displayName}`}
 									compact
 									className="w-28"
@@ -2359,11 +2381,13 @@ function Picker({
 	);
 
 	return (
-		<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+		<div role="dialog" aria-modal="true" aria-labelledby="team-dialog-title" className="fixed inset-0 z-50 grid place-items-center px-5">
 			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 			<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
 				<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Zuweisen · {role}</div>
-				<h2 className="mt-2 text-lg font-black text-emerald-50">{teamName}</h2>
+				<h2 id="team-dialog-title" className="mt-2 text-lg font-black text-emerald-50">
+					{teamName}
+				</h2>
 
 				<div className="mt-4 max-h-[60vh] overflow-y-auto pr-1">
 					{decorated.length === 0 ? (

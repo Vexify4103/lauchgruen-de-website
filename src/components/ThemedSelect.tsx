@@ -175,7 +175,9 @@ function Checkmark({ selected }: { selected: boolean }) {
 
 function SelectionOrder({ selected, order }: { selected: boolean; order: number }) {
 	return (
-		<span className={`grid size-6 shrink-0 place-items-center rounded-full border text-[10px] font-black transition ${selected ? "border-lime-200/55 bg-lime-200 text-emerald-950" : "border-white/12 bg-black/15 text-emerald-100/24"}`}>
+		<span
+			className={`grid size-6 shrink-0 place-items-center rounded-full border text-[10px] font-black transition ${selected ? "border-lime-200/55 bg-lime-200 text-emerald-950" : "border-white/12 bg-black/15 text-emerald-100/24"}`}
+		>
 			{selected ? order : "–"}
 		</span>
 	);
@@ -360,7 +362,11 @@ export function ThemedSelect({
 					<input type="hidden" name={name} value={value} disabled={disabled} />
 				)
 			) : null}
-			{error ? <p className="mt-1.5 text-xs font-bold text-red-200">{error}</p> : null}
+			{error ? (
+				<p role="alert" className="mt-1.5 text-xs font-bold text-red-200">
+					{error}
+				</p>
+			) : null}
 			{open && position && typeof document !== "undefined"
 				? createPortal(
 						<MenuShell menuRef={menuRef} position={position} labelledBy={id}>
@@ -400,13 +406,14 @@ export function ThemedMultiSelect({
 	const selected = ordered
 		? value.map((entry) => options.find((option) => option.value === entry)).filter((option): option is SelectOption => Boolean(option))
 		: options.filter((option) => value.includes(option.value));
-	const selectedText = selected.length === 0
-		? placeholder
-		: ordered
-			? selected.map((option, index) => `${index + 1}. ${option.label}`).join(" · ")
-			: selected.length <= 2
-				? selected.map((option) => option.label).join(", ")
-				: `${selected.length} Optionen ausgewählt`;
+	const selectedText =
+		selected.length === 0
+			? placeholder
+			: ordered
+				? selected.map((option, index) => `${index + 1}. ${option.label}`).join(" · ")
+				: selected.length <= 2
+					? selected.map((option) => option.label).join(", ")
+					: `${selected.length} Optionen ausgewählt`;
 
 	function close(restoreFocus = true) {
 		setOpen(false);
@@ -473,12 +480,25 @@ export function ThemedMultiSelect({
 				</span>
 			</button>
 			{name ? value.map((entry) => <input key={entry} type="hidden" name={name} value={entry} disabled={disabled} />) : null}
-			{error ? <p className="mt-1.5 text-xs font-bold text-red-200">{error}</p> : null}
+			{error ? (
+				<p role="alert" className="mt-1.5 text-xs font-bold text-red-200">
+					{error}
+				</p>
+			) : null}
 			{open && position && typeof document !== "undefined"
 				? createPortal(
 						<MenuShell menuRef={menuRef} position={position} labelledBy={id} multi>
 							{options.length ? (
-								<OptionRows idBase={id} options={options} value={value} highlight={highlight} onHighlight={setHighlight} onSelect={toggle} multi ordered={ordered} />
+								<OptionRows
+									idBase={id}
+									options={options}
+									value={value}
+									highlight={highlight}
+									onHighlight={setHighlight}
+									onSelect={toggle}
+									multi
+									ordered={ordered}
+								/>
 							) : (
 								<EmptyState>{emptyMessage}</EmptyState>
 							)}

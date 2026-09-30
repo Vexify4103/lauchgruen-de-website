@@ -190,7 +190,7 @@ export function WheelAdminClient({ initialState, matches }: { initialState: Tour
 					}
 					className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:opacity-60"
 				>
-					{spinning ? "Dreht..." : selectedMatchCompleted ? "Match abgeschlossen" : hasActiveDrawForSelected ? "Pool bereits gezogen" : "Beide Pools ziehen"}
+					{spinning ? "Dreht…" : selectedMatchCompleted ? "Match abgeschlossen" : hasActiveDrawForSelected ? "Pool bereits gezogen" : "Beide Pools ziehen"}
 				</button>
 			</div>
 
@@ -231,7 +231,11 @@ export function WheelAdminClient({ initialState, matches }: { initialState: Tour
 				</div>
 			) : null}
 
-			{message ? <div className="mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					{message}
+				</div>
+			) : null}
 
 			{state.history.length > 0 ? (
 				<div className="mt-5 rounded-2xl border border-white/8 bg-black/18 p-4">
@@ -331,7 +335,7 @@ function TeamWheel({
 					</div>
 					<div className="absolute -right-1 top-1/2 z-10 h-0 w-0 -translate-y-1/2 border-y-[10px] border-r-[18px] border-y-transparent border-r-emerald-50" />
 					<div className="relative z-10 grid size-24 place-items-center rounded-full border border-lime-200/24 bg-emerald-950/92 text-center shadow-xl shadow-black/40">
-						<span className="px-2 text-2xl font-black text-lime-100">{spinning ? "..." : pool ? compactPoolLabel(pool) : "?"}</span>
+						<span className="px-2 text-2xl font-black text-lime-100">{spinning ? "…" : pool ? compactPoolLabel(pool) : "?"}</span>
 					</div>
 				</div>
 			</div>

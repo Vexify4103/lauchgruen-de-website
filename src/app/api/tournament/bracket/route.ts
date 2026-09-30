@@ -13,13 +13,14 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getMatchControlContext } from "@/lib/match-control";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.id === "ultimate-bravery") {
+	if (usesFlexibleEngine(settings.activeTournament)) {
 		const control = await getMatchControlContext();
 		return NextResponse.json({ matches: control.matches.filter((match) => match.phase === "playoffs") }, { headers: { "Cache-Control": "public, max-age=5, s-maxage=5" } });
 	}

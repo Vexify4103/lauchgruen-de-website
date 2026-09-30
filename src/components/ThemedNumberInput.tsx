@@ -111,7 +111,11 @@ export function ThemedNumberInput({
 					+
 				</button>
 			</div>
-			{error ? <p className="mt-1.5 text-xs font-bold text-red-200">{error}</p> : null}
+			{error ? (
+				<p role="alert" className="mt-1.5 text-xs font-bold text-red-200">
+					{error}
+				</p>
+			) : null}
 		</div>
 	);
 }

@@ -126,7 +126,7 @@ export function ApplicationForm({
 		const formData = new FormData(form);
 		setState({
 			status: "loading",
-			message: hasApplication ? "Änderungen werden gespeichert..." : "Bewerbung wird abgeschickt...",
+			message: hasApplication ? "Änderungen werden gespeichert…" : "Bewerbung wird abgeschickt…",
 		});
 
 		const payload = {
@@ -183,7 +183,7 @@ export function ApplicationForm({
 	async function recheckMembership() {
 		setMembershipStatus({
 			kind: "loading",
-			message: "Discord-Mitgliedschaft wird geprüft...",
+			message: "Discord-Mitgliedschaft wird geprüft…",
 		});
 		const response = await fetch("/api/tournament/membership", {
 			cache: "no-store",
@@ -229,7 +229,7 @@ export function ApplicationForm({
 						disabled={membershipStatus.kind === "loading"}
 						className="inline-flex rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-indigo-200/40 hover:text-indigo-50 disabled:opacity-60"
 					>
-						{membershipStatus.kind === "loading" ? "Prüfe..." : "Ich bin beigetreten, erneut prüfen"}
+						{membershipStatus.kind === "loading" ? "Prüfe…" : "Ich bin beigetreten, erneut prüfen"}
 					</button>
 				</div>
 				{membershipStatus.message ? (
@@ -306,7 +306,7 @@ export function ApplicationForm({
 				</Consent>
 
 				<div className="grid gap-4 md:grid-cols-2">
-					<Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?" defaultValue={initialApplication?.displayName ?? ""} />
+					<Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?…" defaultValue={initialApplication?.displayName ?? ""} />
 					<ThemedSelectField label="Main Rolle" name="mainRole" options={roleOptions} initialValue={initialApplication?.mainRole ?? ""} />
 					<ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
 					<ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
@@ -328,7 +328,7 @@ export function ApplicationForm({
 						name="preferredRoles"
 						value={preferredRoles}
 						onChange={setPreferredRoles}
-						placeholder="Eine oder mehrere Rollen wählen"
+						placeholder="Eine oder mehrere Rollen wählen…"
 						options={roleOptions.map((role) => ({ value: role, label: role }))}
 						ordered
 						exclusiveValues={["Fill"]}
@@ -353,8 +353,9 @@ export function ApplicationForm({
 					<textarea
 						name="notes"
 						rows={3}
+						autoComplete="off"
 						defaultValue={initialApplication?.notes ?? ""}
-						placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder Hinweise zur Verfügbarkeit."
+						placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder Hinweise zur Verfügbarkeit…"
 						className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
 					/>
 				</label>
@@ -373,6 +374,7 @@ export function ApplicationForm({
 
 				{state.message ? (
 					<div
+						role={state.status === "error" ? "alert" : "status"}
 						className={`rounded-2xl border px-4 py-3 text-sm ${
 							state.status === "error" ? "border-red-300/30 bg-red-500/10 text-red-100" : "border-lime-200/24 bg-lime-200/10 text-lime-50"
 						}`}
@@ -388,8 +390,8 @@ export function ApplicationForm({
 				>
 					{state.status === "loading"
 						? hasApplication
-							? "Änderungen werden gespeichert..."
-							: "Wird abgeschickt..."
+							? "Änderungen werden gespeichert…"
+							: "Wird abgeschickt…"
 						: hasApplication
 							? "Bewerbung ändern"
 							: "Bewerbung absenden"}
@@ -465,7 +467,7 @@ function RiotVerifyPanel({
 						<div className="mt-1 grid gap-1">
 							<div className="text-lg font-black text-lime-50">{verified.riotId}</div>
 							<div className="text-xs text-lime-100/70">Aktueller Rang (von Riot): {verified.currentRankAuto ?? "Unranked"}</div>
-							<div className="text-xs text-lime-100/52">Verifiziert {new Date(verified.verifiedAt).toLocaleString("de-DE")}</div>
+							<div className="text-xs text-lime-100/52">Verifiziert {new Date(verified.verifiedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}</div>
 						</div>
 						<div className="mt-4 flex flex-wrap gap-2">
 							<a
@@ -492,7 +494,7 @@ function RiotVerifyPanel({
 						disabled={disconnecting}
 						className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100/62 underline decoration-lime-200/30 underline-offset-4 hover:text-lime-100 disabled:opacity-50"
 					>
-						{disconnecting ? "Trennen..." : "Falscher Account? Trennen"}
+						{disconnecting ? "Trennen…" : "Falscher Account? Trennen"}
 					</button>
 				</div>
 				{unlinkError ? <div className="mt-3 rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-2 text-xs text-red-100">{unlinkError}</div> : null}
@@ -517,7 +519,7 @@ function RiotVerifyPanel({
 	async function start(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!riotIdInput.trim()) return;
-		setStatus({ kind: "loading", message: "Riot-Account wird gesucht..." });
+		setStatus({ kind: "loading", message: "Riot-Account wird gesucht…" });
 		const response = await fetch("/api/riot/start", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
@@ -549,7 +551,7 @@ function RiotVerifyPanel({
 		const DELAY_MS = 2500;
 
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-			const label = attempt === 1 ? "Icon wird geprüft..." : `Riot synchronisiert noch · Versuch ${attempt}/${MAX_ATTEMPTS}`;
+			const label = attempt === 1 ? "Icon wird geprüft…" : `Riot synchronisiert noch · Versuch ${attempt}/${MAX_ATTEMPTS}`;
 			setStatus({ kind: "loading", message: label });
 
 			const response = await fetch("/api/riot/verify", { method: "POST", cache: "no-store" });
@@ -621,10 +623,14 @@ function RiotVerifyPanel({
 			{!challenge ? (
 				<form onSubmit={start} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
 					<input
+						name="riot-id"
+						aria-label="Riot-ID"
+						autoComplete="off"
+						spellCheck={false}
 						value={riotIdInput}
 						onChange={(event) => setRiotIdInput(event.target.value)}
 						required
-						placeholder="Name#TAG"
+						placeholder="Name#TAG…"
 						className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/34"
 					/>
 					<button
@@ -632,7 +638,7 @@ function RiotVerifyPanel({
 						disabled={status.kind === "loading"}
 						className="rounded-2xl bg-amber-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-amber-950 disabled:opacity-60"
 					>
-						{status.kind === "loading" ? "Wird gesucht..." : "Verifizierung starten"}
+						{status.kind === "loading" ? "Wird gesucht…" : "Verifizierung starten"}
 					</button>
 				</form>
 			) : (
@@ -645,7 +651,7 @@ function RiotVerifyPanel({
 								<strong className="font-black">Lass dieses Icon aktiv und klicke dann auf „Jetzt prüfen“.</strong> Ein Logout ist nicht nötig. Falls Riot die
 								Änderung noch nicht anzeigt, warte kurz und prüfe erneut. Erst nach der grünen Bestätigung kannst du dein altes Icon zurückstellen.
 							</div>
-							<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE")}.</div>
+							<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin" })}.</div>
 						</div>
 						<button
 							type="button"
@@ -653,7 +659,7 @@ function RiotVerifyPanel({
 							disabled={status.kind === "loading"}
 							className="rounded-2xl bg-lime-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-60"
 						>
-							{status.kind === "loading" ? "Prüfe..." : "Jetzt prüfen"}
+							{status.kind === "loading" ? "Prüfe…" : "Jetzt prüfen"}
 						</button>
 					</div>
 					{challenge.checkedAt && challenge.currentIconUrl ? (
@@ -670,12 +676,16 @@ function RiotVerifyPanel({
 			)}
 
 			{status.kind === "loading" ? (
-				<div className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] px-4 py-3 text-xs font-bold text-cyan-50">
+				<div role="status" className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] px-4 py-3 text-xs font-bold text-cyan-50">
 					<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" aria-hidden="true" />
 					{status.message}
 				</div>
 			) : null}
-			{status.kind === "error" ? <div className="mt-3 rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-2 text-xs text-red-100">{status.message}</div> : null}
+			{status.kind === "error" ? (
+				<div role="alert" className="mt-3 rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-2 text-xs text-red-100">
+					{status.message}
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -701,7 +711,7 @@ function RiotIconState({ label, iconUrl, iconId, tone }: { label: string; iconUr
 
 function formatRiotCheckTime(value: string) {
 	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? "gerade eben" : date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+	return Number.isNaN(date.getTime()) ? "gerade eben" : date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
 }
 
 function Field({ label, name, placeholder, defaultValue }: { label: string; name: string; placeholder: string; defaultValue?: string }) {
@@ -711,6 +721,7 @@ function Field({ label, name, placeholder, defaultValue }: { label: string; name
 			<input
 				name={name}
 				required
+				autoComplete="off"
 				defaultValue={defaultValue}
 				placeholder={placeholder}
 				className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
@@ -729,7 +740,7 @@ function ThemedSelectField({ label, name, options, initialValue = "" }: { label:
 				value={value}
 				onChange={setValue}
 				required
-				placeholder="Bitte auswählen"
+				placeholder="Bitte auswählen…"
 				options={options.map((option) => ({ value: option, label: option }))}
 			/>
 		</label>

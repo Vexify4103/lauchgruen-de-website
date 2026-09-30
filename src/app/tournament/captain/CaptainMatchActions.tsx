@@ -83,12 +83,29 @@ export function CaptainMatchActions({ matchId, teamName }: { matchId: string; te
 							/>
 						</div>
 					</label>
-					<input name="duration" placeholder="Spielzeit, z. B. 31:42" className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50" />
-					<input name="screenshot" placeholder="Screenshot-Link (optional)" className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50" />
+					<input
+						name="duration"
+						aria-label="Spielzeit (mm:ss)"
+						autoComplete="off"
+						inputMode="numeric"
+						placeholder="Spielzeit, z. B. 31:42…"
+						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
+					/>
+					<input
+						name="screenshot"
+						inputMode="url"
+						aria-label="Screenshot-Link (optional)"
+						autoComplete="off"
+						spellCheck={false}
+						placeholder="Screenshot-Link, z. B. https://imgur.com/…"
+						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
+					/>
 					<textarea
 						name="note"
 						rows={2}
-						placeholder="Hinweis für die Orga (optional)"
+						aria-label="Hinweis für die Orga (optional)"
+						autoComplete="off"
+						placeholder="Hinweis für die Orga (optional)…"
 						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
 					/>
 					<button disabled={pending} className="rounded-xl bg-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950">
@@ -96,7 +113,11 @@ export function CaptainMatchActions({ matchId, teamName }: { matchId: string; te
 					</button>
 				</form>
 			) : null}
-			{message ? <p className="mt-3 text-sm font-bold text-cyan-50/80">{message}</p> : null}
+			{message ? (
+				<p role="status" className="mt-3 text-sm font-bold text-cyan-50/80">
+					{message}
+				</p>
+			) : null}
 			<p className="mt-3 text-xs leading-5 text-emerald-100/46">Der Report unterstützt die Orga, ersetzt aber nicht die offizielle Ergebnisprüfung.</p>
 		</div>
 	);

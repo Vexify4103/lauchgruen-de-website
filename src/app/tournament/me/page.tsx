@@ -26,6 +26,7 @@ import { getSiteUrls } from "@/lib/site-urls";
 import { isTournamentHost } from "@/lib/tournament-url";
 import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
+import { usesUltimateBravery } from "@/lib/tournament-kind";
 
 export const metadata: Metadata = {
 	title: "Mein Lauchgruen-Konto",
@@ -67,7 +68,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					<div className="mt-5">
 						<DiscordSignInButton
 							redirectTo={accountUrl}
-							pendingLabel="Weiter zu Discord..."
+							pendingLabel="Weiter zu Discord…"
 							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
 						>
 							Mit Discord anmelden
@@ -88,7 +89,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		getTournamentSettings(),
 	]);
 	const twitchStatus = params.twitch;
-	const isUltimateBravery = settings.activeTournament.id === "ultimate-bravery";
+	const isUltimateBravery = usesUltimateBravery(settings.activeTournament);
 	const discordAvatarUrl = session.user.discordAvatar ?? "https://cdn.discordapp.com/embed/avatars/0.png";
 	const application = applications.find((entry) => entry.discordId === discordId) ?? null;
 	const now = new Date();
@@ -199,7 +200,13 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						<div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
 							<div className="size-20 overflow-hidden rounded-[1.6rem] border border-lime-200/30 bg-[#09160d] shadow-lg shadow-lime-300/10">
 								{/* eslint-disable-next-line @next/next/no-img-element */}
-								<img src={discordAvatarUrl} alt={`Discord-Profilbild von ${session.user.discordHandle ?? "dir"}`} className="size-full object-cover" />
+								<img
+									src={discordAvatarUrl}
+									width={80}
+									height={80}
+									alt={`Discord-Profilbild von ${session.user.discordHandle ?? "dir"}`}
+									className="size-full object-cover"
+								/>
 							</div>
 							<div className="min-w-0">
 								<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Mein Lauchgruen-Konto</div>
@@ -224,7 +231,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								</div>
 							</div>
 							<div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/[0.08] px-4 py-3 text-center sm:text-right">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/60">Ultimate Bravery</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/60">{settings.activeTournament.name}</div>
 								<div className="mt-1 text-sm font-black text-cyan-50">{tournamentModeLabel}</div>
 							</div>
 						</div>
@@ -294,7 +301,9 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 										{matchAccessReady
 											? isUltimateBravery
 												? "Dein persönlicher Roll wartet. Öffne jetzt den Champ Select und bestätige Champion, Build, Runen und Summoner Spells."
-												: "Der Champ Select ist geöffnet. Öffne jetzt die Match-Seite und tritt deinem Team bei."
+												: isCaptain
+													? "Der Champ Select ist geöffnet. Als Captain lockst du Picks und Bans für dein Team; gesperrte Fearless-Champions sind dort ausgegraut."
+													: "Der Champ Select ist geöffnet. Dein Captain draftet, du kannst live zuschauen und dich im Voice abstimmen."
 											: "Die Paarung ist bereits sichtbar. Sobald die Turnierleitung den Champ Select freigibt, wird dieser Bereich grün und der Startknopf deutlich hervorgehoben."}
 									</p>
 								</div>
@@ -310,9 +319,9 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 										>
 											{matchAccessReady ? "Jetzt Champ Select öffnen" : "Match-Seite öffnen"}
 										</Link>
-									) : pool ? (
+									) : pool || matchAccessReady ? (
 										<Link
-											href={tournamentHref(`/champ-select/${nextMatch.id}/spectate`)}
+											href={tournamentHref(isCaptain ? `/champ-select/${nextMatch.id}` : `/champ-select/${nextMatch.id}/spectate`)}
 											className="rounded-2xl bg-gradient-to-r from-lime-200 to-cyan-200 px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20"
 										>
 											Champ Select öffnen

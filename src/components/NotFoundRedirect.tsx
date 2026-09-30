@@ -34,7 +34,13 @@ export function NotFoundRedirect() {
 					<div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-lime-200 to-cyan-200" />
 					<div className="flex items-center gap-4">
 						{/* eslint-disable-next-line @next/next/no-img-element */}
-						<img src="/bear-logo.png" alt="" className="size-16 rounded-2xl border border-lime-200/30 object-cover shadow-[0_0_24px_rgba(183,243,107,.18)]" />
+						<img
+							src="/bear-logo.png"
+							alt=""
+							width={64}
+							height={64}
+							className="size-16 rounded-2xl border border-lime-200/30 object-cover shadow-[0_0_24px_rgba(183,243,107,.18)]"
+						/>
 						<div>
 							<div className="text-[10px] font-black uppercase tracking-[0.3em] text-lime-200/60">Fehler 404</div>
 							<div className="mt-1 text-sm font-black uppercase tracking-[0.18em] text-emerald-100/80">Falscher Weg im Jungle</div>

@@ -1,4 +1,4 @@
-import { TournamentLink as Link } from "../../TournamentLink";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/mongo";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -19,7 +19,6 @@ import { BlacklistManager } from "./BlacklistManager";
 import { EligibilityOverrideManager } from "./EligibilityOverrideManager";
 import { PreferenceGroupManager } from "./PreferenceGroupManager";
 import { getAdminVersions } from "@/lib/admin-version";
-import { DiscordSignInButton } from "../../DiscordSignInButton";
 
 export const dynamic = "force-dynamic";
 
@@ -67,24 +66,8 @@ export default async function ApplicantsPage() {
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
 
-	if (!isOwner) {
-		return (
-			<div className="px-5 py-10 sm:py-14">
-				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-amber-200/24 bg-amber-200/10 p-6 text-sm leading-7 text-amber-50">
-					<p>Melde dich mit einem Owner-Discord-Account an, um Bewerbungen einzusehen.</p>
-					<div className="mt-4">
-						<DiscordSignInButton
-							redirectTo="/tournament/admin/applicants"
-							pendingLabel="Weiter zu Discord..."
-							className="rounded-xl bg-amber-100 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 disabled:cursor-wait disabled:opacity-65"
-						>
-							Mit Discord anmelden
-						</DiscordSignInButton>
-					</div>
-				</section>
-			</div>
-		);
-	}
+	// The admin layout already gates access; this only guards direct renders.
+	if (!isOwner) redirect("/tournament/admin");
 
 	const [applications, assignedByDiscordId, blacklistEntries, eligibilityOverrides, preferenceGroups, settings] = await Promise.all([
 		listApplications(),
@@ -105,56 +88,75 @@ export default async function ApplicantsPage() {
 	const unassignedCount = sorted.length - assignedCount;
 
 	return (
-		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto w-full max-w-7xl">
-				<div className="flex flex-wrap items-end justify-between gap-3">
-					<div className="max-w-3xl">
-						<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Bewerbungen</div>
-						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Eingereichte Anmeldungen.</h1>
+		<>
+			<div className="admin-stat-grid">
+				<article>
+					<span>Bewerbungen</span>
+					<strong>{sorted.length}</strong>
+					<small>insgesamt eingegangen</small>
+				</article>
+				<article>
+					<span>Zugewiesen</span>
+					<strong>{assignedCount}</strong>
+					<small>in einem Team</small>
+				</article>
+				<article>
+					<span>Offen</span>
+					<strong>{unassignedCount}</strong>
+					<small>noch ohne Team</small>
+				</article>
+			</div>
+			<section className="admin-panel">
+				<div className="admin-panel-head">
+					<div>
+						<span>Riot-Daten</span>
+						<h2>Spielerdaten abgleichen</h2>
 					</div>
-					<Link
-						href="/tournament/admin"
-						className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
-					>
-						← Zurück zum Admin
-					</Link>
-				</div>
-
-				<div className="mt-6 flex flex-wrap gap-3">
-					<StatPill label="Gesamt" value={sorted.length.toString()} tone="neutral" />
-					<StatPill label="Zugewiesen" value={assignedCount.toString()} tone="ok" />
-					<StatPill label="Offen" value={unassignedCount.toString()} tone="warn" />
 					<RefreshRanksButton label="Alle Spielerdaten aktualisieren" confirmBulk />
 				</div>
+				<p className="text-sm leading-6 text-[var(--muted)]">
+					Aktualisiert Rang, Level und Riot-ID aller Bewerber. Läuft im Hintergrund und respektiert Riots Rate-Limits.
+				</p>
+			</section>
 
-				<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} />
+			<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} />
 
-				<EligibilityOverrideManager
-					initialEntries={eligibilityOverrides}
-					initialVersion={versions["eligibility-overrides"] ?? 0}
-					activeTournamentId={settings.activeTournament.id}
-					activeTournamentName={settings.activeTournament.name}
-				/>
+			<EligibilityOverrideManager
+				initialEntries={eligibilityOverrides}
+				initialVersion={versions["eligibility-overrides"] ?? 0}
+				activeTournamentId={settings.activeTournament.id}
+				activeTournamentName={settings.activeTournament.name}
+			/>
 
-				<PreferenceGroupManager
-					applicants={sorted.map((app) => ({
-						discordId: app.discordId,
-						displayName: app.displayName,
-						discordHandle: app.discordHandle,
-						riotId: app.riotId,
-						groupCode: groupByDiscordId.get(app.discordId) ?? null,
-					}))}
-					groups={preferenceGroups.map((group) => ({
-						code: group.code,
-						memberDiscordIds: group.memberDiscordIds,
-					}))}
-					initialVersion={versions["preference-groups"] ?? 0}
-				/>
+			<PreferenceGroupManager
+				applicants={sorted.map((app) => ({
+					discordId: app.discordId,
+					displayName: app.displayName,
+					discordHandle: app.discordHandle,
+					riotId: app.riotId,
+					groupCode: groupByDiscordId.get(app.discordId) ?? null,
+				}))}
+				groups={preferenceGroups.map((group) => ({
+					code: group.code,
+					memberDiscordIds: group.memberDiscordIds,
+				}))}
+				initialVersion={versions["preference-groups"] ?? 0}
+			/>
 
+			<section className="admin-panel mt-8" aria-labelledby="applications-title">
+				<div className="admin-panel-head">
+					<div>
+						<span>Teilnehmer</span>
+						<h2 id="applications-title">Alle Bewerbungen</h2>
+					</div>
+					<b>{sorted.length}</b>
+				</div>
 				{sorted.length === 0 ? (
-					<div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 text-sm leading-7 text-emerald-100/68">Noch keine Bewerbungen eingegangen.</div>
+					<div className="attention-clear">
+						<p>Noch keine Bewerbungen eingegangen.</p>
+					</div>
 				) : (
-					<div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						{sorted.map((app) => (
 							<ApplicantCard
 								key={app.id}
@@ -171,21 +173,7 @@ export default async function ApplicantsPage() {
 					</div>
 				)}
 			</section>
-		</div>
-	);
-}
-
-function StatPill({ label, value, tone }: { label: string; value: string; tone: "neutral" | "ok" | "warn" }) {
-	const tones = {
-		neutral: "border-white/12 bg-white/[0.04] text-emerald-100",
-		ok: "border-lime-200/30 bg-lime-200/10 text-lime-50",
-		warn: "border-amber-200/30 bg-amber-200/12 text-amber-100",
-	} as const;
-	return (
-		<div className={`flex items-baseline gap-2 rounded-2xl border px-4 py-2 ${tones[tone]}`}>
-			<span className="text-xl font-black">{value}</span>
-			<span className="text-[10px] font-black uppercase tracking-[0.22em] opacity-72">{label}</span>
-		</div>
+		</>
 	);
 }
 

@@ -14,6 +14,8 @@ import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getMatchControlContext } from "@/lib/match-control";
 import { playoffFormatLabel } from "@/lib/tournament-format";
+import { usesFearless, usesFlexibleEngine, usesPoolWheel } from "@/lib/tournament-kind";
+import { PageIntro } from "@/components/site/PageIntro";
 
 type ScheduleMatch = {
 	id: string;
@@ -53,14 +55,14 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	const settings = await getTournamentSettings();
 	const live = settings.activeTournament.mode === "live";
 	if (!live && settings.activeTournament.mode !== "finished") {
-		redirect(settings.activeTournament.id === "ultimate-bravery" ? "/tournament" : "/tournament/archive/az-2026");
+		redirect(usesFlexibleEngine(settings.activeTournament) ? "/tournament" : "/tournament/archive/az-2026");
 	}
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
 	const ctx = await getTournamentContext();
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
-	const control = settings.activeTournament.id === "ultimate-bravery" ? await getMatchControlContext() : null;
+	const control = usesFlexibleEngine(settings.activeTournament) ? await getMatchControlContext() : null;
 	const playoffs = control ? [] : resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
@@ -145,15 +147,15 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			)
 		: [];
 
+	const fearlessDraft = usesFearless(settings.activeTournament);
 	const sections = [
 		{
 			title: "Spieltag 1",
-			description:
-				settings.activeTournament.id === "ultimate-bravery"
-					? friday.length
-						? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches aktuell angesetzt.`
-						: `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · Paarungen folgen durch die Turnierleitung.`
-					: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
+			description: usesFlexibleEngine(settings.activeTournament)
+				? friday.length
+					? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches aktuell angesetzt.`
+					: `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · Paarungen folgen durch die Turnierleitung.`
+				: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
 			batches: groupScheduleBatches(friday),
 			emptyText:
 				settings.ultimateBravery.dayOneFormat === "swiss"
@@ -162,10 +164,9 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 		},
 		{
 			title: "Spieltag 2",
-			description:
-				settings.activeTournament.id === "ultimate-bravery"
-					? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · Grand Final ohne Bracket Reset.`
-					: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
+			description: usesFlexibleEngine(settings.activeTournament)
+				? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · Grand Final ohne Bracket Reset.`
+				: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
 			batches: playoffScheduleBatches(saturday),
 			emptyText:
 				"Die Playoff-Paarungen werden erst nach den finalen Seeds aus Spieltag 1 in den Zeitplan übernommen. Den vollständigen TBD-Weg siehst du bereits im Bracket.",
@@ -173,46 +174,34 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	];
 
 	return (
-		<div className="px-5 py-10 sm:py-14">
+		<>
 			{live ? <TournamentLiveRefresh /> : null}
-			<section className="mx-auto w-full max-w-7xl">
+			<section className="page-section compact-top">
 				{previewEnabled ? (
-					<div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">
+					<div className="alert mb-6 flex flex-wrap items-center justify-between gap-3">
 						<span>Admin-Vorschau: Verbundene Offline-Kanäle werden testweise angezeigt.</span>
 						<div className="flex flex-wrap gap-2">
-							<Link
-								href="/tournament/teams?twitchPreview=1"
-								className="rounded-xl border border-amber-100/24 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
-							>
+							<Link href="/tournament/teams?twitchPreview=1" className="button ghost small">
 								Bei Teams testen
 							</Link>
-							<Link href="/tournament/schedule" className="rounded-xl border border-white/12 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]">
+							<Link href="/tournament/schedule" className="button ghost small">
 								Vorschau beenden
 							</Link>
 						</div>
 					</div>
 				) : null}
-				<div className="max-w-3xl">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Zeitplan</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Wann wird was gespielt?</h1>
-					<p className="mt-4 text-sm leading-7 text-emerald-100/68">
-						Die Startzeiten der beiden Spieltage stehen oben in den jeweiligen Matchblöcken. Alle folgenden Uhrzeiten sind Richtzeiten eines rollierenden Spielplans:
-						Das nächste Match startet, sobald der vorherige Block abgeschlossen ist.
-					</p>
-				</div>
-
-				<div className="mt-6 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] p-4 text-sm leading-7 text-cyan-50/78">
-					<strong>Rollierender Ablauf:</strong> Eine Runde bildet einen gemeinsamen Matchblock. Paarungen innerhalb desselben Blocks können parallel laufen; Verzögerungen
-					verschieben die folgenden Blöcke gemeinsam.
-				</div>
+				<PageIntro kicker={live ? "Zeitplan" : "Ergebnisse"} title={live ? "Wann wird was gespielt?" : "Alle Ergebnisse."}>
+					Alle Uhrzeiten sind Richtzeiten eines rollierenden Spielplans: Eine Runde bildet einen gemeinsamen Matchblock, Paarungen darin können parallel laufen und
+					Verzögerungen verschieben die folgenden Blöcke gemeinsam.
+				</PageIntro>
 
 				<div className="mt-8 grid gap-6">
 					{sections.map((section) => (
-						<article key={section.title} className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
+						<article key={section.title} className="content-panel tight">
 							<div className="flex flex-wrap items-end justify-between gap-3">
 								<div>
-									<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/60">{section.title}</div>
-									<h2 className="mt-2 text-2xl font-black text-emerald-50">{section.description}</h2>
+									<p className="panel-kicker">{section.title}</p>
+									<h2 className="!mb-0 !text-2xl">{section.description}</h2>
 								</div>
 								<span className="rounded-2xl border border-white/10 bg-black/18 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/60">
 									{section.batches.reduce((sum, batch) => sum + batch.matches.length, 0)} Matches
@@ -278,14 +267,18 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 																		Live gecastet
 																	</span>
 																) : null}
-																{settings.activeTournament.id !== "ultimate-bravery" && match.pool ? (
+																{usesPoolWheel(settings.activeTournament) && match.pool ? (
 																	<Link
 																		href={`/tournament/champ-select/${match.id}/spectate`}
 																		className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-50/82"
 																	>
 																		Spectator Draft
 																	</Link>
-																) : settings.activeTournament.id !== "ultimate-bravery" && hasTeams ? (
+																) : fearlessDraft && ["Pending", "Live", "Finished"].includes(match.status) ? (
+																	<Link href={`/tournament/champ-select/${match.id}/spectate`} className="button ghost small !min-h-0 !py-1.5">
+																		Draft ansehen
+																	</Link>
+																) : usesPoolWheel(settings.activeTournament) && hasTeams ? (
 																	<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/38">
 																		Pools noch offen
 																	</span>
@@ -308,7 +301,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					))}
 				</div>
 			</section>
-		</div>
+		</>
 	);
 }
 

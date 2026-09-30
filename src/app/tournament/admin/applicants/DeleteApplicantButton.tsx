@@ -56,7 +56,11 @@ export function DeleteApplicantButton({
 			>
 				✕
 			</button>
-			{error ? <div className="mt-2 rounded-lg border border-red-300/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-100">{error}</div> : null}
+			{error ? (
+				<div role="alert" className="mt-2 rounded-lg border border-red-300/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-100">
+					{error}
+				</div>
+			) : null}
 			<ConfirmDialog
 				open={open}
 				title="Bewerbung wirklich löschen?"

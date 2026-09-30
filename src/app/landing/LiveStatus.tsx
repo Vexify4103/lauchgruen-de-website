@@ -43,7 +43,8 @@ function formatUptime(startedAtIso: string): string {
 	return hours ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
 }
 
-const shellClass = "group relative flex h-full min-h-[27rem] overflow-hidden rounded-[2.6rem] border border-white/10 bg-[#04140d] shadow-2xl shadow-black/30 sm:min-h-[30rem] lg:min-h-[32rem]";
+const shellClass =
+	"group relative flex h-full min-h-[27rem] overflow-hidden rounded-[2.6rem] border border-white/10 bg-[#04140d] shadow-2xl shadow-black/30 sm:min-h-[30rem] lg:min-h-[32rem]";
 
 export function LiveStatus({ login = "lauchgruen", pollIntervalMs = 60_000 }: Props) {
 	const [data, setData] = useState<ApiResponse | null>(null);
@@ -102,15 +103,26 @@ function LiveState({ data, login }: { data: ApiResponse; login: string }) {
 		<a href={`https://twitch.tv/${login}`} target="_blank" rel="noreferrer" className={`${shellClass} flex-col`}>
 			<div className="relative aspect-video w-full shrink-0 overflow-hidden border-b border-white/10 bg-black">
 				{/* eslint-disable-next-line @next/next/no-img-element */}
-				<img src={stream.thumbnailUrl} alt={stream.title} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+				<img
+					src={stream.thumbnailUrl}
+					alt={stream.title}
+					width={1280}
+					height={720}
+					fetchPriority="high"
+					className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-[1.035]"
+				/>
 				<div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,9,6,0.04),rgba(2,9,6,0.18)_65%,rgba(2,9,6,0.58))]" />
 				<div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:p-4">
 					<span className="inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-red-950/30">
 						<span className="size-1.5 animate-pulse rounded-full bg-white" /> Live
 					</span>
 					<div className="flex flex-wrap justify-end gap-2">
-						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">{stream.viewerCount.toLocaleString("de-DE")} Zuschauer</span>
-						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">{formatUptime(stream.startedAt)}</span>
+						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">
+							{stream.viewerCount.toLocaleString("de-DE")} Zuschauer
+						</span>
+						<span className="rounded-full border border-white/12 bg-black/62 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur-md">
+							{formatUptime(stream.startedAt)}
+						</span>
 					</div>
 				</div>
 				<div className="absolute inset-x-0 bottom-0 h-1 bg-[#9146ff] shadow-[0_0_14px_rgba(145,70,255,0.6)]" />
@@ -119,7 +131,15 @@ function LiveState({ data, login }: { data: ApiResponse; login: string }) {
 			<div className="relative flex min-h-0 flex-1 flex-col p-5 sm:p-6">
 				<div className="flex items-center gap-4">
 					{data.user?.profileImageUrl ? (
-						<Image src={data.user.profileImageUrl} alt={data.user.displayName} width={54} height={54} priority unoptimized className="size-[54px] shrink-0 rounded-2xl border-2 border-red-400/75 object-cover shadow-xl shadow-black/45" />
+						<Image
+							src={data.user.profileImageUrl}
+							alt={data.user.displayName}
+							width={54}
+							height={54}
+							priority
+							unoptimized
+							className="size-[54px] shrink-0 rounded-2xl border-2 border-red-400/75 object-cover shadow-xl shadow-black/45"
+						/>
 					) : null}
 					<div className="min-w-0 flex-1">
 						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-lime-200/72">{stream.gameName}</div>
@@ -142,7 +162,14 @@ function OfflineState({ user, login }: { user: ApiUser | null; login: string }) 
 			{user?.offlineImageUrl ? (
 				<>
 					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img src={user.offlineImageUrl} alt="" aria-hidden className="absolute inset-0 size-full object-cover opacity-22 grayscale transition duration-500 group-hover:scale-[1.035]" />
+					<img
+						src={user.offlineImageUrl}
+						alt=""
+						aria-hidden
+						width={1920}
+						height={1080}
+						className="absolute inset-0 size-full object-cover opacity-22 grayscale transition duration-500 group-hover:scale-[1.035]"
+					/>
 					<div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,16,10,0.45),rgba(3,16,10,0.94))]" />
 				</>
 			) : (
@@ -153,15 +180,29 @@ function OfflineState({ user, login }: { user: ApiUser | null; login: string }) 
 
 			<div className="relative flex w-full flex-col justify-between p-6 sm:p-7">
 				<div className="flex items-center justify-between gap-3">
-					<span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/55">Aktuell offline</span>
+					<span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/55">
+						Aktuell offline
+					</span>
 					<span className="size-2 rounded-full bg-emerald-100/20" />
 				</div>
 
 				<div className="my-auto py-10">
-					{user?.profileImageUrl ? <Image src={user.profileImageUrl} alt={user.displayName} width={72} height={72} priority unoptimized className="size-[72px] rounded-[1.4rem] border border-lime-200/18 object-cover grayscale shadow-2xl shadow-black/40" /> : null}
+					{user?.profileImageUrl ? (
+						<Image
+							src={user.profileImageUrl}
+							alt={user.displayName}
+							width={72}
+							height={72}
+							priority
+							unoptimized
+							className="size-[72px] rounded-[1.4rem] border border-lime-200/18 object-cover grayscale shadow-2xl shadow-black/40"
+						/>
+					) : null}
 					<div className="mt-6 text-[9px] font-black uppercase tracking-[0.28em] text-lime-200/50">Nächster Stream</div>
 					<h3 className="mt-3 max-w-sm text-3xl font-black leading-[0.98] tracking-[-0.035em]">Noch nichts live. Aber meistens nicht lange.</h3>
-					<p className="mt-4 max-w-sm text-sm leading-7 text-emerald-100/52">Auf Twitch folgen und die Benachrichtigung aktivieren, damit der nächste Abend nicht ohne dich startet.</p>
+					<p className="mt-4 max-w-sm text-sm leading-7 text-emerald-100/52">
+						Auf Twitch folgen und die Benachrichtigung aktivieren, damit der nächste Abend nicht ohne dich startet.
+					</p>
 				</div>
 
 				<div className="flex items-center justify-between gap-4 border-t border-white/8 pt-4">

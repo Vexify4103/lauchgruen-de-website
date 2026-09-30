@@ -6,8 +6,14 @@ import { readTournamentState, type StoredTournamentMatch } from "@/lib/tournamen
 import { clearDraftStates, listDraftStates, type TournamentDraftState } from "@/lib/tournament-draft";
 import { clearTournamentWheel, getTournamentWheelState, type TournamentWheelState } from "@/lib/tournament-wheel";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
-import { getTournamentSettings, updateTournamentSettings } from "@/lib/tournament-settings";
+import { getTournamentSettings, updateTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
 import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
+import { getMatchControlContext, type ControlMatch } from "@/lib/match-control";
+import { resolveTournamentCompletion } from "@/lib/tournament-completion";
+import { playoffFormatLabel } from "@/lib/tournament-format";
+import { TOURNAMENT_KIND_LABELS, usesFlexibleEngine, usesUltimateBravery, type TournamentKind } from "@/lib/tournament-kind";
+import { getSwissStageState, type SwissStageState } from "@/lib/tournament-swiss";
+import { clearUltimateBraveryRolls, listAllUltimateBraveryRolls, type UltimateBraveryRoll } from "@/lib/ultimate-bravery";
 
 type ArchivedPlayer = Pick<TournamentTeam["players"][number], "name" | "role" | "riotId" | "verified" | "opggUrl" | "dpmUrl">;
 type ArchivedTeam = Omit<TournamentTeam, "captainRef" | "discordRoleId" | "players"> & { players: ArchivedPlayer[] };
@@ -15,7 +21,15 @@ type ArchivedDraft = Pick<TournamentDraftState, "matchId" | "updatedAt"> & {
 	actions: Array<Pick<TournamentDraftState["actions"][number], "side" | "kind" | "champion" | "lockedAt">>;
 };
 
+export type ArchivedControlMatch = Omit<ControlMatch, "adminNote">;
+export type ArchivedUltimateBraveryRoll = Pick<
+	UltimateBraveryRoll,
+	"matchId" | "teamName" | "riotId" | "role" | "champion" | "startingItems" | "items" | "summonerSpells" | "runes" | "rollNumber" | "rerollsUsed"
+>;
+
 export type TournamentArchiveSnapshot = {
+	/** Missing on archives created before tournament kinds existed (the A-Z event). */
+	kind?: TournamentKind;
 	teams: ArchivedTeam[];
 	groupMatches: GroupMatch[];
 	matches: Record<string, Omit<StoredTournamentMatch, "adminNote">>;
@@ -25,6 +39,12 @@ export type TournamentArchiveSnapshot = {
 		currentAssignment: Omit<NonNullable<TournamentWheelState["currentAssignment"]>, "spunBy"> | null;
 	};
 	drafts: ArchivedDraft[];
+	/** Flexible-engine tournaments: structure, every resolved match and the Swiss stage. */
+	structure?: TournamentSettings["ultimateBravery"];
+	controlMatches?: ArchivedControlMatch[];
+	swiss?: SwissStageState;
+	fearless?: TournamentSettings["fearless"];
+	ultimateBraveryRolls?: ArchivedUltimateBraveryRoll[];
 };
 
 export type TournamentArchive = {
@@ -167,6 +187,17 @@ function publicWheel(wheel: TournamentWheelState): TournamentArchiveSnapshot["wh
 	};
 }
 
+function publicControlMatch(match: ControlMatch): ArchivedControlMatch {
+	const { adminNote: _adminNote, ...rest } = match;
+	void _adminNote;
+	return rest;
+}
+
+function publicRoll(roll: UltimateBraveryRoll): ArchivedUltimateBraveryRoll {
+	const { matchId, teamName, riotId, role, champion, startingItems, items, summonerSpells, runes, rollNumber, rerollsUsed } = roll;
+	return { matchId, teamName, riotId, role, champion, startingItems, items, summonerSpells, runes, rollNumber, rerollsUsed };
+}
+
 function publicDrafts(drafts: TournamentDraftState[]): ArchivedDraft[] {
 	return drafts.map((draft) => ({
 		matchId: draft.matchId,
@@ -191,41 +222,82 @@ function archiveRoleCleanupOperations(teams: TournamentTeam[]): DiscordOperation
 	return operations;
 }
 
-export async function archiveAzTournamentAndPrepareUltimateBravery(input: {
-	championTeam: string;
-	finalistTeam?: string;
-	note?: string;
-	vodUrl?: string;
-	highlightUrl?: string;
-	createdBy?: string;
-}) {
-	const settings = await getTournamentSettings();
-	if (settings.activeTournament.id !== "az-2026") throw new Error("Das aktive Turnier wurde bereits archiviert oder geändert.");
+export type NextTournamentInput = {
+	id: string;
+	name: string;
+	season: string;
+	kind: TournamentKind;
+};
 
-	const ctx = await getTournamentContext();
-	const [state, wheel, drafts] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState(), listDraftStates()]);
-	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
-	const champion = ctx.teams.find((team) => team.name === input.championTeam);
+function formatArchiveDate(value: string | null) {
+	return value ? new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }).format(new Date(value)) : null;
+}
+
+export function archiveDateLabel(structure: TournamentSettings["ultimateBravery"]): string {
+	const first = formatArchiveDate(structure.startAt);
+	const second = formatArchiveDate(structure.dayTwoStartAt);
+	if (first && second && first !== second) return `${first.slice(0, 6)}–${second}`;
+	return first ?? second ?? "Datum unbekannt";
+}
+
+export function archiveFormatLabel(kind: TournamentKind, structure: TournamentSettings["ultimateBravery"]): string {
+	const stage = structure.dayOneFormat === "swiss" ? "Swiss Stage" : structure.dayOneFormat === "groups" ? "Gruppenphase" : null;
+	return [stage, playoffFormatLabel(structure.format), TOURNAMENT_KIND_LABELS[kind]].filter(Boolean).join(" + ");
+}
+
+/**
+ * Freezes the active tournament into `tournament_archives`, clears every
+ * per-tournament collection and switches the site to the next tournament in
+ * teaser mode. Only a finished tournament with a decided grand final can be archived.
+ */
+export async function archiveActiveTournament(input: { note?: string; vodUrl?: string; highlightUrl?: string; createdBy?: string; next: NextTournamentInput }) {
+	const settings = await getTournamentSettings();
+	const active = settings.activeTournament;
+	if (active.mode !== "finished") throw new Error("Nur ein abgeschlossenes Turnier kann archiviert werden.");
+	if (await getTournamentArchive(active.id)) throw new Error("Dieses Turnier wurde bereits archiviert.");
+	if (input.next.id === active.id || (await getTournamentArchive(input.next.id))) throw new Error("Die ID des nächsten Turniers ist bereits vergeben.");
+
+	const [ctx, control] = await Promise.all([getTournamentContext(), getMatchControlContext()]);
+	const completion = resolveTournamentCompletion(control.matches);
+	if (!completion) throw new Error("Das Grand Final hat noch kein gültiges Ergebnis.");
+	const champion = ctx.teams.find((team) => team.name === completion.championTeamName);
 	if (!champion) throw new Error("Das Gewinnerteam wurde im aktuellen Turnier nicht gefunden.");
-	const final = playoffs.find((match) => match.id === "gf");
-	const derivedFinalist = final?.teamAName === input.championTeam ? final.teamBName : final?.teamAName;
+
+	const flexible = usesFlexibleEngine(active);
+	const [state, wheel, drafts, swiss, rolls] = await Promise.all([
+		readTournamentState(ctx.groupMatches),
+		getTournamentWheelState(),
+		listDraftStates(),
+		flexible && settings.ultimateBravery.dayOneFormat === "swiss" ? getSwissStageState(active.id) : Promise.resolve(null),
+		usesUltimateBravery(active) ? listAllUltimateBraveryRolls() : Promise.resolve([]),
+	]);
 	const snapshot: TournamentArchiveSnapshot = {
+		kind: active.kind,
 		teams: ctx.teams.map(publicTeam),
 		groupMatches: ctx.groupMatches,
 		matches: Object.fromEntries(Object.entries(state.matches).map(([id, match]) => [id, publicMatch(match)])),
-		playoffs,
+		playoffs: flexible ? [] : resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches),
 		standings: computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches),
 		wheel: publicWheel(wheel),
 		drafts: publicDrafts(drafts),
+		...(flexible
+			? {
+					structure: settings.ultimateBravery,
+					controlMatches: control.matches.map(publicControlMatch),
+					swiss: swiss ?? undefined,
+				}
+			: {}),
+		...(active.kind === "fearless" ? { fearless: settings.fearless } : {}),
+		...(rolls.length > 0 ? { ultimateBraveryRolls: rolls.map(publicRoll) } : {}),
 	};
 	const archive = await upsertTournamentArchive({
-		id: "az-2026",
-		title: "Kunterbuntes A-Z Turnier",
-		season: "A-Z Turnier 2026",
-		dateLabel: "19.–20.06.2026",
-		format: "Gruppenphase + Double Elimination + A-Z Pools",
-		championTeam: input.championTeam,
-		finalistTeam: input.finalistTeam || derivedFinalist || undefined,
+		id: active.id,
+		title: active.name,
+		season: active.season,
+		dateLabel: archiveDateLabel(settings.ultimateBravery),
+		format: flexible ? archiveFormatLabel(active.kind, settings.ultimateBravery) : "Gruppenphase + Double Elimination + A-Z Pools",
+		championTeam: completion.championTeamName,
+		finalistTeam: completion.finalistTeamName,
 		championRoster: champion.players.map((player) => player.riotId),
 		note: input.note,
 		vodUrl: input.vodUrl,
@@ -242,23 +314,35 @@ export async function archiveAzTournamentAndPrepareUltimateBravery(input: {
 		db.collection("tournament_preference_groups").deleteMany({}),
 		db.collection("tournament_captain_checkins").deleteMany({}),
 		db.collection("tournament_match_reports").deleteMany({}),
-		db.collection<{ _id: string; teams?: Record<string, unknown> }>("bot_state").updateOne({ _id: "default" }, { $set: { teams: {} } }, { upsert: true }),
+		db.collection("tournament_roster_drafts").deleteMany({}),
+		db
+			.collection<{ _id: string; teams?: Record<string, unknown> }>("bot_state")
+			.updateOne({ _id: "default" }, { $set: { teams: {} }, $unset: { rosterPublishedAt: "" } }, { upsert: true }),
 		clearDraftStates(),
 		clearTournamentWheel(),
+		clearUltimateBraveryRolls(),
 	]);
 	await updateTournamentSettings({
 		patch: {
-			activeTournament: { id: "ultimate-bravery", name: "Ultimate Bravery", season: "Ultimate Bravery · Details folgen", mode: "teaser" },
+			activeTournament: { ...input.next, mode: "teaser" },
 			applicationsOpen: false,
 			applicationDeadlineOverride: false,
 			tournamentLive: false,
-			draftEnabled: false,
+			draftEnabled: input.next.kind !== "ultimate-bravery",
+			ultimateBravery: {
+				...settings.ultimateBravery,
+				startAt: null,
+				dayTwoStartAt: null,
+				dayOneFormat: "undecided",
+				format: "undecided",
+				prizePool: "Wird noch angekündigt",
+			},
 		},
 		updatedBy: input.createdBy,
 	});
 	const discordJob = await enqueueDiscordJob({
-		type: "archive-az-role-cleanup",
-		title: "A-Z-Turnierrollen entfernen",
+		type: "archive-role-cleanup",
+		title: `${active.name}: Turnierrollen entfernen`,
 		operations: cleanupOperations,
 		actorLabel: input.createdBy,
 	});

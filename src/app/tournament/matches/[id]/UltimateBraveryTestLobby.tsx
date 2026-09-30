@@ -168,7 +168,11 @@ export function UltimateBraveryTestLobby({ initial }: { initial: LobbyPayload })
 					</div>
 				))}
 			</div>
-			{message ? <div className="border-t border-white/8 px-5 py-3 text-xs font-bold text-emerald-100/70">{message}</div> : null}
+			{message ? (
+				<div role="status" className="border-t border-white/8 px-5 py-3 text-xs font-bold text-emerald-100/70">
+					{message}
+				</div>
+			) : null}
 			<ConfirmDialog
 				open={soloOpen}
 				title="Solo-Test mit zehn Dummies starten?"

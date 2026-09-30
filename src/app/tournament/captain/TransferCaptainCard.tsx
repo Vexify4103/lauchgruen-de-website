@@ -105,9 +105,12 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 					<label className="grid gap-2">
 						<span className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/52">Zur Bestätigung „{candidate.name}“ eingeben</span>
 						<input
+							name="captain-confirmation"
+							autoComplete="off"
+							spellCheck={false}
 							value={confirmation}
 							onChange={(event) => setConfirmation(event.target.value)}
-							placeholder={candidate.name}
+							placeholder={`${candidate.name}…`}
 							className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-emerald-50 outline-none transition focus:border-amber-200/45"
 						/>
 					</label>
@@ -119,10 +122,14 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 				disabled={saving || !candidate || confirmation.trim() !== candidate.name}
 				className="mt-4 rounded-2xl border border-amber-100/24 bg-amber-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
 			>
-				{saving ? "Wird übertragen..." : "Captain endgültig übertragen"}
+				{saving ? "Wird übertragen…" : "Captain endgültig übertragen"}
 			</button>
 
-			{message ? <p className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>{message.text}</p> : null}
+			{message ? (
+				<p role="status" className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>
+					{message.text}
+				</p>
+			) : null}
 			<ConfirmDialog
 				open={confirmOpen}
 				title="Captain wirklich übertragen?"

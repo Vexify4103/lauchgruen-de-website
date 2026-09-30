@@ -8,75 +8,36 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getRosterPublicationStatus } from "@/lib/roster";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { isTournamentHost } from "@/lib/tournament-url";
+import { getTournamentContext } from "@/lib/tournament-runtime";
+import { getMatchControlContext } from "@/lib/match-control";
+import { resolveTournamentCompletion } from "@/lib/tournament-completion";
+import { buildTournamentHero, buildTournamentSubnav, formatTournamentDay } from "@/lib/tournament-presentation";
+import { TOURNAMENT_KIND_LABELS } from "@/lib/tournament-kind";
+import type { SiteNavItem } from "@/components/site/SiteHeader";
 import { TournamentAccountControl } from "./TournamentAccountControl";
 import { TournamentChrome } from "./TournamentChrome";
 import { MainAccountChrome } from "./MainAccountChrome";
 import { AdminConflictProvider } from "@/components/AdminConflictProvider";
 import { UnsavedChangesProvider } from "@/components/UnsavedChangesProvider";
 
-const navItems = [
-	{ href: "/tournament", label: "Übersicht" },
-	{ href: "/tournament/apply", label: "Bewerben" },
-	{ href: "/tournament/teams", label: "Teams" },
-	{ href: "/tournament/live", label: "Live" },
-	{ href: "/tournament/schedule", label: "Zeitplan" },
-	{ href: "/tournament/pools", label: "Pools" },
-	{ href: "/tournament/captain", label: "Captain" },
-	{ href: "/tournament/stage", label: "Gruppen" },
-	{ href: "/tournament/playoffs", label: "Playoffs" },
-];
-
-const ultimateBraveryNavItems = [
-	{ href: "/tournament", label: "Übersicht" },
-	{ href: "/tournament/apply", label: "Bewerben" },
-	{ href: "/tournament/teams", label: "Teams" },
-	{ href: "/tournament/live", label: "Live" },
-	{ href: "/tournament/schedule", label: "Zeitplan" },
-	{ href: "/tournament/captain", label: "Captain" },
-	{ href: "/tournament/stage", label: "Gruppen" },
-	{ href: "/tournament/playoffs", label: "Bracket" },
-];
-
-const teaserNavItems = [
-	{ href: "/tournament", label: "Übersicht" },
-	{ href: "/tournament/teams", label: "Teams", disabled: true },
-	{ href: "/tournament/live", label: "Live", disabled: true },
-	{ href: "/tournament/schedule", label: "Zeitplan", disabled: true },
-	{ href: "/tournament/stage", label: "Gruppen" },
-	{ href: "/tournament/playoffs", label: "Playoffs" },
-];
-
-const registrationNavItems = [
-	{ href: "/tournament", label: "Übersicht" },
-	{ href: "/tournament/apply", label: "Bewerben" },
-	{ href: "/tournament/teams", label: "Teams", disabled: true },
-	{ href: "/tournament/live", label: "Live", disabled: true },
-	{ href: "/tournament/schedule", label: "Zeitplan", disabled: true },
-	{ href: "/tournament/stage", label: "Gruppen" },
-	{ href: "/tournament/playoffs", label: "Playoffs" },
-];
-
-const finishedNavItems = [
-	{ href: "/tournament", label: "Champion" },
-	{ href: "/tournament/teams", label: "Teams" },
-	{ href: "/tournament/schedule", label: "Ergebnisse" },
-	{ href: "/tournament/stage", label: "Swiss Stage" },
-	{ href: "/tournament/playoffs", label: "Bracket" },
-	{ href: "/tournament/winners", label: "Archiv" },
-];
-
-export const metadata: Metadata = {
-	title: "Ultimate Bravery",
-	description: "Lauchgruen Ultimate-Bravery-Turnier mit zufälligen Champions, Builds, Runen und Summoner Spells.",
-	openGraph: {
-		type: "website",
-		locale: "de_DE",
-		title: "Ultimate Bravery · Lauchgruen Community-Turnier",
-		description: "Zufällige Champions, Builds, Runen und Summoner Spells am 04. und 05. September 2026.",
-		url: "https://tournament.lauchgruen.de",
-		images: [{ url: "/bear-logo.png", width: 512, height: 512, alt: "Lauchgruen Ultimate Bravery" }],
-	},
-};
+export async function generateMetadata(): Promise<Metadata> {
+	const settings = await getTournamentSettings();
+	const { name, kind } = settings.activeTournament;
+	const day = formatTournamentDay(settings.ultimateBravery.startAt, false);
+	const description = `${name}: Lauchgruen Community-Turnier (${TOURNAMENT_KIND_LABELS[kind]})${day ? ` ab ${day}` : ""}.`;
+	return {
+		title: { default: name, template: `%s · ${name}` },
+		description,
+		openGraph: {
+			type: "website",
+			locale: "de_DE",
+			title: `${name} · Lauchgruen Community-Turnier`,
+			description,
+			url: "https://tournament.lauchgruen.de",
+			images: [{ url: "/bear-logo.png", width: 512, height: 512, alt: `Lauchgruen ${name}` }],
+		},
+	};
+}
 
 export default async function TournamentLayout({ children }: { children: ReactNode }) {
 	const host = (await headers()).get("host");
@@ -89,10 +50,12 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 			</MainAccountChrome>
 		);
 	}
-	const [settings, session, rosterPublication] = await Promise.all([getTournamentSettings(), auth(), getRosterPublicationStatus()]);
+	const [settings, session, rosterPublication, context] = await Promise.all([getTournamentSettings(), auth(), getRosterPublicationStatus(), getTournamentContext()]);
+	const active = settings.activeTournament;
 	const cleanUrls = isTournamentHost(host);
 	const discordId = session?.user?.discordId;
 	const isOwner = Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId));
+	const isCaptain = Boolean(discordId && context.teams.some((team) => team.captainRef?.discordId === discordId));
 	const applicationsOpen = areTournamentApplicationsOpen(
 		settings.applicationsOpen,
 		new Date(),
@@ -100,18 +63,21 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 		settings.applicationDeadline,
 		settings.applicationOpenAt
 	);
-	const tournamentStatus =
-		settings.activeTournament.mode === "live"
-			? "Live"
-			: settings.activeTournament.mode === "finished"
-				? "Abgeschlossen"
-				: settings.activeTournament.mode === "paused"
-					? "Pausiert"
-					: settings.activeTournament.mode === "registration"
-						? "Anmeldung"
-						: settings.activeTournament.mode === "teaser"
-							? "Ankündigung"
-							: "Vorbereitung";
+	const completion = active.mode === "finished" ? resolveTournamentCompletion((await getMatchControlContext()).matches) : null;
+	const hero = buildTournamentHero({
+		settings,
+		teamCount: rosterPublication.published ? rosterPublication.teamCount : 0,
+		applicationsOpen,
+		championTeamName: completion?.championTeamName,
+	});
+	const subnavItems = buildTournamentSubnav({ settings, rosterPublished: rosterPublication.published, isCaptain });
+	const navItems: SiteNavItem[] = [
+		{ href: "/tournament", label: "Turnier", matches: ["/tournament/teams", "/tournament/stage", "/tournament/playoffs", "/tournament/schedule", "/tournament/live"] },
+		{ href: "/tournament/winners", label: "Archiv", matches: ["/tournament/archive"] },
+		{ href: "/tournament/terms", label: "Regeln" },
+		...(isOwner ? [{ href: "/tournament/admin", label: "Admin" }] : []),
+		{ href: `${siteUrls.apex}/`, label: "lauchgruen.de", external: true },
+	];
 	const account = discordId
 		? {
 				discordHandle: session.user.discordHandle ?? session.user.name ?? "Discord",
@@ -120,56 +86,41 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 				isOwner,
 			}
 		: null;
-	const stageLabel = settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : settings.ultimateBravery.dayOneFormat === "groups" ? "Gruppen" : "Stage";
-	const selectedNavItems =
-		settings.activeTournament.mode === "live"
-			? settings.activeTournament.id === "ultimate-bravery"
-				? ultimateBraveryNavItems
-				: navItems
-			: settings.activeTournament.mode === "finished"
-				? finishedNavItems
-				: settings.activeTournament.mode === "registration"
-					? registrationNavItems
-					: teaserNavItems;
-	const dynamicNavItems = selectedNavItems.map((item) => {
-		const itemDisabled = "disabled" in item ? item.disabled === true : false;
-		if (item.href === "/tournament/teams") return { ...item, disabled: !rosterPublication.published };
-		if (item.href === "/tournament/stage") return { ...item, label: stageLabel, disabled: itemDisabled || settings.ultimateBravery.dayOneFormat === "undecided" };
-		if (item.href === "/tournament/playoffs") return { ...item, disabled: itemDisabled || settings.ultimateBravery.format === "undecided" };
-		return item;
-	});
+	const firstDay = formatTournamentDay(settings.ultimateBravery.startAt);
+	const secondDay = formatTournamentDay(settings.ultimateBravery.dayTwoStartAt);
 
 	return (
 		<AdminConflictProvider>
 			<UnsavedChangesProvider>
-				<script
-					type="application/ld+json"
-					dangerouslySetInnerHTML={{
-						__html: JSON.stringify({
-							"@context": "https://schema.org",
-							"@type": "SportsEvent",
-							name: "Lauchgruen Ultimate Bravery",
-							startDate: "2026-09-04T18:00:00+02:00",
-							endDate: "2026-09-05T23:59:00+02:00",
-							eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
-							eventStatus: settings.activeTournament.mode === "finished" ? "https://schema.org/EventCompleted" : "https://schema.org/EventScheduled",
-							location: { "@type": "VirtualLocation", url: "https://tournament.lauchgruen.de" },
-							organizer: { "@type": "Person", name: "Lauchgruen", url: "https://lauchgruen.de" },
-						}),
-					}}
-				/>
+				{settings.ultimateBravery.startAt ? (
+					<script
+						type="application/ld+json"
+						dangerouslySetInnerHTML={{
+							__html: JSON.stringify({
+								"@context": "https://schema.org",
+								"@type": "SportsEvent",
+								name: `Lauchgruen ${active.name}`,
+								startDate: settings.ultimateBravery.startAt,
+								...(settings.ultimateBravery.dayTwoStartAt ? { endDate: settings.ultimateBravery.dayTwoStartAt } : {}),
+								eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+								eventStatus: active.mode === "finished" ? "https://schema.org/EventCompleted" : "https://schema.org/EventScheduled",
+								location: { "@type": "VirtualLocation", url: "https://tournament.lauchgruen.de" },
+								organizer: { "@type": "Person", name: "Lauchgruen", url: "https://lauchgruen.de" },
+							}),
+						}}
+					/>
+				) : null}
 				<TournamentChrome
-					navItems={dynamicNavItems}
-					applicationsOpen={applicationsOpen}
-					tournamentStatus={tournamentStatus}
+					navItems={navItems}
+					hero={hero}
+					subnavItems={subnavItems}
+					status={hero.eyebrow}
 					apexUrl={siteUrls.apex}
 					cleanUrls={cleanUrls}
 					accountControl={<TournamentAccountControl account={account} accountUrl={`${siteUrls.apex}/me?from=tournament`} />}
 					compactAccountControl={<TournamentAccountControl account={account} accountUrl={`${siteUrls.apex}/me?from=tournament`} compact />}
 					footerTournamentLabel={
-						settings.activeTournament.id === "ultimate-bravery"
-							? "Ultimate Bravery am 04.09. und 05.09.2026, jeweils ab 18:00 Uhr."
-							: "Kunterbuntes A-Z Turnier ist Lucas Community-Turnier am 19.06. und 20.06.2026."
+						firstDay ? `${active.name}${secondDay ? ` am ${firstDay} und ${secondDay}` : ` ab ${firstDay}`}.` : `${active.name} · Termin wird angekündigt.`
 					}
 				>
 					{children}

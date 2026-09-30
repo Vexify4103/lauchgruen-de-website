@@ -6,6 +6,7 @@ import { loadRosterSnapshot } from "@/lib/roster";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
+import { usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { MatchControlRoomClient } from "./MatchControlRoomClient";
 import { getAdminVersions } from "@/lib/admin-version";
@@ -66,44 +67,42 @@ export default async function MatchControlRoomPage({ params }: { params: Promise
 			entry.teamAName &&
 			entry.teamBName
 	);
-	const ultimateBravery = settings.activeTournament.id === "ultimate-bravery";
+	const ultimateBravery = usesUltimateBravery(settings.activeTournament);
 	const [ultimateBraveryPlayers, ultimateBraveryRolls] = ultimateBravery ? await Promise.all([resolveUltimateBraveryMatchPlayers(id), listUltimateBraveryRolls(id)]) : [null, []];
 	const ultimateBraveryStatus = ultimateBraveryPlayers ? getUltimateBraveryDraftStatus(ultimateBraveryPlayers, ultimateBraveryRolls) : null;
 
 	return (
-		<div className="px-5 py-6 sm:py-8">
-			<section className="mx-auto w-full max-w-7xl">
-				{ultimateBravery && ultimateBraveryPlayers ? (
-					<div className="mb-5">
-						<UltimateBraveryMatch
-							matchId={id}
-							players={ultimateBraveryPlayers}
-							initialRolls={ultimateBraveryRolls}
-							currentDiscordId={discordId}
-							viewerTeam={ultimateBraveryPlayers[0]?.teamName ?? ""}
-							initialAllLocked={ultimateBraveryStatus?.allLocked ?? false}
-							initialLockedCount={ultimateBraveryStatus?.lockedCount ?? 0}
-							rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
-							adminMode
-							readOnly={match.status === "Finished"}
-						/>
-					</div>
-				) : null}
-				<MatchControlRoomClient
-					match={match}
-					teamA={findTeamByName(ctx.teams, match.teamAName)}
-					teamB={findTeamByName(ctx.teams, match.teamBName)}
-					pools={pools}
-					draft={draft}
-					extraBanSide={bonusBanSideForMatch(match)}
-					roster={roster}
-					draftEnabled={settings.draftEnabled}
-					parallelMatches={parallelMatches}
-					initialVersion={versions[`match:${id}`] ?? 0}
-					initialRosterVersion={versions.roster ?? 0}
-					ultimateBravery={ultimateBravery}
-				/>
-			</section>
-		</div>
+		<>
+			{ultimateBravery && ultimateBraveryPlayers ? (
+				<div className="mb-5">
+					<UltimateBraveryMatch
+						matchId={id}
+						players={ultimateBraveryPlayers}
+						initialRolls={ultimateBraveryRolls}
+						currentDiscordId={discordId}
+						viewerTeam={ultimateBraveryPlayers[0]?.teamName ?? ""}
+						initialAllLocked={ultimateBraveryStatus?.allLocked ?? false}
+						initialLockedCount={ultimateBraveryStatus?.lockedCount ?? 0}
+						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						adminMode
+						readOnly={match.status === "Finished"}
+					/>
+				</div>
+			) : null}
+			<MatchControlRoomClient
+				match={match}
+				teamA={findTeamByName(ctx.teams, match.teamAName)}
+				teamB={findTeamByName(ctx.teams, match.teamBName)}
+				pools={pools}
+				draft={draft}
+				extraBanSide={bonusBanSideForMatch(match, settings.activeTournament)}
+				roster={roster}
+				draftEnabled={settings.draftEnabled}
+				parallelMatches={parallelMatches}
+				initialVersion={versions[`match:${id}`] ?? 0}
+				initialRosterVersion={versions.roster ?? 0}
+				flow={ultimateBravery ? "rolls" : usesFearless(settings.activeTournament) ? "fearless" : "pools"}
+			/>
+		</>
 	);
 }

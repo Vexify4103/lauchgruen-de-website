@@ -219,7 +219,11 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 									</span>
 								))}
 							</div>
-							{error ? <div className="mt-4 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-100">{error}</div> : null}
+							{error ? (
+								<div role="alert" className="mt-4 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-100">
+									{error}
+								</div>
+							) : null}
 							<div className="mt-6 grid gap-2 sm:grid-cols-3">
 								<button
 									type="button"
@@ -243,7 +247,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 									onClick={saveAndContinue}
 									className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950 shadow-xl shadow-lime-300/15 transition hover:-translate-y-0.5 disabled:opacity-50"
 								>
-									{saving ? "Speichert..." : "Speichern & weiter"}
+									{saving ? "Speichert…" : "Speichern & weiter"}
 								</button>
 							</div>
 						</div>

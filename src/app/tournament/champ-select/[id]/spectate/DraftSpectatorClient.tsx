@@ -16,6 +16,7 @@ import {
 	type TournamentDraftState,
 } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
+import { fearlessLockLabel, type FearlessLocks } from "@/lib/fearless";
 
 type TimerState = {
 	label: string;
@@ -34,6 +35,9 @@ export function DraftSpectatorClient({
 	redTeamLabel,
 	blueChampions,
 	redChampions,
+	mode,
+	fearlessLocks,
+	closedReason,
 	extraBanSide,
 }: {
 	match: ControlMatch;
@@ -43,8 +47,12 @@ export function DraftSpectatorClient({
 	redTeamLabel: string;
 	blueChampions: ChampionPool["champions"];
 	redChampions: ChampionPool["champions"];
+	mode: "pools" | "fearless";
+	fearlessLocks: FearlessLocks;
+	closedReason: string | null;
 	extraBanSide: DraftSide | null;
 }) {
+	const fearless = mode === "fearless";
 	const [state, setState] = useState(draft);
 	const [now, setNow] = useState(() => Date.now());
 	const sequence = createDraftSequence(extraBanSide);
@@ -52,11 +60,12 @@ export function DraftSpectatorClient({
 	const ready = draftReady(state);
 	const complete = draftComplete(state, sequence);
 	const timer = getTimerState(state, now, sequence);
-	const allChampions = [...blueChampions, ...redChampions];
+	const allChampions = [...new Map([...blueChampions, ...redChampions].map((champion) => [champion.name, champion])).values()];
 	const usedChampions = new Set(state.actions.map((action) => action.champion));
 	const pendingSelection = state.pendingSelection;
-	const candidatePool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions) : [];
-	const activePoolMessage = currentTurn ? describeActivePool(currentTurn, perspective) : null;
+	const candidatePool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions, fearless) : [];
+	const turnLocks = currentTurn?.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
+	const activePoolMessage = currentTurn ? (fearless ? describeFearlessTurn(currentTurn, perspective) : describeActivePool(currentTurn, perspective)) : null;
 
 	useEffect(() => {
 		const interval = window.setInterval(() => setNow(Date.now()), 250);
@@ -82,30 +91,42 @@ export function DraftSpectatorClient({
 				<DraftLane
 					side="teamA"
 					title={blueTeamLabel}
-					pool={match.blueSide === "teamA" ? (match.poolAssignment?.teamAPool ?? null) : (match.poolAssignment?.teamBPool ?? null)}
+					poolLabel={
+						fearless
+							? lockCountLabel(Object.keys(fearlessLocks.teamA).length)
+							: poolLabel(
+									match.blueSide === "teamA" ? (match.poolAssignment?.teamAPool ?? null) : (match.poolAssignment?.teamBPool ?? null),
+									poolContext("blue", perspective)
+								)
+					}
 					actions={state.actions}
 					champions={allChampions}
 					banSlots={3 + (extraBanSide === "teamA" ? 1 : 0)}
 					currentTurn={currentTurn}
 					pendingSelection={pendingSelection}
 					ready={Boolean(state.readyBy.teamA)}
-					poolContext={poolContext("blue", perspective)}
 					tone="blue"
 				/>
 
-				<LiveStatus matchHasPools={Boolean(match.poolAssignment)} turn={currentTurn} ready={ready} complete={complete} timer={timer} />
+				<LiveStatus closedReason={closedReason} turn={currentTurn} ready={ready} complete={complete} timer={timer} />
 
 				<DraftLane
 					side="teamB"
 					title={redTeamLabel}
-					pool={match.blueSide === "teamA" ? (match.poolAssignment?.teamBPool ?? null) : (match.poolAssignment?.teamAPool ?? null)}
+					poolLabel={
+						fearless
+							? lockCountLabel(Object.keys(fearlessLocks.teamB).length)
+							: poolLabel(
+									match.blueSide === "teamA" ? (match.poolAssignment?.teamBPool ?? null) : (match.poolAssignment?.teamAPool ?? null),
+									poolContext("red", perspective)
+								)
+					}
 					actions={state.actions}
 					champions={allChampions}
 					banSlots={3 + (extraBanSide === "teamB" ? 1 : 0)}
 					currentTurn={currentTurn}
 					pendingSelection={pendingSelection}
 					ready={Boolean(state.readyBy.teamB)}
-					poolContext={poolContext("red", perspective)}
 					tone="red"
 				/>
 
@@ -118,7 +139,7 @@ export function DraftSpectatorClient({
 							</h2>
 						</div>
 						<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">
-							{complete ? `${state.actions.length} Locks` : `${candidatePool.length} Champions`}
+							{complete ? `${state.actions.length} Locks` : `${candidatePool.filter((champion) => !turnLocks[champion.name]).length} Champions`}
 						</div>
 					</div>
 
@@ -129,15 +150,17 @@ export function DraftSpectatorClient({
 							<div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 2xl:grid-cols-10">
 								{candidatePool.map((champion) => {
 									const used = usedChampions.has(champion.name);
+									const lock = turnLocks[champion.name];
 									const pending =
 										pendingSelection?.champion === champion.name && pendingSelection.side === currentTurn?.side && pendingSelection.kind === currentTurn?.kind;
 									return (
 										<div
 											key={champion.id}
-											className={`group overflow-hidden rounded-xl border p-1.5 text-left transition ${
+											title={lock ? fearlessLockLabel(lock) : undefined}
+											className={`group overflow-hidden rounded-xl border p-1.5 text-left transition-colors [contain-intrinsic-size:auto_7rem] [content-visibility:auto] ${
 												pending
 													? "border-lime-200/60 bg-lime-200/16 shadow-lg shadow-lime-300/10"
-													: used
+													: used || lock
 														? "border-white/6 bg-black/30 opacity-35 grayscale"
 														: "border-white/10 bg-black/18"
 											}`}
@@ -179,22 +202,22 @@ export function DraftSpectatorClient({
 }
 
 function LiveStatus({
-	matchHasPools,
+	closedReason,
 	turn,
 	ready,
 	complete,
 	timer,
 }: {
-	matchHasPools: boolean;
+	closedReason: string | null;
 	turn: { side: DraftSide; kind: "ban" | "pick" } | null;
 	ready: boolean;
 	complete: boolean;
 	timer: TimerState;
 }) {
-	if (!matchHasPools) {
+	if (closedReason) {
 		return (
 			<div className="mx-auto max-w-sm rounded-2xl border border-amber-200/18 bg-amber-200/8 px-4 py-3 text-center text-sm font-bold leading-6 text-amber-100/76">
-				Für dieses Match wurden noch keine Pools gezogen.
+				{closedReason}
 			</div>
 		);
 	}
@@ -224,7 +247,7 @@ function LiveStatus({
 			<div className={`mt-1 text-3xl font-black tabular-nums ${timer.remainingMs <= 0 ? "text-amber-100" : "text-emerald-50"}`}>{timer.label}</div>
 			<div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
 				<div
-					className={`h-full rounded-full transition-all ${timer.remainingMs <= 0 ? "bg-amber-200" : isRed ? "bg-red-400" : "bg-sky-400"}`}
+					className={`h-full rounded-full transition-[width] ${timer.remainingMs <= 0 ? "bg-amber-200" : isRed ? "bg-red-400" : "bg-sky-400"}`}
 					style={{ width: `${timer.progress}%` }}
 				/>
 			</div>
@@ -300,26 +323,24 @@ function ChampionMini({ champion, label, banned }: { champion?: ChampionPoolEntr
 function DraftLane({
 	side,
 	title,
-	pool,
+	poolLabel,
 	actions,
 	champions,
 	banSlots,
 	currentTurn,
 	pendingSelection,
 	ready,
-	poolContext,
 	tone,
 }: {
 	side: DraftSide;
 	title: string;
-	pool: string | null;
+	poolLabel: string;
 	actions: DraftAction[];
 	champions: ChampionPool["champions"];
 	banSlots: number;
 	currentTurn: { side: DraftSide; kind: "ban" | "pick" } | null;
 	pendingSelection?: TournamentDraftState["pendingSelection"];
 	ready: boolean;
-	poolContext: string;
 	tone: "blue" | "red";
 }) {
 	const sideActions = actions.filter((action) => action.side === side);
@@ -349,7 +370,7 @@ function DraftLane({
 				<h2 className={isBlue ? "mt-2 break-words text-2xl font-black text-sky-50 2xl:text-3xl" : "mt-2 break-words text-2xl font-black text-red-50 2xl:text-3xl"}>
 					{title}
 				</h2>
-				<p className="mt-1 text-sm font-bold text-emerald-100/52">{pool ? `${poolContext}: ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen"}</p>
+				<p className="mt-1 text-sm font-bold text-emerald-100/52">{poolLabel}</p>
 			</header>
 
 			<div className="mt-4">
@@ -516,11 +537,24 @@ function describeActivePool(turn: { side: DraftSide; kind: "ban" | "pick" }, per
 	return activeIsViewer ? "Dein Team pickt aus dem eigenen Pool" : "Das Gegnerteam pickt aus dem eigenen Pool";
 }
 
-function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, blueChampions: ChampionPool["champions"], redChampions: ChampionPool["champions"]) {
-	if (turn.kind === "pick") {
-		return turn.side === "teamA" ? blueChampions : redChampions;
-	}
-	return turn.side === "teamA" ? redChampions : blueChampions;
+function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, blueChampions: ChampionPool["champions"], redChampions: ChampionPool["champions"], fearless: boolean) {
+	const own = turn.side === "teamA" ? blueChampions : redChampions;
+	const enemy = turn.side === "teamA" ? redChampions : blueChampions;
+	return turn.kind === "pick" || fearless ? own : enemy;
+}
+
+function poolLabel(pool: string | null, context: string) {
+	return pool ? `${context}: ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen";
+}
+
+function lockCountLabel(count: number) {
+	return count === 0 ? "Fearless · noch keine Sperren" : `Fearless · ${count} ${count === 1 ? "Champion" : "Champions"} gesperrt`;
+}
+
+function describeFearlessTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, perspective: DraftViewerPerspective) {
+	const activeIsViewer = perspective !== "neutral" && perspective === (turn.side === "teamA" ? "blue" : "red");
+	if (turn.kind === "ban") return activeIsViewer ? "Dein Team bannt" : "Ban aus allen Champions";
+	return activeIsViewer ? "Dein Team pickt ohne gesperrte Champions" : "Pick ohne Fearless-Sperren";
 }
 
 function getTimerState(state: TournamentDraftState, now: number, sequence: Array<{ side: DraftSide; kind: "ban" | "pick" }>): TimerState {

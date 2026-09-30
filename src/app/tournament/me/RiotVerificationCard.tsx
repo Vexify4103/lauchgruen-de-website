@@ -35,7 +35,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 	async function start(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!riotId.trim()) return;
-		setStatus({ kind: "loading", message: "Riot-Account wird gesucht..." });
+		setStatus({ kind: "loading", message: "Riot-Account wird gesucht…" });
 		const response = await fetch("/api/riot/start", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -62,7 +62,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 		for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 			setStatus({
 				kind: "loading",
-				message: attempt === 1 ? "Profilicon wird geprüft..." : `Riot synchronisiert noch · Versuch ${attempt}/${maxAttempts}`,
+				message: attempt === 1 ? "Profilicon wird geprüft…" : `Riot synchronisiert noch · Versuch ${attempt}/${maxAttempts}`,
 			});
 			const response = await fetch("/api/riot/verify", { method: "POST", cache: "no-store" });
 			const result = (await response.json().catch(() => null)) as {
@@ -111,7 +111,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 
 	async function disconnect() {
 		setDisconnectConfirmOpen(false);
-		setStatus({ kind: "loading", message: "Riot-Verknüpfung wird entfernt..." });
+		setStatus({ kind: "loading", message: "Riot-Verknüpfung wird entfernt…" });
 		const response = await fetch("/api/riot/disconnect", { method: "POST" });
 		const result = (await response.json().catch(() => null)) as { message?: string } | null;
 		if (!response.ok) {
@@ -187,10 +187,14 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 			{!challenge ? (
 				<form onSubmit={start} className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
 					<input
+						name="riot-id"
+						aria-label="Riot-ID"
+						autoComplete="off"
+						spellCheck={false}
 						value={riotId}
 						onChange={(event) => setRiotId(event.target.value)}
 						required
-						placeholder="Name#TAG"
+						placeholder="Name#TAG…"
 						className="h-12 rounded-2xl border border-white/10 bg-black/24 px-4 text-sm font-bold text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-amber-200/40"
 					/>
 					<button
@@ -198,7 +202,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 						disabled={status.kind === "loading"}
 						className="rounded-2xl bg-amber-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 disabled:opacity-55"
 					>
-						{status.kind === "loading" ? "Wird gesucht..." : "Verifizierung starten"}
+						{status.kind === "loading" ? "Wird gesucht…" : "Verifizierung starten"}
 					</button>
 				</form>
 			) : (
@@ -215,7 +219,7 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 							disabled={status.kind === "loading"}
 							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
 						>
-							{status.kind === "loading" ? "Prüfe..." : "Jetzt prüfen"}
+							{status.kind === "loading" ? "Prüfe…" : "Jetzt prüfen"}
 						</button>
 					</div>
 					{challenge.checkedAt && challenge.currentIconUrl ? (
@@ -267,23 +271,27 @@ function AccountInfo({ label, value }: { label: string; value: string }) {
 
 function StatusMessage({ message }: { message: string }) {
 	return (
-		<div className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-3 text-xs font-bold text-cyan-50">
-			<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" />
+		<div role="status" className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-3 text-xs font-bold text-cyan-50">
+			<span className="size-4 animate-spin rounded-full border-2 border-cyan-100/25 border-t-cyan-100" aria-hidden="true" />
 			{message}
 		</div>
 	);
 }
 
 function ErrorMessage({ message }: { message: string }) {
-	return <div className="mt-3 rounded-xl border border-red-300/25 bg-red-500/10 px-4 py-3 text-xs text-red-100">{message}</div>;
+	return (
+		<div role="alert" className="mt-3 rounded-xl border border-red-300/25 bg-red-500/10 px-4 py-3 text-xs text-red-100">
+			{message}
+		</div>
+	);
 }
 
 function formatDate(value: string) {
 	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? "Unbekannt" : date.toLocaleDateString("de-DE");
+	return Number.isNaN(date.getTime()) ? "Unbekannt" : date.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
 }
 
 function formatTime(value: string) {
 	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? "gerade eben" : date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+	return Number.isNaN(date.getTime()) ? "gerade eben" : date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
 }

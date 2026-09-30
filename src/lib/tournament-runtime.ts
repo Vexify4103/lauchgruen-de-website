@@ -10,6 +10,7 @@ import { getDb } from "@/lib/mongo";
 import { groupMatches as fallbackGroupMatches, teams as fallbackTeams, type GroupMatch, type TournamentPlayer, type TournamentTeam } from "@/lib/tournament-data";
 import { groupRollingTime } from "@/lib/tournament-schedule";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -315,7 +316,7 @@ function buildGroupMatches(teams: TournamentTeam[], legs: 1 | 2): GroupMatch[] {
 export async function getTournamentContext(): Promise<TournamentContext> {
 	const [stored, settings] = await Promise.all([readBotTeams(), getTournamentSettings()]);
 	if (!stored || stored.length === 0) {
-		if (settings.activeTournament.id === "ultimate-bravery") {
+		if (usesFlexibleEngine(settings.activeTournament)) {
 			return { teams: [], groupMatches: [], source: "bot" };
 		}
 		return {
@@ -324,11 +325,11 @@ export async function getTournamentContext(): Promise<TournamentContext> {
 			source: "placeholder",
 		};
 	}
-	const groupCount = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.groupCount : 2;
-	const legs = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.groupRoundRobinLegs : 2;
-	const plannedTeamCount = settings.activeTournament.id === "ultimate-bravery" ? settings.ultimateBravery.teamCount : stored.length;
+	const groupCount = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.groupCount : 2;
+	const legs = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.groupRoundRobinLegs : 2;
+	const plannedTeamCount = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.teamCount : stored.length;
 	const teams = withDefaults(stored, groupCount, plannedTeamCount);
-	const requiresPublishedGroupSetup = settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "groups";
+	const requiresPublishedGroupSetup = usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "groups";
 	const groupMatches = requiresPublishedGroupSetup && !hasCompleteGroupAssignments(stored, groupCount, plannedTeamCount) ? [] : buildGroupMatches(teams, legs);
 	return { teams, groupMatches, source: "bot" };
 }

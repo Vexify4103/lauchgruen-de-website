@@ -10,6 +10,7 @@ import { TOURNAMENT_OWNER_DISCORD_IDS, upsertMatch } from "@/lib/tournament-stor
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { buildMatchReadyDiscordOperations } from "@/lib/tournament-match-ready";
+import { usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,21 +44,28 @@ export async function POST(request: Request) {
 	if (match.status === "Finished") {
 		return NextResponse.json({ message: "Dieses Match ist bereits abgeschlossen." }, { status: 409 });
 	}
-	const ultimateBravery = settings.activeTournament.id === "ultimate-bravery";
+	// Flexible-engine tournaments release a match (status Pending) and ping both team channels.
+	// A-Z matches draw pools instead and stay Scheduled until the captains ready up.
+	const releaseFlow = usesFlexibleEngine(settings.activeTournament);
+	const ultimateBravery = usesUltimateBravery(settings.activeTournament);
+	const releasedWhat = ultimateBravery ? "Rolls" : "Champ Select";
 	const matchAlreadyActive = match.status === "Pending" || match.status === "Live";
-	const notificationRetry = ultimateBravery && (parsed.data.action === "notify" || matchAlreadyActive);
-	if (!ultimateBravery && parsed.data.action === "notify") {
-		return NextResponse.json({ message: "Teamnachrichten sind nur für Ultimate Bravery verfügbar." }, { status: 409 });
+	const notificationRetry = releaseFlow && (parsed.data.action === "notify" || matchAlreadyActive);
+	if (!releaseFlow && parsed.data.action === "notify") {
+		return NextResponse.json({ message: "Teamnachrichten sind für A-Z-Turniere nicht verfügbar." }, { status: 409 });
 	}
 	if (parsed.data.action === "notify" && !matchAlreadyActive) {
-		return NextResponse.json({ message: "Gib die Rolls zuerst frei, bevor du Teamnachrichten erneut prüfst." }, { status: 409 });
+		return NextResponse.json(
+			{ message: `Gib ${releasedWhat === "Rolls" ? "die Rolls" : "den Champ Select"} zuerst frei, bevor du Teamnachrichten erneut prüfst.` },
+			{ status: 409 }
+		);
 	}
 	if (!notificationRetry && match.status !== "Scheduled") {
 		return NextResponse.json({ message: "Nur ein geplantes Match kann freigegeben werden." }, { status: 409 });
 	}
 
 	let drewPools = false;
-	if (!ultimateBravery && !match.poolAssignment) {
+	if (!releaseFlow && !match.poolAssignment) {
 		await spinTournamentWheelForMatch({
 			matchId: match.id,
 			teamAName: match.teamAName,
@@ -74,16 +82,27 @@ export async function POST(request: Request) {
 				id: match.id,
 				teamAName: match.teamAName,
 				teamBName: match.teamBName,
-				status: ultimateBravery ? "Pending" : "Scheduled",
+				status: releaseFlow ? "Pending" : "Scheduled",
 				updatedAt: new Date().toISOString(),
 			});
 	const discordWarnings: string[] = [];
 	let discordJob = null;
-	if (ultimateBravery) {
+	if (releaseFlow) {
 		const teamA = ctx.teams.find((team) => team.name === match.teamAName);
 		const teamB = ctx.teams.find((team) => team.name === match.teamBName);
 		const dedupeScope = `${settings.activeTournament.id}:${settings.ultimateBravery.startAt ?? "current"}`;
-		const notificationPlan = teamA && teamB ? buildMatchReadyDiscordOperations({ teamA, teamB, matchId: match.id, round: match.round, time: match.time, dedupeScope }) : null;
+		const notificationPlan =
+			teamA && teamB
+				? buildMatchReadyDiscordOperations({
+						teamA,
+						teamB,
+						matchId: match.id,
+						round: match.round,
+						time: match.time,
+						dedupeScope,
+						flow: ultimateBravery ? "rolls" : "draft",
+					})
+				: null;
 		const operations = notificationPlan?.operations ?? [];
 		if (!notificationPlan || notificationPlan.missingTeamCount > 0) {
 			const missingTeamCount = notificationPlan?.missingTeamCount ?? 2;
@@ -98,7 +117,7 @@ export async function POST(request: Request) {
 			});
 		} catch (error) {
 			console.error("[match-ready] Discord-Teamnachrichten konnten nicht eingereiht werden.", error);
-			discordWarnings.push("Discord-Teamnachrichten konnten nicht eingereiht werden. Die Rolls sind trotzdem freigegeben.");
+			discordWarnings.push(`Discord-Teamnachrichten konnten nicht eingereiht werden. ${releasedWhat} ist trotzdem freigegeben.`);
 		}
 	}
 	await writeAuditLog({
@@ -107,8 +126,8 @@ export async function POST(request: Request) {
 		targetId: match.id,
 		summary: notificationRetry
 			? "Discord-Teamnachrichten für ein laufendes Match wurden erneut geprüft."
-			: ultimateBravery
-				? "Ultimate-Bravery-Rolls wurden für beide Teams freigegeben."
+			: releaseFlow
+				? `${releasedWhat} wurde für beide Teams freigegeben.`
 				: drewPools
 					? "Match prepared and pools were drawn."
 					: "Match prepared.",
@@ -136,10 +155,10 @@ export async function POST(request: Request) {
 		discordJob,
 		discordWarnings,
 		message:
-			ultimateBravery && discordJob
-				? `${notificationRetry ? "Teamnachrichten geprüft" : "Rolls freigegeben"}. ${discordJob.total}/2 Teamnachrichten wurden in die Discord-Queue gestellt.${discordWarnings.length ? ` ${discordWarnings.join(" ")}` : ""}`
-				: ultimateBravery
-					? `${notificationRetry ? "Teamnachrichten geprüft" : "Rolls freigegeben"}. ${discordWarnings.join(" ")}`
+			releaseFlow && discordJob
+				? `${notificationRetry ? "Teamnachrichten geprüft" : `${releasedWhat} freigegeben`}. ${discordJob.total}/2 Teamnachrichten wurden in die Discord-Queue gestellt.${discordWarnings.length ? ` ${discordWarnings.join(" ")}` : ""}`
+				: releaseFlow
+					? `${notificationRetry ? "Teamnachrichten geprüft" : `${releasedWhat} freigegeben`}. ${discordWarnings.join(" ")}`
 					: undefined,
 	});
 }

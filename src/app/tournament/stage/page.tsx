@@ -11,19 +11,21 @@ import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
 import { SwissStageLiveView } from "@/components/SwissStageLiveView";
 import { StageMatchAutoFocus } from "@/components/StageMatchAutoFocus";
 import { resolveGroupFocusMatchId } from "@/lib/tournament-stage-focus";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import { EmptyState, PageIntro } from "@/components/site/PageIntro";
 
 export default async function GroupsPage() {
 	const settings = await getTournamentSettings();
-	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
-	if (settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "undecided") {
+	if (!usesFlexibleEngine(settings.activeTournament) && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
+	if (usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "undecided") {
 		return <UndecidedStagePage />;
 	}
-	if (settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "swiss") {
+	if (usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "swiss") {
 		const [swissState, swissTeams] = await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams()]);
 		return <SwissStagePage settings={settings} teamNames={swissTeams.map((team) => team.name)} swissState={swissState} />;
 	}
 	const ctx = await getTournamentContext();
-	if (settings.activeTournament.id === "ultimate-bravery" && !["live", "finished"].includes(settings.activeTournament.mode)) {
+	if (usesFlexibleEngine(settings.activeTournament) && !["live", "finished"].includes(settings.activeTournament.mode)) {
 		return <GroupStagePlanningPage settings={settings} teamNames={ctx.teams.map((team) => team.name)} />;
 	}
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
@@ -36,32 +38,30 @@ export default async function GroupsPage() {
 	const focusedGroupMatchId = resolveGroupFocusMatchId(matchesWithScores);
 	const groups = [...new Set(ctx.teams.map((team) => team.group))].sort((a, b) => a.localeCompare(b));
 	const config = settings.ultimateBravery;
-	const configuredGroupStage = settings.activeTournament.id === "ultimate-bravery";
+	const configuredGroupStage = usesFlexibleEngine(settings.activeTournament);
 	const totalMatches = ctx.groupMatches.length;
 	const gamesPerTeam = ctx.teams.length > 0 ? Math.round((totalMatches * 2) / ctx.teams.length) : 0;
 
 	return (
-		<div className="px-5 py-10 sm:py-14">
+		<>
 			<StageMatchAutoFocus matchId={focusedGroupMatchId} />
-			<section className="mx-auto w-full max-w-7xl">
-				<div className="max-w-3xl">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Gruppenphase</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-						{configuredGroupStage
-							? `${groups.length} ${groups.length === 1 ? "Gruppe" : "Gruppen"}. ${config.advanceTeamCount === config.teamCount ? "Alle Teams ziehen in die Playoffs ein." : `${config.advanceTeamCount} Teams ziehen weiter.`}`
-							: "Zwei Vierergruppen. Alle Teams ziehen in die Playoffs ein."}
-					</h1>
-					<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-						{configuredGroupStage
-							? `${totalMatches} BO1-Spiele insgesamt, ${gamesPerTeam} pro Team ${config.groupRoundRobinLegs === 2 ? "mit Hin- und Rückrunde" : "in einer einfachen Round-Robin-Runde"}. Die Abschlusstabelle bestimmt die Playoff-Seeds #1 bis #${config.advanceTeamCount}.`
-							: "Zwölf BO1-Spiele pro Gruppe, also sechs Spiele pro Team mit Hin- und Rückrunde. Die Gruppensieger überspringen die erste Upper-Bracket-Runde. Platz 2 spielt dort mit vier Bans gegen Platz 3 der anderen Gruppe. Die Viertplatzierten starten in Runde 1 des Lower Brackets."}
-					</p>
-					<div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-200/[0.06] p-4 text-sm leading-7 text-amber-50/82">
-						<strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz. Bei Gleichstand zählen die direkten Siege zwischen den betroffenen Teams. Bleibt
-						auch dieser Vergleich gleich, gewinnt das Team mit der niedrigeren durchschnittlichen Spielzeit seiner Siege innerhalb dieses direkten Vergleichs. Andere
-						Gruppenspiele beeinflussen diesen Tiebreak nicht.
-					</div>
-				</div>
+			<section className="page-section compact-top">
+				<PageIntro
+					kicker="Gruppenphase"
+					title={
+						configuredGroupStage
+							? `${groups.length} ${groups.length === 1 ? "Gruppe" : "Gruppen"}. ${config.advanceTeamCount === config.teamCount ? "Alle ziehen weiter." : `Top ${config.advanceTeamCount} ziehen weiter.`}`
+							: "Zwei Vierergruppen. Alle ziehen weiter."
+					}
+				>
+					{configuredGroupStage
+						? `${totalMatches} BO1-Spiele insgesamt, ${gamesPerTeam} pro Team ${config.groupRoundRobinLegs === 2 ? "mit Hin- und Rückrunde" : "in einer einfachen Round-Robin-Runde"}. Die Abschlusstabelle bestimmt die Playoff-Seeds #1 bis #${config.advanceTeamCount}.`
+						: "Zwölf BO1-Spiele pro Gruppe, also sechs Spiele pro Team mit Hin- und Rückrunde. Die Gruppensieger überspringen die erste Upper-Bracket-Runde."}
+				</PageIntro>
+				<p className="alert mb-8 max-w-4xl">
+					<strong>Platzierung:</strong> Zuerst zählt die Sieg-Niederlagen-Bilanz. Bei Gleichstand zählen die direkten Siege zwischen den betroffenen Teams. Bleibt auch
+					dieser Vergleich gleich, gewinnt das Team mit der niedrigeren durchschnittlichen Spielzeit seiner Siege innerhalb dieses direkten Vergleichs.
+				</p>
 
 				<div className={`mt-8 grid gap-5 ${groups.length > 1 ? "lg:grid-cols-2" : "grid-cols-1"}`}>
 					{groups.map((group) => {
@@ -218,22 +218,18 @@ export default async function GroupsPage() {
 					})}
 				</div>
 			</section>
-		</div>
+		</>
 	);
 }
 
 function UndecidedStagePage() {
 	return (
-		<div className="px-5 py-14 sm:py-20">
-			<section className="mx-auto max-w-3xl rounded-[2.4rem] border border-amber-200/16 bg-gradient-to-br from-amber-200/[0.07] via-white/[0.035] to-cyan-200/[0.035] p-8 text-center shadow-2xl shadow-black/30 sm:p-12">
-				<div className="text-xs font-black uppercase tracking-[0.3em] text-amber-100/64">Tag 1 · Planung</div>
-				<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Das Format steht noch nicht fest.</h1>
-				<p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-emerald-100/64 sm:text-base">
-					Ob Gruppenphase oder Swiss Stage gespielt wird, entscheidet die Orga anhand der finalen Teamzahl. Der vollständige Ablauf wird rechtzeitig vor dem Turnier
-					veröffentlicht.
-				</p>
-			</section>
-		</div>
+		<section className="page-section compact-top">
+			<EmptyState title="Das Format für Tag 1 steht noch nicht fest.">
+				Ob Gruppenphase oder Swiss Stage gespielt wird, entscheidet die Orga anhand der finalen Teamzahl. Der vollständige Ablauf wird rechtzeitig vor dem Turnier
+				veröffentlicht.
+			</EmptyState>
+		</section>
 	);
 }
 
@@ -248,16 +244,13 @@ function SwissStagePage({
 }) {
 	const config = settings.ultimateBravery;
 	return (
-		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto w-full max-w-[96rem]">
-				<div className="mx-auto max-w-4xl text-center">
-					<div className="text-xs font-black uppercase tracking-[0.32em] text-cyan-200/60">Tag 1 · Swiss Stage</div>
-					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-6xl">Jede Runde verändert den Weg.</h1>
-					<p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-emerald-100/64 sm:text-base">
-						Alle Paarungen werden pro Runde zufällig ausgelost. Ein Team kann während der gesamten Swiss Stage niemals ein zweites Mal auf denselben Gegner treffen.
-						Nach {config.swissRounds} Runden ziehen die besten {config.advanceTeamCount} von {config.teamCount} Teams in die Playoffs ein.
-					</p>
-				</div>
+		<>
+			<section className="page-section compact-top wide">
+				<PageIntro kicker="Tag 1 · Swiss Stage" title="Jede Runde verändert den Weg.">
+					Alle Paarungen werden pro Runde zufällig ausgelost. Ein Team trifft während der gesamten Swiss Stage nie zweimal auf denselben Gegner. Nach {config.swissRounds}{" "}
+					Runden ziehen {config.advanceTeamCount === config.teamCount ? "alle" : `die besten ${config.advanceTeamCount} von`} {config.teamCount} Teams in die Playoffs
+					ein.
+				</PageIntro>
 				<SwissStageLiveView initialState={swissState} config={config} teamNames={teamNames} live={settings.tournamentLive} />
 				{swissState.seedingMethod === "results-and-average-win-duration" ? (
 					<div className="mx-auto mt-5 max-w-4xl rounded-2xl border border-amber-200/18 bg-amber-200/[0.055] px-5 py-4 text-center text-xs font-bold leading-6 text-amber-50/72">
@@ -272,26 +265,20 @@ function SwissStagePage({
 					</div>
 				) : null}
 			</section>
-		</div>
+		</>
 	);
 }
 
 function GroupStagePlanningPage({ settings, teamNames }: { settings: Awaited<ReturnType<typeof getTournamentSettings>>; teamNames: string[] }) {
 	const config = settings.ultimateBravery;
 	return (
-		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto w-full max-w-7xl">
-				<div className="max-w-3xl">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Tag 1 · Gruppenphase</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">
-						{config.groupCount} {config.groupCount === 1 ? "Gruppe" : "Gruppen"}. Ein gemeinsames Ziel.
-					</h1>
-					<p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-100/68">
-						{config.teamCount} Teams spielen {config.groupRoundRobinLegs === 2 ? "eine Hin- und Rückrunde" : "einmal gegeneinander"}. Die besten{" "}
-						{config.advanceTeamCount} Teams erreichen die Playoffs an Tag 2.
-					</p>
-				</div>
-				<div className="mt-8">
+		<>
+			<section className="page-section compact-top">
+				<PageIntro kicker="Tag 1 · Gruppenphase" title={`${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}. Ein gemeinsames Ziel.`}>
+					{config.teamCount} Teams spielen {config.groupRoundRobinLegs === 2 ? "eine Hin- und Rückrunde" : "einmal gegeneinander"}. Die besten {config.advanceTeamCount}{" "}
+					Teams erreichen die Playoffs an Tag 2.
+				</PageIntro>
+				<div>
 					<GroupStagePlan config={config} teamNames={teamNames} />
 				</div>
 				{teamNames.length === 0 ? (
@@ -300,7 +287,7 @@ function GroupStagePlanningPage({ settings, teamNames }: { settings: Awaited<Ret
 					</div>
 				) : null}
 			</section>
-		</div>
+		</>
 	);
 }
 

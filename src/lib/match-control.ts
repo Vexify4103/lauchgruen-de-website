@@ -6,6 +6,7 @@ import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState } from "@/lib/tournament-swiss";
 import { computeUltimateBraveryGroupSeeds, resolveUltimateBraveryPlayoffMatches } from "@/lib/ultimate-bravery-playoffs";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
 
 export type ControlMatch = {
 	id: string;
@@ -93,7 +94,7 @@ function playoffToControlMatch(match: ResolvedPlayoffMatch, stored: StoredTourna
 export async function getMatchControlContext(): Promise<MatchControlContext> {
 	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
-	if (settings.activeTournament.id === "ultimate-bravery") {
+	if (usesFlexibleEngine(settings.activeTournament)) {
 		const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
 		if (settings.ultimateBravery.dayOneFormat === "groups") {
 			const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);

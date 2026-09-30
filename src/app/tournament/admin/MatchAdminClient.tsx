@@ -122,7 +122,11 @@ export function MatchAdminClient({
 
 	return (
 		<div className="grid gap-4">
-			{message ? <div className="rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-sm text-lime-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-sm text-lime-50">
+					{message}
+				</div>
+			) : null}
 
 			{groupMatchesByRound(initialMatches).map(({ label, matches }) => (
 				<section key={label} className="grid gap-3">
@@ -232,8 +236,10 @@ function MatchRow({
 				<label className="grid gap-2">
 					<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Spielzeit</span>
 					<input
+						name="game-duration"
+						autoComplete="off"
 						inputMode="numeric"
-						placeholder="mm:ss"
+						placeholder="mm:ss…"
 						pattern="\d{1,3}:[0-5]\d"
 						value={gameDuration}
 						onChange={(event) => setGameDuration(event.target.value)}
@@ -264,7 +270,7 @@ function MatchRow({
 						disabled={status === "Locked" || saving}
 						className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
 					>
-						{saving ? "Wird gespeichert..." : status === "Locked" ? "Teilnehmer offen" : "Ergebnis speichern"}
+						{saving ? "Wird gespeichert…" : status === "Locked" ? "Teilnehmer offen" : "Ergebnis speichern"}
 					</button>
 					<button
 						type="button"
@@ -274,8 +280,8 @@ function MatchRow({
 					>
 						{preparing
 							? ultimateBravery
-								? "Rolls werden freigegeben..."
-								: "Pools werden gezogen..."
+								? "Rolls werden freigegeben…"
+								: "Pools werden gezogen…"
 							: poolsDrawn
 								? ultimateBravery
 									? "Rolls freigegeben"

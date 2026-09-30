@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
 	COMMUNITY_OVERLAY_REGIONS,
 	COMMUNITY_OVERLAY_GOALS,
@@ -100,6 +101,7 @@ export function OverlayBuilderClient({
 	const [presetBusy, setPresetBusy] = useState(false);
 	const [presetSignedIn, setPresetSignedIn] = useState<boolean | null>(null);
 	const [presetMessage, setPresetMessage] = useState("");
+	const [pendingPresetDelete, setPendingPresetDelete] = useState<OverlayPreset | null>(null);
 	const [freeformUndo, setFreeformUndo] = useState<FreeformOverlayElement[][]>([]);
 	const [freeformRedo, setFreeformRedo] = useState<FreeformOverlayElement[][]>([]);
 	const [freeformGrid, setFreeformGrid] = useState(true);
@@ -415,7 +417,7 @@ export function OverlayBuilderClient({
 	return (
 		<div className="min-h-screen overflow-x-hidden bg-[#03100a] text-emerald-50">
 			<div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_4%,rgba(190,242,100,0.13),transparent_30%),radial-gradient(circle_at_88%_20%,rgba(34,211,238,0.11),transparent_30%),linear-gradient(145deg,#03100a_0%,#061b12_48%,#020906_100%)]" />
-			<main className="relative mx-auto w-full max-w-[112rem] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+			<main id="main-content" tabIndex={-1} className="relative mx-auto w-full max-w-[112rem] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
 				<header className="grid gap-5 rounded-[1.8rem] border border-lime-100/12 bg-black/20 px-5 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:grid-cols-[1fr_auto] lg:items-center lg:px-7">
 					<div className="max-w-4xl">
 						<div className="text-[10px] font-black uppercase tracking-[0.34em] text-lime-200/65">Lauchgruen · Stream Tools</div>
@@ -466,7 +468,10 @@ export function OverlayBuilderClient({
 											goalStartLp: null,
 										}));
 									}}
-									placeholder="Spielername#TAG"
+									name="riot-id"
+									autoComplete="off"
+									spellCheck={false}
+									placeholder="Spielername#TAG…"
 									className={inputClass}
 								/>
 							</Field>
@@ -494,7 +499,10 @@ export function OverlayBuilderClient({
 											setConfig((current) => ({ ...current, streamer: "", hideOutsideLeague: false }));
 										}
 									}}
-									placeholder="kanalname oder twitch.tv/kanalname"
+									name="twitch-channel"
+									autoComplete="off"
+									spellCheck={false}
+									placeholder="kanalname oder twitch.tv/kanalname…"
 									className={inputClass}
 								/>
 							</Field>
@@ -682,6 +690,9 @@ export function OverlayBuilderClient({
 											</span>
 											<input
 												type="number"
+												name="goal-start-lp"
+												autoComplete="off"
+												inputMode="numeric"
 												min="0"
 												max="10000"
 												value={config.goalStartLp ?? previewRank?.leaguePoints ?? 0}
@@ -1007,10 +1018,25 @@ export function OverlayBuilderClient({
 								</span>
 							</summary>
 							<div className="border-t border-white/8 px-4 pb-4 pt-4">
+								<ConfirmDialog
+									open={Boolean(pendingPresetDelete)}
+									tone="danger"
+									title="Preset löschen?"
+									description={pendingPresetDelete ? `„${pendingPresetDelete.name}“ wird dauerhaft aus deinem Konto entfernt.` : ""}
+									confirmLabel="Preset löschen"
+									cancelLabel="Abbrechen"
+									onConfirm={() => {
+										if (pendingPresetDelete) void deletePreset(pendingPresetDelete);
+										setPendingPresetDelete(null);
+									}}
+									onCancel={() => setPendingPresetDelete(null)}
+								/>
 								<input
 									readOnly
+									name="overlay-url"
+									aria-label="OBS-Browserquellen-URL"
 									value={
-										canCopyOverlay ? overlayUrl : validRiotId ? "Stabile Riot-Account-ID wird ermittelt..." : "Bitte zuerst eine vollständige Riot-ID eingeben."
+										canCopyOverlay ? overlayUrl : validRiotId ? "Stabile Riot-Account-ID wird ermittelt…" : "Bitte zuerst eine vollständige Riot-ID eingeben."
 									}
 									onFocus={(event) => event.currentTarget.select()}
 									className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 font-mono text-[10px] text-emerald-100/62 outline-none focus:border-lime-200/35"
@@ -1041,7 +1067,10 @@ export function OverlayBuilderClient({
 													value={presetName}
 													onChange={(event) => setPresetName(event.target.value)}
 													maxLength={48}
-													placeholder="Preset-Name"
+													name="preset-name"
+													autoComplete="off"
+													aria-label="Preset-Name"
+													placeholder="Preset-Name…"
 													className={inputClass}
 												/>
 												<button
@@ -1066,7 +1095,7 @@ export function OverlayBuilderClient({
 															</button>
 															<button
 																type="button"
-																onClick={() => deletePreset(preset)}
+																onClick={() => setPendingPresetDelete(preset)}
 																aria-label={`${preset.name} löschen`}
 																className="grid size-8 shrink-0 place-items-center rounded-lg border border-red-200/12 bg-red-400/[0.05] text-xs font-black text-red-100/55 transition hover:border-red-200/28 hover:text-red-100"
 															>
@@ -1102,7 +1131,11 @@ export function OverlayBuilderClient({
 												setExistingUrl(event.target.value);
 												setImportMessage(null);
 											}}
-											placeholder="Bestehende OBS- oder Builder-URL einfügen"
+											inputMode="url"
+											name="overlay-import-url"
+											autoComplete="off"
+											spellCheck={false}
+											placeholder="https://lauchgruen.de/obs/community?…"
 											aria-label="Bestehende Overlay-URL"
 											className={inputClass}
 										/>
@@ -1174,7 +1207,7 @@ function TwitchSearchResult({ lookup, selectedLogin, onSelect }: { lookup: Twitc
 		>
 			{/* Twitch avatars are user-controlled CDN assets and should bypass image optimization here. */}
 			{/* eslint-disable-next-line @next/next/no-img-element */}
-			<img src={lookup.user.profileImageUrl} alt="" className="size-11 shrink-0 rounded-xl border border-white/12 object-cover" />
+			<img src={lookup.user.profileImageUrl} alt="" width={44} height={44} className="size-11 shrink-0 rounded-xl border border-white/12 object-cover" />
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<span className="truncate text-xs font-black text-emerald-50">{lookup.user.displayName}</span>
@@ -1249,6 +1282,8 @@ function NumberField({ label, value, min, max, onChange }: { label: string; valu
 			<span className="text-[8px] font-black uppercase tracking-[0.17em] text-emerald-100/48">{label}</span>
 			<input
 				type="number"
+				inputMode="numeric"
+				autoComplete="off"
 				min={min}
 				max={max}
 				value={value}

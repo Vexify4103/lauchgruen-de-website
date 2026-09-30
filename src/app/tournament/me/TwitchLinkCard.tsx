@@ -92,7 +92,7 @@ export function TwitchLinkCard({
 				</div>
 				{link?.profileImageUrl ? (
 					// eslint-disable-next-line @next/next/no-img-element
-					<img src={link.profileImageUrl} alt="" className="size-14 rounded-2xl border border-[#c9a8ff]/30 object-cover" />
+					<img src={link.profileImageUrl} alt="" width={56} height={56} className="size-14 rounded-2xl border border-[#c9a8ff]/30 object-cover" />
 				) : null}
 			</div>
 
@@ -161,7 +161,11 @@ export function TwitchLinkCard({
 				</a>
 			)}
 
-			{message ? <p className="mt-4 text-xs font-bold text-emerald-100/64">{message}</p> : null}
+			{message ? (
+				<p role="status" className="mt-4 text-xs font-bold text-emerald-100/64">
+					{message}
+				</p>
+			) : null}
 			<ConfirmDialog
 				open={disconnectConfirmOpen}
 				title="Twitch-Verknüpfung entfernen?"
@@ -191,13 +195,7 @@ function SettingToggle({
 }) {
 	return (
 		<label className={`flex items-start gap-3 rounded-2xl border border-white/10 bg-black/18 p-4 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-			<input
-				type="checkbox"
-				checked={checked}
-				disabled={disabled}
-				onChange={(event) => onChange(event.target.checked)}
-				className="mt-0.5 size-5 accent-[#9146ff]"
-			/>
+			<input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-5 accent-[#9146ff]" />
 			<span>
 				<span className="block text-sm font-black text-emerald-50">{title}</span>
 				<span className="mt-1 block text-xs leading-5 text-emerald-100/48">{description}</span>

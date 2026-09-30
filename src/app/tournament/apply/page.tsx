@@ -14,13 +14,10 @@ import { getSummonerByPuuid } from "@/lib/riot";
 import { ApplicationForm } from "./ApplicationForm";
 import { DiscordSignInButton } from "../DiscordSignInButton";
 import { AccountLogoutButton } from "../me/AccountLogoutButton";
+import { buildRulebook } from "@/lib/tournament-presentation";
 
-const rules = [
+const conductRules = [
 	"Bewerbungsschluss ist der auf der Webseite angegebene Zeitpunkt.",
-	"Du meldest dich verbindlich für den angekündigten Turniertermin an.",
-	"Champion, Items, Runen und Summoner Spells werden pro Spieler und Match zufällig über die Webseite bestimmt.",
-	"Dein League-Account sollte mindestens 150 Champions besitzen, damit Ultimate Bravery fair spielbar bleibt.",
-	"Jeder Spieler hat pro Match 2 garantierte Rerolls. Wenn danach weiterhin kein besessener Champion dabei ist, kann der Captain eine Ausnahme bei der Orga anfragen.",
 	"Deine Riot-Verifizierung, dein Account-Level, deine Main Rolle und die Reihenfolge deiner Wunschrollen werden für Teilnahme und Team-Balancing genutzt.",
 	"Kein toxisches Verhalten, kein Trashtalk gegen Gegner oder Teammates, kein absichtliches Feeden, kein Account-Sharing, kein Scripting und kein Wettbewerbsbetrug.",
 	"Wenn es Probleme gibt, meldet sie bitte ruhig an die Orga oder später über das Feedback-Formular.",
@@ -29,6 +26,8 @@ const rules = [
 
 export default async function ApplyPage() {
 	const settings = await getTournamentSettings();
+	const tournamentName = settings.activeTournament.name;
+	const rules = [...buildRulebook(settings).map((rule) => `${rule.title}: ${rule.text}`), ...conductRules];
 	const deadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
 	const now = new Date();
 	const openReached = isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt);
@@ -44,10 +43,10 @@ export default async function ApplyPage() {
 		return (
 			<div className="px-5 py-10 sm:py-14">
 				<section className="mx-auto w-full max-w-3xl rounded-[2.2rem] border border-cyan-200/16 bg-cyan-300/[0.06] p-6 shadow-2xl shadow-black/25 sm:p-8">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-cyan-100/70">Ultimate Bravery</div>
+					<div className="text-xs font-black uppercase tracking-[0.3em] text-cyan-100/70">{tournamentName}</div>
 					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50">Die Bewerbung öffnet später.</h1>
 					<p className="mt-4 text-sm leading-7 text-emerald-100/72">
-						Ultimate Bravery wird gerade vorbereitet. Deine Discord-Anmeldung und Riot-Verifizierung bleiben für die spätere Bewerbung erhalten. Den finalen Termin
+						{tournamentName} wird gerade vorbereitet. Deine Discord-Anmeldung und Riot-Verifizierung bleiben für die spätere Bewerbung erhalten. Den finalen Termin
 						veröffentlicht die Orga, sobald er bestätigt ist.
 					</p>
 					<Link
@@ -73,7 +72,7 @@ export default async function ApplyPage() {
 							? `Die Anmeldung öffnet am ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}. Du kannst Discord und Riot später hier verbinden.`
 							: deadlinePassed
 								? `Die Anmeldung war bis ${deadlineLabel} möglich. Bei dringenden Rückfragen melde dich bitte direkt beim Orga-Team im Discord.`
-								: "Die Ultimate-Bravery-Anmeldung öffnet wieder, sobald die Orga den nächsten Bewerbungszeitraum freigibt."}
+								: `Die Anmeldung für ${tournamentName} öffnet wieder, sobald die Orga den nächsten Bewerbungszeitraum freigibt.`}
 					</p>
 					<Link
 						href="/tournament"
@@ -134,7 +133,7 @@ export default async function ApplyPage() {
 				<aside className="grid content-start gap-4">
 					<div className="rounded-[2rem] border border-lime-200/14 bg-white/[0.045] p-6">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Bewerbung</div>
-						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">Bei Ultimate Bravery verbindlich mitspielen.</h1>
+						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">Bei {tournamentName} verbindlich mitspielen.</h1>
 						<p className="mt-4 text-sm leading-7 text-emerald-100/70">
 							Wir brauchen deine Angaben, um faire Teams zu bauen und das Bracket zu planen. Bitte trag direkt ein, wenn du beim angekündigten Termin unsicher bist.
 						</p>
@@ -221,7 +220,7 @@ export default async function ApplyPage() {
 							<div className="mt-7">
 								<DiscordSignInButton
 									redirectTo="/tournament/apply"
-									pendingLabel="Weiter zu Discord..."
+									pendingLabel="Weiter zu Discord…"
 									className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-300 px-6 py-4 text-sm font-black uppercase tracking-[0.16em] text-indigo-950 shadow-lg shadow-indigo-500/15 transition hover:-translate-y-0.5 hover:bg-indigo-200 disabled:cursor-wait disabled:opacity-65 sm:w-auto"
 								>
 									<DiscordIcon small />

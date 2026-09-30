@@ -105,7 +105,7 @@ export function DiscordControlCenter() {
 	}
 
 	const cleanupLabel = status?.cleanupRecommendedAt
-		? new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short" }).format(new Date(status.cleanupRecommendedAt))
+		? new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(status.cleanupRecommendedAt))
 		: "Kein Turnierende hinterlegt";
 
 	return (
@@ -185,8 +185,16 @@ export function DiscordControlCenter() {
 							/>
 						</div>
 					) : null}
-					{message ? <div className="rounded-xl border border-lime-200/20 bg-lime-200/8 px-3 py-2 text-xs font-bold text-lime-50">{message}</div> : null}
-					{error ? <div className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">{error}</div> : null}
+					{message ? (
+						<div role="status" className="rounded-xl border border-lime-200/20 bg-lime-200/8 px-3 py-2 text-xs font-bold text-lime-50">
+							{message}
+						</div>
+					) : null}
+					{error ? (
+						<div role="alert" className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
+							{error}
+						</div>
+					) : null}
 				</div>
 
 				<div className="min-w-0 rounded-2xl border border-white/8 bg-black/18 p-4">
@@ -339,17 +347,22 @@ function TypedConfirmation({
 	busy: boolean;
 }) {
 	return (
-		<div role="dialog" aria-modal="true" className="fixed inset-0 z-[90] grid place-items-center px-5">
+		<div role="dialog" aria-modal="true" aria-labelledby="remove-access-title" className="fixed inset-0 z-[90] grid place-items-center px-5">
 			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-black/72 backdrop-blur-sm" />
 			<div className="relative w-full max-w-lg rounded-[2rem] border border-red-300/24 bg-[#0b1710] p-6 shadow-2xl shadow-black/60">
 				<div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-200/64">Destruktive Discord-Aktion</div>
-				<h2 className="mt-2 text-2xl font-black text-emerald-50">Turnierzugang entfernen</h2>
+				<h2 id="remove-access-title" className="mt-2 text-2xl font-black text-emerald-50">
+					Turnierzugang entfernen
+				</h2>
 				<p className="mt-3 text-sm leading-6 text-emerald-100/58">
 					Die Turnierrolle wird von {count} Mitgliedern entfernt. Feedback- und Ergebnis-Channels können danach nicht mehr sichtbar sein.
 				</p>
 				<label className="mt-5 grid gap-2">
 					<span className="text-[10px] font-black uppercase tracking-[0.16em] text-red-100/68">Zum Bestätigen eingeben: TURNIERZUGANG ENTFERNEN</span>
 					<input
+						name="confirmation"
+						autoComplete="off"
+						spellCheck={false}
 						value={value}
 						onChange={(event) => onChange(event.target.value)}
 						className="rounded-xl border border-red-300/20 bg-black/28 px-3 py-3 text-sm font-black text-emerald-50 outline-none focus:border-red-300/45"

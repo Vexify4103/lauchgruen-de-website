@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useId, useRef, useState, useTransition } from "react";
 import type { ChampionPool, ChampionPoolEntry } from "@/lib/champion-pools";
+import { fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
 import type { ControlMatch } from "@/lib/match-control";
 import {
 	DRAFT_TOTAL_MS,
@@ -23,8 +24,12 @@ type EditableSide = "teamA" | "teamB" | null;
 export function ChampSelectClient({
 	match,
 	draft,
-	teamAChampions,
-	teamBChampions,
+	mode,
+	blueChampions,
+	redChampions,
+	fearlessLocks,
+	closedReason,
+	lockOpponentChampions,
 	editableSide,
 	blueTeamLabel,
 	redTeamLabel,
@@ -33,16 +38,26 @@ export function ChampSelectClient({
 }: {
 	match: ControlMatch;
 	draft: TournamentDraftState;
-	teamAChampions: ChampionPool["champions"];
-	teamBChampions: ChampionPool["champions"];
+	mode: "pools" | "fearless";
+	/** Pick candidates of Blue (teamA) and Red (teamB). */
+	blueChampions: ChampionPool["champions"];
+	redChampions: ChampionPool["champions"];
+	fearlessLocks: FearlessLocks;
+	closedReason: string | null;
+	lockOpponentChampions: boolean;
 	editableSide: EditableSide;
 	blueTeamLabel: string;
 	redTeamLabel: string;
 	extraBanSide: DraftSide | null;
 	isOwner: boolean;
 }) {
+	const fearless = mode === "fearless";
+	const searchId = useId();
 	const [state, setState] = useState(draft);
 	const [selectedChampion, setSelectedChampion] = useState("");
+	const [search, setSearch] = useState("");
+	const [hideLocked, setHideLocked] = useState(false);
+	const deferredSearch = useDeferredValue(search);
 	const [message, setMessage] = useState("");
 	const [now, setNow] = useState(() => Date.now());
 	const [isPending, startTransition] = useTransition();
@@ -57,11 +72,19 @@ export function ChampSelectClient({
 	const ready = draftReady(state);
 	const ownReady = editableSide ? Boolean(state.readyBy[editableSide]) : false;
 	const timer = getTimerState(state, now, draftSequence);
-	const allChampions = [...teamAChampions, ...teamBChampions];
+	const allChampions = [...new Map([...blueChampions, ...redChampions].map((champion) => [champion.name, champion])).values()];
 	const usedChampions = new Set(state.actions.map((action) => action.champion));
-	const candidatePool = currentTurn ? championsForTurn(currentTurn, teamAChampions, teamBChampions) : [];
-	const canLock = Boolean(currentTurn && editableSide === currentTurn.side && ready && !timer.expired && selectedChampion && !usedChampions.has(selectedChampion));
-	const adminCanLock = Boolean(isOwner && currentTurn && ready && !timer.expired && selectedChampion && !usedChampions.has(selectedChampion));
+	const turnLocks = currentTurn && currentTurn.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
+	const candidatePool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions, fearless) : [];
+	const searchTerm = normalizeChampionSearch(deferredSearch);
+	const visiblePool = candidatePool.filter(
+		(champion) =>
+			(!searchTerm || normalizeChampionSearch(champion.name).includes(searchTerm)) && !(hideLocked && (turnLocks[champion.name] || usedChampions.has(champion.name)))
+	);
+	const availableCount = candidatePool.filter((champion) => !turnLocks[champion.name] && !usedChampions.has(champion.name)).length;
+	const selectable = (champion: string) => Boolean(champion) && !usedChampions.has(champion) && !turnLocks[champion];
+	const canLock = Boolean(currentTurn && editableSide === currentTurn.side && ready && !timer.expired && selectable(selectedChampion));
+	const adminCanLock = Boolean(isOwner && currentTurn && ready && !timer.expired && selectable(selectedChampion));
 
 	useEffect(() => {
 		const interval = window.setInterval(() => setNow(Date.now()), 250);
@@ -191,8 +214,9 @@ export function ChampSelectClient({
 	}
 
 	function selectChampion(champion: string) {
+		if (!selectable(champion)) return;
 		setSelectedChampion(champion);
-		if (!currentTurn || !ready || timer.expired || usedChampions.has(champion)) return;
+		if (!currentTurn || !ready || timer.expired) return;
 		if (!isOwner && editableSide !== currentTurn.side) return;
 		const key = `${state.actions.length}:${currentTurn.side}:${currentTurn.kind}:${champion}`;
 		if (lastBroadcastSelectionRef.current === key) return;
@@ -255,7 +279,12 @@ export function ChampSelectClient({
 				<DraftTrack
 					side="teamA"
 					title={blueTeamLabel}
-					pool={match.blueSide === "teamA" ? (match.poolAssignment?.teamAPool ?? null) : (match.poolAssignment?.teamBPool ?? null)}
+					poolLabel={
+						fearless
+							? fearlessSummary(fearlessLocks.teamA)
+							: poolSummary(match.blueSide === "teamA" ? (match.poolAssignment?.teamAPool ?? null) : (match.poolAssignment?.teamBPool ?? null))
+					}
+					locks={fearless ? fearlessLocks.teamA : null}
 					actions={state.actions}
 					allChampions={allChampions}
 					accent="blue"
@@ -265,7 +294,7 @@ export function ChampSelectClient({
 					ready={Boolean(state.readyBy.teamA)}
 				/>
 				<CurrentTurnPanel
-					matchHasPools={Boolean(match.poolAssignment)}
+					closedReason={closedReason}
 					turn={currentTurn}
 					complete={complete}
 					ready={ready}
@@ -282,7 +311,12 @@ export function ChampSelectClient({
 				<DraftTrack
 					side="teamB"
 					title={redTeamLabel}
-					pool={match.blueSide === "teamA" ? (match.poolAssignment?.teamBPool ?? null) : (match.poolAssignment?.teamAPool ?? null)}
+					poolLabel={
+						fearless
+							? fearlessSummary(fearlessLocks.teamB)
+							: poolSummary(match.blueSide === "teamA" ? (match.poolAssignment?.teamBPool ?? null) : (match.poolAssignment?.teamAPool ?? null))
+					}
+					locks={fearless ? fearlessLocks.teamB : null}
 					actions={state.actions}
 					allChampions={allChampions}
 					accent="red"
@@ -292,38 +326,78 @@ export function ChampSelectClient({
 					ready={Boolean(state.readyBy.teamB)}
 				/>
 
-				{currentTurn && match.poolAssignment ? (
+				{currentTurn && !closedReason ? (
 					<section className="rounded-[1.25rem] border border-white/8 bg-black/16 p-3 shadow-xl shadow-black/20 sm:p-4 xl:col-start-2">
 						<div className="flex flex-wrap items-end justify-between gap-3">
 							<div>
 								<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{currentTurn.kind === "ban" ? "Ban-Auswahl" : "Pick-Auswahl"}</div>
 								<h2 className="mt-1 text-xl font-black text-emerald-50">
-									{turnLabel(currentTurn)} · {currentTurn.kind === "ban" ? "gegnerischer Pool" : "eigener Pool"}
+									{turnLabel(currentTurn)} · {turnPoolLabel(currentTurn.kind, fearless)}
 								</h2>
 							</div>
-							<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">{candidatePool.length} Champions</div>
+							<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black tabular-nums text-lime-100">{availableCount} verfügbar</div>
 						</div>
+						{fearless ? (
+							<div className="mt-3 flex flex-wrap items-center gap-3">
+								<label htmlFor={searchId} className="sr-only">
+									Champion suchen
+								</label>
+								<input
+									id={searchId}
+									type="search"
+									name="champion-search"
+									autoComplete="off"
+									spellCheck={false}
+									placeholder="Champion suchen…"
+									value={search}
+									onChange={(event) => setSearch(event.target.value)}
+									className="min-w-0 flex-1 rounded-xl border border-white/12 bg-black/28 px-3 py-2 text-sm font-semibold text-emerald-50 outline-none placeholder:text-emerald-100/32 focus-visible:border-lime-200/50"
+								/>
+								{currentTurn.kind === "pick" ? (
+									<label className="inline-flex cursor-pointer items-center gap-2 text-xs font-black text-emerald-100/70">
+										<input type="checkbox" checked={hideLocked} onChange={(event) => setHideLocked(event.target.checked)} className="size-4 accent-lime-300" />
+										Gesperrte ausblenden
+									</label>
+								) : null}
+							</div>
+						) : null}
 
 						<div className="draft-scrollbar-hidden mt-3 max-h-[50vh] overflow-y-auto pr-1">
+							{visiblePool.length === 0 ? (
+								<p className="rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm font-bold text-emerald-100/56">
+									Kein Champion passt zur Suche.
+								</p>
+							) : null}
 							<div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 2xl:grid-cols-10">
-								{candidatePool.map((champion) => {
+								{visiblePool.map((champion) => {
 									const used = usedChampions.has(champion.name);
+									const lock = turnLocks[champion.name];
 									const active = selectedChampion === champion.name;
 									return (
 										<button
 											key={champion.id}
 											type="button"
-											disabled={used || !ready || timer.expired || (!isOwner && editableSide !== currentTurn.side) || isPending}
+											disabled={used || Boolean(lock) || !ready || timer.expired || (!isOwner && editableSide !== currentTurn.side) || isPending}
 											onClick={() => selectChampion(champion.name)}
-											className={`group overflow-hidden rounded-xl border p-1.5 text-left transition ${
+											title={lock ? fearlessLockLabel(lock) : used ? "Bereits in diesem Draft gewählt" : undefined}
+											aria-label={
+												lock ? `${champion.name}, gesperrt: ${fearlessLockLabel(lock)}` : used ? `${champion.name}, bereits gewählt` : champion.name
+											}
+											aria-pressed={active}
+											className={`group relative overflow-hidden rounded-xl border p-1.5 text-left transition-[transform,border-color,background-color] [contain-intrinsic-size:auto_7rem] [content-visibility:auto] ${
 												active
 													? "border-lime-200/60 bg-lime-200/16 shadow-lg shadow-lime-300/10"
-													: used
+													: used || lock
 														? "border-white/6 bg-black/30 opacity-35 grayscale"
 														: "border-white/10 bg-black/18 hover:-translate-y-0.5 hover:border-lime-200/30"
 											} disabled:cursor-not-allowed`}
 										>
 											<ChampionIcon champion={champion} />
+											{lock ? (
+												<span className="absolute left-1 top-1 rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-amber-100">
+													{lock.source === "own" ? "Gespielt" : "Gegner"}
+												</span>
+											) : null}
 											<div className="mt-1.5 truncate text-center text-xs font-black text-emerald-50">{champion.name}</div>
 										</button>
 									);
@@ -385,7 +459,11 @@ export function ChampSelectClient({
 				/>
 			) : null}
 
-			{message ? <div className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					{message}
+				</div>
+			) : null}
 
 			<style>{`
         .draft-scrollbar-hidden {
@@ -404,11 +482,32 @@ export function ChampSelectClient({
 	);
 }
 
-function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, teamAChampions: ChampionPool["champions"], teamBChampions: ChampionPool["champions"]) {
-	if (turn.kind === "pick") {
-		return turn.side === "teamA" ? teamAChampions : teamBChampions;
-	}
-	return turn.side === "teamA" ? teamBChampions : teamAChampions;
+function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, blueChampions: ChampionPool["champions"], redChampions: ChampionPool["champions"], fearless: boolean) {
+	const own = turn.side === "teamA" ? blueChampions : redChampions;
+	const enemy = turn.side === "teamA" ? redChampions : blueChampions;
+	// Fearless drafts share one full roster; pools ban from the enemy pool.
+	return turn.kind === "pick" || fearless ? own : enemy;
+}
+
+function turnPoolLabel(kind: "ban" | "pick", fearless: boolean) {
+	if (fearless) return kind === "ban" ? "alle Champions" : "ohne Fearless-Sperren";
+	return kind === "ban" ? "gegnerischer Pool" : "eigener Pool";
+}
+
+function normalizeChampionSearch(value: string) {
+	return value
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[^a-z0-9]/g, "");
+}
+
+function poolSummary(pool: string | null) {
+	return pool ? `Pool ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen";
+}
+
+function fearlessSummary(locks: Record<string, FearlessLock>) {
+	const count = Object.keys(locks).length;
+	return count === 0 ? "Fearless · noch keine Sperren" : `Fearless · ${count} ${count === 1 ? "Champion" : "Champions"} gesperrt`;
 }
 
 function draftActionLabel({ champion, kind, admin }: { champion: string; kind: "ban" | "pick"; admin?: boolean }) {
@@ -522,7 +621,7 @@ function AdminDraftControls({
 }
 
 function CurrentTurnPanel({
-	matchHasPools,
+	closedReason,
 	turn,
 	complete,
 	ready,
@@ -536,7 +635,7 @@ function CurrentTurnPanel({
 	onReady,
 	onLock,
 }: {
-	matchHasPools: boolean;
+	closedReason: string | null;
 	turn: { side: DraftSide; kind: "ban" | "pick" } | null;
 	complete: boolean;
 	ready: boolean;
@@ -555,10 +654,8 @@ function CurrentTurnPanel({
 	return (
 		<aside className="rounded-none border-0 bg-transparent p-0 text-center shadow-none">
 			<div className="hidden text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Aktueller Turn</div>
-			{!matchHasPools ? (
-				<p className="mx-auto max-w-sm rounded-2xl border border-amber-200/18 bg-amber-200/8 px-4 py-3 text-sm font-bold leading-6 text-amber-100/76">
-					Für dieses Match wurden noch keine Pools gezogen.
-				</p>
+			{closedReason ? (
+				<p className="mx-auto max-w-sm rounded-2xl border border-amber-200/18 bg-amber-200/8 px-4 py-3 text-sm font-bold leading-6 text-amber-100/76">{closedReason}</p>
 			) : complete ? (
 				<p className="mx-auto w-fit border-t-4 border-lime-300 px-8 pt-2 text-xs font-black uppercase tracking-[0.22em] text-lime-100">Draft abgeschlossen</p>
 			) : !ready ? (
@@ -575,7 +672,7 @@ function CurrentTurnPanel({
 						<div className={`mt-1 text-3xl font-black tabular-nums ${timer.remainingMs <= 0 ? "text-amber-100" : "text-emerald-50"}`}>{timer.label}</div>
 						<div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
 							<div
-								className={`h-full rounded-full transition-all ${timer.remainingMs <= 0 ? "bg-amber-200" : "bg-lime-200"}`}
+								className={`h-full rounded-full transition-[width] ${timer.remainingMs <= 0 ? "bg-amber-200" : "bg-lime-200"}`}
 								style={{ width: `${timer.progress}%` }}
 							/>
 						</div>
@@ -696,7 +793,8 @@ function ChampionMini({ champion, label, banned }: { champion?: ChampionPoolEntr
 function DraftTrack({
 	side,
 	title,
-	pool,
+	poolLabel,
+	locks,
 	actions,
 	allChampions,
 	accent,
@@ -707,7 +805,8 @@ function DraftTrack({
 }: {
 	side: DraftSide;
 	title: string;
-	pool: string | null;
+	poolLabel: string;
+	locks: Record<string, FearlessLock> | null;
 	actions: DraftAction[];
 	allChampions: ChampionPool["champions"];
 	accent: "blue" | "red";
@@ -742,7 +841,7 @@ function DraftTrack({
 				<h2 className={isBlue ? "mt-2 break-words text-2xl font-black text-sky-50 2xl:text-3xl" : "mt-2 break-words text-2xl font-black text-red-50 2xl:text-3xl"}>
 					{title}
 				</h2>
-				<p className="mt-1 text-sm font-bold text-emerald-100/52">{pool ? `Pool ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen"}</p>
+				<p className="mt-1 text-sm font-bold text-emerald-100/52">{poolLabel}</p>
 			</header>
 
 			<div className="mt-4">
@@ -777,7 +876,41 @@ function DraftTrack({
 					))}
 				</div>
 			</div>
+			{locks && Object.keys(locks).length > 0 ? <FearlessLockList locks={locks} byName={byName} align={isBlue ? "left" : "right"} /> : null}
 		</article>
+	);
+}
+
+function FearlessLockList({ locks, byName, align }: { locks: Record<string, FearlessLock>; byName: Map<string, ChampionPoolEntry>; align: "left" | "right" }) {
+	const entries = Object.values(locks).sort((a, b) => a.source.localeCompare(b.source) || a.champion.localeCompare(b.champion, "de"));
+	return (
+		<details className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-emerald-50">
+			<summary className={`cursor-pointer text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/80 ${align === "right" ? "text-right" : ""}`}>
+				Fearless-Sperren ({entries.length})
+			</summary>
+			<ul className="mt-3 grid grid-cols-6 gap-1.5" aria-label="Gesperrte Champions">
+				{entries.map((lock) => {
+					const champion = byName.get(lock.champion);
+					return (
+						<li key={lock.champion} title={`${lock.champion}: ${fearlessLockLabel(lock)}`} className="relative">
+							{champion ? (
+								<div className={`relative aspect-square overflow-hidden rounded-md grayscale ${lock.source === "opponent" ? "opacity-60" : ""}`}>
+									<Image
+										src={champion.imageUrl}
+										alt={`${lock.champion} (${lock.source === "own" ? "selbst gespielt" : "vom Gegner gespielt"})`}
+										fill
+										sizes="3rem"
+										className="object-cover"
+									/>
+								</div>
+							) : (
+								<span className="block truncate text-[10px] font-bold">{lock.champion}</span>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</details>
 	);
 }
 

@@ -10,12 +10,14 @@ import { ThemedDateTimePicker } from "@/components/ThemedDateTimePicker";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
+import { TOURNAMENT_KIND_LABELS, usesChampSelect, usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
 
 type SettingKey = keyof Pick<TournamentSettings, "applicationsOpen" | "applicationDeadlineOverride" | "tournamentLive" | "draftEnabled">;
 type SettingsPatch = Partial<
 	Pick<TournamentSettings, "applicationsOpen" | "applicationOpenAt" | "applicationDeadlineOverride" | "applicationDeadline" | "tournamentLive" | "draftEnabled">
 > & {
 	tournamentMode?: TournamentMode;
+	fearless?: TournamentSettings["fearless"];
 	ultimateBravery?: TournamentSettings["ultimateBravery"];
 };
 
@@ -122,7 +124,21 @@ function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
 	};
 }
 
-export function TournamentModePanel({ initialSettings, initialVersion }: { initialSettings: TournamentSettings; initialVersion: number }) {
+export type TournamentSettingsSection = "format" | "rules" | "applications" | "lifecycle";
+
+export function TournamentModePanel({
+	initialSettings,
+	initialVersion,
+	section,
+	onSaved,
+}: {
+	initialSettings: TournamentSettings;
+	initialVersion: number;
+	/** Render only one group of settings, e.g. inside an admin modal. */
+	section?: TournamentSettingsSection;
+	onSaved?: () => void;
+}) {
+	const show = (key: TournamentSettingsSection) => !section || section === key;
 	const { showConflict } = useAdminConflict();
 	const [version, setVersion] = useState(initialVersion);
 	const [settings, setSettings] = useState(initialSettings);
@@ -157,6 +173,7 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 			setOpenAtInput(toNullableDateTimeLocalValue(json.settings.applicationOpenAt));
 			setDeadlineInput(toDateTimeLocalValue(json.settings.applicationDeadline));
 			setMessage("Settings gespeichert.");
+			onSaved?.();
 		});
 	}
 
@@ -204,394 +221,457 @@ export function TournamentModePanel({ initialSettings, initialVersion }: { initi
 		persistSettings({ applicationOpenAt: nextOpenAt, applicationDeadline: nextDeadline, applicationDeadlineOverride: false }, previousSettings);
 	}
 
+	function toggleOpponentLocks() {
+		const previousSettings = settings;
+		const fearless = { lockOpponentChampions: !settings.fearless.lockOpponentChampions };
+		setSettings((current) => ({ ...current, fearless }));
+		persistSettings({ fearless }, previousSettings);
+	}
+
 	function saveUltimateBravery() {
 		persistSettings({ ultimateBravery: settings.ultimateBravery });
 	}
 
 	return (
-		<section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] shadow-xl shadow-black/24">
-			<div className="border-b border-white/8 bg-gradient-to-r from-lime-200/[0.08] via-white/[0.025] to-cyan-200/[0.05] p-5">
+		<section className={section ? "" : "overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] shadow-xl shadow-black/24"}>
+			<div className={section ? "hidden" : "border-b border-white/8 bg-gradient-to-r from-lime-200/[0.08] via-white/[0.025] to-cyan-200/[0.05] p-5"}>
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Tournament Mode</div>
 						<h2 className="mt-2 text-2xl font-black text-emerald-50">Live-Schalter</h2>
 					</div>
 					<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-xs font-black text-emerald-100/54">
-						{new Date(settings.updatedAt).toLocaleTimeString("de-DE")}
+						{new Date(settings.updatedAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin" })}
 					</div>
 				</div>
 			</div>
 
-			<div className="grid gap-4 p-5">
-				<div className="rounded-[1.75rem] border border-amber-200/16 bg-amber-200/[0.045] p-5">
-					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100/64">Ultimate-Bravery-Konfiguration</div>
-					<div className="mt-4 grid gap-3 sm:grid-cols-2">
-						<label className="text-xs font-bold text-emerald-100/62">
-							Tag 1
-							<ThemedDateTimePicker
-								ariaLabel="Startzeit von Tag 1"
-								value={settings.ultimateBravery.startAt ? toDateTimeLocalValue(settings.ultimateBravery.startAt) : ""}
-								onChange={(value) =>
-									setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, startAt: fromDateTimeLocalValue(value) } }))
-								}
-								clearable
-							/>
-						</label>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Tag 2
-							<ThemedDateTimePicker
-								ariaLabel="Startzeit von Tag 2"
-								value={settings.ultimateBravery.dayTwoStartAt ? toDateTimeLocalValue(settings.ultimateBravery.dayTwoStartAt) : ""}
-								onChange={(value) =>
-									setSettings((current) => ({
-										...current,
-										ultimateBravery: { ...current.ultimateBravery, dayTwoStartAt: fromDateTimeLocalValue(value) },
-									}))
-								}
-								clearable
-							/>
-						</label>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Gesamtzahl Teams
-							<ThemedNumberInput
-								min={2}
-								max={32}
-								value={settings.ultimateBravery.teamCount}
-								ariaLabel="Gesamtzahl Teams"
-								onChange={(value) => {
-									const teamCount = Number(value);
-									setSettings((current) => ({
-										...current,
-										ultimateBravery: (() => {
-											const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
-											const swiss = swissQualification(teamCount, allTeamsAdvance);
-											const advanceTeamCount =
-												current.ultimateBravery.dayOneFormat === "swiss" ? swiss.advancing : Math.min(current.ultimateBravery.advanceTeamCount, teamCount);
-											return {
-												...current.ultimateBravery,
-												teamCount,
-												groupCount: Math.min(current.ultimateBravery.groupCount, teamCount),
-												advanceTeamCount,
-												swissRounds: current.ultimateBravery.dayOneFormat === "swiss" ? swiss.rounds : current.ultimateBravery.swissRounds,
-												format:
-													teamCount === 6 && advanceTeamCount === 6
-														? "double-elimination-light"
-														: teamCount === 4 && advanceTeamCount === 4
-															? "double-elimination"
-															: current.ultimateBravery.format,
-											};
-										})(),
-									}));
-								}}
-							/>
-						</label>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Format an Tag 1
-							<ThemedSelect
-								value={settings.ultimateBravery.dayOneFormat}
-								onChange={(value) =>
-									setSettings((current) => {
-										const dayOneFormat = value as TournamentSettings["ultimateBravery"]["dayOneFormat"];
-										if (dayOneFormat !== "swiss") return { ...current, ultimateBravery: { ...current.ultimateBravery, dayOneFormat } };
-										const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
-										const swiss = swissQualification(current.ultimateBravery.teamCount, allTeamsAdvance);
-										return {
-											...current,
-											ultimateBravery: { ...current.ultimateBravery, dayOneFormat, advanceTeamCount: swiss.advancing, swissRounds: swiss.rounds },
-										};
-									})
-								}
-								ariaLabel="Format an Tag 1"
-								options={[
-									{ value: "undecided", label: "Noch nicht entschieden" },
-									{ value: "groups", label: "Gruppenphase" },
-									{ value: "swiss", label: "Swiss Stage" },
-								]}
-							/>
-						</label>
-						{settings.ultimateBravery.dayOneFormat === "groups" ? (
-							<>
-								<label className="text-xs font-bold text-emerald-100/62">
-									Anzahl Gruppen
-									<ThemedNumberInput
-										min={1}
-										max={Math.min(16, settings.ultimateBravery.teamCount)}
-										value={settings.ultimateBravery.groupCount}
-										ariaLabel="Anzahl Gruppen"
-										onChange={(value) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, groupCount: Number(value) } }))}
-									/>
-								</label>
-								<label className="text-xs font-bold text-emerald-100/62">
-									Begegnungen pro Paarung
-									<ThemedSelect
-										value={String(settings.ultimateBravery.groupRoundRobinLegs)}
-										onChange={(value) =>
-											setSettings((current) => ({
-												...current,
-												ultimateBravery: { ...current.ultimateBravery, groupRoundRobinLegs: Number(value) as 1 | 2 },
-											}))
-										}
-										ariaLabel="Begegnungen pro Paarung"
-										options={[
-											{ value: "1", label: "Einmal gegeneinander" },
-											{ value: "2", label: "Hin- und Rückrunde" },
-										]}
-									/>
-								</label>
-							</>
-						) : settings.ultimateBravery.teamCount === 8 && settings.ultimateBravery.advanceTeamCount === 8 ? (
-							<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Swiss-Modell automatisch erkannt</div>
-								<div className="mt-1 text-sm font-black text-emerald-50">8-Team Placement Swiss · bis zu 4 Runden</div>
-								<div className="mt-1 text-xs leading-5 text-emerald-100/52">Alle Teams ziehen weiter; ausgespielt werden die vollständigen Playoff-Seeds.</div>
-							</div>
-						) : null}
-						<label className="text-xs font-bold text-emerald-100/62">
-							Teams in den Playoffs
-							{settings.ultimateBravery.dayOneFormat === "swiss" ? (
-								<ThemedSelect
-									value={settings.ultimateBravery.advanceTeamCount === settings.ultimateBravery.teamCount ? "all" : "half"}
+			<div className={section ? "grid gap-4" : "grid gap-4 p-5"}>
+				{show("format") ? (
+					<div className="rounded-[1.75rem] border border-amber-200/16 bg-amber-200/[0.045] p-5">
+						<div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100/64">
+							{settings.activeTournament.name} · {TOURNAMENT_KIND_LABELS[settings.activeTournament.kind]}
+						</div>
+						<div className="mt-4 grid gap-3 sm:grid-cols-2">
+							<label className="text-xs font-bold text-emerald-100/62">
+								Tag 1
+								<ThemedDateTimePicker
+									ariaLabel="Startzeit von Tag 1"
+									value={settings.ultimateBravery.startAt ? toDateTimeLocalValue(settings.ultimateBravery.startAt) : ""}
 									onChange={(value) =>
-										setSettings((current) => {
-											const swiss = swissQualification(current.ultimateBravery.teamCount, value === "all");
-											return {
-												...current,
-												ultimateBravery: {
-													...current.ultimateBravery,
-													advanceTeamCount: swiss.advancing,
-													swissRounds: swiss.rounds,
-													format:
-														current.ultimateBravery.teamCount === 6 && swiss.advancing === 6
-															? "double-elimination-light"
-															: current.ultimateBravery.format,
-												},
-											};
-										})
+										setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, startAt: fromDateTimeLocalValue(value) } }))
 									}
-									ariaLabel="Teams in den Playoffs"
-									options={[
-										{ value: "half", label: `50 % · ${Math.max(2, Math.floor(settings.ultimateBravery.teamCount / 2))} Teams` },
-										{ value: "all", label: `Alle · ${settings.ultimateBravery.teamCount} Teams` },
-									]}
+									clearable
 								/>
-							) : (
+							</label>
+							<label className="text-xs font-bold text-emerald-100/62">
+								Tag 2
+								<ThemedDateTimePicker
+									ariaLabel="Startzeit von Tag 2"
+									value={settings.ultimateBravery.dayTwoStartAt ? toDateTimeLocalValue(settings.ultimateBravery.dayTwoStartAt) : ""}
+									onChange={(value) =>
+										setSettings((current) => ({
+											...current,
+											ultimateBravery: { ...current.ultimateBravery, dayTwoStartAt: fromDateTimeLocalValue(value) },
+										}))
+									}
+									clearable
+								/>
+							</label>
+							<label className="text-xs font-bold text-emerald-100/62">
+								Gesamtzahl Teams
 								<ThemedNumberInput
 									min={2}
-									max={settings.ultimateBravery.teamCount}
-									value={settings.ultimateBravery.advanceTeamCount}
-									ariaLabel="Teams in den Playoffs"
-									onChange={(value) =>
-										setSettings((current) => {
-											const advanceTeamCount = Number(value);
-											return {
-												...current,
-												ultimateBravery: {
+									max={32}
+									value={settings.ultimateBravery.teamCount}
+									ariaLabel="Gesamtzahl Teams"
+									onChange={(value) => {
+										const teamCount = Number(value);
+										setSettings((current) => ({
+											...current,
+											ultimateBravery: (() => {
+												const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
+												const swiss = swissQualification(teamCount, allTeamsAdvance);
+												const advanceTeamCount =
+													current.ultimateBravery.dayOneFormat === "swiss"
+														? swiss.advancing
+														: Math.min(current.ultimateBravery.advanceTeamCount, teamCount);
+												return {
 													...current.ultimateBravery,
+													teamCount,
+													groupCount: Math.min(current.ultimateBravery.groupCount, teamCount),
 													advanceTeamCount,
+													swissRounds: current.ultimateBravery.dayOneFormat === "swiss" ? swiss.rounds : current.ultimateBravery.swissRounds,
 													format:
-														current.ultimateBravery.teamCount === 6 && advanceTeamCount === 6
+														teamCount === 6 && advanceTeamCount === 6
 															? "double-elimination-light"
-															: current.ultimateBravery.teamCount === 4 && advanceTeamCount === 4
+															: teamCount === 4 && advanceTeamCount === 4
 																? "double-elimination"
 																: current.ultimateBravery.format,
-												},
+												};
+											})(),
+										}));
+									}}
+								/>
+							</label>
+							<label className="text-xs font-bold text-emerald-100/62">
+								Format an Tag 1
+								<ThemedSelect
+									value={settings.ultimateBravery.dayOneFormat}
+									onChange={(value) =>
+										setSettings((current) => {
+											const dayOneFormat = value as TournamentSettings["ultimateBravery"]["dayOneFormat"];
+											if (dayOneFormat !== "swiss") return { ...current, ultimateBravery: { ...current.ultimateBravery, dayOneFormat } };
+											const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
+											const swiss = swissQualification(current.ultimateBravery.teamCount, allTeamsAdvance);
+											return {
+												...current,
+												ultimateBravery: { ...current.ultimateBravery, dayOneFormat, advanceTeamCount: swiss.advancing, swissRounds: swiss.rounds },
 											};
 										})
 									}
+									ariaLabel="Format an Tag 1"
+									options={[
+										{ value: "undecided", label: "Noch nicht entschieden" },
+										{ value: "groups", label: "Gruppenphase" },
+										{ value: "swiss", label: "Swiss Stage" },
+									]}
 								/>
-							)}
-						</label>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Playoff-Format
-							<ThemedSelect
-								value={settings.ultimateBravery.format}
-								onChange={(value) =>
-									setSettings((current) => ({
-										...current,
-										ultimateBravery: { ...current.ultimateBravery, format: value as TournamentSettings["ultimateBravery"]["format"] },
-									}))
-								}
-								ariaLabel="Playoff-Format"
-								options={[
-									{ value: "undecided", label: "Noch nicht entschieden" },
-									{ value: "double-elimination", label: "Double Elimination" },
-									{
-										value: "double-elimination-light",
-										label: "Double Elimination Light",
-										description:
-											settings.ultimateBravery.advanceTeamCount === 6
-												? "#1–#4 starten Upper, #5/#6 starten Lower"
-												: "#1/#2 mit Upper-Freilos, #7/#8 starten Lower",
-									},
-									{ value: "single-elimination", label: "Single Elimination" },
-								]}
-							/>
-						</label>
-						{settings.ultimateBravery.format === "double-elimination-light" ? (
-							<div className="rounded-2xl border border-lime-200/18 bg-lime-200/[0.065] p-4 sm:col-span-2">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">
-									Double Elimination Light · {settings.ultimateBravery.advanceTeamCount} Teams
-								</div>
-								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-									{settings.ultimateBravery.advanceTeamCount === 6
-										? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket. #5 und #6 steigen direkt gegen die Verlierer dieser Halbfinals im Lower Bracket ein."
-										: "Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein."}{" "}
-									Das Grand Final ist immer ein einzelnes Do-or-die-Match ohne Bracket Reset.
-								</p>
-							</div>
-						) : settings.ultimateBravery.format === "double-elimination" ? (
-							<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">
-									Double Elimination · {settings.ultimateBravery.advanceTeamCount} Teams
-								</div>
-								<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-									Alle qualifizierten Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
-								</p>
-							</div>
-						) : null}
-						<div className="sm:col-span-2 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4">
-							<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
-							<div className="mt-2 text-sm font-black text-emerald-50">{plan.stage}</div>
-							<div className="mt-1 text-xs leading-5 text-emerald-100/60">{plan.qualification}</div>
-							{plan.warning ? (
-								<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-50">{plan.warning}</div>
-							) : null}
-						</div>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Mindestlevel
-							<ThemedNumberInput
-								min={1}
-								max={1000}
-								value={settings.ultimateBravery.minimumSummonerLevel}
-								ariaLabel="Mindestlevel"
-								onChange={(value) =>
-									setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, minimumSummonerLevel: Number(value) } }))
-								}
-							/>
-						</label>
-						<label className="text-xs font-bold text-emerald-100/62">
-							Rerolls pro Spieler
-							<ThemedSelect
-								value={String(settings.ultimateBravery.rerollsPerPlayer)}
-								onChange={(value) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, rerollsPerPlayer: Number(value) } }))}
-								ariaLabel="Rerolls pro Spieler"
-								options={[
-									{ value: "2", label: "2 Rerolls" },
-									{ value: "3", label: "3 Rerolls" },
-								]}
-							/>
-						</label>
-						<div className="sm:col-span-2">
-							<label htmlFor="tournament-prize-pool" className="text-xs font-bold text-emerald-100/62">
-								Preisankündigung
 							</label>
-							<textarea
-								id="tournament-prize-pool"
-								value={settings.ultimateBravery.prizePool}
-								maxLength={4000}
-								rows={9}
-								onChange={(event) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, prizePool: event.target.value } }))}
-								placeholder={"# Preispool\n\n- 1. Platz: ...\n- 2. Platz: ..."}
-								className="mt-2 min-h-48 w-full resize-y rounded-2xl border border-white/10 bg-[#07110c] px-4 py-3 font-mono text-sm leading-6 text-emerald-50 outline-none transition focus:border-cyan-200/35 focus:ring-2 focus:ring-cyan-200/10"
-							/>
-							<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold leading-5 text-emerald-100/46">
-								<span>`#` Überschrift · `##` Untertitel · `-` Liste · `**fett**` · `_kursiv_` · `~~durchgestrichen~~` · `[Link](https://...)`</span>
-								<span>{settings.ultimateBravery.prizePool.length}/4000</span>
-							</div>
-							<div className="mt-4 rounded-2xl border border-amber-200/16 bg-amber-200/[0.055] p-4">
-								<div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Öffentliche Vorschau</div>
-								<TournamentMarkdown>{settings.ultimateBravery.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
+							{settings.ultimateBravery.dayOneFormat === "groups" ? (
+								<>
+									<label className="text-xs font-bold text-emerald-100/62">
+										Anzahl Gruppen
+										<ThemedNumberInput
+											min={1}
+											max={Math.min(16, settings.ultimateBravery.teamCount)}
+											value={settings.ultimateBravery.groupCount}
+											ariaLabel="Anzahl Gruppen"
+											onChange={(value) =>
+												setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, groupCount: Number(value) } }))
+											}
+										/>
+									</label>
+									<label className="text-xs font-bold text-emerald-100/62">
+										Begegnungen pro Paarung
+										<ThemedSelect
+											value={String(settings.ultimateBravery.groupRoundRobinLegs)}
+											onChange={(value) =>
+												setSettings((current) => ({
+													...current,
+													ultimateBravery: { ...current.ultimateBravery, groupRoundRobinLegs: Number(value) as 1 | 2 },
+												}))
+											}
+											ariaLabel="Begegnungen pro Paarung"
+											options={[
+												{ value: "1", label: "Einmal gegeneinander" },
+												{ value: "2", label: "Hin- und Rückrunde" },
+											]}
+										/>
+									</label>
+								</>
+							) : settings.ultimateBravery.teamCount === 8 && settings.ultimateBravery.advanceTeamCount === 8 ? (
+								<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
+									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Swiss-Modell automatisch erkannt</div>
+									<div className="mt-1 text-sm font-black text-emerald-50">8-Team Placement Swiss · bis zu 4 Runden</div>
+									<div className="mt-1 text-xs leading-5 text-emerald-100/52">Alle Teams ziehen weiter; ausgespielt werden die vollständigen Playoff-Seeds.</div>
+								</div>
+							) : null}
+							<label className="text-xs font-bold text-emerald-100/62">
+								Teams in den Playoffs
+								{settings.ultimateBravery.dayOneFormat === "swiss" ? (
+									<ThemedSelect
+										value={settings.ultimateBravery.advanceTeamCount === settings.ultimateBravery.teamCount ? "all" : "half"}
+										onChange={(value) =>
+											setSettings((current) => {
+												const swiss = swissQualification(current.ultimateBravery.teamCount, value === "all");
+												return {
+													...current,
+													ultimateBravery: {
+														...current.ultimateBravery,
+														advanceTeamCount: swiss.advancing,
+														swissRounds: swiss.rounds,
+														format:
+															current.ultimateBravery.teamCount === 6 && swiss.advancing === 6
+																? "double-elimination-light"
+																: current.ultimateBravery.format,
+													},
+												};
+											})
+										}
+										ariaLabel="Teams in den Playoffs"
+										options={[
+											{ value: "half", label: `50 % · ${Math.max(2, Math.floor(settings.ultimateBravery.teamCount / 2))} Teams` },
+											{ value: "all", label: `Alle · ${settings.ultimateBravery.teamCount} Teams` },
+										]}
+									/>
+								) : (
+									<ThemedNumberInput
+										min={2}
+										max={settings.ultimateBravery.teamCount}
+										value={settings.ultimateBravery.advanceTeamCount}
+										ariaLabel="Teams in den Playoffs"
+										onChange={(value) =>
+											setSettings((current) => {
+												const advanceTeamCount = Number(value);
+												return {
+													...current,
+													ultimateBravery: {
+														...current.ultimateBravery,
+														advanceTeamCount,
+														format:
+															current.ultimateBravery.teamCount === 6 && advanceTeamCount === 6
+																? "double-elimination-light"
+																: current.ultimateBravery.teamCount === 4 && advanceTeamCount === 4
+																	? "double-elimination"
+																	: current.ultimateBravery.format,
+													},
+												};
+											})
+										}
+									/>
+								)}
+							</label>
+							<label className="text-xs font-bold text-emerald-100/62">
+								Playoff-Format
+								<ThemedSelect
+									value={settings.ultimateBravery.format}
+									onChange={(value) =>
+										setSettings((current) => ({
+											...current,
+											ultimateBravery: { ...current.ultimateBravery, format: value as TournamentSettings["ultimateBravery"]["format"] },
+										}))
+									}
+									ariaLabel="Playoff-Format"
+									options={[
+										{ value: "undecided", label: "Noch nicht entschieden" },
+										{ value: "double-elimination", label: "Double Elimination" },
+										{
+											value: "double-elimination-light",
+											label: "Double Elimination Light",
+											description:
+												settings.ultimateBravery.advanceTeamCount === 6
+													? "#1–#4 starten Upper, #5/#6 starten Lower"
+													: "#1/#2 mit Upper-Freilos, #7/#8 starten Lower",
+										},
+										{ value: "single-elimination", label: "Single Elimination" },
+									]}
+								/>
+							</label>
+							{settings.ultimateBravery.format === "double-elimination-light" ? (
+								<div className="rounded-2xl border border-lime-200/18 bg-lime-200/[0.065] p-4 sm:col-span-2">
+									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">
+										Double Elimination Light · {settings.ultimateBravery.advanceTeamCount} Teams
+									</div>
+									<p className="mt-2 text-xs leading-5 text-emerald-100/62">
+										{settings.ultimateBravery.advanceTeamCount === 6
+											? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket. #5 und #6 steigen direkt gegen die Verlierer dieser Halbfinals im Lower Bracket ein."
+											: "Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein."}{" "}
+										Das Grand Final ist immer ein einzelnes Do-or-die-Match ohne Bracket Reset.
+									</p>
+								</div>
+							) : settings.ultimateBravery.format === "double-elimination" ? (
+								<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
+									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">
+										Double Elimination · {settings.ultimateBravery.advanceTeamCount} Teams
+									</div>
+									<p className="mt-2 text-xs leading-5 text-emerald-100/62">
+										Alle qualifizierten Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
+									</p>
+								</div>
+							) : null}
+							<div className="sm:col-span-2 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4">
+								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
+								<div className="mt-2 text-sm font-black text-emerald-50">{plan.stage}</div>
+								<div className="mt-1 text-xs leading-5 text-emerald-100/60">{plan.qualification}</div>
+								{plan.warning ? (
+									<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-50">{plan.warning}</div>
+								) : null}
 							</div>
 						</div>
-					</div>
-					<button
-						type="button"
-						disabled={isPending}
-						onClick={saveUltimateBravery}
-						className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
-					>
-						Turnierdaten speichern
-					</button>
-				</div>
-				<div className="rounded-[1.75rem] border border-cyan-200/16 bg-cyan-300/[0.045] p-5">
-					<label className="block">
-						<span className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/64">Sichtbarer Turnierstatus</span>
-						<ThemedSelect
-							value={settings.activeTournament.mode}
-							disabled={isPending}
-							onChange={(value) => saveTournamentMode(value as TournamentMode)}
-							ariaLabel="Sichtbarer Turnierstatus"
-							options={TOURNAMENT_MODES.map((mode) => ({ value: mode, label: modeLabels[mode].label, description: modeLabels[mode].detail }))}
-						/>
-					</label>
-					<p className="mt-3 text-xs leading-5 text-emerald-100/58">{modeLabels[settings.activeTournament.mode].detail}</p>
-				</div>
-				<div className={`rounded-[1.75rem] border p-5 ${settings.applicationsOpen ? "border-lime-200/24 bg-lime-200/[0.09]" : "border-white/10 bg-black/18"}`}>
-					<div className="flex flex-wrap items-start justify-between gap-4">
-						<div className="min-w-0">
-							<div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/52">Bewerbungen</div>
-							<div className={`mt-2 text-4xl font-black tracking-tight ${settings.applicationsOpen ? "text-lime-50" : "text-emerald-100/42"}`}>
-								{settings.applicationsOpen ? "Offen" : "Geschlossen"}
-							</div>
-							<p className="mt-2 max-w-md text-sm leading-6 text-emerald-100/58">
-								Master-Schalter für das Bewerbungsformular. Der Zeitraum unten entscheidet zusätzlich, wann Bewerbungen sichtbar sind.
-							</p>
-						</div>
-						<TogglePill active={settings.applicationsOpen} disabled={isPending} onClick={() => toggle("applicationsOpen")} label="Bewerbungen umschalten" />
-					</div>
-				</div>
-
-				<div className="rounded-[1.75rem] border border-white/10 bg-black/18 p-5">
-					<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
-						<label className="min-w-0">
-							<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsstart</span>
-							<ThemedDateTimePicker ariaLabel="Bewerbungsstart" value={openAtInput} onChange={setOpenAtInput} clearable />
-						</label>
-						<label className="min-w-0">
-							<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsfrist</span>
-							<ThemedDateTimePicker ariaLabel="Bewerbungsfrist" value={deadlineInput} onChange={setDeadlineInput} />
-						</label>
 						<button
 							type="button"
 							disabled={isPending}
-							onClick={saveApplicationWindow}
-							className="h-12 rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-55"
+							onClick={saveUltimateBravery}
+							className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
 						>
-							Zeitraum speichern
+							{isPending ? "Speichert…" : "Format speichern"}
 						</button>
 					</div>
-					<p className="mt-3 text-xs leading-5 text-emerald-100/52">
-						Start: <span className="font-black text-emerald-50/80">{formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}</span> · Frist:{" "}
-						<span className="font-black text-emerald-50/80">{formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}</span>. Wenn der Master-Schalter
-						offen ist, wird <span className="font-black text-lime-100">/apply</span> automatisch nur in diesem Zeitraum verfügbar.
-					</p>
-				</div>
-
-				<div className="grid gap-3">
-					<CompactSetting
-						label="Deadline-Override"
-						value={settings.applicationDeadlineOverride ? "Aktiv" : "Aus"}
-						detail="Nur für Notfälle: öffnet /apply trotz Frist und laufendem Turnier."
-						active={settings.applicationDeadlineOverride}
-						disabled={isPending}
-						onClick={() => toggle("applicationDeadlineOverride")}
-					/>
-					<CompactSetting
-						label="Champ Select"
-						value={settings.draftEnabled ? "Aktiv" : "Pausiert"}
-						detail="Steuert, ob Captains den Website-Draft öffnen können."
-						active={settings.draftEnabled}
-						disabled={isPending}
-						onClick={() => toggle("draftEnabled")}
-					/>
-				</div>
-
-				{settings.applicationsOpen && settings.applicationDeadlineOverride ? (
-					<div className="rounded-2xl border border-amber-200/22 bg-amber-200/10 px-4 py-3 text-sm font-bold leading-6 text-amber-50">
-						Notfall-Bewerbungen sind offen: Der normale Bewerbungsschluss wird gerade bewusst ignoriert.
+				) : null}
+				{show("rules") ? (
+					<div className="rounded-[1.75rem] border border-amber-200/16 bg-amber-200/[0.045] p-5">
+						<div className="grid gap-3 sm:grid-cols-2">
+							<label className="text-xs font-bold text-emerald-100/62">
+								Mindestlevel
+								<ThemedNumberInput
+									min={1}
+									max={1000}
+									value={settings.ultimateBravery.minimumSummonerLevel}
+									ariaLabel="Mindestlevel"
+									onChange={(value) =>
+										setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, minimumSummonerLevel: Number(value) } }))
+									}
+								/>
+							</label>
+							{usesUltimateBravery(settings.activeTournament) ? (
+								<label className="text-xs font-bold text-emerald-100/62">
+									Rerolls pro Spieler
+									<ThemedSelect
+										value={String(settings.ultimateBravery.rerollsPerPlayer)}
+										onChange={(value) =>
+											setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, rerollsPerPlayer: Number(value) } }))
+										}
+										ariaLabel="Rerolls pro Spieler"
+										options={[
+											{ value: "2", label: "2 Rerolls" },
+											{ value: "3", label: "3 Rerolls" },
+										]}
+									/>
+								</label>
+							) : null}
+							<div className="sm:col-span-2">
+								<label htmlFor="tournament-prize-pool" className="text-xs font-bold text-emerald-100/62">
+									Preisankündigung
+								</label>
+								<textarea
+									id="tournament-prize-pool"
+									name="prize-pool"
+									autoComplete="off"
+									value={settings.ultimateBravery.prizePool}
+									maxLength={4000}
+									rows={9}
+									onChange={(event) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, prizePool: event.target.value } }))}
+									placeholder={"# Preispool\n\n- 1. Platz: …\n- 2. Platz: …"}
+									className="mt-2 min-h-48 w-full resize-y rounded-2xl border border-white/10 bg-[#07110c] px-4 py-3 font-mono text-sm leading-6 text-emerald-50 outline-none transition focus:border-cyan-200/35 focus:ring-2 focus:ring-cyan-200/10"
+								/>
+								<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold leading-5 text-emerald-100/46">
+									<span>`#` Überschrift · `##` Untertitel · `-` Liste · `**fett**` · `_kursiv_` · `~~durchgestrichen~~` · `[Link](https://...)`</span>
+									<span>{settings.ultimateBravery.prizePool.length}/4000</span>
+								</div>
+								<div className="mt-4 rounded-2xl border border-amber-200/16 bg-amber-200/[0.055] p-4">
+									<div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Öffentliche Vorschau</div>
+									<TournamentMarkdown>{settings.ultimateBravery.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
+								</div>
+							</div>
+						</div>
+						<button
+							type="button"
+							disabled={isPending}
+							onClick={saveUltimateBravery}
+							className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
+						>
+							{isPending ? "Speichert…" : "Regeln & Preise speichern"}
+						</button>
+						{usesFearless(settings.activeTournament) ? (
+							<div className="mt-4">
+								<CompactSetting
+									label="Fearless · Gegner-Champions"
+									value={settings.fearless.lockOpponentChampions ? "Auch gesperrt" : "Nur eigene gesperrt"}
+									detail={
+										settings.fearless.lockOpponentChampions
+											? "Ein Team kann weder Champions picken, die es selbst, noch solche, die sein aktueller Gegner im Turnier bereits gespielt hat."
+											: "Ein Team kann keine Champions picken, die es im Turnier bereits gespielt hat. Die Picks des Gegners bleiben frei."
+									}
+									active={settings.fearless.lockOpponentChampions}
+									disabled={isPending}
+									onClick={toggleOpponentLocks}
+								/>
+							</div>
+						) : null}
 					</div>
 				) : null}
-				{message ? <div className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+				{show("lifecycle") ? (
+					<div className="rounded-[1.75rem] border border-cyan-200/16 bg-cyan-300/[0.045] p-5">
+						<label className="block">
+							<span className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/64">Sichtbarer Turnierstatus</span>
+							<ThemedSelect
+								value={settings.activeTournament.mode}
+								disabled={isPending}
+								onChange={(value) => saveTournamentMode(value as TournamentMode)}
+								ariaLabel="Sichtbarer Turnierstatus"
+								options={TOURNAMENT_MODES.map((mode) => ({ value: mode, label: modeLabels[mode].label, description: modeLabels[mode].detail }))}
+							/>
+						</label>
+						<p className="mt-3 text-xs leading-5 text-emerald-100/58">{modeLabels[settings.activeTournament.mode].detail}</p>
+						{usesChampSelect(settings.activeTournament) ? (
+							<div className="mt-4">
+								<CompactSetting
+									label="Champ Select"
+									value={settings.draftEnabled ? "Aktiv" : "Pausiert"}
+									detail="Steuert, ob Captains den Website-Draft öffnen können."
+									active={settings.draftEnabled}
+									disabled={isPending}
+									onClick={() => toggle("draftEnabled")}
+								/>
+							</div>
+						) : null}
+					</div>
+				) : null}
+				{show("applications") ? (
+					<>
+						<div className={`rounded-[1.75rem] border p-5 ${settings.applicationsOpen ? "border-lime-200/24 bg-lime-200/[0.09]" : "border-white/10 bg-black/18"}`}>
+							<div className="flex flex-wrap items-start justify-between gap-4">
+								<div className="min-w-0">
+									<div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/52">Bewerbungen</div>
+									<div className={`mt-2 text-4xl font-black tracking-tight ${settings.applicationsOpen ? "text-lime-50" : "text-emerald-100/42"}`}>
+										{settings.applicationsOpen ? "Offen" : "Geschlossen"}
+									</div>
+									<p className="mt-2 max-w-md text-sm leading-6 text-emerald-100/58">
+										Master-Schalter für das Bewerbungsformular. Der Zeitraum unten entscheidet zusätzlich, wann Bewerbungen sichtbar sind.
+									</p>
+								</div>
+								<TogglePill active={settings.applicationsOpen} disabled={isPending} onClick={() => toggle("applicationsOpen")} label="Bewerbungen umschalten" />
+							</div>
+						</div>
+
+						<div className="rounded-[1.75rem] border border-white/10 bg-black/18 p-5">
+							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
+								<label className="min-w-0">
+									<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsstart</span>
+									<ThemedDateTimePicker ariaLabel="Bewerbungsstart" value={openAtInput} onChange={setOpenAtInput} clearable />
+								</label>
+								<label className="min-w-0">
+									<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsfrist</span>
+									<ThemedDateTimePicker ariaLabel="Bewerbungsfrist" value={deadlineInput} onChange={setDeadlineInput} />
+								</label>
+								<button
+									type="button"
+									disabled={isPending}
+									onClick={saveApplicationWindow}
+									className="h-12 rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-55"
+								>
+									Zeitraum speichern
+								</button>
+							</div>
+							<p className="mt-3 text-xs leading-5 text-emerald-100/52">
+								Start: <span className="font-black text-emerald-50/80">{formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}</span> · Frist:{" "}
+								<span className="font-black text-emerald-50/80">{formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}</span>. Wenn der
+								Master-Schalter offen ist, wird <span className="font-black text-lime-100">/apply</span> automatisch nur in diesem Zeitraum verfügbar.
+							</p>
+						</div>
+
+						<CompactSetting
+							label="Deadline-Override"
+							value={settings.applicationDeadlineOverride ? "Aktiv" : "Aus"}
+							detail="Nur für Notfälle: öffnet /apply trotz Frist und laufendem Turnier."
+							active={settings.applicationDeadlineOverride}
+							disabled={isPending}
+							onClick={() => toggle("applicationDeadlineOverride")}
+						/>
+
+						{settings.applicationsOpen && settings.applicationDeadlineOverride ? (
+							<div className="rounded-2xl border border-amber-200/22 bg-amber-200/10 px-4 py-3 text-sm font-bold leading-6 text-amber-50">
+								Notfall-Bewerbungen sind offen: Der normale Bewerbungsschluss wird gerade bewusst ignoriert.
+							</div>
+						) : null}
+					</>
+				) : null}
+				{message ? (
+					<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+						{message}
+					</div>
+				) : null}
 			</div>
 		</section>
 	);
@@ -633,6 +713,7 @@ function TogglePill({ active, disabled, onClick, label }: { active: boolean; dis
 			disabled={disabled}
 			onClick={onClick}
 			aria-label={label}
+			aria-pressed={active}
 			className={`h-8 w-14 shrink-0 rounded-full border p-1 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-55 ${
 				active ? "border-lime-200/42 bg-lime-200/22" : "border-white/10 bg-black/30"
 			}`}

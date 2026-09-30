@@ -1,8 +1,10 @@
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_APPLICATION_DEADLINE, TOURNAMENT_APPLICATION_OPEN_AT } from "@/lib/tournament-application-deadline";
 import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
+import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
 
 export { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
+export { TOURNAMENT_KINDS, type TournamentKind } from "@/lib/tournament-kind";
 
 export type TournamentSettings = {
 	id: "default";
@@ -11,6 +13,7 @@ export type TournamentSettings = {
 		name: string;
 		season: string;
 		mode: TournamentMode;
+		kind: TournamentKind;
 	};
 	applicationsOpen: boolean;
 	applicationOpenAt: string | null;
@@ -18,6 +21,15 @@ export type TournamentSettings = {
 	applicationDeadline: string;
 	tournamentLive: boolean;
 	draftEnabled: boolean;
+	/** Champion locks for `fearless` tournaments. Played means picked in a completed draft. */
+	fearless: {
+		/** Also lock every champion the current opponent has played earlier in the tournament. */
+		lockOpponentChampions: boolean;
+	};
+	/**
+	 * Tournament structure for every flexible-engine kind (Ultimate Bravery and Fearless).
+	 * The key keeps its original name so existing settings documents stay readable.
+	 */
 	ultimateBravery: {
 		startAt: string | null;
 		dayTwoStartAt: string | null;
@@ -42,8 +54,6 @@ type SettingsDoc = TournamentSettings & { _id: string };
 const COLLECTION = "tournament_settings";
 const DOC_ID = "default";
 const LEGACY_AZ_APPLICATION_DEADLINE = "2026-06-18T20:00:00+02:00";
-const LEGACY_ULTIMATE_BRAVERY_START_AT = "2026-09-05T18:00:00+02:00";
-const LEGACY_ULTIMATE_BRAVERY_DAY_TWO_START_AT = "2026-09-06T18:00:00+02:00";
 
 function envFlag(name: string, fallback: boolean) {
 	const value = process.env[name];
@@ -59,6 +69,7 @@ function defaultSettings(): TournamentSettings {
 			name: "Kunterbuntes A-Z Turnier",
 			season: "A-Z Turnier 2026",
 			mode: "preparation",
+			kind: "az",
 		},
 		applicationsOpen: envFlag("TOURNAMENT_APPLICATIONS_ENABLED", true),
 		applicationOpenAt: TOURNAMENT_APPLICATION_OPEN_AT,
@@ -66,9 +77,10 @@ function defaultSettings(): TournamentSettings {
 		applicationDeadline: TOURNAMENT_APPLICATION_DEADLINE,
 		tournamentLive: envFlag("TOURNAMENT_LIVE", false),
 		draftEnabled: envFlag("TOURNAMENT_DRAFT_ENABLED", true),
+		fearless: { lockOpponentChampions: false },
 		ultimateBravery: {
-			startAt: "2026-09-04T18:00:00+02:00",
-			dayTwoStartAt: "2026-09-05T18:00:00+02:00",
+			startAt: null,
+			dayTwoStartAt: null,
 			teamCount: 4,
 			playersPerTeam: 5,
 			dayOneFormat: "groups",
@@ -100,24 +112,12 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 			? rest.applicationDeadline
 			: defaults.applicationDeadline;
 	const rawUltimateBravery = rest.ultimateBravery && typeof rest.ultimateBravery === "object" ? rest.ultimateBravery : {};
-	const storedStartAt = (rawUltimateBravery as TournamentSettings["ultimateBravery"]).startAt;
-	const storedDayTwoStartAt = (rawUltimateBravery as TournamentSettings["ultimateBravery"]).dayTwoStartAt;
-	const hasLegacyWrongUltimateBraveryDates = storedStartAt === LEGACY_ULTIMATE_BRAVERY_START_AT && storedDayTwoStartAt === LEGACY_ULTIMATE_BRAVERY_DAY_TWO_START_AT;
+	const storedDates = rawUltimateBravery as Partial<TournamentSettings["ultimateBravery"]>;
 	const mergedUltimateBravery = {
 		...defaults.ultimateBravery,
 		...rawUltimateBravery,
-		startAt: hasLegacyWrongUltimateBraveryDates
-			? defaults.ultimateBravery.startAt
-			: typeof (rawUltimateBravery as TournamentSettings["ultimateBravery"]).startAt === "string" &&
-				  !Number.isNaN(new Date((rawUltimateBravery as TournamentSettings["ultimateBravery"]).startAt!).getTime())
-				? (rawUltimateBravery as TournamentSettings["ultimateBravery"]).startAt
-				: defaults.ultimateBravery.startAt,
-		dayTwoStartAt: hasLegacyWrongUltimateBraveryDates
-			? defaults.ultimateBravery.dayTwoStartAt
-			: typeof (rawUltimateBravery as TournamentSettings["ultimateBravery"]).dayTwoStartAt === "string" &&
-				  !Number.isNaN(new Date((rawUltimateBravery as TournamentSettings["ultimateBravery"]).dayTwoStartAt!).getTime())
-				? (rawUltimateBravery as TournamentSettings["ultimateBravery"]).dayTwoStartAt
-				: defaults.ultimateBravery.dayTwoStartAt,
+		startAt: normalizeOptionalDate(storedDates.startAt, defaults.ultimateBravery.startAt),
+		dayTwoStartAt: normalizeOptionalDate(storedDates.dayTwoStartAt, defaults.ultimateBravery.dayTwoStartAt),
 	};
 	const teamCount = clampInteger(mergedUltimateBravery.teamCount, 2, 32, defaults.ultimateBravery.teamCount);
 	const ultimateBravery: TournamentSettings["ultimateBravery"] = {
@@ -149,27 +149,36 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 	return {
 		...defaults,
 		id: DOC_ID,
-		activeTournament:
-			rest.activeTournament &&
-			typeof rest.activeTournament === "object" &&
-			typeof rest.activeTournament.id === "string" &&
-			typeof rest.activeTournament.name === "string" &&
-			typeof rest.activeTournament.season === "string" &&
-			TOURNAMENT_MODES.includes((rest.activeTournament as { mode?: unknown }).mode as TournamentMode)
-				? (rest.activeTournament as TournamentSettings["activeTournament"])
-				: (rest.activeTournament as { mode?: unknown }).mode === "active"
-					? { ...rest.activeTournament, mode: "preparation" }
-					: defaults.activeTournament,
+		activeTournament: normalizeActiveTournament(rest.activeTournament, defaults.activeTournament),
 		applicationsOpen: typeof rest.applicationsOpen === "boolean" ? rest.applicationsOpen : defaults.applicationsOpen,
 		applicationOpenAt: openAt,
 		applicationDeadlineOverride: typeof rest.applicationDeadlineOverride === "boolean" ? rest.applicationDeadlineOverride : defaults.applicationDeadlineOverride,
 		applicationDeadline: deadline,
 		tournamentLive: typeof rest.tournamentLive === "boolean" ? rest.tournamentLive : defaults.tournamentLive,
 		draftEnabled: typeof rest.draftEnabled === "boolean" ? rest.draftEnabled : defaults.draftEnabled,
+		fearless: {
+			lockOpponentChampions: typeof rest.fearless?.lockOpponentChampions === "boolean" ? rest.fearless.lockOpponentChampions : defaults.fearless.lockOpponentChampions,
+		},
 		ultimateBravery,
 		updatedAt: typeof rest.updatedAt === "string" && !Number.isNaN(new Date(rest.updatedAt).getTime()) ? rest.updatedAt : defaults.updatedAt,
 		updatedBy: rest.updatedBy,
 	};
+}
+
+function normalizeActiveTournament(raw: unknown, fallback: TournamentSettings["activeTournament"]): TournamentSettings["activeTournament"] {
+	if (!raw || typeof raw !== "object") return fallback;
+	const value = raw as Partial<Record<keyof TournamentSettings["activeTournament"], unknown>>;
+	if (typeof value.id !== "string" || typeof value.name !== "string" || typeof value.season !== "string") return fallback;
+	// "active" was the pre-mode name for preparation.
+	const mode = TOURNAMENT_MODES.includes(value.mode as TournamentMode) ? (value.mode as TournamentMode) : value.mode === "active" ? "preparation" : null;
+	if (!mode) return fallback;
+	return { id: value.id, name: value.name, season: value.season, mode, kind: tournamentKind({ id: value.id, kind: value.kind as TournamentKind | undefined }) };
+}
+
+/** `null` means "not announced yet" and must survive normalisation; only missing or invalid values fall back. */
+function normalizeOptionalDate(value: unknown, fallback: string | null): string | null {
+	if (value === null) return null;
+	return typeof value === "string" && !Number.isNaN(new Date(value).getTime()) ? value : fallback;
 }
 
 function clampInteger(value: unknown, minimum: number, maximum: number, fallback: number): number {
@@ -193,6 +202,7 @@ export async function updateTournamentSettings(input: {
 			| "applicationDeadline"
 			| "tournamentLive"
 			| "draftEnabled"
+			| "fearless"
 			| "ultimateBravery"
 		>
 	>;
@@ -211,6 +221,7 @@ export async function updateTournamentSettings(input: {
 	if (input.patch.applicationDeadline !== undefined) $set.applicationDeadline = input.patch.applicationDeadline;
 	if (input.patch.tournamentLive !== undefined) $set.tournamentLive = input.patch.tournamentLive;
 	if (input.patch.draftEnabled !== undefined) $set.draftEnabled = input.patch.draftEnabled;
+	if (input.patch.fearless !== undefined) $set.fearless = input.patch.fearless;
 	if (input.patch.ultimateBravery !== undefined) $set.ultimateBravery = input.patch.ultimateBravery;
 	const db = await getDb();
 	await db.collection<SettingsDoc>(COLLECTION).updateOne({ _id: DOC_ID }, { $set }, { upsert: true });

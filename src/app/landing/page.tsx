@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import Image from "next/image";
 import { SiteFooter } from "@/components/SiteFooter";
+import { ApexHeader } from "@/components/site/ApexHeader";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { normalizeTwitchLogin } from "@/lib/community-overlay-config";
 import { getSiteUrls } from "@/lib/site-urls";
 import { LiveStatus } from "./LiveStatus";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { formatTournamentDay } from "@/lib/tournament-presentation";
+import type { TournamentKind } from "@/lib/tournament-kind";
+
+const TOURNAMENT_TEASERS: Record<TournamentKind, string> = {
+	fearless: "Jeder Champion zählt nur einmal. Zwei Abende, an denen euer Champion-Pool mit jeder Runde kleiner wird.",
+	"ultimate-bravery": "Zufällige Champions, zufällige Builds und zwei Abende, an denen ein guter Plan vermutlich trotzdem nicht schadet.",
+	az: "Ein Buchstabe, ein Champion-Pool und sehr viel Chaos.",
+};
 import { RecentClips } from "./RecentClips";
 
 const TWITCH_LOGIN = "lauchgruen";
@@ -20,12 +28,16 @@ const STREAM_GAMES = [
 ];
 
 export const metadata: Metadata = {
-	title: "lauchgruen | Stream, Turniere und Shows",
+	title: { absolute: "Lauchgruen · Stream, Turniere und Shows" },
 	description: "Der Stream-Hub für Lauchgruen: Twitch, Community-Turniere, Quizshows und kostenlose OBS-Tools.",
 };
 
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-	const [requestHeaders, rawSearchParams, session] = await Promise.all([headers(), searchParams, auth()]);
+	const [requestHeaders, rawSearchParams, settings] = await Promise.all([headers(), searchParams, getTournamentSettings()]);
+	const tournament = settings.activeTournament;
+	const tournamentDays = [formatTournamentDay(settings.ultimateBravery.startAt, false), formatTournamentDay(settings.ultimateBravery.dayTwoStartAt, false)].filter(Boolean);
+	const tournamentLabel =
+		tournament.mode === "live" ? "Community-Turnier · jetzt live" : tournament.mode === "finished" ? "Letztes Community-Turnier" : "Nächstes Community-Turnier";
 	const siteUrls = getSiteUrls(requestHeaders.get("host"));
 	const requestedPreview = Array.isArray(rawSearchParams.previewTwitch) ? rawSearchParams.previewTwitch[0] : rawSearchParams.previewTwitch;
 	const previewLogin = process.env.NODE_ENV === "development" ? normalizeTwitchLogin(requestedPreview ?? "") : "";
@@ -33,10 +45,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-[#020b07] text-emerald-50">
-			<a
-				href="#main-content"
-				className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950 shadow-xl transition focus:translate-y-0"
-			>
+			<a href="#main-content" className="skip-link">
 				Zum Inhalt
 			</a>
 			<div
@@ -48,62 +57,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 				className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] [background-size:72px_72px]"
 			/>
 
-			<header className="sticky top-0 z-50 border-b border-white/7 bg-[#020b07]/88 shadow-lg shadow-black/10 backdrop-blur-xl">
-				<div className="mx-auto flex w-full max-w-[90rem] items-center justify-between gap-4 px-5 py-4 sm:px-8">
-					<Link href="/" className="flex min-w-0 items-center gap-3">
-						<Image
-							src="/bear-logo.png"
-							alt="Lauchgruen"
-							width={48}
-							height={48}
-							priority
-							className="size-12 rounded-2xl border border-lime-200/24 object-cover shadow-[0_0_24px_rgba(163,230,53,0.13)]"
-						/>
-						<div className="min-w-0">
-							<div className="truncate text-[10px] font-black uppercase tracking-[0.34em] text-lime-200/68">Lauchgruen</div>
-							<div className="mt-0.5 text-sm font-black text-emerald-50">Stream Hub</div>
-						</div>
-					</Link>
-
-					<nav className="hidden items-center gap-1 rounded-2xl border border-white/9 bg-white/[0.035] p-1 lg:flex" aria-label="Seitennavigation">
-						<HeaderLink href="#live">Live</HeaderLink>
-						<HeaderLink href="#projekte">Projekte</HeaderLink>
-						<HeaderLink href="/clips">Clips</HeaderLink>
-						<HeaderLink href="/overlay">OBS-Tools</HeaderLink>
-					</nav>
-
-					<div className="flex items-center gap-2">
-						<Link
-							href={siteUrls.tournament}
-							className="hidden rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/74 transition hover:border-lime-200/28 hover:text-lime-100 sm:inline-flex"
-						>
-							Turnier
-						</Link>
-						<Link
-							href="/me?from=main"
-							aria-label={session?.user?.discordHandle ? `Mein Konto: ${session.user.discordHandle}` : "Mein Lauchgruen-Konto"}
-							title={session?.user?.discordHandle ?? "Mein Konto"}
-							className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-lime-200/18 bg-lime-200/[0.07] text-lime-100 shadow-lg shadow-lime-300/10 transition hover:scale-105 hover:border-lime-200/42"
-						>
-							{session?.user?.discordAvatar ? (
-								// eslint-disable-next-line @next/next/no-img-element
-								<img src={session.user.discordAvatar} alt="" className="size-full object-cover" referrerPolicy="no-referrer" />
-							) : (
-								<AccountIcon />
-							)}
-						</Link>
-						<a
-							href={TWITCH_URL}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#06110b] shadow-lg shadow-lime-300/10 transition hover:-translate-y-0.5"
-						>
-							<span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-							Twitch
-						</a>
-					</div>
-				</div>
-			</header>
+			<ApexHeader apexUrl={siteUrls.apex} tournamentUrl={siteUrls.tournament} brand="stream" />
 
 			<main id="main-content" tabIndex={-1} className="relative z-10 mx-auto flex w-full max-w-[90rem] flex-col gap-8 px-5 py-6 sm:px-8 sm:py-10 lg:gap-12">
 				<section id="live" className="landing-reveal grid scroll-mt-24 gap-4 lg:grid-cols-[minmax(0,1.14fr)_minmax(25rem,0.86fr)]">
@@ -171,7 +125,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 					<SectionHeading
 						kicker="Aktuell bei Lauchgruen"
 						title="Mitmachen statt nur zuschauen."
-						text="Das nächste Turnier steht fest. Wer selbst streamt, findet darunter außerdem das kostenlose League-Overlay."
+						text={`${tournament.name} ist das aktuelle Community-Turnier. Wer selbst streamt, findet darunter außerdem das kostenlose League-Overlay.`}
 					/>
 
 					<div className="mt-7 grid gap-4 lg:grid-cols-12">
@@ -189,18 +143,20 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 							<div className="relative flex h-full flex-col justify-between">
 								<div>
 									<div className="flex items-center justify-between gap-3">
-										<span className="text-[9px] font-black uppercase tracking-[0.3em] text-lime-200/58">Nächstes Community-Turnier</span>
+										<span className="text-[9px] font-black uppercase tracking-[0.3em] text-lime-200/58">{tournamentLabel}</span>
 										<span className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-lime-100/65">
-											04.–05.09.2026
+											{tournamentDays.length ? tournamentDays.join(" & ") : "Termin folgt"}
 										</span>
 									</div>
-									<h2 className="mt-7 max-w-[11ch] text-5xl font-black leading-[0.92] tracking-[-0.05em] sm:text-6xl">Ultimate Bravery.</h2>
-									<p className="mt-5 max-w-xl text-sm leading-7 text-emerald-100/60">
-										Zufällige Champions, zufällige Builds und zwei Abende, an denen ein guter Plan vermutlich trotzdem nicht schadet.
-									</p>
+									<h2 className="mt-7 max-w-[11ch] text-balance font-display text-5xl font-bold leading-[0.92] tracking-[-0.05em] sm:text-6xl">
+										{tournament.name}.
+									</h2>
+									<p className="mt-5 max-w-xl text-sm leading-7 text-emerald-100/60">{TOURNAMENT_TEASERS[tournament.kind]}</p>
 								</div>
 								<div className="mt-9 flex items-center justify-between border-t border-white/8 pt-5">
-									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/45">Turnier ansehen und bewerben</span>
+									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/45">
+										{tournament.mode === "registration" ? "Turnier ansehen und bewerben" : "Turnier ansehen"}
+									</span>
 									<span className="grid size-11 place-items-center rounded-full border border-lime-200/20 bg-lime-200/[0.08] text-xl text-lime-100 transition group-hover:translate-x-1">
 										→
 									</span>
@@ -331,26 +287,6 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 				}
 			`}</style>
 		</div>
-	);
-}
-
-function HeaderLink({ href, children }: { href: string; children: React.ReactNode }) {
-	return (
-		<Link
-			href={href}
-			className="rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.17em] text-emerald-100/55 transition hover:bg-white/[0.05] hover:text-lime-100"
-		>
-			{children}
-		</Link>
-	);
-}
-
-function AccountIcon() {
-	return (
-		<svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-			<circle cx="12" cy="8" r="3.25" />
-			<path d="M5.5 19c.7-3.2 3-5 6.5-5s5.8 1.8 6.5 5" strokeLinecap="round" />
-		</svg>
 	);
 }
 

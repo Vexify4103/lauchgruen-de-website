@@ -77,6 +77,8 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
 					Anzeigename
 					<input
+						name="display-name"
+						autoComplete="off"
 						value={displayName}
 						onChange={(event) => setDisplayName(event.target.value)}
 						className="rounded-xl border border-white/10 bg-black/28 px-3 py-2 text-sm font-bold text-emerald-50 outline-none focus:border-lime-200/40"
@@ -93,7 +95,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 					<ThemedMultiSelect
 						value={preferredRoles}
 						onChange={setPreferredRoles}
-						placeholder="Eine oder mehrere Rollen wählen"
+						placeholder="Eine oder mehrere Rollen wählen…"
 						options={roleOptions.map((role) => ({ value: role, label: role }))}
 						ordered
 						exclusiveValues={["Fill"]}
@@ -103,6 +105,8 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
 					Notizen
 					<textarea
+						name="notes"
+						autoComplete="off"
 						value={notes}
 						onChange={(event) => setNotes(event.target.value)}
 						rows={4}
@@ -121,9 +125,13 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						}
 						className="rounded-xl bg-lime-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-45"
 					>
-						{isPending ? "Speichert..." : "Speichern"}
+						{isPending ? "Speichert…" : "Speichern"}
 					</button>
-					{message ? <span className="text-xs font-bold text-emerald-100/60">{message}</span> : null}
+					{message ? (
+						<span role="status" className="text-xs font-bold text-emerald-100/60">
+							{message}
+						</span>
+					) : null}
 				</div>
 			</div>
 		</details>

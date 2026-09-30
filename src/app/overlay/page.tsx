@@ -5,11 +5,12 @@ import { getTwitchLink, getVerifiedAccount } from "@/lib/tournament-storage";
 import { headers } from "next/headers";
 import { getSiteUrls } from "@/lib/site-urls";
 import { SiteFooter } from "@/components/SiteFooter";
+import { ApexHeader } from "@/components/site/ApexHeader";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-	title: "League OBS Overlay Builder | Lauchgruen",
+	title: "League OBS Overlay Builder",
 	description: "Erstelle eine anpassbare League-of-Legends-Browserquelle für OBS.",
 };
 
@@ -38,6 +39,10 @@ export default async function OverlayBuilderPage({ searchParams }: { searchParam
 	const apexUrl = getSiteUrls(host).apex;
 	return (
 		<>
+			<a href="#main-content" className="skip-link">
+				Zum Inhalt
+			</a>
+			<ApexHeader apexUrl={apexUrl} tournamentUrl={getSiteUrls(host).tournament} brand="obs-tools" />
 			<OverlayBuilderClient initialConfig={initialConfig} baseUrl={`${protocol}://${host}`} apexUrl={apexUrl} accountUrl={`${apexUrl}/overlay/account`} />
 			<SiteFooter apexUrl={apexUrl} tournamentUrl={getSiteUrls(host).tournament} />
 		</>

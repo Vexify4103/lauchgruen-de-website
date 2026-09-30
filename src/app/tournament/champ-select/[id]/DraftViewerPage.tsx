@@ -1,14 +1,15 @@
-import { getChampionPools } from "@/lib/champion-pools";
 import { getMatchControlContext } from "@/lib/match-control";
 import { getDraftState } from "@/lib/tournament-draft";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
+import { resolveDraftChampionRules } from "@/lib/draft-champions";
+import { usesChampSelect } from "@/lib/tournament-kind";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { DraftSpectatorClient, type DraftViewerPerspective } from "./spectate/DraftSpectatorClient";
 import { redirect } from "next/navigation";
 
 export async function DraftViewerPage({ id, perspective }: { id: string; perspective: DraftViewerPerspective }) {
-	const [ctx, pools, draft, settings] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(id), getTournamentSettings()]);
-	if (settings.activeTournament.id === "ultimate-bravery") redirect("/tournament");
+	const [ctx, draft, settings] = await Promise.all([getMatchControlContext(), getDraftState(id), getTournamentSettings()]);
+	if (!usesChampSelect(settings.activeTournament)) redirect("/tournament");
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) {
 		return (
@@ -33,8 +34,7 @@ export async function DraftViewerPage({ id, perspective }: { id: string; perspec
 	const teamB = ctx.teams.find((team) => team.name === match.teamBName);
 	const blueTeam = match.blueSide === "teamA" ? teamA : teamB;
 	const redTeam = match.blueSide === "teamA" ? teamB : teamA;
-	const bluePool = match.blueSide === "teamA" ? match.poolAssignment?.teamAPool : match.poolAssignment?.teamBPool;
-	const redPool = match.blueSide === "teamA" ? match.poolAssignment?.teamBPool : match.poolAssignment?.teamAPool;
+	const rules = await resolveDraftChampionRules(settings, ctx.matches, match);
 
 	return (
 		<div className="px-3 py-3 sm:px-5 sm:py-4">
@@ -45,9 +45,12 @@ export async function DraftViewerPage({ id, perspective }: { id: string; perspec
 					perspective={perspective}
 					blueTeamLabel={blueTeam?.name ?? (match.blueSide === "teamA" ? match.teamALabel : match.teamBLabel)}
 					redTeamLabel={redTeam?.name ?? (match.blueSide === "teamA" ? match.teamBLabel : match.teamALabel)}
-					blueChampions={bluePool ? (pools.find((pool) => pool.pool === bluePool)?.champions ?? []) : []}
-					redChampions={redPool ? (pools.find((pool) => pool.pool === redPool)?.champions ?? []) : []}
-					extraBanSide={bonusBanSideForMatch(match)}
+					blueChampions={rules.blueChampions}
+					redChampions={rules.redChampions}
+					mode={rules.mode}
+					fearlessLocks={rules.locks}
+					closedReason={rules.closedReason}
+					extraBanSide={bonusBanSideForMatch(match, settings.activeTournament)}
 				/>
 			</section>
 		</div>

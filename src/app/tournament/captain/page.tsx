@@ -33,7 +33,7 @@ export default async function CaptainPortalPage() {
 					<div className="mt-5">
 						<DiscordSignInButton
 							redirectTo="/tournament/captain"
-							pendingLabel="Weiter zu Discord..."
+							pendingLabel="Weiter zu Discord…"
 							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
 						>
 							Mit Discord anmelden

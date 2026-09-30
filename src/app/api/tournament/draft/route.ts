@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { getChampionPools } from "@/lib/champion-pools";
+import { allowedChampionsForTurn, disallowedChampionMessage, resolveDraftChampionRules } from "@/lib/draft-champions";
 import { getMatchControlContext } from "@/lib/match-control";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { writeTournamentEvent } from "@/lib/tournament-events";
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 			const draft = await handleDraftTimeout({
 				matchId: parsed.data.matchId,
 				triggeredBy: session.user.discordHandle ?? discordId,
-				extraBanSide: match ? bonusBanSideForMatch(match) : null,
+				extraBanSide: match ? bonusBanSideForMatch(match, settings.activeTournament) : null,
 			});
 			await writeTournamentEvent({
 				type: "draft.timeout",
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 			await syncMatchStatusFromDraft({
 				matchId: parsed.data.matchId,
 				draft,
-				extraBanSide: match ? bonusBanSideForMatch(match) : null,
+				extraBanSide: match ? bonusBanSideForMatch(match, settings.activeTournament) : null,
 				actor: session.user.discordHandle ?? discordId,
 			});
 			return NextResponse.json({ draft });
@@ -153,12 +153,11 @@ export async function POST(request: Request) {
 		if (!parsed.data.champion) {
 			return NextResponse.json({ message: "Champion fehlt." }, { status: 400 });
 		}
-		if (!match.poolAssignment) {
-			return NextResponse.json({ message: "Für dieses Match wurden noch keine Pools gezogen." }, { status: 400 });
+		const [rules, currentDraft] = await Promise.all([resolveDraftChampionRules(settings, ctx.matches, match), getDraftState(parsed.data.matchId)]);
+		if (!rules.open) {
+			return NextResponse.json({ message: rules.closedReason }, { status: 400 });
 		}
-
-		const [pools, currentDraft] = await Promise.all([getChampionPools(), getDraftState(parsed.data.matchId)]);
-		const extraBanSide = bonusBanSideForMatch(match);
+		const extraBanSide = bonusBanSideForMatch(match, settings.activeTournament);
 		const sequence = createDraftSequence(extraBanSide);
 		const turn = nextDraftTurn(currentDraft, sequence);
 		if (!turn) {
@@ -171,20 +170,8 @@ export async function POST(request: Request) {
 			return NextResponse.json({ message: "Nur der Captain des aktuellen Teams darf Champion-Hover senden." }, { status: 403 });
 		}
 
-		const allowed = allowedChampionsForTurn({
-			side: turn.side,
-			kind: turn.kind,
-			bluePool: poolForDraftSide(match, "teamA"),
-			redPool: poolForDraftSide(match, "teamB"),
-			pools,
-		});
-		if (!allowed.has(parsed.data.champion)) {
-			return NextResponse.json(
-				{
-					message: turn.kind === "ban" ? "Bans müssen aus dem gegnerischen Pool kommen." : "Picks müssen aus deinem eigenen Pool kommen.",
-				},
-				{ status: 400 }
-			);
+		if (!allowedChampionsForTurn(rules, turn).has(parsed.data.champion)) {
+			return NextResponse.json({ message: disallowedChampionMessage(rules, turn, parsed.data.champion) }, { status: 400 });
 		}
 
 		try {
@@ -217,6 +204,10 @@ export async function POST(request: Request) {
 	if (!side) {
 		return NextResponse.json({ message: "Nur Captains dieses Matches können ready klicken." }, { status: 403 });
 	}
+	const readyRules = await resolveDraftChampionRules(settings, ctx.matches, match);
+	if (!readyRules.open) {
+		return NextResponse.json({ message: readyRules.closedReason }, { status: 409 });
+	}
 
 	try {
 		const draft = await markDraftReady({
@@ -234,7 +225,7 @@ export async function POST(request: Request) {
 		await syncMatchStatusFromDraft({
 			matchId: parsed.data.matchId,
 			draft,
-			extraBanSide: bonusBanSideForMatch(match),
+			extraBanSide: bonusBanSideForMatch(match, settings.activeTournament),
 			actor: session.user.discordHandle ?? discordId,
 		});
 		return NextResponse.json({ draft });
@@ -261,16 +252,17 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Ungültige Draft-Daten." }, { status: 400 });
 	}
 
-	const [ctx, pools, currentDraft] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(parsed.data.matchId)]);
+	const [ctx, currentDraft] = await Promise.all([getMatchControlContext(), getDraftState(parsed.data.matchId)]);
 	const match = ctx.matches.find((entry) => entry.id === parsed.data.matchId);
 	if (!match) {
 		return NextResponse.json({ message: "Match nicht gefunden." }, { status: 404 });
 	}
-	if (!match.poolAssignment) {
-		return NextResponse.json({ message: "Für dieses Match wurden noch keine Pools gezogen." }, { status: 400 });
+	const rules = await resolveDraftChampionRules(settings, ctx.matches, match);
+	if (!rules.open) {
+		return NextResponse.json({ message: rules.closedReason }, { status: 400 });
 	}
 
-	const extraBanSide = bonusBanSideForMatch(match);
+	const extraBanSide = bonusBanSideForMatch(match, settings.activeTournament);
 	const sequence = createDraftSequence(extraBanSide);
 	const turn = nextDraftTurn(currentDraft, sequence);
 	if (!turn) {
@@ -283,20 +275,8 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Nur der Captain des aktuellen Teams darf diesen Turn locken." }, { status: 403 });
 	}
 
-	const allowed = allowedChampionsForTurn({
-		side: turn.side,
-		kind: turn.kind,
-		bluePool: poolForDraftSide(match, "teamA"),
-		redPool: poolForDraftSide(match, "teamB"),
-		pools,
-	});
-	if (!allowed.has(parsed.data.champion)) {
-		return NextResponse.json(
-			{
-				message: turn.kind === "ban" ? "Bans müssen aus dem gegnerischen Pool kommen." : "Picks müssen aus deinem eigenen Pool kommen.",
-			},
-			{ status: 400 }
-		);
+	if (!allowedChampionsForTurn(rules, turn).has(parsed.data.champion)) {
+		return NextResponse.json({ message: disallowedChampionMessage(rules, turn, parsed.data.champion) }, { status: 400 });
 	}
 
 	try {
@@ -351,7 +331,7 @@ async function syncMatchStatusFromDraft({
 	const match = ctx.matches.find((entry) => entry.id === matchId);
 	if (!match || match.status === "Finished") return;
 
-	const sequence = createDraftSequence(extraBanSide ?? bonusBanSideForMatch(match));
+	const sequence = createDraftSequence(extraBanSide ?? bonusBanSideForMatch(match, (await getTournamentSettings()).activeTournament));
 	const complete = draftComplete(draft, sequence);
 	const nextStatus = complete ? "Live" : draftReady(draft) || draft.actions.length > 0 || draft.pendingSelection ? "Pending" : null;
 
@@ -414,39 +394,8 @@ function captainDraftSideForUser(
 	return null;
 }
 
-function allowedChampionsForTurn({
-	side,
-	kind,
-	bluePool,
-	redPool,
-	pools,
-}: {
-	side: DraftSide;
-	kind: "ban" | "pick";
-	bluePool: string;
-	redPool: string;
-	pools: Awaited<ReturnType<typeof getChampionPools>>;
-}) {
-	const ownPool = side === "teamA" ? bluePool : redPool;
-	const enemyPool = side === "teamA" ? redPool : bluePool;
-	const pool = kind === "pick" ? ownPool : enemyPool;
-	return new Set((pools.find((entry) => entry.pool === pool)?.champions ?? []).map((champion) => champion.name));
-}
-
 function teamNameForDraftSide(match: { blueSide: "teamA" | "teamB"; teamAName: string | null; teamBName: string | null }, side: DraftSide) {
 	const blueName = match.blueSide === "teamA" ? match.teamAName : match.teamBName;
 	const redName = match.blueSide === "teamA" ? match.teamBName : match.teamAName;
 	return side === "teamA" ? blueName : redName;
-}
-
-function poolForDraftSide(
-	match: {
-		blueSide: "teamA" | "teamB";
-		poolAssignment: { teamAPool: string; teamBPool: string } | null;
-	},
-	side: DraftSide
-) {
-	const bluePool = match.blueSide === "teamA" ? match.poolAssignment?.teamAPool : match.poolAssignment?.teamBPool;
-	const redPool = match.blueSide === "teamA" ? match.poolAssignment?.teamBPool : match.poolAssignment?.teamAPool;
-	return side === "teamA" ? (bluePool ?? "") : (redPool ?? "");
 }

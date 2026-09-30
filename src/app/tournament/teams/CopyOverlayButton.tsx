@@ -41,8 +41,11 @@ export function CopyOverlayButton({ teamId }: { teamId: string }) {
 							Dein Browser hat den direkten Zugriff auf die Zwischenablage blockiert. Markiere deshalb diese URL und füge sie in OBS ein.
 						</p>
 						<input
+							// The dialog only opens after the user asked to copy, so focusing the URL is expected.
 							autoFocus
 							readOnly
+							name="overlay-url"
+							aria-label="OBS-Overlay-URL"
 							value={fallbackUrl}
 							onFocus={(event) => event.currentTarget.select()}
 							className="mt-4 w-full rounded-xl border border-cyan-200/18 bg-black/30 px-4 py-3 font-mono text-xs text-cyan-50 outline-none focus:border-cyan-200/40"

@@ -16,6 +16,8 @@ import { getMatchControlContext } from "@/lib/match-control";
 import { teamMatchRecord } from "@/lib/tournament-team-records";
 import { getSwissStageState } from "@/lib/tournament-swiss";
 import { computeUltimateBraverySwissSeeds } from "@/lib/ultimate-bravery-playoffs";
+import { usesFearless, usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
+import { playedChampionsByTeam } from "@/lib/fearless";
 
 function CrownIcon() {
 	return (
@@ -36,9 +38,9 @@ function opggMultiSearchUrl(riotIds: string[]) {
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
 	const [settings, publication] = await Promise.all([getTournamentSettings(), getRosterPublicationStatus()]);
 	const live = settings.activeTournament.mode === "live";
-	if (settings.activeTournament.id !== "ultimate-bravery" && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
+	if (!usesFlexibleEngine(settings.activeTournament) && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=teams");
 	if (!publication.published) return <TeamsNotPublished tournamentName={settings.activeTournament.name} />;
-	const isAzTournament = settings.activeTournament.id !== "ultimate-bravery";
+	const isAzTournament = !usesFlexibleEngine(settings.activeTournament);
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
 	const previewEnabled = Boolean(session?.user?.discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(session.user.discordId));
@@ -97,70 +99,61 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				{ previewOffline: previewEnabled }
 			)
 		: [];
+	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? playedChampionsByTeam(control.matches) : null;
+	const stageSeedLabel = (team: (typeof teams)[number]) => {
+		if (settings.ultimateBravery.dayOneFormat === "swiss" && !isAzTournament) {
+			const finalSeed = Object.entries(swissSeeds).find(([, name]) => name === team.name)?.[0];
+			return finalSeed ? `#${finalSeed}` : null;
+		}
+		return isAzTournament || settings.ultimateBravery.dayOneFormat === "groups" ? `${team.group}${team.seed}` : null;
+	};
 	return (
-		<div className="px-5 py-10 sm:py-14">
+		<>
 			{live ? <TournamentLiveRefresh /> : null}
-			<section className="mx-auto w-full max-w-7xl">
+			<section className="page-section compact-top" aria-labelledby="teams-title">
 				{previewEnabled ? (
-					<div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50">
+					<div className="alert mb-6 flex flex-wrap items-center justify-between gap-3">
 						<span>Admin-Vorschau: Verbundene Offline-Kanäle werden testweise angezeigt.</span>
 						<div className="flex flex-wrap gap-2">
-							<Link
-								href="/tournament/schedule?twitchPreview=1"
-								className="rounded-xl border border-amber-100/24 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]"
-							>
+							<Link href="/tournament/schedule?twitchPreview=1" className="button ghost small">
 								Im Zeitplan testen
 							</Link>
-							<Link href="/tournament/teams" className="rounded-xl border border-white/12 bg-black/16 px-3 py-2 text-xs font-black uppercase tracking-[0.14em]">
+							<Link href="/tournament/teams" className="button ghost small">
 								Vorschau beenden
 							</Link>
 						</div>
 					</div>
 				) : null}
-				<div className="max-w-3xl">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Teams und Rosters</div>
-					<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Die veröffentlichten Turnierteams.</h1>
-					<p className="mt-4 text-sm leading-7 text-emerald-100/68">
-						Die Teamaufteilung wurde von der Turnierleitung freigegeben. Jeder Spielername verlinkt direkt auf OP.GG und DPM.
-					</p>
+				<div className="section-title compact">
+					<p>Rosters</p>
+					<h2 id="teams-title">Das Line-up.</h2>
+					<span>Die Teamaufteilung wurde von der Turnierleitung veröffentlicht. Jeder Spielername verlinkt direkt auf OP.GG und DPM.</span>
 				</div>
 
 				{displayedLiveMatches.length > 0 ? (
-					<div className="mt-8 rounded-[2rem] border border-red-300/24 bg-red-500/10 p-5 shadow-xl shadow-red-950/20">
-						<div className="text-xs font-black uppercase tracking-[0.28em] text-red-100/72">Current Match</div>
-						<div className="mt-3 grid gap-3 md:grid-cols-2">
+					<div className="content-panel tight mb-6 border-[color-mix(in_srgb,var(--live)_35%,var(--line))]">
+						<p className="eyebrow !mb-4" data-tone="live">
+							<i />
+							Gerade live
+						</p>
+						<div className="grid gap-3 md:grid-cols-2">
 							{displayedLiveMatches.map((match) => {
 								const matchStreams = liveStreams.filter((stream) => stream.teamName === match.teamA || stream.teamName === match.teamB);
+								const draftVisible = Boolean(match.poolAssignment) || (!isAzTournament && !usesUltimateBravery(settings.activeTournament));
 								return (
-									<div key={match.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-										<div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100/72">
-											{match.preview ? "Live-Vorschau" : match.round} · {match.id}
+									<div key={match.id} className="rounded-2xl border border-[var(--line)] bg-black/20 p-4">
+										<div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">{match.preview ? "Live-Vorschau" : match.round}</div>
+										<div className="mt-1 font-display text-xl font-semibold tracking-tight">
+											{match.teamA} <span className="text-[var(--muted)]">vs</span> {match.teamB}
 										</div>
-										<div className="mt-2 text-lg font-black text-emerald-50">
-											{match.teamA} vs {match.teamB}
-										</div>
-										<div className="mt-3 flex flex-wrap gap-2">
-											{match.poolAssignment ? (
-												<>
-													<span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
-														{compactPoolLabel(match.poolAssignment.teamAPool)}
-													</span>
-													<span className="rounded-full border border-lime-200/18 bg-lime-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
-														{compactPoolLabel(match.poolAssignment.teamBPool)}
-													</span>
-												</>
-											) : isAzTournament ? (
-												<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/38">
-													Wartet auf Pools
-												</span>
-											) : null}
-										</div>
-										<TournamentLiveStreamLinks streams={matchStreams} />
 										{match.poolAssignment ? (
-											<Link
-												href={`/tournament/champ-select/${match.id}/spectate`}
-												className="mt-3 inline-flex rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50/82 transition hover:border-sky-100/40"
-											>
+											<p className="mt-2 text-xs font-bold text-[var(--accent)]">
+												Pools {compactPoolLabel(match.poolAssignment.teamAPool)} · {compactPoolLabel(match.poolAssignment.teamBPool)}
+											</p>
+										) : null}
+										<TournamentLiveStreamLinks streams={matchStreams} />
+										{draftVisible ? (
+											<Link href={`/tournament/champ-select/${match.id}/spectate`} className="button ghost small mt-3">
 												Draft ansehen
 											</Link>
 										) : null}
@@ -172,157 +165,99 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				) : null}
 
 				{isAzTournament ? (
-					<div className="mt-8 rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
-						<div className="flex flex-wrap items-start justify-between gap-4">
-							<div>
-								<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">A-Z Wheel</div>
-								<h2 className="mt-2 text-3xl font-black text-emerald-50">
-									{currentAssignment
-										? `${currentAssignment.teamAName}: ${compactPoolLabel(currentAssignment.teamAPool)} vs ${currentAssignment.teamBName}: ${compactPoolLabel(currentAssignment.teamBPool)}`
-										: "Noch kein Match-Pool gezogen"}
-								</h2>
-								<p className="mt-2 text-sm leading-6 text-emerald-100/64">
-									Jeder Spin gilt nur für ein Match: Team A bekommt einen Pool, Team B bekommt einen anderen Pool. Sobald das Match als Finished gespeichert wird,
-									wandern die Pools in die Team-Historie.
-								</p>
-							</div>
-							<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-lime-100">
-								{new Set([...Object.keys(wheel.usedPoolsByTeam), ...Object.keys(wheel.playoffUsedPoolsByTeam)]).size} Teams mit Pool-Historie
-							</div>
-						</div>
-
-						{wheel.history.length > 0 ? (
-							<div className="mt-4 flex flex-wrap gap-2">
-								{wheel.history.slice(0, 6).map((entry) => (
-									<span
-										key={`${entry.matchId}-${entry.spunAt}`}
-										className="rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-50/80"
-									>
-										{compactPoolLabel(entry.teamAPool)} vs {compactPoolLabel(entry.teamBPool)}
-									</span>
-								))}
-							</div>
-						) : (
-							<p className="mt-4 text-sm italic text-emerald-100/42">Noch keine Match-Pools gezogen.</p>
-						)}
+					<div className="content-panel tight mb-6">
+						<p className="panel-kicker">A-Z Wheel</p>
+						<h3 className="mt-2 font-display text-2xl font-semibold tracking-tight">
+							{currentAssignment
+								? `${currentAssignment.teamAName}: ${compactPoolLabel(currentAssignment.teamAPool)} vs ${currentAssignment.teamBName}: ${compactPoolLabel(currentAssignment.teamBPool)}`
+								: "Noch kein Match-Pool gezogen"}
+						</h3>
+						<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+							Jeder Spin gilt nur für ein Match. Sobald das Match beendet ist, wandern die Pools in die Team-Historie.
+						</p>
 					</div>
 				) : null}
 
-				<div className="mt-8 grid gap-5 lg:grid-cols-2">
+				<div className="roster-grid">
 					{teams.map((team) => {
 						const teamStreams = liveStreams.filter((stream) => stream.teamName === team.name);
-						const finalSeed = Object.entries(swissSeeds).find(([, name]) => name === team.name)?.[0];
+						const lockedCount = fearlessPlayed?.get(team.name)?.length ?? 0;
 						return (
-							<article
-								key={team.id}
-								className={`flex min-h-full flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br ${team.accent} p-5 shadow-xl shadow-black/24`}
-							>
-								<div className="rounded-[1.5rem] border border-white/8 bg-black/16 p-4">
-									<div className="flex flex-wrap items-center justify-between gap-3">
-										<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-100/62">
-											{settings.activeTournament.id === "ultimate-bravery" && settings.ultimateBravery.dayOneFormat === "swiss"
-												? `Swiss Stage · ${finalSeed ? `Playoff-Seed #${finalSeed}` : "Setzung offen"}`
-												: isAzTournament || settings.ultimateBravery.dayOneFormat === "groups"
-													? `Gruppe ${team.group} · Seed ${team.seed}`
-													: "Turnierteam"}
-										</div>
-										<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-											<a
-												href={opggMultiSearchUrl(team.players.map((player) => player.riotId))}
-												target="_blank"
-												rel="noreferrer"
-												className="rounded-2xl border border-white/12 bg-white/[0.045] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
-											>
-												Team OP.GG
-											</a>
-											<div
-												title="Gewonnene und verlorene Matches"
-												className="rounded-2xl border border-white/12 bg-black/20 px-4 py-2 text-sm font-black text-lime-100"
-											>
-												{control ? teamMatchRecord(team.name, control.matches) : team.record}
-											</div>
-											<CopyOverlayButton teamId={team.id} />
-										</div>
-									</div>
-									<div className="mt-3 min-w-0">
-										<h2 title={team.name} className="break-words text-3xl font-black leading-tight text-emerald-50">
-											{team.name}
-										</h2>
-										{!team.captainRef ? (
-											// Captain-Zeile nur zeigen, wenn kein gekrönter Spieler in der
-											// Roster-Liste auftaucht (sonst doppelt sich die Info).
-											<p className="mt-1 text-sm text-emerald-100/60">Captain: {team.captain}</p>
+							<article key={team.id} className="roster-card flex flex-col">
+								<header className="roster-card-header">
+									<div className="roster-card-title">
+										{stageSeedLabel(team) ? (
+											<span title={settings.ultimateBravery.dayOneFormat === "swiss" ? "Playoff-Seed" : "Gruppe und Seed"}>{stageSeedLabel(team)}</span>
 										) : null}
-										<TournamentLiveStreamLinks streams={teamStreams} />
+										<h3>{team.name}</h3>
 									</div>
-								</div>
-
-								<div className="mt-5 grid flex-1 gap-3">
+									<span title="Siege und Niederlagen" className="shrink-0 rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-bold tabular-nums">
+										{control ? teamMatchRecord(team.name, control.matches) : team.record}
+									</span>
+								</header>
+								{!team.captainRef ? <p className="mt-2 text-xs text-[var(--muted)]">Captain: {team.captain}</p> : null}
+								<TournamentLiveStreamLinks streams={teamStreams} />
+								<ul>
 									{team.players.map((player) => {
 										const isCaptain = !!team.captainRef && team.captainRef.riotId === player.riotId;
 										return (
-											<div
-												key={`${team.id}-${player.riotId}`}
-												className={`grid gap-3 rounded-2xl border p-4 sm:grid-cols-[7rem_1fr_auto] sm:items-center ${
-													isCaptain ? "border-lime-200/30 bg-lime-200/[0.08]" : "border-white/10 bg-black/22"
-												}`}
-											>
-												<div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-lime-200/60">
-													<span>{player.role}</span>
-													{isCaptain ? (
-														<span
-															title="Team-Captain"
-															aria-label="Team-Captain"
-															className="inline-flex size-5 items-center justify-center rounded-full border border-lime-200/40 bg-lime-200/14 text-lime-50"
-														>
-															<CrownIcon />
-														</span>
-													) : null}
-												</div>
+											<li key={`${team.id}-${player.riotId}`}>
 												<div className="min-w-0">
-													<div className="flex min-w-0 flex-wrap items-center gap-2">
-														<a
-															href={player.opggUrl}
-															target="_blank"
-															rel="noreferrer"
-															className={`block min-w-0 truncate text-lg font-black hover:text-lime-100 ${
-																isCaptain ? "text-lime-50" : "text-emerald-50"
-															}`}
-														>
+													<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+														<a href={player.opggUrl} target="_blank" rel="noreferrer" className="truncate text-sm font-bold hover:text-[var(--accent)]">
 															{player.name}
 														</a>
+														{isCaptain ? (
+															<span
+																className="inline-flex rounded-full bg-[var(--accent)]/15 px-1.5 py-0.5 text-[var(--accent)]"
+																title="Team-Captain"
+															>
+																<CrownIcon />
+																<span className="sr-only">Captain</span>
+															</span>
+														) : null}
 														{player.verified === false ? (
-															<span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+															<span className="rounded-full border border-amber-200/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-100">
 																Nicht verifiziert
 															</span>
 														) : null}
 													</div>
-													<div className="truncate text-sm text-emerald-100/54">{player.riotId}</div>
-												</div>
-												<div className="flex flex-wrap gap-2">
+													<div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+														<span className="truncate">{player.riotId}</span>
+														<a
+															href={player.dpmUrl}
+															target="_blank"
+															rel="noreferrer"
+															className="font-bold hover:text-[var(--text)]"
+															aria-label={`${player.name} auf DPM`}
+														>
+															DPM
+														</a>
+													</div>
 													<TournamentLiveStreamLinks streams={teamStreams.filter((stream) => stream.riotId === player.riotId)} compact />
-													<a
-														href={player.opggUrl}
-														target="_blank"
-														rel="noreferrer"
-														className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 hover:text-lime-100"
-													>
-														OP.GG
-													</a>
-													<a
-														href={player.dpmUrl}
-														target="_blank"
-														rel="noreferrer"
-														className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 hover:text-lime-100"
-													>
-														DPM
-													</a>
 												</div>
-											</div>
+												<small>{player.role}</small>
+											</li>
 										);
 									})}
+								</ul>
+								<div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--line)] pt-4">
+									<a
+										href={opggMultiSearchUrl(team.players.map((player) => player.riotId))}
+										target="_blank"
+										rel="noreferrer"
+										className="button ghost small"
+										aria-label={`${team.name} auf OP.GG öffnen`}
+									>
+										Team OP.GG <span aria-hidden="true">↗</span>
+									</a>
+									<CopyOverlayButton teamId={team.id} />
+									{fearlessPlayed ? (
+										<Link href={`/tournament/fearless#team-${team.id}`} className="ml-auto text-xs font-bold text-[var(--muted)] hover:text-[var(--accent)]">
+											{lockedCount} gesperrt
+										</Link>
+									) : null}
 								</div>
-
 								{isAzTournament ? (
 									<TeamPoolHistory
 										teamName={team.name}
@@ -344,38 +279,22 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 					})}
 				</div>
 			</section>
-		</div>
+		</>
 	);
 }
 
 function TeamsNotPublished({ tournamentName }: { tournamentName: string }) {
 	return (
-		<div className="px-5 py-14 sm:py-20">
-			<section className="mx-auto w-full max-w-4xl overflow-hidden rounded-[2.3rem] border border-lime-200/14 bg-gradient-to-br from-[#102318] via-[#0a1911] to-[#07110c] shadow-2xl shadow-black/30">
-				<div className="relative p-7 sm:p-10">
-					<div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full border border-lime-200/10 bg-lime-300/[0.06] blur-2xl" />
-					<div className="relative max-w-2xl">
-						<div className="text-[10px] font-black uppercase tracking-[0.32em] text-lime-200/58">{tournamentName} · Teams</div>
-						<h1 className="mt-4 text-4xl font-black tracking-[-0.04em] text-emerald-50 sm:text-6xl">Die Teams stehen noch nicht fest.</h1>
-						<p className="mt-5 text-sm leading-7 text-emerald-100/62 sm:text-base">
-							Die Turnierleitung arbeitet gerade an einer fairen Einteilung. Sobald das Roster veröffentlicht wurde, wird der Teams-Link in der Navigation automatisch
-							freigeschaltet und alle Teams erscheinen hier.
-						</p>
-						<div className="mt-7 flex flex-wrap items-center gap-3">
-							<Link
-								href="/tournament"
-								className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/15 transition hover:scale-[1.02]"
-							>
-								Zur Turnierübersicht
-							</Link>
-							<span className="rounded-2xl border border-amber-200/14 bg-amber-200/[0.06] px-4 py-3 text-xs font-bold text-amber-100/64">
-								Noch nicht veröffentlicht
-							</span>
-						</div>
-					</div>
-				</div>
-			</section>
-		</div>
+		<section className="page-section compact-top">
+			<div className="empty-state">
+				<span aria-hidden="true">✦</span>
+				<h2>Die Teams stehen noch nicht fest.</h2>
+				<p>Die Turnierleitung arbeitet an einer fairen Einteilung für {tournamentName}. Sobald das Roster veröffentlicht ist, erscheinen hier alle Teams.</p>
+				<Link href="/tournament" className="button ghost small mt-6">
+					Zur Turnierübersicht
+				</Link>
+			</div>
+		</section>
 	);
 }
 

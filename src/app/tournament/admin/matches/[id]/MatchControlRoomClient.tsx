@@ -49,7 +49,7 @@ export function MatchControlRoomClient({
 	parallelMatches,
 	initialVersion,
 	initialRosterVersion,
-	ultimateBravery = false,
+	flow = "pools",
 }: {
 	match: ControlMatch;
 	teamA: TournamentTeam | null;
@@ -62,8 +62,12 @@ export function MatchControlRoomClient({
 	parallelMatches: ControlMatch[];
 	initialVersion: number;
 	initialRosterVersion: number;
-	ultimateBravery?: boolean;
+	/** rolls: Ultimate Bravery builds · pools: A-Z pools drawn per match · fearless: released full-roster draft */
+	flow?: "rolls" | "pools" | "fearless";
 }) {
+	const ultimateBravery = flow === "rolls";
+	const poolFlow = flow === "pools";
+	const releaseFlow = flow !== "pools";
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
 	const [version, setVersion] = useState(initialVersion);
@@ -113,13 +117,15 @@ export function MatchControlRoomClient({
 		save: persistMatch,
 	});
 
-	const canDraw = Boolean(!ultimateBravery && teamA && teamB && !match.poolAssignment && status !== "Finished");
-	const canPrepare = Boolean(teamA && teamB && status === "Scheduled" && (ultimateBravery || !match.poolAssignment));
-	const canRetryNotifications = Boolean(ultimateBravery && teamA && teamB && (status === "Live" || status === "Pending"));
+	const canDraw = Boolean(poolFlow && teamA && teamB && !match.poolAssignment && status !== "Finished");
+	const canPrepare = Boolean(teamA && teamB && status === "Scheduled" && (releaseFlow || !match.poolAssignment));
+	const canRetryNotifications = Boolean(releaseFlow && teamA && teamB && (status === "Live" || status === "Pending"));
+	const releaseLabel = ultimateBravery ? "Rolls" : "Champ Select";
 	const poolA = match.poolAssignment?.teamAPool ?? null;
 	const poolB = match.poolAssignment?.teamBPool ?? null;
-	const allowedA = poolA ? (pools.find((pool) => pool.pool === poolA)?.champions ?? []) : [];
-	const allowedB = poolB ? (pools.find((pool) => pool.pool === poolB)?.champions ?? []) : [];
+	const everyChampion = flow === "fearless" ? pools.flatMap((pool) => pool.champions).sort((a, b) => a.name.localeCompare(b.name, "de")) : [];
+	const allowedA = flow === "fearless" ? everyChampion : poolA ? (pools.find((pool) => pool.pool === poolA)?.champions ?? []) : [];
+	const allowedB = flow === "fearless" ? everyChampion : poolB ? (pools.find((pool) => pool.pool === poolB)?.champions ?? []) : [];
 
 	function drawPools() {
 		if (!teamA || !teamB || isPending) return;
@@ -159,9 +165,13 @@ export function MatchControlRoomClient({
 				setMessage(json?.message ?? "Match konnte nicht vorbereitet werden.");
 				return;
 			}
-			if (action === "start") setStatus(ultimateBravery ? "Pending" : "Scheduled");
+			if (action === "start") setStatus(releaseFlow ? "Pending" : "Scheduled");
 			setMessage(
-				ultimateBravery ? (json?.message ?? "Rolls für beide Teams freigegeben.") : json?.drewPools ? "Match vorbereitet und Pools gezogen." : "Match ist vorbereitet."
+				releaseFlow
+					? (json?.message ?? `${releaseLabel} für beide Teams freigegeben.`)
+					: json?.drewPools
+						? "Match vorbereitet und Pools gezogen."
+						: "Match ist vorbereitet."
 			);
 			router.refresh();
 		});
@@ -274,26 +284,20 @@ export function MatchControlRoomClient({
 						</div>
 					</div>
 				) : null}
-				<div className="rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
-					<div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+				<div className="admin-panel !mb-0">
+					<div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
 						<div className="min-w-0">
 							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
 								{ultimateBravery ? "Ultimate Bravery" : match.phase === "groups" ? "Gruppenphase" : "Playoffs"} · {match.id}
 							</div>
-							<h1 className="mt-2 text-4xl font-black tracking-tight text-emerald-50">
+							<h2 className="mt-2 text-balance break-words font-display text-3xl font-bold tracking-tight text-emerald-50 sm:text-4xl">
 								{match.teamALabel} vs {match.teamBLabel}
-							</h1>
+							</h2>
 							<p className="mt-3 text-sm font-bold text-emerald-100/54">
 								{match.round} · {match.time}
 							</p>
 						</div>
-						<div className="flex w-full flex-wrap gap-2 md:w-auto md:shrink-0 md:justify-end">
-							<Link
-								href="/tournament/admin"
-								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.045] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-lime-200/26 hover:text-lime-100 md:flex-none"
-							>
-								Zurück
-							</Link>
+						<div className="flex w-full flex-wrap gap-2 2xl:w-auto 2xl:shrink-0 2xl:justify-end">
 							<Link
 								href={ultimateBravery ? `/tournament/matches/${match.id}` : `/tournament/champ-select/${match.id}`}
 								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50 transition hover:border-lime-200/48 md:flex-none"
@@ -327,9 +331,11 @@ export function MatchControlRoomClient({
 					<TeamPanel side="Team B" team={teamB} pool={poolB} fallback={match.teamBLabel} />
 				</div>
 
-				{!ultimateBravery && match.poolAssignment ? (
+				{(poolFlow && match.poolAssignment) || flow === "fearless" ? (
 					<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
-						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">Gespielte Champions eintragen</summary>
+						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">
+							{flow === "fearless" ? "Gespielte Champions korrigieren (Fearless-Historie)" : "Gespielte Champions eintragen"}
+						</summary>
 						<div className="mt-4 grid gap-4 xl:grid-cols-2">
 							<ChampionPicker
 								title={`${match.teamALabel} · gespielte Champions`}
@@ -359,10 +365,11 @@ export function MatchControlRoomClient({
 				) : null}
 			</section>
 
-			<aside className="grid content-start gap-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
+			<aside className="grid grid-cols-[minmax(0,1fr)] content-start gap-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1">
 				{!ultimateBravery ? (
 					<LobbyChecklist
-						poolsDrawn={Boolean(match.poolAssignment)}
+						firstStepLabel={poolFlow ? "Pools gezogen" : "Freigegeben"}
+						poolsDrawn={poolFlow ? Boolean(match.poolAssignment) : status !== "Scheduled"}
 						captainsReady={draftReady(draft)}
 						draftComplete={draftComplete(draft, draftSequence)}
 						scoreSaved={scoreA !== "" && scoreB !== "" && (match.phase !== "groups" || parseGameDuration(gameDuration) !== null)}
@@ -370,12 +377,14 @@ export function MatchControlRoomClient({
 					/>
 				) : null}
 
-				{ultimateBravery ? (
+				{releaseFlow ? (
 					<div className="rounded-[1.6rem] border border-cyan-200/16 bg-cyan-300/[0.055] p-4 shadow-xl shadow-black/20">
 						<div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Discord Match Call</div>
 						<p className="mt-2 text-xs leading-5 text-emerald-100/54">
 							{status === "Scheduled"
-								? "Gibt die persönlichen Rolls frei und benachrichtigt beide Teamrollen in ihren privaten Textkanälen."
+								? ultimateBravery
+									? "Gibt die persönlichen Rolls frei und benachrichtigt beide Teamrollen in ihren privaten Textkanälen."
+									: "Öffnet den Champ Select für beide Captains und benachrichtigt beide Teamrollen in ihren privaten Textkanälen."
 								: status === "Finished"
 									? "Das Match ist abgeschlossen; es werden keine weiteren Startnachrichten gesendet."
 									: "Prüft beide Teamnachrichten erneut. Bereits erfolgreich versandte Nachrichten werden nicht doppelt gepostet."}
@@ -387,9 +396,9 @@ export function MatchControlRoomClient({
 							className="mt-4 w-full rounded-[1.2rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{isPending
-								? "Wird eingereiht..."
+								? "Wird eingereiht…"
 								: status === "Scheduled"
-									? "Rolls freigeben & Teams pingen"
+									? `${releaseLabel} freigeben & Teams pingen`
 									: status === "Finished"
 										? "Match abgeschlossen"
 										: "Teamnachrichten erneut prüfen"}
@@ -406,7 +415,7 @@ export function MatchControlRoomClient({
 					</button>
 				)}
 
-				{!ultimateBravery ? (
+				{poolFlow ? (
 					<div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-xl shadow-black/24">
 						<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">A-Z Pools</div>
 						{match.poolAssignment ? (
@@ -451,10 +460,12 @@ export function MatchControlRoomClient({
 						<label className="col-span-2 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5">
 							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Spielzeit</span>
 							<input
+								name="game-duration"
+								autoComplete="off"
 								value={gameDuration}
 								onChange={(event) => setGameDuration(event.target.value)}
 								inputMode="numeric"
-								placeholder="mm:ss"
+								placeholder="mm:ss…"
 								pattern="\d{1,3}:[0-5]\d"
 								className="w-full rounded-lg border border-white/10 bg-black/24 px-2 py-2 text-center text-sm font-black text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
 							/>
@@ -491,8 +502,8 @@ export function MatchControlRoomClient({
 								<span className="mt-1 block text-xs font-bold leading-5 text-emerald-100/54">Zeigt dieses Match im Zeitplan als Cast-Match an.</span>
 							</span>
 							<span className="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-white/10 bg-black/30 p-1">
-								<input type="checkbox" checked={isCasted} onChange={(event) => setIsCasted(event.target.checked)} className="peer sr-only" />
-								<span className="h-5 w-5 rounded-full bg-emerald-100/42 transition peer-checked:translate-x-5 peer-checked:bg-cyan-200 peer-checked:shadow-lg peer-checked:shadow-cyan-300/30" />
+								<input type="checkbox" name="is-casted" checked={isCasted} onChange={(event) => setIsCasted(event.target.checked)} className="peer sr-only" />
+								<span className="h-5 w-5 rounded-full bg-emerald-100/42 transition peer-focus-visible:ring-2 peer-focus-visible:ring-cyan-200 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-black peer-checked:translate-x-5 peer-checked:bg-cyan-200 peer-checked:shadow-lg peer-checked:shadow-cyan-300/30" />
 							</span>
 						</label>
 					</div>
@@ -512,10 +523,13 @@ export function MatchControlRoomClient({
 					<details className="mt-3 rounded-xl border border-white/8 bg-black/14 p-3">
 						<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Admin-Notiz und Hinweise</summary>
 						<textarea
+							name="admin-note"
+							aria-label="Admin-Notiz"
+							autoComplete="off"
 							value={adminNote}
 							onChange={(event) => setAdminNote(event.target.value)}
 							rows={2}
-							placeholder="Optional: Warum wurde das Ergebnis geändert?"
+							placeholder="Optional: Warum wurde das Ergebnis geändert?…"
 							className="mt-3 w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
 						/>
 						<ProtectionWarnings
@@ -531,11 +545,15 @@ export function MatchControlRoomClient({
 						disabled={isPending}
 						className="mt-3 w-full rounded-xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-lg shadow-lime-300/10 transition hover:bg-lime-100 disabled:opacity-50"
 					>
-						{isPending ? "Wird gespeichert..." : "Match speichern"}
+						{isPending ? "Wird gespeichert…" : "Match speichern"}
 					</button>
 				</form>
 
-				{message ? <div className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+				{message ? (
+					<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+						{message}
+					</div>
+				) : null}
 
 				<details className="rounded-[1.4rem] border border-amber-200/14 bg-amber-200/[0.035] p-3">
 					<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/68">Notfall: Ersatzspieler</summary>
@@ -673,12 +691,14 @@ function ScoreField({ label, value, onChange }: { label: string; value: string; 
 }
 
 function LobbyChecklist({
+	firstStepLabel,
 	poolsDrawn,
 	captainsReady,
 	draftComplete,
 	scoreSaved,
 	matchFinished,
 }: {
+	firstStepLabel: string;
 	poolsDrawn: boolean;
 	captainsReady: boolean;
 	draftComplete: boolean;
@@ -686,11 +706,11 @@ function LobbyChecklist({
 	matchFinished: boolean;
 }) {
 	const items = [
-		{ label: "Pools drawn", ok: poolsDrawn },
+		{ label: firstStepLabel, ok: poolsDrawn },
 		{ label: "Captains ready", ok: captainsReady },
-		{ label: "Draft complete", ok: draftComplete },
-		{ label: "Score saved", ok: scoreSaved },
-		{ label: "Match finished", ok: matchFinished },
+		{ label: "Draft fertig", ok: draftComplete },
+		{ label: "Ergebnis gespeichert", ok: scoreSaved },
+		{ label: "Match beendet", ok: matchFinished },
 	];
 	return (
 		<div className="rounded-[1.4rem] border border-lime-200/12 bg-lime-200/[0.045] p-3 shadow-xl shadow-black/20">
@@ -759,7 +779,7 @@ function CoinTossButton({
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">Coin Toss</div>
-					<div className="mt-1 truncate text-sm font-black text-emerald-50">{tossing ? "Münze fliegt..." : `${winnerLabel} darf Side wählen`}</div>
+					<div className="mt-1 truncate text-sm font-black text-emerald-50">{tossing ? "Münze fliegt…" : `${winnerLabel} darf Side wählen`}</div>
 				</div>
 			</div>
 			<button
@@ -768,7 +788,7 @@ function CoinTossButton({
 				onClick={onToss}
 				className={`${compact ? "mt-2 py-2" : "mt-3 py-2.5"} w-full rounded-lg border border-amber-200/24 bg-amber-200/12 px-4 text-[10px] font-black uppercase tracking-[0.16em] text-amber-50 transition hover:border-amber-200/42 disabled:cursor-not-allowed disabled:opacity-45`}
 			>
-				{tossing ? "Toss läuft..." : "Coin Toss starten"}
+				{tossing ? "Toss läuft…" : "Coin Toss starten"}
 			</button>
 			<style>{`
         @keyframes coin-flip-a {

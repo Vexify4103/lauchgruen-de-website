@@ -22,6 +22,7 @@ const schema = z.object({
 	tournamentLive: z.boolean().optional(),
 	draftEnabled: z.boolean().optional(),
 	tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
+	fearless: z.object({ lockOpponentChampions: z.boolean() }).optional(),
 	ultimateBravery: z
 		.object({
 			startAt: z.iso.datetime({ offset: true }).nullable(),
@@ -102,6 +103,7 @@ export async function PATCH(request: Request) {
 			applicationDeadline: parsed.data.applicationDeadline,
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
+			fearless: parsed.data.fearless,
 			ultimateBravery: parsed.data.ultimateBravery,
 		},
 		updatedBy: session.user.discordHandle ?? discordId,
@@ -121,6 +123,7 @@ export async function PATCH(request: Request) {
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 			tournamentMode: parsed.data.tournamentMode,
+			fearless: parsed.data.fearless,
 			ultimateBravery: parsed.data.ultimateBravery,
 		},
 	});
@@ -137,6 +140,7 @@ export async function PATCH(request: Request) {
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 			tournamentMode: parsed.data.tournamentMode,
+			fearless: parsed.data.fearless,
 			ultimateBravery: parsed.data.ultimateBravery,
 		},
 	});

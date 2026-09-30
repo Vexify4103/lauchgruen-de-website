@@ -160,9 +160,11 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 						<div className="mt-4 flex gap-2">
 							<input
 								id="preference-group-code"
+								name="preference-group-code"
+								spellCheck={false}
 								value={joinCode}
 								onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-								placeholder="LG-XXXXXX"
+								placeholder="LG-XXXXXX…"
 								autoComplete="off"
 								maxLength={20}
 								className="min-w-0 flex-1 rounded-xl border border-white/12 bg-black/28 px-4 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-cyan-200/38"
@@ -180,11 +182,13 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 			)}
 
 			{confirmJoinCode ? (
-				<div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="group-join-warning-title" className="fixed inset-0 z-50 grid place-items-center px-5">
 					<button type="button" aria-label="Hinweis schließen" onClick={cancelJoinConfirmation} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 					<div className="relative w-full max-w-xl rounded-[2rem] border border-amber-200/24 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/60">
 						<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-200/72">Wunschgruppe beitreten</div>
-						<h3 className="mt-3 text-2xl font-black text-emerald-50">Wichtig vor dem Beitritt</h3>
+						<h3 id="group-join-warning-title" className="mt-3 text-2xl font-black text-emerald-50">
+							Wichtig vor dem Beitritt
+						</h3>
 						<p className="mt-3 text-sm leading-6 text-emerald-100/68">
 							Wunschgruppen sind <strong className="font-black text-amber-100">nicht garantiert</strong>. Die Orga versucht, eure Gruppe beim Team-Building zu
 							berücksichtigen, aber faire Team-Balance hat Vorrang. Die Gruppe kann deshalb teilweise oder vollständig aufgeteilt werden.
@@ -220,6 +224,7 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 
 			{message ? (
 				<div
+					role="status"
 					className={`mt-4 rounded-xl border px-4 py-3 text-xs font-bold ${
 						message.tone === "ok" ? "border-lime-200/20 bg-lime-200/[0.07] text-lime-50/80" : "border-red-200/20 bg-red-500/[0.07] text-red-100"
 					}`}

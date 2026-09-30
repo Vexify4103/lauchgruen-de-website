@@ -12,6 +12,7 @@ import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
 import { getMatchControlContext } from "@/lib/match-control";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,7 @@ export async function PATCH(request: Request) {
 	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === parsed.data.id && !pairing.bye);
 	const groupMatch = ctx.groupMatches.find((match) => match.id === parsed.data.id);
 	const isGroupMatch = Boolean(groupMatch);
-	const controlMatch = settings.activeTournament.id === "ultimate-bravery" ? (await getMatchControlContext()).matches.find((match) => match.id === parsed.data.id) : null;
+	const controlMatch = usesFlexibleEngine(settings.activeTournament) ? (await getMatchControlContext()).matches.find((match) => match.id === parsed.data.id) : null;
 	const teamAName = swissPairing?.teamAName ?? groupMatch?.teamA ?? controlMatch?.teamAName ?? undefined;
 	const teamBName = swissPairing?.teamBName ?? groupMatch?.teamB ?? controlMatch?.teamBName ?? undefined;
 	const currentStatus = state.matches[parsed.data.id]?.status ?? "Scheduled";

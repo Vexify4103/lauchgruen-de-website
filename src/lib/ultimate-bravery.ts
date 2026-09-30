@@ -193,12 +193,7 @@ function rollContainsRuneSpellConflict(roll: UltimateBraveryRoll) {
 }
 
 function rollNeedsRegeneration(roll: UltimateBraveryRoll) {
-	return (
-		rollContainsForbiddenItem(roll) ||
-		rollContainsConflictingItems(roll) ||
-		rollContainsChampionRestrictedItem(roll) ||
-		rollContainsRuneSpellConflict(roll)
-	);
+	return rollContainsForbiddenItem(roll) || rollContainsConflictingItems(roll) || rollContainsChampionRestrictedItem(roll) || rollContainsRuneSpellConflict(roll);
 }
 
 function imageUrl(version: string, type: "champion" | "item" | "spell", file: string) {
@@ -446,6 +441,15 @@ export async function deleteUltimateBraveryRoll(matchId: string, discordId: stri
 
 export async function resetUltimateBraveryMatch(matchId: string): Promise<void> {
 	await (await rollsCollection()).deleteMany({ matchId });
+}
+
+export async function listAllUltimateBraveryRolls(): Promise<UltimateBraveryRoll[]> {
+	const docs = await (await rollsCollection()).find({ matchId: { $ne: "ub-test" } }, { sort: { matchId: 1, teamName: 1, role: 1 } }).toArray();
+	return docs.map(strip);
+}
+
+export async function clearUltimateBraveryRolls(): Promise<void> {
+	await (await rollsCollection()).deleteMany({});
 }
 
 export async function resetUltimateBraveryTestDraft(): Promise<void> {

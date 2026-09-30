@@ -49,7 +49,7 @@ export function ThemedDateTimePicker({
 	value,
 	onChange,
 	ariaLabel,
-	placeholder = "Datum und Uhrzeit wählen",
+	placeholder = "Datum und Uhrzeit wählen…",
 	disabled = false,
 	clearable = false,
 	error,
@@ -165,7 +165,11 @@ export function ThemedDateTimePicker({
 					<path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
 				</svg>
 			</button>
-			{error ? <p className="mt-1.5 text-xs font-bold text-red-200">{error}</p> : null}
+			{error ? (
+				<p role="alert" className="mt-1.5 text-xs font-bold text-red-200">
+					{error}
+				</p>
+			) : null}
 			{open && typeof document !== "undefined"
 				? createPortal(
 						<div

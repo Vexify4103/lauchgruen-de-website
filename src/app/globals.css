@@ -1,6 +1,9 @@
 @import "tailwindcss";
+@import "./design-system.css";
+@import "./admin-system.css";
 
 :root {
+	color-scheme: dark;
 	--background: #052e1a;
 	--foreground: #ecfdf5;
 	--surface-strong: rgba(3, 24, 16, 0.82);
@@ -9,12 +12,35 @@
 	--border-soft: rgba(52, 211, 153, 0.22);
 	--font-geist-sans: "Trebuchet MS", "Segoe UI", sans-serif;
 	--font-geist-mono: "Cascadia Code", "Consolas", monospace;
+
+	/* Design tokens · layout and component language ported from happygiganto, recoloured in Lauchgruen green. */
+	--bg: #07110c;
+	--bg-soft: #0a1811;
+	--panel: rgba(15, 33, 23, 0.86);
+	--panel-solid: #0e2017;
+	--text: #effbf2;
+	--muted: #a2bfac;
+	--line: rgba(217, 249, 157, 0.12);
+	--line-strong: rgba(217, 249, 157, 0.26);
+	--accent: #bef264;
+	--accent-strong: #d9f99d;
+	--accent-deep: #1b4d2b;
+	--on-accent: #0a1f12;
+	--cyan: #7dd3c0;
+	--amber: #fcd34d;
+	--danger: #ff8a80;
+	--live: #ff6b6b;
+	--shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+	--radius: 28px;
+	--max: 1280px;
+	--header-height: 78px;
 }
 
 @theme inline {
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
-	--font-sans: var(--font-geist-sans);
+	--font-sans: var(--font-dm-sans), var(--font-geist-sans);
+	--font-display: var(--font-space-grotesk), var(--font-geist-sans);
 	--font-mono: var(--font-geist-mono);
 
 	--animate-pulse-slow: pulse-slow 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -35,6 +61,19 @@ body {
 	background-attachment: fixed;
 	color: var(--foreground);
 	font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+	/* Display type for every heading, like the HappyGiganto platform. OBS overlays opt out in their layout. */
+	:where(h1, h2, h3) {
+		font-family: var(--font-display), var(--font-geist-sans);
+		text-wrap: balance;
+	}
+
+	/* Scores, records and times line up in every table. */
+	:where(table) {
+		font-variant-numeric: tabular-nums;
+	}
 }
 
 html {
@@ -160,9 +199,24 @@ button:disabled,
 	}
 }
 
-:where(a, button, input, textarea, summary, [tabindex]):focus-visible {
+:where(a, button, input, textarea, select, summary, [tabindex], [role="button"], [contenteditable="true"]):focus-visible {
 	outline: 2px solid rgba(165, 243, 252, 0.9);
 	outline-offset: 3px;
+}
+
+/* The skip-link target is focused programmatically; it is not a control and needs no ring. */
+main[tabindex="-1"]:focus-visible {
+	outline: none;
+}
+
+:where(a, button, input, select, textarea, summary, label, [role="button"]) {
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: rgba(190, 242, 100, 0.18);
+}
+
+/* Keep focused elements and anchor targets clear of the sticky header and tournament subnav. */
+html {
+	scroll-padding-top: calc(var(--header-height) + 80px);
 }
 
 ::selection {

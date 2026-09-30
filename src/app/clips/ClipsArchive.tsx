@@ -88,7 +88,11 @@ export function ClipsArchive() {
 				</div>
 			</div>
 
-			{error ? <div className="mt-6 rounded-[1.7rem] border border-rose-200/16 bg-rose-300/[0.07] p-6 text-sm font-bold text-rose-100">{error}</div> : null}
+			{error ? (
+				<div role="alert" className="mt-6 rounded-[1.7rem] border border-rose-200/16 bg-rose-300/[0.07] p-6 text-sm font-bold text-rose-100">
+					{error}
+				</div>
+			) : null}
 
 			{loading && !data ? (
 				<div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

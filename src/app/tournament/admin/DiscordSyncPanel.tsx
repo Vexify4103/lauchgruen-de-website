@@ -132,7 +132,7 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 					onClick={repair}
 					className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20 disabled:opacity-50"
 				>
-					{jobRunning ? "Queue läuft..." : "Rollen reparieren"}
+					{jobRunning ? "Queue läuft…" : "Rollen reparieren"}
 				</button>
 			</div>
 			{job ? (
@@ -153,7 +153,7 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 				</div>
 			) : null}
 			<div className="mt-4 rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm font-black text-lime-100">
-				{isLoading ? "Captain-Rollen werden geprüft..." : `${synced}/${roleStatuses.length} Captain-Rollen synced`}
+				{isLoading ? "Captain-Rollen werden geprüft…" : `${synced}/${roleStatuses.length} Captain-Rollen synced`}
 			</div>
 			<div className="mt-4 grid gap-2 md:grid-cols-2">
 				{roleStatuses.map((entry) => (
@@ -167,7 +167,11 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 					? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-black/18" />)
 					: null}
 			</div>
-			{message ? <div className="mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					{message}
+				</div>
+			) : null}
 		</section>
 	);
 }

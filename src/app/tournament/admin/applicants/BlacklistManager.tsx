@@ -5,6 +5,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import type { TournamentBlacklistEntry } from "@/lib/tournament-storage";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export function BlacklistManager({ initialEntries, initialVersion }: { initialEntries: TournamentBlacklistEntry[]; initialVersion: number }) {
 	const router = useRouter();
@@ -16,6 +17,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 	const [discordId, setDiscordId] = useState("");
 	const [riotId, setRiotId] = useState("");
 	const [reason, setReason] = useState("");
+	const [pendingRemoval, setPendingRemoval] = useState<TournamentBlacklistEntry | null>(null);
 	const [isPending, startTransition] = useTransition();
 
 	async function persistEntry(): Promise<boolean> {
@@ -89,6 +91,19 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 
 	return (
 		<section className="mt-8 rounded-[2rem] border border-red-300/18 bg-red-500/[0.045] p-5 shadow-xl shadow-black/20">
+			<ConfirmDialog
+				open={Boolean(pendingRemoval)}
+				tone="danger"
+				title="Blacklist-Eintrag entfernen?"
+				description="Die Person kann sich danach wieder für Turniere bewerben."
+				confirmLabel="Eintrag entfernen"
+				cancelLabel="Abbrechen"
+				onConfirm={() => {
+					if (pendingRemoval) removeEntry(pendingRemoval.id);
+					setPendingRemoval(null);
+				}}
+				onCancel={() => setPendingRemoval(null)}
+			/>
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-red-100/70">Blacklist</div>
@@ -101,9 +116,9 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 			</div>
 
 			<form onSubmit={addEntry} className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr_auto] lg:items-end">
-				<Field label="Discord-ID" value={discordId} onChange={setDiscordId} placeholder="337568120028004362" />
-				<Field label="Riot-ID" value={riotId} onChange={setRiotId} placeholder="Name#TAG" />
-				<Field label="Grund" value={reason} onChange={setReason} placeholder="Regelbruch, Toxicity, No-show..." required />
+				<Field label="Discord-ID" value={discordId} onChange={setDiscordId} placeholder="337568120028004362…" />
+				<Field label="Riot-ID" value={riotId} onChange={setRiotId} placeholder="Name#TAG…" />
+				<Field label="Grund" value={reason} onChange={setReason} placeholder="Regelbruch, Toxicity, No-show…" required />
 				<button
 					type="submit"
 					disabled={isPending}
@@ -113,7 +128,11 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 				</button>
 			</form>
 
-			{message ? <div className="mt-4 rounded-2xl border border-red-200/20 bg-black/24 px-4 py-3 text-sm font-bold text-red-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mt-4 rounded-2xl border border-red-200/20 bg-black/24 px-4 py-3 text-sm font-bold text-red-50">
+					{message}
+				</div>
+			) : null}
 
 			{entries.length > 0 ? (
 				<details
@@ -141,7 +160,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 									<button
 										type="button"
 										disabled={isPending}
-										onClick={() => removeEntry(entry.id)}
+										onClick={() => setPendingRemoval(entry)}
 										className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 underline decoration-red-200/30 underline-offset-4 hover:text-red-50"
 									>
 										Entfernen
@@ -161,6 +180,9 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 		<label className="grid gap-2">
 			<span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100/64">{label}</span>
 			<input
+				name={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+				autoComplete="off"
+				spellCheck={false}
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				required={required}

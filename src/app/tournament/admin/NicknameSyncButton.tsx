@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type SyncState = { status: "idle"; message: "" } | { status: "loading"; message: string } | { status: "success"; message: string } | { status: "error"; message: string };
 
@@ -47,7 +48,7 @@ export function NicknameSyncButton() {
 	async function syncNicknames() {
 		setState({
 			status: "loading",
-			message: "Nickname-Job wird gestartet...",
+			message: "Nickname-Job wird gestartet…",
 		});
 		const response = await fetch("/api/tournament/nicknames", {
 			method: "POST",
@@ -91,10 +92,12 @@ export function NicknameSyncButton() {
 		});
 	}
 
+	const [pendingReset, setPendingReset] = useState<true | null>(null);
+
 	async function resetNicknames() {
 		setState({
 			status: "loading",
-			message: "Nickname-Reset-Job wird gestartet...",
+			message: "Nickname-Reset-Job wird gestartet…",
 		});
 		const response = await fetch("/api/tournament/nicknames", {
 			method: "DELETE",
@@ -141,6 +144,19 @@ export function NicknameSyncButton() {
 
 	return (
 		<div className="grid gap-2">
+			<ConfirmDialog
+				open={Boolean(pendingReset)}
+				tone="danger"
+				title="Alle Turnier-Nicknames entfernen?"
+				description="Die Discord-Nicknames aller Roster-Spieler werden zurückgesetzt. Mit „Nicknames prüfen & reparieren“ lassen sie sich neu setzen."
+				confirmLabel="Nicknames entfernen"
+				cancelLabel="Abbrechen"
+				onConfirm={() => {
+					setPendingReset(null);
+					void resetNicknames();
+				}}
+				onCancel={() => setPendingReset(null)}
+			/>
 			<div className="flex flex-wrap gap-2">
 				<button
 					type="button"
@@ -148,11 +164,11 @@ export function NicknameSyncButton() {
 					disabled={busy}
 					className="rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-amber-100 transition hover:border-amber-200/50 hover:text-amber-50 disabled:opacity-60"
 				>
-					{busy ? "Prüfung läuft..." : "Nicknames prüfen & reparieren"}
+					{busy ? "Prüfung läuft…" : "Nicknames prüfen & reparieren"}
 				</button>
 				<button
 					type="button"
-					onClick={resetNicknames}
+					onClick={() => setPendingReset(true)}
 					disabled={busy}
 					className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-red-300/40 hover:text-red-100 disabled:opacity-60"
 				>

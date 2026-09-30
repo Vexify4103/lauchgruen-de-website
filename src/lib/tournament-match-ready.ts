@@ -9,11 +9,13 @@ function matchReadyOperation(input: {
 	time: string;
 	dedupeScope: string;
 	tournamentUrl: string;
+	flow: MatchReadyFlow;
 }): DiscordOperation | null {
 	const channelId = input.team.discordTextChannelId?.trim();
 	const roleId = input.team.discordRoleId?.trim();
 	if (!channelId || !roleId) return null;
-	const matchUrl = `${input.tournamentUrl.replace(/\/$/, "")}/matches/${encodeURIComponent(input.matchId)}`;
+	const base = input.tournamentUrl.replace(/\/$/, "");
+	const matchUrl = input.flow === "draft" ? `${base}/champ-select/${encodeURIComponent(input.matchId)}` : `${base}/matches/${encodeURIComponent(input.matchId)}`;
 	return {
 		kind: "channel-message",
 		channelId,
@@ -27,14 +29,21 @@ function matchReadyOperation(input: {
 					author: { name: "LAUCHGRUEN · MATCH CALL" },
 					title: "Euer Champ Select ist bereit",
 					description:
-						"Euer nächstes Match wurde von der Turnierleitung freigegeben. Öffnet jetzt euren persönlichen Roll, prüft Champion und Build und bestätigt, sobald ihr bereit seid.",
+						input.flow === "draft"
+							? "Euer nächstes Match wurde von der Turnierleitung freigegeben. Captains: öffnet jetzt den Champ Select und klickt Ready. Denkt an die Fearless-Sperren."
+							: "Euer nächstes Match wurde von der Turnierleitung freigegeben. Öffnet jetzt euren persönlichen Roll, prüft Champion und Build und bestätigt, sobald ihr bereit seid.",
 					color: 0xb7f36b,
 					fields: [
 						{ name: "EUER TEAM", value: `**${input.team.name}**`, inline: true },
 						{ name: "GEGNER", value: `**${input.opponent.name}**`, inline: true },
 						{ name: "RUNDE", value: `${input.round} · ${input.time}`, inline: false },
 					],
-					footer: { text: "Lauchgruen Ultimate Bravery · Jeder Spieler bedient nur seinen eigenen Roll" },
+					footer: {
+						text:
+							input.flow === "draft"
+								? "Lauchgruen Fearless · Nur Captains locken im Champ Select"
+								: "Lauchgruen Ultimate Bravery · Jeder Spieler bedient nur seinen eigenen Roll",
+					},
 					timestamp: new Date().toISOString(),
 				},
 			],
@@ -48,6 +57,9 @@ function matchReadyOperation(input: {
 	};
 }
 
+/** `rolls`: Ultimate Bravery build rolls per player. `draft`: captain champ select. */
+export type MatchReadyFlow = "rolls" | "draft";
+
 export function buildMatchReadyDiscordOperations(input: {
 	teamA: TournamentTeam;
 	teamB: TournamentTeam;
@@ -56,11 +68,13 @@ export function buildMatchReadyDiscordOperations(input: {
 	time: string;
 	dedupeScope: string;
 	tournamentUrl?: string;
+	flow?: MatchReadyFlow;
 }): { operations: DiscordOperation[]; missingTeamCount: number } {
 	const tournamentUrl = input.tournamentUrl ?? "https://tournament.lauchgruen.de";
+	const flow = input.flow ?? "rolls";
 	const operations = [
-		matchReadyOperation({ ...input, team: input.teamA, opponent: input.teamB, tournamentUrl }),
-		matchReadyOperation({ ...input, team: input.teamB, opponent: input.teamA, tournamentUrl }),
+		matchReadyOperation({ ...input, team: input.teamA, opponent: input.teamB, tournamentUrl, flow }),
+		matchReadyOperation({ ...input, team: input.teamB, opponent: input.teamA, tournamentUrl, flow }),
 	].filter((operation): operation is DiscordOperation => Boolean(operation));
 	return { operations, missingTeamCount: 2 - operations.length };
 }

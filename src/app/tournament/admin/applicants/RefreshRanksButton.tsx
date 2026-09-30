@@ -308,7 +308,11 @@ export function RefreshRanksButton({
 				</div>
 			) : null}
 
-			{message ? <span className="max-w-2xl text-[10px] font-bold leading-5 text-emerald-100/54">{message}</span> : null}
+			{message ? (
+				<span role="status" className="max-w-2xl text-[10px] font-bold leading-5 text-emerald-100/54">
+					{message}
+				</span>
+			) : null}
 			<ConfirmDialog
 				open={bulkConfirmOpen}
 				title="Alle Riot-Daten aktualisieren?"
@@ -368,13 +372,7 @@ async function fetchRefreshTargets(scope: "applications" | "verified"): Promise<
 	);
 }
 
-async function saveBulkAudit(summary: {
-	scope: "applications" | "verified";
-	okCount: number;
-	failCount: number;
-	changedCount: number;
-	unchangedCount: number;
-}) {
+async function saveBulkAudit(summary: { scope: "applications" | "verified"; okCount: number; failCount: number; changedCount: number; unchangedCount: number }) {
 	await fetch("/api/tournament/ranks", {
 		method: "PUT",
 		headers: { "content-type": "application/json" },

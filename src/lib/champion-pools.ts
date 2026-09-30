@@ -78,3 +78,8 @@ export async function getChampionPools(): Promise<ChampionPool[]> {
 		champions: [...(grouped.get(pool) ?? [])].sort((a, b) => a.name.localeCompare(b.name, "de")),
 	}));
 }
+
+/** Every champion of the current patch, alphabetically. Used by fearless drafts, which have no pools. */
+export async function getAllChampions(): Promise<ChampionPoolEntry[]> {
+	return (await getChampionPools()).flatMap((pool) => pool.champions).sort((a, b) => a.name.localeCompare(b.name, "de"));
+}

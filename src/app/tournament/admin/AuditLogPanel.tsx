@@ -72,7 +72,7 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
 							onClick={() => setBulkDeleteConfirmOpen(true)}
 							className="rounded-2xl border border-red-300/18 bg-red-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-300/34 disabled:cursor-not-allowed disabled:opacity-45"
 						>
-							{bulkDeleting ? "Lösche..." : "Alle löschen"}
+							{bulkDeleting ? "Lösche…" : "Alle löschen"}
 						</button>
 					</div>
 				</div>
@@ -83,7 +83,10 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
 				<div className="max-h-[24rem] overflow-x-hidden overflow-y-auto overscroll-contain border-t border-white/8 bg-black/10 p-3 sm:p-4">
 					<div className="grid min-w-0 gap-2">
 						{entries.map((entry) => (
-							<div key={entry.id} className="grid min-w-0 gap-3 rounded-2xl border border-white/8 bg-black/18 p-3 lg:grid-cols-[minmax(8rem,11rem)_minmax(0,1fr)_auto] lg:items-center">
+							<div
+								key={entry.id}
+								className="grid min-w-0 gap-3 rounded-2xl border border-white/8 bg-black/18 p-3 lg:grid-cols-[minmax(8rem,11rem)_minmax(0,1fr)_auto] lg:items-center"
+							>
 								<div className="min-w-0 break-words text-[9px] font-black uppercase leading-4 tracking-[0.14em] text-lime-200/54">{formatAction(entry.action)}</div>
 								<div className="min-w-0">
 									<div className="line-clamp-2 break-words text-sm font-black leading-5 text-emerald-50">{entry.summary}</div>
@@ -92,14 +95,16 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
 									</div>
 								</div>
 								<div className="flex shrink-0 items-center justify-between gap-3 lg:justify-end">
-									<div className="whitespace-nowrap text-xs font-bold text-emerald-100/42">{new Date(entry.createdAt).toLocaleTimeString("de-DE")}</div>
+									<div className="whitespace-nowrap text-xs font-bold text-emerald-100/42">
+										{new Date(entry.createdAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin" })}
+									</div>
 									<button
 										type="button"
 										disabled={isPending}
 										onClick={() => deleteEntry(entry)}
 										className="rounded-xl border border-red-300/18 bg-red-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 transition hover:border-red-300/34 disabled:opacity-50"
 									>
-										{pendingId === entry.id ? "..." : "Löschen"}
+										{pendingId === entry.id ? "…" : "Löschen"}
 									</button>
 								</div>
 							</div>
@@ -107,7 +112,11 @@ export function AuditLogPanel({ initialEntries }: { initialEntries: TournamentAu
 					</div>
 				</div>
 			)}
-			{message ? <div className="mx-5 mb-5 mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mx-5 mb-5 mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					{message}
+				</div>
+			) : null}
 			<ConfirmDialog
 				open={bulkDeleteConfirmOpen}
 				title="Audit Log vollständig löschen?"

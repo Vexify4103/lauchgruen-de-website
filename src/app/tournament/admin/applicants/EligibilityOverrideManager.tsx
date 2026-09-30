@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import type { TournamentEligibilityOverride, TournamentEligibilityOverrideKind } from "@/lib/tournament-storage";
 
@@ -45,6 +46,7 @@ export function EligibilityOverrideManager({
 	const [note, setNote] = useState("");
 	const [message, setMessage] = useState("");
 	const [listOpen, setListOpen] = useState(false);
+	const [pendingRemoval, setPendingRemoval] = useState<TournamentEligibilityOverride | null>(null);
 	const [isPending, startTransition] = useTransition();
 
 	const activeEntries = entries.filter((entry) => isActive(entry, activeTournamentId));
@@ -120,6 +122,19 @@ export function EligibilityOverrideManager({
 
 	return (
 		<section className="mt-8 rounded-[2rem] border border-cyan-200/16 bg-gradient-to-br from-cyan-300/[0.07] via-emerald-300/[0.035] to-lime-200/[0.055] p-5 shadow-xl shadow-black/20">
+			<ConfirmDialog
+				open={Boolean(pendingRemoval)}
+				tone="danger"
+				title="Ausnahme entfernen?"
+				description="Für diese Person gilt danach wieder das normale Mindestlevel. Bestehende Bewerbungen werden nicht gelöscht."
+				confirmLabel="Ausnahme entfernen"
+				cancelLabel="Abbrechen"
+				onConfirm={() => {
+					if (pendingRemoval) removeEntry(pendingRemoval.id);
+					setPendingRemoval(null);
+				}}
+				onCancel={() => setPendingRemoval(null)}
+			/>
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div className="max-w-3xl">
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/70">Teilnahme-Freigaben</div>
@@ -141,9 +156,9 @@ export function EligibilityOverrideManager({
 						ariaLabel="Kategorie der Teilnahme-Freigabe"
 					/>
 				</label>
-				<Field label="Discord-ID" value={discordId} onChange={setDiscordId} placeholder="337568120028004362" />
-				<Field label="Riot-ID" value={riotId} onChange={setRiotId} placeholder="Name#TAG" />
-				<Field label="Interner Grund" value={note} onChange={setNote} placeholder="Warum wird die Anforderung umgangen?" required />
+				<Field label="Discord-ID" value={discordId} onChange={setDiscordId} placeholder="337568120028004362…" />
+				<Field label="Riot-ID" value={riotId} onChange={setRiotId} placeholder="Name#TAG…" />
+				<Field label="Interner Grund" value={note} onChange={setNote} placeholder="Warum wird die Anforderung umgangen?…" required />
 				<button
 					type="submit"
 					disabled={isPending || (!discordId.trim() && !riotId.trim()) || note.trim().length < 3}
@@ -153,7 +168,11 @@ export function EligibilityOverrideManager({
 				</button>
 			</form>
 
-			{message ? <div className="mt-4 rounded-2xl border border-cyan-100/16 bg-black/22 px-4 py-3 text-sm font-bold text-cyan-50">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mt-4 rounded-2xl border border-cyan-100/16 bg-black/22 px-4 py-3 text-sm font-bold text-cyan-50">
+					{message}
+				</div>
+			) : null}
 
 			{entries.length > 0 ? (
 				<details
@@ -198,7 +217,7 @@ export function EligibilityOverrideManager({
 										<button
 											type="button"
 											disabled={isPending}
-											onClick={() => removeEntry(entry.id)}
+											onClick={() => setPendingRemoval(entry)}
 											className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 underline decoration-red-200/30 underline-offset-4 hover:text-red-50 disabled:opacity-50"
 										>
 											Entfernen
@@ -219,6 +238,9 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 		<label className="grid gap-2">
 			<span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/64">{label}</span>
 			<input
+				name={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+				autoComplete="off"
+				spellCheck={false}
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				required={required}

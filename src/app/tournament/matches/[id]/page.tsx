@@ -19,6 +19,7 @@ import { getUltimateBraveryDraftStatus } from "@/lib/ultimate-bravery-state";
 import { UltimateBraveryMatch } from "./UltimateBraveryMatch";
 import { UltimateBraveryTestLobby } from "./UltimateBraveryTestLobby";
 import { DiscordSignInButton } from "../../DiscordSignInButton";
+import { usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
@@ -90,7 +91,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 	const [ctx, pools, draft] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(id)]);
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) notFound();
-	if (settings.activeTournament.id === "ultimate-bravery") {
+	if (usesUltimateBravery(settings.activeTournament)) {
 		const [rolls, players] = await Promise.all([listUltimateBraveryRolls(id), resolveUltimateBraveryMatchPlayers(id)]);
 		if (!players) notFound();
 		const viewerTeam = players.find((player) => player.discordId === currentDiscordId)?.teamName;
@@ -124,7 +125,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 			</UltimateBraveryPage>
 		);
 	}
-	const sequence = createDraftSequence(bonusBanSideForMatch(match));
+	const sequence = createDraftSequence(bonusBanSideForMatch(match, settings.activeTournament));
+	const fearless = usesFearless(settings.activeTournament);
 	const complete = draftComplete(draft, sequence);
 	const byName = new Map(pools.flatMap((pool) => pool.champions).map((champion) => [champion.name, champion]));
 	const bluePicks = draft.actions.filter((action) => action.side === "teamA" && action.kind === "pick");
@@ -160,6 +162,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 						title="Blue Side"
 						team={match.blueSide === "teamA" ? match.teamALabel : match.teamBLabel}
 						pool={match.blueSide === "teamA" ? match.poolAssignment?.teamAPool : match.poolAssignment?.teamBPool}
+						fearless={fearless}
 						picks={bluePicks}
 						bans={blueBans}
 						byName={byName}
@@ -168,13 +171,14 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 						title="Red Side"
 						team={match.blueSide === "teamA" ? match.teamBLabel : match.teamALabel}
 						pool={match.blueSide === "teamA" ? match.poolAssignment?.teamBPool : match.poolAssignment?.teamAPool}
+						fearless={fearless}
 						picks={redPicks}
 						bans={redBans}
 						byName={byName}
 					/>
 				</div>
 				<div className="mt-6 flex flex-wrap gap-3">
-					{match.poolAssignment ? (
+					{match.poolAssignment || (fearless && match.status !== "Scheduled") ? (
 						<Link
 							href={`/tournament/champ-select/${match.id}/spectate`}
 							className="rounded-2xl bg-sky-300 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
@@ -216,6 +220,7 @@ function TeamDraft({
 	title,
 	team,
 	pool,
+	fearless,
 	picks,
 	bans,
 	byName,
@@ -223,6 +228,7 @@ function TeamDraft({
 	title: string;
 	team: string;
 	pool?: string;
+	fearless: boolean;
 	picks: Array<{ champion: string }>;
 	bans: Array<{ champion: string }>;
 	byName: Map<string, { imageUrl: string }>;
@@ -231,7 +237,9 @@ function TeamDraft({
 		<article className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
 			<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/60">{title}</div>
 			<h2 className="mt-2 text-2xl font-black text-emerald-50">{team}</h2>
-			<p className="mt-2 text-sm font-bold text-emerald-100/60">{pool ? `Champion-Pool: ${compactPoolLabel(pool)}` : "Pool noch offen"}</p>
+			<p className="mt-2 text-sm font-bold text-emerald-100/60">
+				{fearless ? "Fearless-Draft · volle Championauswahl" : pool ? `Champion-Pool: ${compactPoolLabel(pool)}` : "Pool noch offen"}
+			</p>
 			<DraftRow label="Picks" actions={picks} byName={byName} />
 			<DraftRow label="Bans" actions={bans} byName={byName} banned />
 		</article>

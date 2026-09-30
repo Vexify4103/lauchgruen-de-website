@@ -53,10 +53,14 @@ export function WithdrawApplicationButton({ deadlineLabel, onWithdrawn, classNam
 						onClick={() => setOpen(true)}
 						className="inline-flex justify-center rounded-xl border border-rose-300/24 bg-rose-400/[0.08] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-400/[0.13] disabled:cursor-wait disabled:opacity-55"
 					>
-						{busy ? "Bewerbung wird zurückgezogen..." : "Bewerbung zurückziehen"}
+						{busy ? "Bewerbung wird zurückgezogen…" : "Bewerbung zurückziehen"}
 					</button>
 				)}
-				{error ? <div className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold leading-5 text-red-100">{error}</div> : null}
+				{error ? (
+					<div role="alert" className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold leading-5 text-red-100">
+						{error}
+					</div>
+				) : null}
 			</div>
 
 			<ConfirmDialog

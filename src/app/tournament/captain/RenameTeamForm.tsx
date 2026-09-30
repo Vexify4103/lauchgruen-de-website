@@ -70,6 +70,9 @@ export function RenameTeamForm({ teamKey, initialName }: { teamKey: string; init
 			<p className="mt-2 text-sm leading-6 text-emerald-100/58">Die Änderung wird auch auf die Discord-Rolle sowie den Sprach- und Textkanal übertragen.</p>
 			<div className="mt-4 flex flex-col gap-3 sm:flex-row">
 				<input
+					name="team-name"
+					aria-label="Neuer Teamname"
+					autoComplete="off"
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 					minLength={2}
@@ -82,10 +85,14 @@ export function RenameTeamForm({ teamKey, initialName }: { teamKey: string; init
 					disabled={saving || name.trim() === savedName || name.trim().length < 2}
 					className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-40"
 				>
-					{saving ? "Wird geändert..." : "Namen ändern"}
+					{saving ? "Wird geändert…" : "Namen ändern"}
 				</button>
 			</div>
-			{message ? <p className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>{message.text}</p> : null}
+			{message ? (
+				<p role="status" className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>
+					{message.text}
+				</p>
+			) : null}
 		</form>
 	);
 }

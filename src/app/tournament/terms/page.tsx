@@ -1,8 +1,12 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { playoffFormatLabel } from "@/lib/tournament-format";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
+import { PageIntro } from "@/components/site/PageIntro";
 
-const ruleSections = [
+type RuleSection = { title: string; text: string; list?: string[]; footer?: string; kinds?: TournamentKind[] };
+
+const ruleSections: RuleSection[] = [
 	{
 		title: "Twitch-Streams",
 		text: "Die Verknüpfung eines Twitch-Kanals ist freiwillig. Wenn die öffentliche Anzeige aktiviert ist, kann ein tatsächlich laufender Stream während eines Live-Matches im Zeitplan und bei den Teams verlinkt werden.",
@@ -16,7 +20,6 @@ const ruleSections = [
 		text: "Teilnahme ist nur mit Discord-Login, Mitgliedschaft im Lauchgruen-Discord und verifiziertem Riot-Account möglich.",
 		list: [
 			"Du darfst nur mit deinem eigenen Riot-Account teilnehmen",
-			"Dein Account muss mindestens 150 Champions besitzen",
 			"Account-Sharing ist verboten",
 			"Smurf-Verschleierung oder falsche Angaben können zum Ausschluss führen",
 			"Das Orga-Team kann bei Verdachtsfällen eine Verifizierung verlangen",
@@ -41,7 +44,40 @@ const ruleSections = [
 		text: "Die bei der Bewerbung angegebene Riot-ID muss korrekt sein. Änderungen nach der Anmeldung müssen dem Orga-Team vor Turnierbeginn mitgeteilt werden.",
 	},
 	{
+		title: "Fearless: gespielte Champions sind gesperrt",
+		kinds: ["fearless"],
+		text: "Ein Champion gilt als gespielt, sobald er im abgeschlossenen Draft eines Matches für dein Team gepickt wurde. Diesen Champion kann dein Team für den Rest des Turniers nicht mehr picken.",
+		list: [
+			"Die Sperre gilt ab dem Match, in dem der Champion gepickt wurde, bis zum Ende des Turniers inklusive Playoffs",
+			"Bans verbrauchen keine Champions",
+			"Ist die Option „Gegner-Champions sperren“ aktiv, darfst du zusätzlich nichts picken, was dein aktueller Gegner im Turnier bereits gespielt hat",
+			"Die aktuelle Liste jedes Teams steht jederzeit öffentlich auf der Fearless-Seite",
+		],
+		footer: "Welche Variante gilt, steht auf der Turnierübersicht und im Champ Select.",
+	},
+	{
+		title: "Champ Select auf der Website",
+		kinds: ["fearless", "az"],
+		text: "Picks und Bans laufen ausschließlich über den Website-Champ-Select. Nur Captains können dort locken; die Turnierleitung gibt jedes Match frei.",
+		list: [
+			"Beide Captains klicken zuerst Ready, danach läuft der Draft automatisch",
+			"Jeder Turn dauert 30 Sekunden; ein ausgewählter Champion wird bei Ablauf automatisch gelockt",
+			"Läuft ein Turn ohne Auswahl ab, wird der Draft zurückgesetzt",
+			"Im Client wird exakt der Website-Draft übernommen",
+		],
+	},
+	{
+		title: "Falsche Picks im Spiel",
+		kinds: ["fearless", "az"],
+		text: "Abweichungen vom gespeicherten Website-Draft müssen sofort gemeldet werden.",
+		list: [
+			"Vor Minute 3 wird das Match mit dem korrekten Draft neu gestartet",
+			"Wird ein falscher oder gesperrter Champion erst später bemerkt, entscheidet die Orga über Remake oder Niederlage des betreffenden Teams",
+		],
+	},
+	{
 		title: "Ultimate-Bravery-Rolls",
+		kinds: ["ultimate-bravery"],
 		text: "Jeder Spieler würfelt auf der Match-Seite Champion, Item-Build, Runen und Summoner Spells. Pro Spieler und Match sind 2 Rerolls garantiert. Der final bestätigte Roll wird serverseitig gespeichert und ist verbindlich.",
 		list: [
 			"Jungle erhält garantiert Smite und ein Jungle-Startitem",
@@ -51,6 +87,7 @@ const ruleSections = [
 	},
 	{
 		title: "Reroll-Ausnahmen und Captains",
+		kinds: ["ultimate-bravery"],
 		text: "Die 2 normalen Rerolls pro Spieler und Match sind garantiert. Eine zusätzliche Ausnahme ist nur möglich, wenn nach diesen Rerolls weiterhin kein besessener Champion dabei ist.",
 		list: [
 			"Der Captain beantragt die Ausnahme mit einer nachvollziehbaren Begründung",
@@ -60,6 +97,7 @@ const ruleSections = [
 	},
 	{
 		title: "Falsche Runen oder Items",
+		kinds: ["ultimate-bravery"],
 		text: "Abweichungen vom gespeicherten Ultimate-Bravery-Roll müssen sofort gemeldet werden. Ein Fehler darf nicht verschwiegen oder spielerisch ausgenutzt werden.",
 		list: [
 			"Falsches Item in einem gecasteten Match: Das Spiel wird pausiert und das falsche Item muss sofort verkauft werden. Fortgesetzt wird erst nach Freigabe durch die Orga.",
@@ -154,7 +192,7 @@ const ruleSections = [
 	},
 	{
 		title: "Öffentliche Darstellung",
-		text: "Teamname, Roster, Riot-ID, Rollen, Scores, Ultimate-Bravery-Rolls und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
+		text: "Teamname, Roster, Riot-ID, Rollen, Scores, Drafts beziehungsweise Rolls und Turnierstatus können auf der Website, in OBS-Overlays, Discord-Embeds oder im Stream sichtbar sein.",
 	},
 	{
 		title: "Admin-Entscheidungen",
@@ -164,7 +202,9 @@ const ruleSections = [
 ];
 
 export default async function TournamentTermsPage() {
-	const config = (await getTournamentSettings()).ultimateBravery;
+	const settings = await getTournamentSettings();
+	const config = settings.ultimateBravery;
+	const kind = tournamentKind(settings.activeTournament);
 	const dayOne =
 		config.dayOneFormat === "swiss"
 			? `eine Swiss Stage mit ${config.swissRounds} Runden`
@@ -179,52 +219,52 @@ export default async function TournamentTermsPage() {
 			: `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams erreichen die Playoffs.`;
 	const swissPairingRule =
 		config.dayOneFormat === "swiss" ? " Jede Swiss-Runde wird zufällig ausgelost. Bereits gespielte Paarungen dürfen im weiteren Swiss-Verlauf nicht erneut entstehen." : "";
-	const displayedRuleSections = ruleSections.map((section) =>
-		section.title === "Turnierformat"
-			? {
-					...section,
-					text: `Alle Matches werden als Best of 1 gespielt. Am ersten Spieltag folgt ${dayOne}.${swissPairingRule} Am zweiten Spieltag finden die Playoffs im ${playoffs} statt. ${qualification}`,
-					list:
-						config.format === "double-elimination" || config.format === "double-elimination-light"
-							? [
-									...(config.format === "double-elimination-light"
-										? [
-												config.advanceTeamCount === 6
-													? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket; Seed #5 und #6 beginnen im Lower Bracket"
-													: "Seed #1 und #2 starten im Upper-Halbfinale; Seed #7 und #8 beginnen im Lower Bracket",
-											]
-										: ["Alle qualifizierten Teams starten im Upper Bracket"]),
-									"Das höher gesetzte Team erhält die Seitenwahl",
-									"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
-									"Eine Niederlage im Lower Bracket beendet das Turnier",
-									"Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset",
-								]
-							: config.format === "single-elimination"
+	const displayedRuleSections = ruleSections
+		.filter((section) => !section.kinds || section.kinds.includes(kind))
+		.map((section) =>
+			section.title === "Turnierformat"
+				? {
+						...section,
+						text: `Alle Matches werden als Best of 1 gespielt. Am ersten Spieltag folgt ${dayOne}.${swissPairingRule} Am zweiten Spieltag finden die Playoffs im ${playoffs} statt. ${qualification}`,
+						list:
+							config.format === "double-elimination" || config.format === "double-elimination-light"
 								? [
-										"Eine Niederlage in den Playoffs beendet das Turnier",
-										"Mögliche Freilose ergeben sich aus Seeding und Teamzahl",
-										"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+										...(config.format === "double-elimination-light"
+											? [
+													config.advanceTeamCount === 6
+														? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket; Seed #5 und #6 beginnen im Lower Bracket"
+														: "Seed #1 und #2 starten im Upper-Halbfinale; Seed #7 und #8 beginnen im Lower Bracket",
+												]
+											: ["Alle qualifizierten Teams starten im Upper Bracket"]),
+										"Das höher gesetzte Team erhält die Seitenwahl",
+										"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
+										"Eine Niederlage im Lower Bracket beendet das Turnier",
+										"Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset",
 									]
-								: [
-										"Das Playoff-System wird anhand der finalen Teamzahl festgelegt",
-										"Seeding und mögliche Freilose werden rechtzeitig veröffentlicht",
-										"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
-									],
-				}
-			: section
-	);
+								: config.format === "single-elimination"
+									? [
+											"Eine Niederlage in den Playoffs beendet das Turnier",
+											"Mögliche Freilose ergeben sich aus Seeding und Teamzahl",
+											"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+										]
+									: [
+											"Das Playoff-System wird anhand der finalen Teamzahl festgelegt",
+											"Seeding und mögliche Freilose werden rechtzeitig veröffentlicht",
+											"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
+										],
+					}
+				: section
+		);
 	return (
-		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto w-full max-w-5xl">
-				<div className="rounded-[2.4rem] border border-lime-200/14 bg-gradient-to-br from-lime-200/12 via-emerald-400/8 to-cyan-400/8 p-6 shadow-2xl shadow-black/30 sm:p-8">
-					<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Teilnahmebedingungen</div>
-					<h1 className="mt-4 text-4xl font-black tracking-tight text-emerald-50 sm:text-5xl">Regeln für Ultimate Bravery.</h1>
-					<p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/72">Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung bestätigst.</p>
-				</div>
+		<>
+			<section className="page-section compact-top">
+				<PageIntro kicker="Teilnahmebedingungen" title={`Regeln für ${settings.activeTournament.name}.`}>
+					Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung bestätigst.
+				</PageIntro>
 
-				<div className="mt-6 grid gap-4">
+				<div className="grid max-w-5xl gap-4">
 					{displayedRuleSections.map((section, index) => (
-						<article key={section.title} className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+						<article key={section.title} className="content-panel tight">
 							<div className="flex gap-4">
 								<span className="grid size-9 shrink-0 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/10 text-sm font-black text-lime-100">
 									{index + 1}
@@ -257,21 +297,15 @@ export default async function TournamentTermsPage() {
 					</article>
 
 					<div className="flex flex-wrap gap-3">
-						<Link
-							href="/tournament/privacy"
-							className="rounded-2xl border border-white/14 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-lime-200/30 hover:text-lime-100"
-						>
+						<Link href="/tournament/privacy" className="button ghost">
 							Datenschutz
 						</Link>
-						<Link
-							href="/tournament/apply"
-							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:-translate-y-0.5"
-						>
+						<Link href="/tournament/apply" className="button primary">
 							Zur Bewerbung
 						</Link>
 					</div>
 				</div>
 			</section>
-		</div>
+		</>
 	);
 }

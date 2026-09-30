@@ -222,7 +222,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 									<span>
 										{entry.action} {entry.round ? `· Runde ${entry.round}` : ""}
 									</span>
-									<time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString("de-DE")}</time>
+									<time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}</time>
 								</div>
 								<p className="mt-1 text-[11px] font-bold leading-5 text-emerald-50/70">{entry.detail}</p>
 								{entry.actor ? <div className="mt-1 text-[9px] text-cyan-100/40">Ausgeführt von {entry.actor}</div> : null}

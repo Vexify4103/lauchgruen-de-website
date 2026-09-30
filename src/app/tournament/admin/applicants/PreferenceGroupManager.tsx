@@ -118,7 +118,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 						<ThemedMultiSelect
 							value={newMembers}
 							onChange={(values) => setNewMembers(values.slice(0, MAX_GROUP_MEMBERS))}
-							placeholder="Bewerber auswählen"
+							placeholder="Bewerber auswählen…"
 							options={ungrouped.map((applicant) => ({
 								value: applicant.discordId,
 								label: `${applicant.displayName} · ${applicant.riotId}`,
@@ -135,7 +135,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 						}
 						className="mt-4 rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-40"
 					>
-						{isPending ? "Wird gespeichert..." : `Wunschgruppe mit ${newMembers.length} Personen erstellen`}
+						{isPending ? "Wird gespeichert…" : `Wunschgruppe mit ${newMembers.length} Personen erstellen`}
 					</button>
 				</div>
 
@@ -149,7 +149,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 								setSelectedApplicant(value);
 								setTargetCode(applicants.find((entry) => entry.discordId === value)?.groupCode ?? "");
 							}}
-							placeholder="Bewerber auswählen"
+							placeholder="Bewerber auswählen…"
 							options={applicants.map((applicant) => ({
 								value: applicant.discordId,
 								label: `${applicant.displayName} · ${applicant.groupCode ?? "ohne Gruppe"}`,
@@ -158,7 +158,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 						<ThemedSelect
 							value={targetCode}
 							onChange={setTargetCode}
-							placeholder="Zielgruppe auswählen"
+							placeholder="Zielgruppe auswählen…"
 							options={[
 								{ value: "", label: "Keine Wunschgruppe" },
 								...groups.map((group) => ({
@@ -212,7 +212,11 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 				</div>
 			) : null}
 
-			{message ? <div className="mt-4 rounded-xl border border-cyan-200/16 bg-black/20 px-4 py-3 text-xs font-bold text-cyan-50/80">{message}</div> : null}
+			{message ? (
+				<div role="status" className="mt-4 rounded-xl border border-cyan-200/16 bg-black/20 px-4 py-3 text-xs font-bold text-cyan-50/80">
+					{message}
+				</div>
+			) : null}
 		</section>
 	);
 }

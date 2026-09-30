@@ -52,7 +52,11 @@ export function TournamentDmPreferenceCard({ initialEnabled }: { initialEnabled:
 					</span>
 				</button>
 			</div>
-			{message ? <p className="mt-4 rounded-xl border border-white/9 bg-black/16 px-4 py-3 text-xs font-bold text-emerald-100/70">{message}</p> : null}
+			{message ? (
+				<p role="status" className="mt-4 rounded-xl border border-white/9 bg-black/16 px-4 py-3 text-xs font-bold text-emerald-100/70">
+					{message}
+				</p>
+			) : null}
 		</section>
 	);
 }

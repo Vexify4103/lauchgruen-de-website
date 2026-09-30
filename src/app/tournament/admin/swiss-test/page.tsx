@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { auth } from "@/lib/auth";
 import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
@@ -15,20 +16,24 @@ export default async function SwissTestPage() {
 	const teams = buildSwissTestTeams(settings.ultimateBravery.teamCount, existingTeams);
 
 	return (
-		<div className="px-5 py-10">
-			<section className="mx-auto w-full max-w-7xl">
-				<Link href="/tournament/admin/live" className="text-xs font-black uppercase tracking-[0.18em] text-lime-200/70 hover:text-lime-100">
-					← Zum Live-Cockpit
-				</Link>
-				<div className="mt-5 rounded-[2.3rem] border border-cyan-200/16 bg-gradient-to-br from-cyan-300/[0.09] via-[#07140d] to-lime-200/[0.06] p-7 shadow-2xl shadow-black/30 sm:p-9">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/58">Owner-Simulation</div>
-					<h1 className="mt-3 text-4xl font-black text-emerald-50 sm:text-6xl">Swiss-Auslosung testen.</h1>
-					<p className="mt-4 max-w-3xl text-sm leading-7 text-emerald-100/56">
-						Ziehe alle Matchups einzeln, trage Testsieger ein und beobachte, wie die Teams in ihre nächsten Bilanz-Brackets wechseln. Teamzahl und Rundenzahl stammen
-						aus den aktuellen Admin-Einstellungen; bestehende Teamnamen werden übernommen.
-					</p>
+		<>
+			<section className="admin-panel">
+				<div className="admin-panel-head !mb-3">
+					<div>
+						<span>Owner-Simulation</span>
+						<h2>Swiss-Auslosung testen</h2>
+					</div>
+					<Link href="/tournament/admin/live" className="button ghost small">
+						Zum Live-Cockpit
+					</Link>
 				</div>
-				<div className="mt-6 grid gap-4 rounded-[2rem] border border-amber-200/18 bg-gradient-to-r from-amber-200/[0.075] via-[#08150e] to-cyan-200/[0.055] p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+				<p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">
+					Ziehe alle Matchups einzeln, trage Testsieger ein und beobachte, wie die Teams in ihre nächsten Bilanz-Brackets wechseln. Teamzahl und Rundenzahl stammen aus
+					den aktuellen Admin-Einstellungen; bestehende Teamnamen werden übernommen.
+				</p>
+			</section>
+			{usesUltimateBravery(settings.activeTournament) ? (
+				<div className="mb-[18px] grid gap-4 rounded-[20px] border border-amber-200/18 bg-gradient-to-r from-amber-200/[0.075] via-[#08150e] to-cyan-200/[0.055] p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
 					<div>
 						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-amber-100/58">5v5-Systemprobe</div>
 						<h2 className="mt-2 text-2xl font-black text-emerald-50">Eine Swiss-Paarung mit zehn echten Logins testen.</h2>
@@ -52,8 +57,8 @@ export default async function SwissTestPage() {
 						</Link>
 					</div>
 				</div>
-				<SwissDrawControl initialState={state} configuredRounds={settings.ultimateBravery.swissRounds} teams={teams.map((team) => team.name)} testTeams={teams} testMode />
-			</section>
-		</div>
+			) : null}
+			<SwissDrawControl initialState={state} configuredRounds={settings.ultimateBravery.swissRounds} teams={teams.map((team) => team.name)} testTeams={teams} testMode />
+		</>
 	);
 }
