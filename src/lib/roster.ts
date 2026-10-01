@@ -12,6 +12,7 @@ import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queu
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { seedSlotLayout } from "@/lib/tournament-structure";
 import { resolveManualRosterIdentity } from "@/lib/roster-manual-player";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
@@ -549,15 +550,23 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 					.join(", ")}.`
 			);
 		}
-		if (config.dayOneFormat === "groups") {
-			const groups = Array.from({ length: config.groupCount }, (_, index) => String.fromCharCode(65 + index));
+		const slotLayout = seedSlotLayout(config);
+		if (slotLayout) {
+			const groups = Array.from({ length: slotLayout.groupCount }, (_, index) => String.fromCharCode(65 + index));
 			const seenSlots = new Set<string>();
+			// With a play-in, the play-in teams only receive their Day-1 slot after winning.
+			const slotsOptional = config.playInTeamCount > 0;
 			for (const team of teams) {
 				const group = team.meta?.group;
 				const seed = team.meta?.seed;
+				if (slotsOptional && !group && !seed) continue;
 				const slot = group && seed ? `${group}-${seed}` : null;
 				if (!group || !groups.includes(group) || !Number.isInteger(seed) || !slot || seenSlots.has(slot)) {
-					throw new Error("Vor der Veröffentlichung müssen alle Teams im Gruppenplan genau einem freien Gruppen-Seed zugeordnet sein.");
+					throw new Error(
+						slotLayout.kind === "seed-list"
+							? "Vor der Veröffentlichung braucht jedes Team genau einen freien Platz in der Setzliste."
+							: "Vor der Veröffentlichung müssen alle Teams im Gruppenplan genau einem freien Gruppen-Seed zugeordnet sein."
+					);
 				}
 				seenSlots.add(slot);
 			}

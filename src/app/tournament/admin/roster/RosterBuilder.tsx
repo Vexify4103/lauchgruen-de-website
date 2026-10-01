@@ -11,6 +11,7 @@ import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConf
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { GroupAssignmentBoard } from "./GroupAssignmentBoard";
+import type { DayOneFormat } from "@/lib/tournament-structure";
 
 type SortMode = "rank-desc" | "rank-asc" | "role-available";
 
@@ -128,14 +129,18 @@ function teamFromMutationResponse(response: TeamMutationResponse): RosterTeam {
 export function RosterBuilder({
 	snapshot: initialSnapshot,
 	dayOneFormat,
-	groupCount,
+	slotLayout,
 	plannedTeamCount,
+	excludedTeamKeys,
 }: {
 	snapshot: RosterSnapshot;
 	initialVersion: number;
-	dayOneFormat: "groups" | "swiss" | "undecided";
-	groupCount: number;
+	dayOneFormat: DayOneFormat;
+	/** Groups or a single seed list, when the Day-1 format needs published slots. */
+	slotLayout: { groupCount: number; kind: "groups" | "seed-list" } | null;
+	/** Teams on the Day-1 stage (without play-in losers). */
 	plannedTeamCount: number;
+	excludedTeamKeys: string[];
 }) {
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
@@ -217,7 +222,8 @@ export function RosterBuilder({
 	const [manualSubRiotId, setManualSubRiotId] = useState("");
 	const [manualSubTeamKey, setManualSubTeamKey] = useState("");
 	const [manualSubRole, setManualSubRole] = useState<PlayerRole>("Sub");
-	const usesGroups = dayOneFormat === "groups";
+	const usesGroups = slotLayout !== null;
+	const groupCount = slotLayout?.groupCount ?? 1;
 	const markStagePlanDirty = useCallback(() => {
 		setSnapshot((current) => ({
 			...current,
@@ -253,6 +259,17 @@ export function RosterBuilder({
 
 	const teamByKey = useMemo(() => new Map(snapshot.teams.map((t) => [t.key, t])), [snapshot.teams]);
 
+	/** Average rating of each team's starters, used for snake seeding into groups. */
+	const teamStrength = useMemo(() => {
+		const scores = new Map<string, number[]>();
+		for (const [discordId, assignment] of state.assignments) {
+			if (!assignment.teamKey || assignment.role === "Sub") continue;
+			const applicant = applicantById.get(discordId);
+			const score = parseRank(applicant?.manualRankOverride || applicant?.currentRank);
+			if (score > 0) scores.set(assignment.teamKey, [...(scores.get(assignment.teamKey) ?? []), score]);
+		}
+		return Object.fromEntries([...scores.entries()].map(([teamKey, values]) => [teamKey, values.reduce((total, value) => total + value, 0) / values.length]));
+	}, [applicantById, state.assignments]);
 	const playersByTeamRole = useMemo(() => {
 		const map = new Map<string, Map<PlayerRole, string[]>>();
 		for (const team of snapshot.teams) {
@@ -1450,13 +1467,26 @@ export function RosterBuilder({
 				) : null}
 				{usesGroups && snapshot.teams.length > 0 ? (
 					<GroupAssignmentBoard
-						key={`${groupCount}-${plannedTeamCount}`}
+						key={`${groupCount}-${plannedTeamCount}-${slotLayout?.kind}`}
 						teams={snapshot.teams}
 						groupCount={groupCount}
 						plannedTeamCount={plannedTeamCount}
 						onSaved={markStagePlanDirty}
+						kind={slotLayout?.kind}
+						excludedTeamKeys={excludedTeamKeys}
+						teamStrength={teamStrength}
+						title={slotLayout?.kind === "seed-list" ? "Setzliste festlegen" : dayOneFormat === "gsl" ? "GSL-Gruppen besetzen" : undefined}
+						description={
+							slotLayout?.kind === "seed-list"
+								? dayOneFormat === "none"
+									? "Seed #1 steht ganz oben. Ohne Vorrunde ist diese Liste direkt die Playoff-Setzliste."
+									: "Seed #1 steht ganz oben. Runde 1 der Swiss Stage paart #1 mit dem besten Team der unteren Hälfte und so weiter."
+								: dayOneFormat === "gsl"
+									? "Je vier Teams pro Gruppe: Seed 1 spielt gegen Seed 4, Seed 2 gegen Seed 3. Platz 1 und 2 jeder Gruppe erreichen die Playoffs."
+									: undefined
+						}
 					/>
-				) : dayOneFormat === "swiss" && snapshot.teams.length > 0 ? (
+				) : (dayOneFormat === "swiss" || dayOneFormat === "swiss-elimination") && snapshot.teams.length > 0 ? (
 					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08160f]/86 p-5 shadow-xl shadow-black/22">
 						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">Tag 1 · Swiss Stage</div>
 						<h2 className="mt-1 text-xl font-black text-emerald-50">Kein manuelles Seeding nötig</h2>

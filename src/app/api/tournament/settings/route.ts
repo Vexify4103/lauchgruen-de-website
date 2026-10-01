@@ -9,9 +9,12 @@ import { TOURNAMENT_MODES } from "@/lib/tournament-mode";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getMatchControlContext } from "@/lib/match-control";
 import { resolveTournamentCompletion } from "@/lib/tournament-completion";
+import { DAY_ONE_FORMATS, PLAYOFF_FORMATS, SIDE_SELECTION_RULES, TIEBREAKERS, deriveStructure, reviewStructure } from "@/lib/tournament-structure";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const bestOfSchema = z.union([z.literal(1), z.literal(3), z.literal(5)]);
 
 const schema = z.object({
 	expectedVersion: z.number().int().min(0),
@@ -22,19 +25,27 @@ const schema = z.object({
 	tournamentLive: z.boolean().optional(),
 	draftEnabled: z.boolean().optional(),
 	tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
-	fearless: z.object({ lockOpponentChampions: z.boolean() }).optional(),
+	fearless: z.object({ lockOpponentChampions: z.boolean(), scope: z.enum(["tournament", "series"]).optional().default("tournament") }).optional(),
 	ultimateBravery: z
 		.object({
 			startAt: z.iso.datetime({ offset: true }).nullable(),
 			dayTwoStartAt: z.iso.datetime({ offset: true }).nullable(),
 			teamCount: z.number().int().min(2).max(32),
 			playersPerTeam: z.number().int().min(5).max(10),
-			dayOneFormat: z.enum(["undecided", "groups", "swiss"]),
+			dayOneFormat: z.enum(DAY_ONE_FORMATS),
 			groupCount: z.number().int().min(1).max(16),
 			groupRoundRobinLegs: z.union([z.literal(1), z.literal(2)]),
 			swissRounds: z.number().int().min(1).max(10),
+			swissWinsToAdvance: z.union([z.literal(2), z.literal(3)]),
+			swissRoundOneSeeding: z.enum(["random", "seeded"]),
+			playInTeamCount: z.number().int().min(0).max(30),
 			advanceTeamCount: z.number().int().min(2).max(32),
-			format: z.enum(["undecided", "double-elimination", "double-elimination-light", "single-elimination"]),
+			format: z.enum(PLAYOFF_FORMATS),
+			bestOf: z.object({ dayOne: bestOfSchema, playoffs: bestOfSchema, finals: bestOfSchema }),
+			thirdPlaceMatch: z.boolean(),
+			grandFinalReset: z.boolean(),
+			tiebreakers: z.array(z.enum(TIEBREAKERS)).min(1).max(TIEBREAKERS.length),
+			sideSelection: z.enum(SIDE_SELECTION_RULES),
 			minimumSummonerLevel: z.number().int().min(1).max(1000),
 			rerollsPerPlayer: z.number().int().min(0).max(5),
 			prizePool: z.string().trim().min(1).max(4000),
@@ -59,19 +70,13 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Ungültige Settings." }, { status: 400 });
 	}
 	if (parsed.data.ultimateBravery) {
-		const config = parsed.data.ultimateBravery;
+		const config = deriveStructure(parsed.data.ultimateBravery);
 		if (config.groupCount > config.teamCount || config.advanceTeamCount > config.teamCount) {
 			return NextResponse.json({ message: "Gruppen und Playoff-Teams dürfen die Gesamtzahl der Teams nicht überschreiten." }, { status: 400 });
 		}
-		if (config.format === "double-elimination-light" && (config.advanceTeamCount !== config.teamCount || ![6, 8].includes(config.advanceTeamCount))) {
-			return NextResponse.json({ message: "Double Elimination Light unterstützt 6 oder 8 Teams, wenn alle Teams Tag 2 erreichen." }, { status: 400 });
-		}
-		if (config.format === "double-elimination" && ![4, 8].includes(config.advanceTeamCount)) {
-			return NextResponse.json(
-				{ message: "Normales Double Elimination unterstützt aktuell 4 oder 8 Playoff-Teams. Für 6 Teams bitte Double Elimination Light wählen." },
-				{ status: 400 }
-			);
-		}
+		const review = reviewStructure(config);
+		if (review.errors.length) return NextResponse.json({ message: review.errors.join(" ") }, { status: 400 });
+		parsed.data.ultimateBravery = config;
 	}
 
 	const currentSettings = await getTournamentSettings();
@@ -79,7 +84,7 @@ export async function PATCH(request: Request) {
 		const completion = resolveTournamentCompletion((await getMatchControlContext()).matches);
 		if (!completion) {
 			return NextResponse.json(
-				{ message: "Das Turnier kann erst nach einem abgeschlossenen Grand Final mit einem Ergebnis von 1:0 oder 0:1 beendet werden." },
+				{ message: "Das Turnier kann erst beendet werden, wenn das Finale (oder ein nötiger Bracket Reset) mit einem vollständigen Ergebnis abgeschlossen ist." },
 				{ status: 409 }
 			);
 		}

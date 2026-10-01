@@ -288,7 +288,8 @@ export function MatchControlRoomClient({
 					<div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
 						<div className="min-w-0">
 							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
-								{ultimateBravery ? "Ultimate Bravery" : match.phase === "groups" ? "Gruppenphase" : "Playoffs"} · {match.id}
+								{ultimateBravery ? "Ultimate Bravery" : match.phase === "groups" ? "Tag 1" : match.phase === "play-in" ? "Play-in" : "Playoffs"} · {match.id}
+								{match.bestOf > 1 ? ` · Bo${match.bestOf}` : ""}
 							</div>
 							<h2 className="mt-2 text-balance break-words font-display text-3xl font-bold tracking-tight text-emerald-50 sm:text-4xl">
 								{match.teamALabel} vs {match.teamBLabel}
@@ -372,7 +373,7 @@ export function MatchControlRoomClient({
 						poolsDrawn={poolFlow ? Boolean(match.poolAssignment) : status !== "Scheduled"}
 						captainsReady={draftReady(draft)}
 						draftComplete={draftComplete(draft, draftSequence)}
-						scoreSaved={scoreA !== "" && scoreB !== "" && (match.phase !== "groups" || parseGameDuration(gameDuration) !== null)}
+						scoreSaved={scoreA !== "" && scoreB !== "" && (match.phase !== "groups" || match.bestOf > 1 || parseGameDuration(gameDuration) !== null)}
 						matchFinished={status === "Finished"}
 					/>
 				) : null}
@@ -441,6 +442,10 @@ export function MatchControlRoomClient({
 					</div>
 				) : null}
 
+				{match.bestOf > 1 ? (
+					<SeriesPanel match={match} version={version} onVersion={setVersion} onMessage={setMessage} busy={isPending} onDone={() => router.refresh()} />
+				) : null}
+
 				<form
 					onSubmit={saveMatch}
 					className="order-first rounded-[1.6rem] border border-lime-200/16 bg-gradient-to-br from-lime-200/[0.075] via-white/[0.045] to-cyan-300/[0.04] p-4 shadow-xl shadow-black/24"
@@ -448,16 +453,35 @@ export function MatchControlRoomClient({
 					<div className="flex items-center justify-between gap-3">
 						<div>
 							<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Matchsteuerung</div>
-							<div className="mt-1 text-lg font-black text-emerald-50">Ergebnis eintragen</div>
+							<div className="mt-1 text-lg font-black text-emerald-50">{match.bestOf > 1 ? `Serienstand (Bo${match.bestOf})` : "Ergebnis eintragen"}</div>
 						</div>
 						<span className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/48">
 							{status}
 						</span>
 					</div>
 					<div className="mt-3 grid grid-cols-2 gap-2">
-						<ScoreField label={match.teamALabel} value={scoreA} onChange={setScoreA} />
-						<ScoreField label={match.teamBLabel} value={scoreB} onChange={setScoreB} />
-						<label className="col-span-2 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5">
+						<ScoreField
+							label={match.teamALabel}
+							value={match.games.length ? String(match.scoreA ?? 0) : scoreA}
+							onChange={setScoreA}
+							disabled={match.games.length > 0}
+						/>
+						<ScoreField
+							label={match.teamBLabel}
+							value={match.games.length ? String(match.scoreB ?? 0) : scoreB}
+							onChange={setScoreB}
+							disabled={match.games.length > 0}
+						/>
+						{match.bestOf > 1 ? (
+							<p className="col-span-2 text-[11px] leading-5 text-emerald-100/50">
+								{match.games.length
+									? "Der Serienstand kommt aus den erfassten Spielen oben."
+									: `Erfasse die Spiele oben einzeln, oder trage hier direkt das Endergebnis ein (zum Beispiel ${Math.floor(match.bestOf / 2) + 1}:${Math.floor(match.bestOf / 2)}).`}
+							</p>
+						) : null}
+						<label
+							className={`col-span-2 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5 ${match.bestOf > 1 ? "hidden" : ""}`}
+						>
 							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Spielzeit</span>
 							<input
 								name="game-duration"
@@ -474,9 +498,12 @@ export function MatchControlRoomClient({
 					<div className="mt-3 grid grid-cols-2 gap-2">
 						{match.sideSelectionTeamName ? (
 							<div className="col-span-2 rounded-xl border border-lime-200/24 bg-lime-200/10 px-3 py-2.5">
-								<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100/64">Seitenwahl · höherer Seed</div>
+								<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100/64">
+									Seitenwahl{match.bestOf > 1 ? ` · Spiel ${match.games.length + 1}` : ""}
+								</div>
 								<div className="mt-1 text-sm font-black text-lime-50">
-									{match.sideSelectionTeamName} (Seed #{match.sideSelectionSeed}) entscheidet über Blue oder Red Side.
+									{match.sideSelectionTeamName}
+									{match.sideSelectionSeed ? ` (Seed #${match.sideSelectionSeed})` : ""} entscheidet über Blue oder Red Side.
 								</div>
 							</div>
 						) : null}
@@ -679,13 +706,13 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function ScoreField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function ScoreField({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
 	return (
 		<label className="grid gap-2 rounded-xl border border-white/8 bg-black/16 p-2.5">
 			<span className="min-w-0 truncate text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52" title={label}>
 				{label}
 			</span>
-			<ThemedNumberInput value={value} onChange={onChange} min={0} ariaLabel={`Score ${label}`} />
+			<ThemedNumberInput value={value} onChange={onChange} min={0} ariaLabel={`Score ${label}`} disabled={disabled} />
 		</label>
 	);
 }
@@ -1125,5 +1152,152 @@ function TeamPanel({ side, team, pool, fallback }: { side: string; team: Tournam
 				</p>
 			)}
 		</article>
+	);
+}
+
+/** Bo3/Bo5: record one game at a time; the server prepares the next game (fresh draft, side rule). */
+function SeriesPanel({
+	match,
+	version,
+	onVersion,
+	onMessage,
+	busy,
+	onDone,
+}: {
+	match: ControlMatch;
+	version: number;
+	onVersion: (version: number) => void;
+	onMessage: (message: string) => void;
+	busy: boolean;
+	onDone: () => void;
+}) {
+	const { showConflict } = useAdminConflict();
+	const [winner, setWinner] = useState<"teamA" | "teamB" | null>(null);
+	const [duration, setDuration] = useState("");
+	const [undoOpen, setUndoOpen] = useState(false);
+	const [pending, startTransition] = useTransition();
+	const needed = Math.floor(match.bestOf / 2) + 1;
+	const scoreA = match.games.filter((game) => game.winner === "teamA").length;
+	const scoreB = match.games.filter((game) => game.winner === "teamB").length;
+	const decided = Math.max(scoreA, scoreB) >= needed;
+	const nextGame = match.games.length + 1;
+
+	function send(body: Record<string, unknown>, success: string) {
+		startTransition(async () => {
+			const response = await fetch("/api/tournament/matches/game", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ id: match.id, expectedVersion: version, ...body }),
+			});
+			const json = (await response.json().catch(() => null)) as { message?: string; version?: number; decided?: boolean } | null;
+			if (!response.ok) {
+				if (isAdminVersionConflict(response, json)) {
+					showConflict(json);
+					return;
+				}
+				onMessage(json?.message ?? "Das Spiel konnte nicht gespeichert werden.");
+				return;
+			}
+			if (json?.version !== undefined) onVersion(json.version);
+			setWinner(null);
+			setDuration("");
+			onMessage(json?.decided ? "Serie entschieden. Das Match ist abgeschlossen." : success);
+			onDone();
+		});
+	}
+
+	return (
+		<section className="order-first rounded-[1.6rem] border border-cyan-200/18 bg-cyan-300/[0.055] p-4 shadow-xl shadow-black/24" aria-labelledby={`series-${match.id}`}>
+			<div className="flex items-center justify-between gap-3">
+				<div>
+					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/58">Serie · Best of {match.bestOf}</div>
+					<h3 id={`series-${match.id}`} className="mt-1 text-lg font-black text-emerald-50">
+						{match.teamALabel} {scoreA}:{scoreB} {match.teamBLabel}
+					</h3>
+				</div>
+				<span className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/56">
+					{decided ? "Entschieden" : `Spiel ${nextGame}`}
+				</span>
+			</div>
+			{match.games.length ? (
+				<ol className="mt-3 grid gap-1.5">
+					{match.games.map((game) => (
+						<li key={game.number} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-xs">
+							<span className="font-black text-emerald-50">
+								Spiel {game.number}: {game.winner === "teamA" ? match.teamALabel : match.teamBLabel}
+							</span>
+							<span className="font-bold text-emerald-100/50">
+								{game.durationSeconds !== undefined ? formatGameDuration(game.durationSeconds) : "ohne Zeit"} · Blau:{" "}
+								{game.blueSide === "teamB" ? match.teamBLabel : match.teamALabel}
+							</span>
+						</li>
+					))}
+				</ol>
+			) : (
+				<p className="mt-3 text-xs leading-5 text-emerald-100/54">Noch kein Spiel erfasst. Nach jedem Spiel startet der Champ Select für das nächste Spiel neu.</p>
+			)}
+			{!decided && match.teamAName && match.teamBName ? (
+				<div className="mt-3 grid gap-2">
+					<div className="grid grid-cols-2 gap-2" role="group" aria-label={`Sieger von Spiel ${nextGame}`}>
+						{(["teamA", "teamB"] as const).map((side) => (
+							<button
+								key={side}
+								type="button"
+								aria-pressed={winner === side}
+								onClick={() => setWinner(side)}
+								className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-black ${winner === side ? "border-lime-200/40 bg-lime-200/16 text-lime-50" : "border-white/10 bg-black/20 text-emerald-100/70"}`}
+							>
+								{side === "teamA" ? match.teamALabel : match.teamBLabel}
+							</button>
+						))}
+					</div>
+					<label className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5">
+						<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Spielzeit Spiel {nextGame}</span>
+						<input
+							name={`game-${nextGame}-duration`}
+							autoComplete="off"
+							value={duration}
+							onChange={(event) => setDuration(event.target.value)}
+							inputMode="numeric"
+							placeholder="mm:ss…"
+							pattern="\d{1,3}:[0-5]\d"
+							className="w-full rounded-lg border border-white/10 bg-black/24 px-2 py-2 text-center text-sm font-black text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+						/>
+					</label>
+					<button
+						type="button"
+						disabled={!winner || pending || busy}
+						onClick={() =>
+							send({ action: "record", winner, gameDuration: duration }, `Spiel ${nextGame} gespeichert. Der Champ Select für Spiel ${nextGame + 1} ist bereit.`)
+						}
+						className="rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-40"
+					>
+						{pending ? "Speichert…" : `Spiel ${nextGame} abschließen`}
+					</button>
+				</div>
+			) : null}
+			{match.games.length ? (
+				<button
+					type="button"
+					disabled={pending || busy}
+					onClick={() => setUndoOpen(true)}
+					className="mt-3 w-full rounded-xl border border-amber-200/18 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 disabled:opacity-40"
+				>
+					Spiel {match.games.length} zurücknehmen
+				</button>
+			) : null}
+			<ConfirmDialog
+				open={undoOpen}
+				title={`Spiel ${match.games.length} zurücknehmen?`}
+				description="Das Ergebnis dieses Spiels wird entfernt und das Spiel gilt wieder als laufend. Das geht nicht mehr, sobald ein späteres Match mit dem Sieger dieser Serie begonnen hat."
+				confirmLabel="Spiel zurücknehmen"
+				tone="danger"
+				onConfirm={() => {
+					setUndoOpen(false);
+					send({ action: "undo" }, `Spiel ${match.games.length} wurde zurückgenommen.`);
+				}}
+				onCancel={() => setUndoOpen(false)}
+			/>
+		</section>
 	);
 }

@@ -104,7 +104,10 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 			.map((roll) => (roll.teamName === effectiveViewerTeam ? roll : hideUltimateBraveryBuild(roll)));
 		const rollsOpen = match.status === "Pending" || match.status === "Live" || match.status === "Finished";
 		return (
-			<UltimateBraveryPage title={`${match.teamALabel} vs ${match.teamBLabel}`} subtitle={`Ultimate Bravery · ${match.round}`}>
+			<UltimateBraveryPage
+				title={`${match.teamALabel} vs ${match.teamBLabel}`}
+				subtitle={`Ultimate Bravery · ${match.round}${match.bestOf > 1 ? ` · Spiel ${Math.min(match.games.length + 1, match.bestOf)} (Bo${match.bestOf}, ${match.scoreA ?? 0}:${match.scoreB ?? 0})` : ""}`}
+			>
 				{rollsOpen ? (
 					<UltimateBraveryMatch
 						matchId={id}
@@ -143,7 +146,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 				<div className="mt-5 rounded-[2.4rem] border border-white/10 bg-gradient-to-br from-lime-200/[0.09] via-white/[0.04] to-cyan-300/[0.05] p-7 shadow-2xl shadow-black/28 sm:p-10">
 					<div className="flex flex-wrap items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.24em] text-lime-200/62">
 						<span>
-							{match.phase === "groups" ? "Gruppenphase" : "Playoffs"} · {match.round}
+							{match.phase === "play-in" ? match.round : `${match.phase === "groups" ? "Tag 1" : "Playoffs"} · ${match.round}`}
+							{match.bestOf > 1 ? ` · Bo${match.bestOf}` : ""}
 						</span>
 						<span>{match.status}</span>
 					</div>
@@ -151,12 +155,33 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 						{match.teamALabel} <span className="text-lime-200/54">vs</span> {match.teamBLabel}
 					</h1>
 					<div className="mt-6 grid gap-3 sm:grid-cols-3">
-						<Stat label="Ergebnis" value={match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA} : ${match.scoreB}` : "Noch offen"} />
-						<Stat label="Spielzeit" value={formatGameDuration(match.gameDurationSeconds) || "Noch offen"} />
+						<Stat
+							label={match.bestOf > 1 ? `Serie · Bo${match.bestOf}` : "Ergebnis"}
+							value={match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA} : ${match.scoreB}` : "Noch offen"}
+						/>
+						<Stat label={match.bestOf > 1 ? "Gesamtspielzeit" : "Spielzeit"} value={formatGameDuration(match.gameDurationSeconds) || "Noch offen"} />
 						<Stat label="Draft" value={complete ? "Abgeschlossen" : `${draft.actions.length}/${sequence.length} Aktionen`} />
 					</div>
 				</div>
 
+				{match.games.length ? (
+					<ol className="mt-6 grid gap-3 md:grid-cols-2" aria-label="Spiele der Serie">
+						{match.games.map((game) => (
+							<li key={game.number} className="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-5">
+								<div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.18em] text-lime-200/62">
+									<span>Spiel {game.number}</span>
+									<span>{game.durationSeconds !== undefined ? formatGameDuration(game.durationSeconds) : ""}</span>
+								</div>
+								<p className="mt-2 text-lg font-black text-emerald-50">Sieg: {game.winner === "teamA" ? match.teamALabel : match.teamBLabel}</p>
+								<p className="mt-2 text-xs leading-5 text-emerald-100/60">
+									{match.teamALabel}: {game.teamAChampions?.join(", ") || "–"}
+									<br />
+									{match.teamBLabel}: {game.teamBChampions?.join(", ") || "–"}
+								</p>
+							</li>
+						))}
+					</ol>
+				) : null}
 				<div className="mt-6 grid gap-5 lg:grid-cols-2">
 					<TeamDraft
 						title="Blue Side"

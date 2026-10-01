@@ -1,5 +1,5 @@
 import { TournamentLink as Link } from "../TournamentLink";
-import { playoffFormatLabel } from "@/lib/tournament-format";
+import { describeStructurePlan, describeTiebreakers, playoffRuleBullets } from "@/lib/tournament-structure";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
 import { PageIntro } from "@/components/site/PageIntro";
@@ -205,53 +205,18 @@ export default async function TournamentTermsPage() {
 	const settings = await getTournamentSettings();
 	const config = settings.ultimateBravery;
 	const kind = tournamentKind(settings.activeTournament);
-	const dayOne =
-		config.dayOneFormat === "swiss"
-			? `eine Swiss Stage mit ${config.swissRounds} Runden`
-			: config.dayOneFormat === "groups"
-				? `eine Gruppenphase mit ${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}`
-				: "ein noch nicht festgelegtes Stage-Format";
-	const playoffName = playoffFormatLabel(config.format);
-	const playoffs = playoffName ? `${playoffName.replaceAll(" ", "-")}-Bracket` : "noch nicht festgelegten Playoff-Format";
-	const qualification =
-		config.advanceTeamCount === config.teamCount
-			? "Alle Teams erreichen den zweiten Spieltag."
-			: `Die besten ${config.advanceTeamCount} von ${config.teamCount} Teams erreichen die Playoffs.`;
-	const swissPairingRule =
-		config.dayOneFormat === "swiss" ? " Jede Swiss-Runde wird zufällig ausgelost. Bereits gespielte Paarungen dürfen im weiteren Swiss-Verlauf nicht erneut entstehen." : "";
 	const displayedRuleSections = ruleSections
 		.filter((section) => !section.kinds || section.kinds.includes(kind))
 		.map((section) =>
 			section.title === "Turnierformat"
 				? {
 						...section,
-						text: `Alle Matches werden als Best of 1 gespielt. Am ersten Spieltag folgt ${dayOne}.${swissPairingRule} Am zweiten Spieltag finden die Playoffs im ${playoffs} statt. ${qualification}`,
-						list:
-							config.format === "double-elimination" || config.format === "double-elimination-light"
-								? [
-										...(config.format === "double-elimination-light"
-											? [
-													config.advanceTeamCount === 6
-														? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket; Seed #5 und #6 beginnen im Lower Bracket"
-														: "Seed #1 und #2 starten im Upper-Halbfinale; Seed #7 und #8 beginnen im Lower Bracket",
-												]
-											: ["Alle qualifizierten Teams starten im Upper Bracket"]),
-										"Das höher gesetzte Team erhält die Seitenwahl",
-										"Eine Niederlage im Upper Bracket führt ins Lower Bracket",
-										"Eine Niederlage im Lower Bracket beendet das Turnier",
-										"Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset",
-									]
-								: config.format === "single-elimination"
-									? [
-											"Eine Niederlage in den Playoffs beendet das Turnier",
-											"Mögliche Freilose ergeben sich aus Seeding und Teamzahl",
-											"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
-										]
-									: [
-											"Das Playoff-System wird anhand der finalen Teamzahl festgelegt",
-											"Seeding und mögliche Freilose werden rechtzeitig veröffentlicht",
-											"Der finale Ablauf wird vor Turnierbeginn veröffentlicht",
-										],
+						text: `${describeStructurePlan(config).join(" ")} Platzierungen in Tabellen: ${describeTiebreakers(config.tiebreakers)}.${
+							config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination"
+								? " Swiss-Runden werden innerhalb derselben Bilanz gelost; bereits gespielte Paarungen entstehen nicht erneut."
+								: ""
+						}`,
+						list: playoffRuleBullets(config),
 					}
 				: section
 		);

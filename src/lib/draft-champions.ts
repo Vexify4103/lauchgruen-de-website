@@ -11,6 +11,8 @@ export type DraftChampionRules = {
 	blueChampions: ChampionPoolEntry[];
 	redChampions: ChampionPoolEntry[];
 	locks: FearlessLocks;
+	/** Fearless: whether locks last the whole event or one series. */
+	scope: "tournament" | "series";
 	/** Whether captains may draft this match yet. */
 	open: boolean;
 	closedReason: string | null;
@@ -30,6 +32,7 @@ export async function resolveDraftChampionRules(settings: TournamentSettings, ma
 			blueChampions: champions,
 			redChampions: champions,
 			locks: computeFearlessLocks({ matches, matchId: match.id, blueTeamName: names.blue, redTeamName: names.red, rules: settings.fearless }),
+			scope: settings.fearless.scope,
 			open: released,
 			closedReason: released ? null : "Die Turnierleitung hat dieses Match noch nicht freigegeben.",
 		};
@@ -43,6 +46,7 @@ export async function resolveDraftChampionRules(settings: TournamentSettings, ma
 		blueChampions: championsFor(bluePool),
 		redChampions: championsFor(redPool),
 		locks: emptyFearlessLocks(),
+		scope: "tournament",
 		open: Boolean(match.poolAssignment),
 		closedReason: match.poolAssignment ? null : "Für dieses Match wurden noch keine Pools gezogen.",
 	};
@@ -66,8 +70,8 @@ export function allowedChampionsForTurn(rules: DraftChampionRules, turn: DraftTu
 export function disallowedChampionMessage(rules: DraftChampionRules, turn: DraftTurn, champion: string): string {
 	if (rules.mode === "fearless") {
 		const lock = rules.locks[turn.side][champion];
-		if (lock)
-			return lock.source === "own" ? `${champion} hat euer Team in diesem Turnier bereits gespielt.` : `${champion} hat euer Gegner in diesem Turnier bereits gespielt.`;
+		const where = rules.scope === "series" ? "in dieser Serie" : "in diesem Turnier";
+		if (lock) return lock.source === "own" ? `${champion} hat euer Team ${where} bereits gespielt.` : `${champion} hat euer Gegner ${where} bereits gespielt.`;
 		return `${champion} ist kein gültiger Champion.`;
 	}
 	return turn.kind === "ban" ? "Bans müssen aus dem gegnerischen Pool kommen." : "Picks müssen aus deinem eigenen Pool kommen.";

@@ -13,6 +13,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
 import { getMatchControlContext } from "@/lib/match-control";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import { seriesScore, seriesWinnerSide, validateSeriesScore } from "@/lib/tournament-series";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,8 @@ export async function PATCH(request: Request) {
 	const updatedAt = new Date().toISOString();
 	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const state = await readTournamentState(ctx.groupMatches);
-	const swiss = settings.ultimateBravery.dayOneFormat === "swiss" ? await getSwissStageState(settings.activeTournament.id) : null;
+	const swissFormat = settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination";
+	const swiss = swissFormat ? await getSwissStageState(settings.activeTournament.id) : null;
 	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === parsed.data.id && !pairing.bye);
 	const groupMatch = ctx.groupMatches.find((match) => match.id === parsed.data.id);
 	const isGroupMatch = Boolean(groupMatch);
@@ -68,8 +70,11 @@ export async function PATCH(request: Request) {
 	const teamAName = swissPairing?.teamAName ?? groupMatch?.teamA ?? controlMatch?.teamAName ?? undefined;
 	const teamBName = swissPairing?.teamBName ?? groupMatch?.teamB ?? controlMatch?.teamBName ?? undefined;
 	const currentStatus = state.matches[parsed.data.id]?.status ?? "Scheduled";
+	const bestOf = controlMatch?.bestOf ?? 1;
+	const recordedGames = state.matches[parsed.data.id]?.games ?? [];
 	const hasAnyScore = parsed.data.scoreA !== undefined || parsed.data.scoreB !== undefined;
-	const hasFinalScore = parsed.data.scoreA !== undefined && parsed.data.scoreB !== undefined && parsed.data.scoreA !== parsed.data.scoreB;
+	const seriesError = parsed.data.scoreA !== undefined && parsed.data.scoreB !== undefined ? validateSeriesScore(parsed.data.scoreA, parsed.data.scoreB, bestOf) : null;
+	const hasFinalScore = parsed.data.scoreA !== undefined && parsed.data.scoreB !== undefined && !seriesError;
 	const nextStatus = hasFinalScore ? "Finished" : currentStatus;
 	const gameDurationSeconds = parsed.data.gameDuration === undefined ? undefined : parseGameDuration(parsed.data.gameDuration);
 
@@ -77,10 +82,29 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Die Spielzeit muss im Format mm:ss eingetragen werden." }, { status: 400 });
 	}
 	if (hasAnyScore && !hasFinalScore) {
-		return NextResponse.json({ message: "Ein Ergebnis benötigt zwei unterschiedliche Scores." }, { status: 400 });
+		return NextResponse.json({ message: seriesError ?? "Ein Ergebnis benötigt zwei unterschiedliche Scores." }, { status: 400 });
 	}
-	if (isGroupMatch && hasFinalScore && gameDurationSeconds === undefined) {
+	if (recordedGames.length && hasAnyScore) {
+		const tally = seriesScore(recordedGames);
+		if (tally.scoreA !== parsed.data.scoreA || tally.scoreB !== parsed.data.scoreB) {
+			return NextResponse.json(
+				{ message: "Diese Serie wird Spiel für Spiel erfasst. Korrigiere das betroffene Spiel, statt das Gesamtergebnis zu überschreiben." },
+				{ status: 409 }
+			);
+		}
+	}
+	if (isGroupMatch && hasFinalScore && bestOf === 1 && gameDurationSeconds === undefined) {
 		return NextResponse.json({ message: "Für ein abgeschlossenes Gruppenspiel wird die Spielzeit benötigt." }, { status: 400 });
+	}
+	// Later Swiss rounds were paired from this winner; flipping it now would corrupt every record after it.
+	if (swissPairing && hasFinalScore && swissPairing.winnerTeamKey && swissPairing.round < (swiss?.rounds.at(-1)?.round ?? 0)) {
+		const nextWinnerKey = parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey;
+		if (nextWinnerKey !== swissPairing.winnerTeamKey) {
+			return NextResponse.json(
+				{ message: "Der Sieger kann nicht mehr geändert werden, weil die nächste Swiss-Runde bereits ausgelost wurde. Setze zuerst die neueste Runde zurück." },
+				{ status: 409 }
+			);
+		}
 	}
 
 	const versionClaim = await claimAdminVersion({
@@ -92,9 +116,10 @@ export async function PATCH(request: Request) {
 		return NextResponse.json(versionClaim.conflict, { status: 409 });
 	}
 
+	const winnerSide = hasFinalScore ? seriesWinnerSide(parsed.data.scoreA, parsed.data.scoreB, bestOf) : null;
 	const winner =
-		hasFinalScore && teamAName && teamBName
-			? parsed.data.scoreA! > parsed.data.scoreB!
+		winnerSide && teamAName && teamBName
+			? winnerSide === "teamA"
 				? teamAName
 				: teamBName
 			: deriveWinner(parsed.data.id, parsed.data.scoreA, parsed.data.scoreB, state.matches, ctx.teams, ctx.groupMatches);
@@ -102,9 +127,8 @@ export async function PATCH(request: Request) {
 		id: parsed.data.id,
 		teamAName,
 		teamBName,
-		scoreA: parsed.data.scoreA,
-		scoreB: parsed.data.scoreB,
-		gameDurationSeconds,
+		// A series recorded game by game owns its score; an empty form must not wipe it.
+		...(recordedGames.length && !hasAnyScore ? {} : { scoreA: parsed.data.scoreA, scoreB: parsed.data.scoreB, gameDurationSeconds }),
 		...(parsed.data.teamAChampions !== undefined ? { teamAChampions: parsed.data.teamAChampions } : {}),
 		...(parsed.data.teamBChampions !== undefined ? { teamBChampions: parsed.data.teamBChampions } : {}),
 		...(parsed.data.blueSide !== undefined ? { blueSide: parsed.data.blueSide } : {}),

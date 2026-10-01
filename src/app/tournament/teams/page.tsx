@@ -4,7 +4,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getRosterPublicationStatus } from "@/lib/roster";
 import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
-import { getTournamentContext } from "@/lib/tournament-runtime";
+import { PLAY_IN_GROUP, getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState, remainingPoolsForTeam } from "@/lib/tournament-wheel";
 import { getTournamentLiveStreams } from "@/lib/tournament-live-streams";
 import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
@@ -14,8 +14,6 @@ import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { CopyOverlayButton } from "./CopyOverlayButton";
 import { getMatchControlContext } from "@/lib/match-control";
 import { teamMatchRecord } from "@/lib/tournament-team-records";
-import { getSwissStageState } from "@/lib/tournament-swiss";
-import { computeUltimateBraverySwissSeeds } from "@/lib/ultimate-bravery-playoffs";
 import { usesFearless, usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
 import { playedChampionsByTeam } from "@/lib/fearless";
 
@@ -48,10 +46,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 	const { teams } = ctx;
 	const [wheel, state] = await Promise.all([getTournamentWheelState(), readTournamentState(ctx.groupMatches)]);
 	const control = isAzTournament ? null : await getMatchControlContext();
-	const swissSeeds =
-		!isAzTournament && settings.ultimateBravery.dayOneFormat === "swiss"
-			? computeUltimateBraverySwissSeeds(await getSwissStageState(settings.activeTournament.id), teams, settings.ultimateBravery.swissRounds)
-			: {};
+	// Final playoff seeds once Day 1 is decided; empty slots until then.
+	const playoffSeeds = control?.stages?.dayOne.complete ? control.stages.dayOne.seeds : {};
+	const playInEliminated = new Set(ctx.playInEliminated);
 	const currentAssignment = wheel.currentAssignment;
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
@@ -101,11 +98,14 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 		: [];
 	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? playedChampionsByTeam(control.matches) : null;
 	const stageSeedLabel = (team: (typeof teams)[number]) => {
-		if (settings.ultimateBravery.dayOneFormat === "swiss" && !isAzTournament) {
-			const finalSeed = Object.entries(swissSeeds).find(([, name]) => name === team.name)?.[0];
-			return finalSeed ? `#${finalSeed}` : null;
-		}
-		return isAzTournament || settings.ultimateBravery.dayOneFormat === "groups" ? `${team.group}${team.seed}` : null;
+		if (isAzTournament) return `${team.group}${team.seed}`;
+		if (team.group === PLAY_IN_GROUP) return playInEliminated.has(team.name) ? "Play-in · raus" : "Play-in";
+		const finalSeed = Object.entries(playoffSeeds).find(([, name]) => name === team.name)?.[0];
+		if (finalSeed) return `Seed #${finalSeed}`;
+		const format = settings.ultimateBravery.dayOneFormat;
+		if (format === "groups" || format === "gsl") return `${team.group}${team.seed}`;
+		if (format === "none") return `#${team.seed}`;
+		return null;
 	};
 	return (
 		<>

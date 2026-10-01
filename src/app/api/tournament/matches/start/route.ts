@@ -11,6 +11,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { buildMatchReadyDiscordOperations } from "@/lib/tournament-match-ready";
 import { usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
+import { automaticBlueSide } from "@/lib/tournament-series";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,8 @@ export async function POST(request: Request) {
 		drewPools = true;
 	}
 
+	// Coin flip and alternating sides are decided by the server when game 1 is released.
+	const releaseBlueSide = releaseFlow && match.games.length === 0 ? automaticBlueSide({ rule: settings.ultimateBravery.sideSelection, games: [] }) : null;
 	const updated = notificationRetry
 		? { id: match.id, status: match.status }
 		: await upsertMatch(match.id, {
@@ -83,6 +86,7 @@ export async function POST(request: Request) {
 				teamAName: match.teamAName,
 				teamBName: match.teamBName,
 				status: releaseFlow ? "Pending" : "Scheduled",
+				...(releaseBlueSide ? { blueSide: releaseBlueSide } : {}),
 				updatedAt: new Date().toISOString(),
 			});
 	const discordWarnings: string[] = [];

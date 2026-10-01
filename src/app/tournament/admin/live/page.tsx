@@ -9,8 +9,11 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { TournamentLink as Link } from "../../TournamentLink";
-import { getSwissStageState, listSwissAudit, listSwissTeams } from "@/lib/tournament-swiss";
+import { getSwissStageState, listSwissAudit } from "@/lib/tournament-swiss";
 import { SwissDrawControl } from "./SwissDrawControl";
+import { StageControlPanel } from "./StageControlPanel";
+import { openStageTies, standingOverrideTitle } from "@/lib/tournament-stages";
+import { PLAY_IN_GROUP } from "@/lib/tournament-runtime";
 import { resolveUltimateBraveryMatchPlayers } from "@/lib/ultimate-bravery-match";
 import { listUltimateBraveryRolls } from "@/lib/ultimate-bravery";
 import { getUltimateBraveryDraftStatus, type UltimateBraveryDraftStatus } from "@/lib/ultimate-bravery-state";
@@ -31,9 +34,31 @@ export default async function AdminLiveDashboardPage() {
 
 	const [ctx, settings] = await Promise.all([getMatchControlContext(), getTournamentSettings()]);
 	const isUltimateBravery = usesUltimateBravery(settings.activeTournament);
+	const config = settings.ultimateBravery;
 	const swissData =
-		settings.ultimateBravery.dayOneFormat === "swiss"
-			? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams(), listSwissAudit(settings.activeTournament.id, 12)])
+		config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination"
+			? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissAudit(settings.activeTournament.id, 12)])
+			: null;
+	const swissTeamNames = ctx.teams.filter((team) => team.group !== PLAY_IN_GROUP).map((team) => team.name);
+	const stages = ctx.stages;
+	const playInPanel =
+		stages && config.playInTeamCount > 0
+			? {
+					required: config.playInTeamCount,
+					pairs: stages.playIn
+						? stages.playIn.matches.map((match) => ({
+								matchId: match.id,
+								teamAName: match.teamALabel,
+								teamBName: match.teamBLabel,
+								winner: match.winner,
+								score: match.stored?.scoreA !== undefined && match.stored.scoreB !== undefined ? `${match.stored.scoreA}:${match.stored.scoreB}` : null,
+								status: match.status,
+							}))
+						: null,
+					candidates: ctx.teams
+						.flatMap((team) => (team.storageKey ? [{ key: team.storageKey, name: team.name }] : []))
+						.sort((a, b) => a.name.localeCompare(b.name, "de")),
+				}
 			: null;
 	const playable = ctx.matches.filter((match) => match.teamAName && match.teamBName);
 	const live = playable.filter((match) => match.status === "Live");
@@ -85,14 +110,15 @@ export default async function AdminLiveDashboardPage() {
 				<StateBadge active={settings.tournamentLive} label={settings.tournamentLive ? "Turnier öffentlich live" : "Turnier in Vorbereitung"} />
 				<StateBadge active={settings.draftEnabled} label={settings.draftEnabled ? "Matchzugriff aktiv" : "Matchzugriff pausiert"} />
 			</div>
-			{swissData ? (
-				<SwissDrawControl
-					initialState={swissData[0]}
-					configuredRounds={settings.ultimateBravery.swissRounds}
-					teams={swissData[1].map((team) => team.name)}
-					initialAudit={swissData[2]}
+			{stages ? (
+				<StageControlPanel
+					pendingReason={stages.dayOne.pendingReason}
+					playIn={playInPanel}
+					ties={openStageTies(stages, config.advanceTeamCount)}
+					decisions={Object.entries(stages.overrides).map(([key, order]) => ({ key, title: standingOverrideTitle(key), order }))}
 				/>
 			) : null}
+			{swissData ? <SwissDrawControl initialState={swissData[0]} configuredRounds={config.swissRounds} teams={swissTeamNames} initialAudit={swissData[1]} /> : null}
 
 			<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
 				<div className="grid gap-5">
@@ -164,12 +190,18 @@ function emptyDraftState(match: ControlMatch): LiveMatch {
 	return { match, draftReady: false, draftComplete: false, actions: 0, total: 0 };
 }
 
+/** Play-in first, then Day 1 alternating between groups, then the playoffs. */
 function getNextMatches(matches: ControlMatch[]) {
+	const playIn = matches.filter((match) => match.phase === "play-in");
 	const groupMatches = matches.filter((match) => match.phase === "groups");
-	if (groupMatches.length === 0 || groupMatches.some((match) => match.id.startsWith("swiss-"))) return matches.slice(0, 4);
-	const groupA = groupMatches.filter((match) => match.id.startsWith("a-")).slice(0, 2);
-	const groupB = groupMatches.filter((match) => match.id.startsWith("b-")).slice(0, 2);
-	return [0, 1].flatMap((index) => [groupA[index], groupB[index]]).filter((match): match is ControlMatch => Boolean(match));
+	const byGroup = new Map<string, ControlMatch[]>();
+	for (const match of groupMatches) {
+		const group = match.group ?? /^([a-p])-/.exec(match.id)?.[1]?.toUpperCase() ?? "";
+		byGroup.set(group, [...(byGroup.get(group) ?? []), match]);
+	}
+	const lanes = [...byGroup.values()];
+	const interleaved = Array.from({ length: Math.max(0, ...lanes.map((lane) => lane.length)) }, (_, index) => lanes.flatMap((lane) => (lane[index] ? [lane[index]] : []))).flat();
+	return [...playIn, ...interleaved, ...matches.filter((match) => match.phase === "playoffs")].slice(0, 4);
 }
 
 function CockpitPanel({ eyebrow, title, count, tone, children }: { eyebrow: string; title: string; count: number; tone: "red" | "cyan"; children: ReactNode }) {

@@ -14,6 +14,7 @@ import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getMatchControlContext } from "@/lib/match-control";
 import { playoffFormatLabel } from "@/lib/tournament-format";
+import { seriesLabel, stageLabel } from "@/lib/tournament-presentation";
 import { usesFearless, usesFlexibleEngine, usesPoolWheel } from "@/lib/tournament-kind";
 import { PageIntro } from "@/components/site/PageIntro";
 
@@ -70,11 +71,11 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	const friday = (
 		control
 			? control.matches
-					.filter((match) => match.phase === "groups")
+					.filter((match) => match.phase === "groups" || match.phase === "play-in")
 					.map((match) => ({
 						id: match.id,
 						day: formatScheduleDay(settings.ultimateBravery.startAt, "Spieltag 1"),
-						phase: settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase",
+						phase: match.phase === "play-in" ? "Play-in" : (stageLabel(settings.ultimateBravery) ?? "Tag 1"),
 						round: match.round,
 						time: match.time,
 						teamA: match.teamALabel,
@@ -133,7 +134,10 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					isCasted: Boolean(state.matches[match.id]?.isCasted),
 					pool: poolFor(match.id),
 				}))
-	).sort((a, b) => PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number]) - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number]));
+	).sort((a, b) =>
+		// Generated brackets already come in playing order; only the fixed A-Z bracket needs sorting.
+		control ? 0 : PLAYOFF_ORDER.indexOf(a.id as (typeof PLAYOFF_ORDER)[number]) - PLAYOFF_ORDER.indexOf(b.id as (typeof PLAYOFF_ORDER)[number])
+	);
 	const ownerTeam = previewEnabled ? (ctx.teams.find((team) => team.players.some((player) => player.discordId === session?.user?.discordId)) ?? null) : null;
 	const previewMatch =
 		previewEnabled && ownerTeam
@@ -153,19 +157,25 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			title: "Spieltag 1",
 			description: usesFlexibleEngine(settings.activeTournament)
 				? friday.length
-					? `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · ${friday.length} Matches aktuell angesetzt.`
-					: `${settings.ultimateBravery.dayOneFormat === "swiss" ? "Swiss Stage" : "Gruppenphase"} · Paarungen folgen durch die Turnierleitung.`
+					? `${stageLabel(settings.ultimateBravery) ?? "Tag 1"} · ${friday.length} Matches aktuell angesetzt.`
+					: `${stageLabel(settings.ultimateBravery) ?? "Tag 1"} · Paarungen folgen durch die Turnierleitung.`
 				: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
 			batches: groupScheduleBatches(friday),
 			emptyText:
-				settings.ultimateBravery.dayOneFormat === "swiss"
+				settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination"
 					? "Die erste Swiss-Runde wurde noch nicht ausgelost. Sobald eine Paarung gezogen wurde, erscheint sie automatisch hier."
 					: "Für den ersten Spieltag wurden noch keine konkreten Paarungen veröffentlicht.",
 		},
 		{
 			title: "Spieltag 2",
 			description: usesFlexibleEngine(settings.activeTournament)
-				? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · Grand Final ohne Bracket Reset.`
+				? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · ${seriesLabel(settings.ultimateBravery)}${
+						settings.ultimateBravery.format === "double-elimination" || settings.ultimateBravery.format === "double-elimination-light"
+							? settings.ultimateBravery.grandFinalReset
+								? " · Grand Final mit Bracket Reset."
+								: " · Grand Final ohne Bracket Reset."
+							: "."
+					}`
 				: "Alle 8 Teams starten ab 16:00 Uhr CEST im Double-Elimination-Bracket.",
 			batches: playoffScheduleBatches(saturday),
 			emptyText:

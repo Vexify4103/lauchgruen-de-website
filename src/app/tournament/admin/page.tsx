@@ -2,6 +2,7 @@ import { TournamentLink as Link } from "../TournamentLink";
 import { computeGroupStandings, resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { listAuditLog } from "@/lib/tournament-audit";
 import { playoffFormatLabel } from "@/lib/tournament-format";
+import { stageLabel } from "@/lib/tournament-presentation";
 import { getTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
 import { listApplications, readTournamentState } from "@/lib/tournament-storage";
 import { getTournamentContext } from "@/lib/tournament-runtime";
@@ -174,7 +175,7 @@ function ReadinessPanel({
 	const config = settings.ultimateBravery;
 	const openAt = settings.applicationOpenAt ? new Date(settings.applicationOpenAt).getTime() : Number.NaN;
 	const deadline = new Date(settings.applicationDeadline).getTime();
-	const stage = config.dayOneFormat === "swiss" ? `Swiss · ${config.swissRounds} Runden` : config.dayOneFormat === "groups" ? `${config.groupCount} Gruppe(n)` : null;
+	const stage = stageLabel(config);
 	const checks = [
 		{
 			label: "Format",

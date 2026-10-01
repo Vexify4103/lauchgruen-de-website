@@ -11,6 +11,8 @@ import { groupMatches as fallbackGroupMatches, teams as fallbackTeams, type Grou
 import { groupRollingTime } from "@/lib/tournament-schedule";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import { mainEventTeamCount, seedSlotLayout } from "@/lib/tournament-structure";
+import { getPlayInOutcome } from "@/lib/tournament-play-in";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -72,7 +74,14 @@ export type TournamentContext = {
 	teams: TournamentTeam[];
 	groupMatches: GroupMatch[];
 	source: "bot" | "placeholder";
+	/** Every Day-1 team has a published group (or seed-list) slot. */
+	groupSetupComplete: boolean;
+	/** Teams knocked out in the play-in; they keep the pseudo group "P". */
+	playInEliminated: string[];
 };
+
+/** Pseudo group for play-in teams that have not (or never will) receive a Day-1 slot. */
+export const PLAY_IN_GROUP = "P";
 
 /**
  * Reads bot-managed teams from Mongo. Returns null if the bot collection is
@@ -171,8 +180,12 @@ function withDefaults(stored: StoredTeam[], groupCount: number, plannedTeamCount
 	});
 }
 
+/**
+ * Every Day-1 team needs an explicit, unique slot. Teams without a slot are allowed as long as the
+ * slots add up (play-in teams still waiting, or knocked out).
+ */
 function hasCompleteGroupAssignments(stored: StoredTeam[], groupCount: number, plannedTeamCount: number): boolean {
-	if (stored.length !== plannedTeamCount || plannedTeamCount < 2) return false;
+	if (plannedTeamCount < 2 || stored.length < plannedTeamCount) return false;
 	const safeGroupCount = Math.max(1, Math.min(groupCount, 16, plannedTeamCount));
 	const baseGroupSize = Math.floor(plannedTeamCount / safeGroupCount);
 	const largerGroups = plannedTeamCount % safeGroupCount;
@@ -181,6 +194,7 @@ function hasCompleteGroupAssignments(stored: StoredTeam[], groupCount: number, p
 	for (const team of stored) {
 		const group = team.meta?.group;
 		const seed = team.meta?.seed;
+		if (!group && !seed) continue;
 		const groupSize = group ? validGroupSizes.get(group) : undefined;
 		if (!group || !seed || !Number.isInteger(seed) || groupSize === undefined || seed > groupSize) return false;
 		const slot = `${group}-${seed}`;
@@ -315,21 +329,49 @@ function buildGroupMatches(teams: TournamentTeam[], legs: 1 | 2): GroupMatch[] {
  */
 export async function getTournamentContext(): Promise<TournamentContext> {
 	const [stored, settings] = await Promise.all([readBotTeams(), getTournamentSettings()]);
+	const flexible = usesFlexibleEngine(settings.activeTournament);
 	if (!stored || stored.length === 0) {
-		if (usesFlexibleEngine(settings.activeTournament)) {
-			return { teams: [], groupMatches: [], source: "bot" };
-		}
-		return {
-			teams: fallbackTeams,
-			groupMatches: fallbackGroupMatches,
-			source: "placeholder",
-		};
+		if (flexible) return { teams: [], groupMatches: [], source: "bot", groupSetupComplete: false, playInEliminated: [] };
+		return { teams: fallbackTeams, groupMatches: fallbackGroupMatches, source: "placeholder", groupSetupComplete: true, playInEliminated: [] };
 	}
-	const groupCount = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.groupCount : 2;
-	const legs = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.groupRoundRobinLegs : 2;
-	const plannedTeamCount = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.teamCount : stored.length;
-	const teams = withDefaults(stored, groupCount, plannedTeamCount);
-	const requiresPublishedGroupSetup = usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "groups";
-	const groupMatches = requiresPublishedGroupSetup && !hasCompleteGroupAssignments(stored, groupCount, plannedTeamCount) ? [] : buildGroupMatches(teams, legs);
-	return { teams, groupMatches, source: "bot" };
+	if (!flexible) {
+		const teams = withDefaults(stored, 2, stored.length);
+		return { teams, groupMatches: buildGroupMatches(teams, 2), source: "bot", groupSetupComplete: true, playInEliminated: [] };
+	}
+
+	const config = settings.ultimateBravery;
+	const playIn = config.playInTeamCount > 0 ? await getPlayInOutcome(settings.activeTournament.id, config.bestOf.dayOne) : null;
+	const eliminated = new Set(playIn?.eliminated ?? []);
+	const waiting = new Set(playIn && !playIn.complete ? playIn.pairs.flatMap((pair) => [pair.teamAName, pair.teamBName]).filter((name) => !playIn.qualified.includes(name)) : []);
+	// Seed lists ("none", seeded Swiss) are a single group; GSL always uses groups of four.
+	const slots = seedSlotLayout(config);
+	const groupCount = slots?.groupCount ?? config.groupCount;
+	const plannedTeamCount = mainEventTeamCount(config);
+	const eligible = stored.filter((team) => !eliminated.has(team.name));
+	const placed = withDefaults(
+		eligible.filter((team) => !waiting.has(team.name) || (team.meta?.group && team.meta.group !== PLAY_IN_GROUP)),
+		groupCount,
+		plannedTeamCount
+	);
+	const placedNames = new Set(placed.map((team) => team.name));
+	const playInTeams = stored
+		.filter((team) => !placedNames.has(team.name))
+		.sort((a, b) => a.name.localeCompare(b.name, "de"))
+		.map((team, index) => makeTeam(team, PLAY_IN_GROUP, index + 1));
+	const teams = [...placed, ...playInTeams];
+	const groupSetupComplete =
+		Boolean(slots) &&
+		hasCompleteGroupAssignments(
+			eligible.filter((team) => !waiting.has(team.name)),
+			groupCount,
+			plannedTeamCount
+		);
+	const groupMatches =
+		config.dayOneFormat === "groups" && groupSetupComplete
+			? buildGroupMatches(
+					placed.filter((team) => team.group !== PLAY_IN_GROUP),
+					config.groupRoundRobinLegs
+				)
+			: [];
+	return { teams, groupMatches, source: "bot", groupSetupComplete, playInEliminated: [...eliminated] };
 }

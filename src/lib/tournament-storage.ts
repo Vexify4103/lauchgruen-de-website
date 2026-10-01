@@ -2,6 +2,7 @@ import { playoffMatches, type GroupMatch } from "@/lib/tournament-data";
 import { getDb } from "@/lib/mongo";
 import { randomBytes } from "node:crypto";
 import { normalizePreferredRoles } from "@/lib/role-preferences";
+import type { SeriesGame } from "@/lib/tournament-series";
 
 export const TOURNAMENT_OWNER_DISCORD_IDS = new Set(["337568120028004362", "411520867978313730", "311497927870775297", "438691351513530379"]);
 
@@ -123,6 +124,8 @@ export type StoredTournamentMatch = {
 	status?: "Scheduled" | "Live" | "Finished" | "Locked" | "Pending";
 	winner?: string;
 	adminNote?: string;
+	/** Recorded games of a Bo3/Bo5 series; scoreA/scoreB then count game wins. */
+	games?: SeriesGame[];
 	updatedAt?: string;
 };
 

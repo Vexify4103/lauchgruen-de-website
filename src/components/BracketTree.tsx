@@ -1,9 +1,10 @@
 "use client";
 
 import { TournamentLink as Link } from "@/app/tournament/TournamentLink";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { resolveBracketFocusMatchId } from "@/lib/tournament-stage-focus";
+import type { BracketLayout } from "@/lib/bracket-engine";
 
 const GF_POSITIONS: Record<string, CSSProperties> = {
 	gf: { gridRow: "1 / span 1", gridColumn: 1 },
@@ -32,7 +33,37 @@ export type BracketMatch = {
 	scoreB?: number;
 	winner?: string | null;
 	poolAssignment?: WheelMatchAssignment | null;
+	/** Generated brackets carry their own layout and winner sources. */
+	layout?: BracketLayout;
+	sources?: { teamA?: string; teamB?: string };
+	bestOf?: number;
+	conditional?: boolean;
 };
+
+type LaneLayout = { columns: number; rows: number; labels: string[]; positions: Record<string, CSSProperties> };
+
+/** Grid placement for engine-generated brackets: one grid per lane, rows in half-match units. */
+function buildGeneratedLayout(matches: BracketMatch[]) {
+	const lanes = new Map<string, LaneLayout>();
+	for (const match of matches) {
+		const layout = match.layout!;
+		const lane = lanes.get(layout.lane) ?? { columns: 0, rows: 0, labels: [], positions: {} };
+		lane.columns = Math.max(lane.columns, layout.column + 1);
+		lane.rows = Math.max(lane.rows, layout.row + layout.span);
+		lane.labels[layout.column] ??= layout.columnLabel;
+		lane.positions[match.id] = { gridColumn: layout.column + 1, gridRow: `${layout.row + 1} / span ${layout.span}` };
+		lanes.set(layout.lane, lane);
+	}
+	const connections: Connection[] = matches.flatMap((match) =>
+		(["teamA", "teamB"] as const).flatMap((slot) => {
+			const source = match.sources?.[slot];
+			return source && matches.some((entry) => entry.id === source)
+				? [{ from: source, to: match.id, port: slot === "teamA" ? ("top" as const) : ("bottom" as const), kind: "advance" as const }]
+				: [];
+		})
+	);
+	return { lanes, connections };
+}
 
 function buildBracketLayout(ids: Set<string>) {
 	const hasFourOpeningMatches = ids.has("ub-r1-3");
@@ -128,6 +159,10 @@ function buildBracketLayout(ids: Set<string>) {
 export function BracketTree({ matches, showPools = true }: { matches: BracketMatch[]; showPools?: boolean }) {
 	const matchIds = matches.map((match) => match.id).join("|");
 	const layout = buildBracketLayout(new Set(matches.map((match) => match.id)));
+	const generated = matches.length > 0 && matches.every((match) => match.layout);
+	const layoutKey = matches.map((match) => `${match.id}:${match.layout?.lane}:${match.layout?.column}:${match.layout?.row}`).join("|");
+	// eslint-disable-next-line react-hooks/exhaustive-deps -- the key captures every layout input
+	const generatedLayout = useMemo(() => buildGeneratedLayout(generated ? matches : []), [layoutKey, generated]);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -142,7 +177,7 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 		setSize((prev) => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize));
 
 		const next: ConnectorPath[] = [];
-		const connections = buildBracketLayout(new Set(matchIds.split("|").filter(Boolean))).connections;
+		const connections = generated ? generatedLayout.connections : buildBracketLayout(new Set(matchIds.split("|").filter(Boolean))).connections;
 		for (const conn of connections) {
 			const from = cardRefs.current.get(conn.from);
 			const to = cardRefs.current.get(conn.to);
@@ -173,7 +208,7 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 			next.push({ d, kind: conn.kind });
 		}
 		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.kind === next[index]?.kind) ? prev : next));
-	}, [matchIds]);
+	}, [matchIds, generated, generatedLayout]);
 
 	useEffect(() => {
 		compute();
@@ -207,6 +242,65 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 		scroller.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 		lastFocusedMatch.current = focusMatchId;
 	}, [focusMatchId, matches.length]);
+
+	if (generated) {
+		const lane = (name: string) => generatedLayout.lanes.get(name);
+		const upper = lane("upper");
+		const lower = lane("lower");
+		const finals = lane("final");
+		const placement = lane("placement");
+		const leftColumns = Math.max(upper?.columns ?? 0, lower?.columns ?? 0);
+		const hasReset = matches.some((match) => match.conditional);
+		const section = (key: string, label: string, accent: Accent, entry: LaneLayout | undefined) =>
+			entry ? (
+				<BracketSection
+					key={key}
+					label={label}
+					accent={accent}
+					columnLabels={entry.labels.map((value) => value ?? "")}
+					columns={entry.columns}
+					rows={entry.rows}
+					rowHeight="2.9rem"
+					positions={entry.positions}
+					matches={matches}
+					showPools={showPools}
+					registerCard={registerCard}
+					lookup={lookup}
+				/>
+			) : null;
+		return (
+			<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
+				<div
+					ref={containerRef}
+					className="relative grid gap-x-6"
+					style={{
+						gridTemplateColumns: leftColumns ? `minmax(${Math.max(12, leftColumns * 12)}rem, 1fr) auto` : "auto",
+						minWidth: `${Math.max(20, leftColumns * 12 + 16)}rem`,
+					}}
+				>
+					<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
+						{paths.map((p, i) => (
+							<path key={i} d={p.d} fill="none" strokeWidth={2} stroke="rgb(190 242 100 / 0.55)" strokeLinecap="round" strokeLinejoin="round" />
+						))}
+					</svg>
+					{leftColumns ? (
+						<div className="relative z-10 flex flex-col gap-8">
+							{section("upper", lower ? "Upper-Bracket" : "Bracket", "lime", upper)}
+							{section("lower", "Lower-Bracket", "sky", lower)}
+						</div>
+					) : null}
+					<div className="relative z-10 flex flex-col justify-center gap-8">
+						{section("final", hasReset ? "Grand Final" : "Finale", "amber", finals)}
+						{section("placement", "Platzierung", "amber", placement)}
+					</div>
+				</div>
+				<div className="mt-4 flex flex-wrap gap-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100/52">
+					<LegendDot color="rgb(190 242 100 / 0.7)" label="Sieger zieht weiter" />
+					{lower && finals ? <span>{hasReset ? "Bracket Reset, falls das Lower-Bracket-Team das Grand Final gewinnt" : "Grand Final ohne Bracket Reset"}</span> : null}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
@@ -296,6 +390,7 @@ function BracketSection({
 	columnLabels,
 	columns,
 	rows,
+	rowHeight = "5.5rem",
 	positions,
 	registerCard,
 	lookup,
@@ -306,6 +401,7 @@ function BracketSection({
 	columnLabels: string[];
 	columns: number;
 	rows: number;
+	rowHeight?: string;
 	positions: Record<string, CSSProperties>;
 	matches: BracketMatch[];
 	registerCard: (id: string) => (el: HTMLDivElement | null) => void;
@@ -334,7 +430,7 @@ function BracketSection({
 				className="mt-3 grid gap-x-8 gap-y-2"
 				style={{
 					gridTemplateColumns: gridCols,
-					gridTemplateRows: `repeat(${rows}, minmax(5.5rem, auto))`,
+					gridTemplateRows: `repeat(${rows}, minmax(${rowHeight}, auto))`,
 				}}
 			>
 				{Object.entries(positions).map(([id, position]) => {
@@ -374,7 +470,7 @@ function BracketCard({ match, showPools }: { match: BracketMatch; showPools: boo
 	const scoreB = match.scoreB;
 	const hasScore = scoreA !== undefined && scoreB !== undefined;
 
-	const isFinalTier = match.round === "Grand Final";
+	const isFinalTier = match.bracket === "Grand" || match.round === "Grand Final";
 
 	return (
 		<article
@@ -389,7 +485,10 @@ function BracketCard({ match, showPools }: { match: BracketMatch; showPools: boo
 			}`}
 		>
 			<header className="flex items-center justify-between gap-2 border-b border-white/8 bg-black/24 px-3 py-1.5">
-				<span className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/68">{shortRoundLabel(match.round)}</span>
+				<span className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/68">
+					{match.layout ? generatedCardLabel(match.round) : shortRoundLabel(match.round)}
+					{match.bestOf && match.bestOf > 1 ? <span className="ml-1.5 text-cyan-100/70">Bo{match.bestOf}</span> : null}
+				</span>
 				<span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] ${statusToneClass(match.status)}`}>
 					{match.status}
 				</span>
@@ -476,6 +575,12 @@ function TeamLine({
 			</span>
 		</div>
 	);
+}
+
+/** Generated brackets name the round in the column header; the card only needs the part after it. */
+function generatedCardLabel(round: string): string {
+	const parts = round.split(" · ");
+	return parts.length > 1 ? parts.at(-1)! : round;
 }
 
 function shortRoundLabel(round: string): string {

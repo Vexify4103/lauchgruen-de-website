@@ -7,27 +7,65 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState } from "@/lib/tournament-wheel";
 import { formatGameDuration } from "@/lib/match-duration";
 import { GroupStagePlan } from "@/components/SwissStageBoard";
-import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
+import { getSwissStageState } from "@/lib/tournament-swiss";
 import { SwissStageLiveView } from "@/components/SwissStageLiveView";
 import { StageMatchAutoFocus } from "@/components/StageMatchAutoFocus";
 import { resolveGroupFocusMatchId } from "@/lib/tournament-stage-focus";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { EmptyState, PageIntro } from "@/components/site/PageIntro";
+import { getMatchControlContext } from "@/lib/match-control";
+import { PLAY_IN_GROUP } from "@/lib/tournament-runtime";
+import { mainEventTeamCount } from "@/lib/tournament-structure";
+import { DirectPlayoffsStage, FlexibleGroupsStage, GslStage, PlayInSection } from "./FlexibleStageViews";
 
 export default async function GroupsPage() {
 	const settings = await getTournamentSettings();
 	if (!usesFlexibleEngine(settings.activeTournament) && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
-	if (usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "undecided") {
-		return <UndecidedStagePage />;
-	}
-	if (usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "swiss") {
-		const [swissState, swissTeams] = await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissTeams()]);
-		return <SwissStagePage settings={settings} teamNames={swissTeams.map((team) => team.name)} swissState={swissState} />;
+	if (usesFlexibleEngine(settings.activeTournament)) {
+		const config = settings.ultimateBravery;
+		if (config.dayOneFormat === "undecided") return <UndecidedStagePage />;
+		const control = await getMatchControlContext();
+		const stages = control.stages!;
+		const playIn = config.playInTeamCount > 0 ? <PlayInSection stages={stages} matches={control.matches} config={config} /> : null;
+		const dayOneTeams = control.teams.filter((team) => team.group !== PLAY_IN_GROUP).map((team) => team.name);
+		const running = ["live", "finished"].includes(settings.activeTournament.mode);
+		switch (config.dayOneFormat) {
+			case "swiss":
+			case "swiss-elimination":
+				return (
+					<>
+						{playIn}
+						<SwissStagePage settings={settings} teamNames={dayOneTeams} swissState={stages.dayOne.swiss ?? (await getSwissStageState(settings.activeTournament.id))} />
+					</>
+				);
+			case "none":
+				return (
+					<>
+						{playIn}
+						<DirectPlayoffsStage stages={stages} config={config} />
+					</>
+				);
+			case "gsl":
+				return (
+					<>
+						{playIn}
+						<GslStage stages={stages} matches={control.matches.filter((match) => match.phase === "groups")} config={config} />
+					</>
+				);
+			case "groups":
+				return (
+					<>
+						{playIn}
+						{running && stages.dayOne.groups.some((group) => group.standings) ? (
+							<FlexibleGroupsStage stages={stages} matches={control.matches.filter((match) => match.phase === "groups")} config={config} />
+						) : (
+							<GroupStagePlanningPage settings={settings} teamNames={dayOneTeams} />
+						)}
+					</>
+				);
+		}
 	}
 	const ctx = await getTournamentContext();
-	if (usesFlexibleEngine(settings.activeTournament) && !["live", "finished"].includes(settings.activeTournament.mode)) {
-		return <GroupStagePlanningPage settings={settings} teamNames={ctx.teams.map((team) => team.name)} />;
-	}
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
 	const matchesWithScores = ctx.groupMatches.map((match) => ({
@@ -226,8 +264,7 @@ function UndecidedStagePage() {
 	return (
 		<section className="page-section compact-top">
 			<EmptyState title="Das Format für Tag 1 steht noch nicht fest.">
-				Ob Gruppenphase oder Swiss Stage gespielt wird, entscheidet die Orga anhand der finalen Teamzahl. Der vollständige Ablauf wird rechtzeitig vor dem Turnier
-				veröffentlicht.
+				Welches Format an Tag 1 gespielt wird, entscheidet die Orga anhand der finalen Teamzahl. Der vollständige Ablauf wird rechtzeitig vor dem Turnier veröffentlicht.
 			</EmptyState>
 		</section>
 	);
@@ -246,12 +283,13 @@ function SwissStagePage({
 	return (
 		<>
 			<section className="page-section compact-top wide">
-				<PageIntro kicker="Tag 1 · Swiss Stage" title="Jede Runde verändert den Weg.">
-					Alle Paarungen werden pro Runde zufällig ausgelost. Ein Team trifft während der gesamten Swiss Stage nie zweimal auf denselben Gegner. Nach {config.swissRounds}{" "}
-					Runden ziehen {config.advanceTeamCount === config.teamCount ? "alle" : `die besten ${config.advanceTeamCount} von`} {config.teamCount} Teams in die Playoffs
-					ein.
+				<PageIntro kicker={config.dayOneFormat === "swiss-elimination" ? "Tag 1 · Swiss mit Ausscheiden" : "Tag 1 · Swiss Stage"} title="Jede Runde verändert den Weg.">
+					Jede Runde wird zufällig innerhalb derselben Bilanz ausgelost. Ein Team trifft während der gesamten Swiss Stage nie zweimal auf denselben Gegner.{" "}
+					{config.dayOneFormat === "swiss-elimination"
+						? `${config.swissWinsToAdvance} Siege bringen ein Team in die Playoffs, ${config.swissWinsToAdvance} Niederlagen bedeuten das Aus; so erreichen ${config.advanceTeamCount} von ${mainEventTeamCount(config)} Teams Tag 2.`
+						: `Nach ${config.swissRounds} Runden ziehen ${config.advanceTeamCount >= mainEventTeamCount(config) ? "alle" : `die besten ${config.advanceTeamCount} von`} ${mainEventTeamCount(config)} Teams in die Playoffs ein.`}
 				</PageIntro>
-				<SwissStageLiveView initialState={swissState} config={config} teamNames={teamNames} live={settings.tournamentLive} />
+				<SwissStageLiveView initialState={swissState} config={{ ...config, teamCount: mainEventTeamCount(config) }} teamNames={teamNames} live={settings.tournamentLive} />
 				{swissState.seedingMethod === "results-and-average-win-duration" ? (
 					<div className="mx-auto mt-5 max-w-4xl rounded-2xl border border-amber-200/18 bg-amber-200/[0.055] px-5 py-4 text-center text-xs font-bold leading-6 text-amber-50/72">
 						Hinweis der Turnierleitung: Bei der Swiss-Auslosung ist uns ein Fehler unterlaufen. Für ein möglichst faires Seeding wurden alle tatsächlich gespielten
@@ -275,8 +313,8 @@ function GroupStagePlanningPage({ settings, teamNames }: { settings: Awaited<Ret
 		<>
 			<section className="page-section compact-top">
 				<PageIntro kicker="Tag 1 · Gruppenphase" title={`${config.groupCount} ${config.groupCount === 1 ? "Gruppe" : "Gruppen"}. Ein gemeinsames Ziel.`}>
-					{config.teamCount} Teams spielen {config.groupRoundRobinLegs === 2 ? "eine Hin- und Rückrunde" : "einmal gegeneinander"}. Die besten {config.advanceTeamCount}{" "}
-					Teams erreichen die Playoffs an Tag 2.
+					{mainEventTeamCount(config)} Teams spielen {config.groupRoundRobinLegs === 2 ? "eine Hin- und Rückrunde" : "einmal gegeneinander"}. Die besten{" "}
+					{config.advanceTeamCount} Teams erreichen die Playoffs an Tag 2.
 				</PageIntro>
 				<div>
 					<GroupStagePlan config={config} teamNames={teamNames} />

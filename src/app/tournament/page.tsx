@@ -2,6 +2,7 @@ import { TournamentLink as Link } from "./TournamentLink";
 import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel } from "@/lib/tournament-application-deadline";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { playoffFormatLabel } from "@/lib/tournament-format";
+import { mainEventTeamCount } from "@/lib/tournament-structure";
 import { getTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
 import { listTournamentArchives } from "@/lib/tournament-next";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
@@ -50,11 +51,14 @@ export default async function TournamentOverviewPage() {
 function RulebookPanel({ settings, applicationsOpen }: { settings: TournamentSettings; applicationsOpen: boolean }) {
 	const structure = settings.ultimateBravery;
 	const rulebook = buildRulebook(settings);
+	const participants = mainEventTeamCount(structure);
 	const qualification =
 		structure.dayOneFormat === "undecided"
 			? "Wird festgelegt"
-			: structure.advanceTeamCount === structure.teamCount
-				? "Alle Teams in die Playoffs"
+			: structure.advanceTeamCount >= participants
+				? structure.playInTeamCount > 0
+					? `Play-in, dann ${participants} Teams in die Playoffs`
+					: "Alle Teams in die Playoffs"
 				: `Top ${structure.advanceTeamCount} in die Playoffs`;
 	return (
 		<div className="content-panel">
@@ -164,7 +168,7 @@ function ChampionSection({ completion, roster }: { completion: TournamentComplet
 function HubLinks({ settings, matches, teamCount, archiveCount }: { settings: TournamentSettings; matches: ControlMatch[]; teamCount: number; archiveCount: number }) {
 	const structure = settings.ultimateBravery;
 	const playoffMatches = matches.filter((match) => match.phase === "playoffs");
-	const stageMatches = matches.filter((match) => match.phase === "groups");
+	const stageMatches = matches.filter((match) => match.phase === "groups" || match.phase === "play-in");
 	const finished = (list: ControlMatch[]) => list.filter((match) => match.status === "Finished").length;
 	const liveCount = matches.filter((match) => match.status === "Live" || match.status === "Pending").length;
 	const links = [

@@ -13,6 +13,7 @@ import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { seedSlotLayout } from "@/lib/tournament-structure";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -186,7 +187,7 @@ export async function PATCH(request: Request) {
 	}
 
 	const settings = await getTournamentSettings();
-	const usesGroups = settings.ultimateBravery.dayOneFormat === "groups";
+	const usesGroups = seedSlotLayout(settings.ultimateBravery) !== null;
 	const currentGroup = existing.meta?.group;
 	const newGroup = usesGroups ? (isOwner ? (parsed.data.group ?? currentGroup) : currentGroup) : undefined;
 	if (usesGroups && !newGroup) return NextResponse.json({ message: "Für eine Gruppenphase muss eine Gruppe gewählt werden." }, { status: 400 });

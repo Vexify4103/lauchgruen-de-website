@@ -1,16 +1,39 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 import { formatTournamentApplicationDeadlineLabel, formatTournamentApplicationOpenLabel } from "@/lib/tournament-application-deadline";
 import type { TournamentSettings } from "@/lib/tournament-settings";
-import { playoffFormatLabel } from "@/lib/tournament-format";
 import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 import { ThemedDateTimePicker } from "@/components/ThemedDateTimePicker";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
 import { TOURNAMENT_KIND_LABELS, usesChampSelect, usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
+import {
+	BEST_OF_VALUES,
+	DAY_ONE_FORMATS,
+	DAY_ONE_FORMAT_DETAILS,
+	DAY_ONE_FORMAT_LABELS,
+	PLAYOFF_FORMATS,
+	PLAYOFF_FORMAT_DETAILS,
+	PLAYOFF_FORMAT_LABELS,
+	SIDE_SELECTION_LABELS,
+	SIDE_SELECTION_RULES,
+	TIEBREAKERS,
+	TIEBREAKER_LABELS,
+	deriveStructure,
+	describeStructurePlan,
+	describeTiebreakers,
+	mainEventTeamCount,
+	reviewStructure,
+	winsNeeded,
+	type BestOf,
+	type DayOneFormat,
+	type PlayoffFormat,
+	type SideSelectionRule,
+	type Tiebreaker,
+} from "@/lib/tournament-structure";
 
 type SettingKey = keyof Pick<TournamentSettings, "applicationsOpen" | "applicationDeadlineOverride" | "tournamentLive" | "draftEnabled">;
 type SettingsPatch = Partial<
@@ -45,83 +68,8 @@ function fromDateTimeLocalValue(value: string): string | null {
 	return date.toISOString();
 }
 
-function swissQualification(teamCount: number, allTeamsAdvance: boolean) {
-	const advancing = allTeamsAdvance ? teamCount : Math.max(2, Math.floor(teamCount / 2));
-	const winsToAdvance = Math.max(2, Math.ceil(Math.log2(teamCount)) - 1);
-	const rounds = allTeamsAdvance ? (teamCount === 8 ? 4 : Math.max(2, Math.ceil(Math.log2(teamCount)) + 1)) : winsToAdvance * 2 - 1;
-	return { advancing, rounds };
-}
-
 function toNullableDateTimeLocalValue(isoDate: string | null): string {
 	return isoDate ? toDateTimeLocalValue(isoDate) : "";
-}
-
-function describeTournamentPlan(config: TournamentSettings["ultimateBravery"]) {
-	const teamCount = Math.max(2, config.teamCount || 2);
-	const groupCount = Math.max(1, Math.min(config.groupCount || 1, teamCount));
-	const advancing = Math.max(2, Math.min(config.advanceTeamCount || 2, teamCount));
-	const eliminated = teamCount - advancing;
-	const isPowerOfTwo = advancing > 0 && (advancing & (advancing - 1)) === 0;
-	const playoffFormat = playoffFormatLabel(config.format) ?? "Playoff-Format noch offen";
-	const lightWarning =
-		config.format === "double-elimination-light" && (config.advanceTeamCount !== config.teamCount || ![6, 8].includes(config.advanceTeamCount))
-			? "Double Elimination Light benötigt 6 oder 8 Teams, die alle die Playoffs erreichen. Bei 4 Teams bitte normales Double Elimination wählen."
-			: config.format === "double-elimination" && ![4, 8].includes(config.advanceTeamCount)
-				? "Normales Double Elimination benötigt 4 oder 8 Playoff-Teams. Für 6 Teams bitte Double Elimination Light wählen."
-				: null;
-	if (config.dayOneFormat === "undecided") {
-		return {
-			stage: "Format für Tag 1 noch nicht entschieden",
-			qualification: "Die Stage bleibt öffentlich geschlossen, bis Gruppenphase oder Swiss Stage gewählt wurde.",
-			warning: lightWarning,
-		};
-	}
-
-	if (config.dayOneFormat === "swiss") {
-		if (config.teamCount === 8 && config.advanceTeamCount === 8) {
-			return {
-				stage: "8-Team Placement Swiss · bis zu 4 Runden",
-				qualification: `Alle Teams erreichen die Playoffs. Die Swiss Stage bestimmt Seed #1 bis #8; ${playoffFormat.toLowerCase()}.`,
-				warning: lightWarning,
-			};
-		}
-		const matchesPerRound = Math.floor(teamCount / 2);
-		return {
-			stage: `${config.swissRounds} Swiss-Runden · ungefähr ${matchesPerRound * config.swissRounds} Matches`,
-			qualification: `${advancing === teamCount ? "Alle Teams erreichen die Playoffs." : `Platz 1–${advancing} erreicht die Playoffs, ${eliminated} Team${eliminated === 1 ? " scheidet" : "s scheiden"} an Tag 1 aus.`} ${playoffFormat}.`,
-			warning:
-				lightWarning ??
-				(config.swissRounds > (teamCount % 2 === 0 ? teamCount - 1 : teamCount)
-					? "Es sind mehr Swiss-Runden konfiguriert, als ohne ein Rematch mathematisch möglich sind."
-					: teamCount % 2 !== 0
-						? "Bei einer ungeraden Teamzahl erhält pro Runde ein Team ein möglichst fair verteiltes Freilos."
-						: !isPowerOfTwo
-							? "Das Playoff-Bracket benötigt Freilose, weil die Zahl der Qualifizierten keine Zweierpotenz ist."
-							: null),
-		};
-	}
-
-	const smallGroupSize = Math.floor(teamCount / groupCount);
-	const largeGroupCount = teamCount % groupCount;
-	const largeGroupSize = largeGroupCount > 0 ? smallGroupSize + 1 : smallGroupSize;
-	const sizes = largeGroupCount > 0 ? `${largeGroupCount}× ${largeGroupSize} und ${groupCount - largeGroupCount}× ${smallGroupSize}` : `${groupCount}× ${smallGroupSize}`;
-	const matchCount = Array.from({ length: groupCount }, (_, index) => smallGroupSize + (index < largeGroupCount ? 1 : 0)).reduce(
-		(total, size) => total + ((size * (size - 1)) / 2) * config.groupRoundRobinLegs,
-		0
-	);
-	return {
-		stage: `${groupCount} Gruppe${groupCount === 1 ? "" : "n"} (${sizes}) · ${matchCount} Matches`,
-		qualification: `${advancing === teamCount ? "Alle Teams erreichen die Playoffs." : `${advancing} von ${teamCount} Teams erreichen die Playoffs; ${eliminated} scheiden an Tag 1 aus.`} ${playoffFormat}.`,
-		warning:
-			lightWarning ??
-			(teamCount % groupCount !== 0
-				? "Die Teams lassen sich nicht gleichmäßig auf die Gruppen verteilen."
-				: advancing % groupCount !== 0
-					? "Die Playoff-Plätze lassen sich nicht gleichmäßig pro Gruppe vergeben; eine Wildcard-Regel ist nötig."
-					: !isPowerOfTwo && config.format !== "double-elimination-light"
-						? "Das Playoff-Bracket benötigt Freilose, weil die Zahl der Qualifizierten keine Zweierpotenz ist."
-						: null),
-	};
 }
 
 export type TournamentSettingsSection = "format" | "rules" | "applications" | "lifecycle";
@@ -146,7 +94,21 @@ export function TournamentModePanel({
 	const [deadlineInput, setDeadlineInput] = useState(() => toDateTimeLocalValue(initialSettings.applicationDeadline));
 	const [message, setMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
-	const plan = describeTournamentPlan(settings.ultimateBravery);
+	const structure = settings.ultimateBravery;
+	const participants = mainEventTeamCount(structure);
+	const review = reviewStructure(structure);
+	const plan = { lines: describeStructurePlan(structure) };
+
+	function updateStructure(patch: Partial<TournamentSettings["ultimateBravery"]>) {
+		setSettings((current) => ({ ...current, ultimateBravery: deriveStructure({ ...current.ultimateBravery, ...patch }) }));
+	}
+
+	function updateTiebreaker(index: number, value: Tiebreaker | null) {
+		const next = [...structure.tiebreakers];
+		if (value === null) next.splice(index);
+		else next[index] = value;
+		updateStructure({ tiebreakers: next.filter(Boolean) });
+	}
 
 	function persistSettings(patch: SettingsPatch, rollbackSettings = settings) {
 		setMessage("");
@@ -221,9 +183,9 @@ export function TournamentModePanel({
 		persistSettings({ applicationOpenAt: nextOpenAt, applicationDeadline: nextDeadline, applicationDeadlineOverride: false }, previousSettings);
 	}
 
-	function toggleOpponentLocks() {
+	function saveFearless(patch: Partial<TournamentSettings["fearless"]>) {
 		const previousSettings = settings;
-		const fearless = { lockOpponentChampions: !settings.fearless.lockOpponentChampions };
+		const fearless = { ...settings.fearless, ...patch };
 		setSettings((current) => ({ ...current, fearless }));
 		persistSettings({ fearless }, previousSettings);
 	}
@@ -252,15 +214,14 @@ export function TournamentModePanel({
 						<div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100/64">
 							{settings.activeTournament.name} · {TOURNAMENT_KIND_LABELS[settings.activeTournament.kind]}
 						</div>
-						<div className="mt-4 grid gap-3 sm:grid-cols-2">
+
+						<FormatGroup title="Termine & Teilnehmer">
 							<label className="text-xs font-bold text-emerald-100/62">
 								Tag 1
 								<ThemedDateTimePicker
 									ariaLabel="Startzeit von Tag 1"
-									value={settings.ultimateBravery.startAt ? toDateTimeLocalValue(settings.ultimateBravery.startAt) : ""}
-									onChange={(value) =>
-										setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, startAt: fromDateTimeLocalValue(value) } }))
-									}
+									value={structure.startAt ? toDateTimeLocalValue(structure.startAt) : ""}
+									onChange={(value) => updateStructure({ startAt: fromDateTimeLocalValue(value) })}
 									clearable
 								/>
 							</label>
@@ -268,13 +229,8 @@ export function TournamentModePanel({
 								Tag 2
 								<ThemedDateTimePicker
 									ariaLabel="Startzeit von Tag 2"
-									value={settings.ultimateBravery.dayTwoStartAt ? toDateTimeLocalValue(settings.ultimateBravery.dayTwoStartAt) : ""}
-									onChange={(value) =>
-										setSettings((current) => ({
-											...current,
-											ultimateBravery: { ...current.ultimateBravery, dayTwoStartAt: fromDateTimeLocalValue(value) },
-										}))
-									}
+									value={structure.dayTwoStartAt ? toDateTimeLocalValue(structure.dayTwoStartAt) : ""}
+									onChange={(value) => updateStructure({ dayTwoStartAt: fromDateTimeLocalValue(value) })}
 									clearable
 								/>
 							</label>
@@ -283,85 +239,66 @@ export function TournamentModePanel({
 								<ThemedNumberInput
 									min={2}
 									max={32}
-									value={settings.ultimateBravery.teamCount}
+									value={structure.teamCount}
 									ariaLabel="Gesamtzahl Teams"
-									onChange={(value) => {
-										const teamCount = Number(value);
-										setSettings((current) => ({
-											...current,
-											ultimateBravery: (() => {
-												const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
-												const swiss = swissQualification(teamCount, allTeamsAdvance);
-												const advanceTeamCount =
-													current.ultimateBravery.dayOneFormat === "swiss"
-														? swiss.advancing
-														: Math.min(current.ultimateBravery.advanceTeamCount, teamCount);
-												return {
-													...current.ultimateBravery,
-													teamCount,
-													groupCount: Math.min(current.ultimateBravery.groupCount, teamCount),
-													advanceTeamCount,
-													swissRounds: current.ultimateBravery.dayOneFormat === "swiss" ? swiss.rounds : current.ultimateBravery.swissRounds,
-													format:
-														teamCount === 6 && advanceTeamCount === 6
-															? "double-elimination-light"
-															: teamCount === 4 && advanceTeamCount === 4
-																? "double-elimination"
-																: current.ultimateBravery.format,
-												};
-											})(),
-										}));
-									}}
+									onChange={(value) => updateStructure({ teamCount: Math.max(2, Math.min(32, Number(value) || 2)) })}
 								/>
 							</label>
 							<label className="text-xs font-bold text-emerald-100/62">
-								Format an Tag 1
+								Play-in vor Tag 1
 								<ThemedSelect
-									value={settings.ultimateBravery.dayOneFormat}
-									onChange={(value) =>
-										setSettings((current) => {
-											const dayOneFormat = value as TournamentSettings["ultimateBravery"]["dayOneFormat"];
-											if (dayOneFormat !== "swiss") return { ...current, ultimateBravery: { ...current.ultimateBravery, dayOneFormat } };
-											const allTeamsAdvance = current.ultimateBravery.advanceTeamCount === current.ultimateBravery.teamCount;
-											const swiss = swissQualification(current.ultimateBravery.teamCount, allTeamsAdvance);
-											return {
-												...current,
-												ultimateBravery: { ...current.ultimateBravery, dayOneFormat, advanceTeamCount: swiss.advancing, swissRounds: swiss.rounds },
-											};
-										})
-									}
-									ariaLabel="Format an Tag 1"
+									value={String(structure.playInTeamCount)}
+									onChange={(value) => updateStructure({ playInTeamCount: Number(value) })}
+									ariaLabel="Play-in vor Tag 1"
 									options={[
-										{ value: "undecided", label: "Noch nicht entschieden" },
-										{ value: "groups", label: "Gruppenphase" },
-										{ value: "swiss", label: "Swiss Stage" },
+										{ value: "0", label: "Kein Play-in", description: "Alle Teams starten direkt an Tag 1." },
+										...[2, 4, 6, 8, 10, 12].flatMap((count) =>
+											count <= structure.teamCount - 2
+												? [
+														{
+															value: String(count),
+															label: `${count} Teams spielen vorab`,
+															description: `${count / 2} kommen weiter, ${count / 2} scheiden aus.`,
+														},
+													]
+												: []
+										),
 									]}
 								/>
 							</label>
-							{settings.ultimateBravery.dayOneFormat === "groups" ? (
+						</FormatGroup>
+
+						<FormatGroup title="Tag 1">
+							<label className="text-xs font-bold text-emerald-100/62 sm:col-span-2">
+								Format an Tag 1
+								<ThemedSelect
+									value={structure.dayOneFormat}
+									onChange={(value) => updateStructure({ dayOneFormat: value as DayOneFormat })}
+									ariaLabel="Format an Tag 1"
+									options={DAY_ONE_FORMATS.map((format) => ({
+										value: format,
+										label: DAY_ONE_FORMAT_LABELS[format],
+										description: DAY_ONE_FORMAT_DETAILS[format],
+									}))}
+								/>
+							</label>
+							{structure.dayOneFormat === "groups" ? (
 								<>
 									<label className="text-xs font-bold text-emerald-100/62">
 										Anzahl Gruppen
 										<ThemedNumberInput
 											min={1}
-											max={Math.min(16, settings.ultimateBravery.teamCount)}
-											value={settings.ultimateBravery.groupCount}
+											max={Math.min(16, participants)}
+											value={structure.groupCount}
 											ariaLabel="Anzahl Gruppen"
-											onChange={(value) =>
-												setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, groupCount: Number(value) } }))
-											}
+											onChange={(value) => updateStructure({ groupCount: Number(value) || 1 })}
 										/>
 									</label>
 									<label className="text-xs font-bold text-emerald-100/62">
 										Begegnungen pro Paarung
 										<ThemedSelect
-											value={String(settings.ultimateBravery.groupRoundRobinLegs)}
-											onChange={(value) =>
-												setSettings((current) => ({
-													...current,
-													ultimateBravery: { ...current.ultimateBravery, groupRoundRobinLegs: Number(value) as 1 | 2 },
-												}))
-											}
+											value={String(structure.groupRoundRobinLegs)}
+											onChange={(value) => updateStructure({ groupRoundRobinLegs: Number(value) as 1 | 2 })}
 											ariaLabel="Begegnungen pro Paarung"
 											options={[
 												{ value: "1", label: "Einmal gegeneinander" },
@@ -369,133 +306,174 @@ export function TournamentModePanel({
 											]}
 										/>
 									</label>
+									<label className="text-xs font-bold text-emerald-100/62">
+										Teams in den Playoffs
+										<ThemedNumberInput
+											min={2}
+											max={participants}
+											value={structure.advanceTeamCount}
+											ariaLabel="Teams in den Playoffs"
+											onChange={(value) => updateStructure({ advanceTeamCount: Number(value) || 2 })}
+										/>
+									</label>
 								</>
-							) : settings.ultimateBravery.teamCount === 8 && settings.ultimateBravery.advanceTeamCount === 8 ? (
-								<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
-									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Swiss-Modell automatisch erkannt</div>
-									<div className="mt-1 text-sm font-black text-emerald-50">8-Team Placement Swiss · bis zu 4 Runden</div>
-									<div className="mt-1 text-xs leading-5 text-emerald-100/52">Alle Teams ziehen weiter; ausgespielt werden die vollständigen Playoff-Seeds.</div>
-								</div>
 							) : null}
-							<label className="text-xs font-bold text-emerald-100/62">
-								Teams in den Playoffs
-								{settings.ultimateBravery.dayOneFormat === "swiss" ? (
+							{structure.dayOneFormat === "swiss" ? (
+								<label className="text-xs font-bold text-emerald-100/62">
+									Teams in den Playoffs
 									<ThemedSelect
-										value={settings.ultimateBravery.advanceTeamCount === settings.ultimateBravery.teamCount ? "all" : "half"}
-										onChange={(value) =>
-											setSettings((current) => {
-												const swiss = swissQualification(current.ultimateBravery.teamCount, value === "all");
-												return {
-													...current,
-													ultimateBravery: {
-														...current.ultimateBravery,
-														advanceTeamCount: swiss.advancing,
-														swissRounds: swiss.rounds,
-														format:
-															current.ultimateBravery.teamCount === 6 && swiss.advancing === 6
-																? "double-elimination-light"
-																: current.ultimateBravery.format,
-													},
-												};
-											})
-										}
+										value={structure.advanceTeamCount >= participants ? "all" : "half"}
+										onChange={(value) => updateStructure({ advanceTeamCount: value === "all" ? participants : Math.max(2, Math.floor(participants / 2)) })}
 										ariaLabel="Teams in den Playoffs"
 										options={[
-											{ value: "half", label: `50 % · ${Math.max(2, Math.floor(settings.ultimateBravery.teamCount / 2))} Teams` },
-											{ value: "all", label: `Alle · ${settings.ultimateBravery.teamCount} Teams` },
+											{ value: "half", label: `50 % · ${Math.max(2, Math.floor(participants / 2))} Teams` },
+											{ value: "all", label: `Alle · ${participants} Teams` },
 										]}
 									/>
-								) : (
-									<ThemedNumberInput
-										min={2}
-										max={settings.ultimateBravery.teamCount}
-										value={settings.ultimateBravery.advanceTeamCount}
-										ariaLabel="Teams in den Playoffs"
-										onChange={(value) =>
-											setSettings((current) => {
-												const advanceTeamCount = Number(value);
-												return {
-													...current,
-													ultimateBravery: {
-														...current.ultimateBravery,
-														advanceTeamCount,
-														format:
-															current.ultimateBravery.teamCount === 6 && advanceTeamCount === 6
-																? "double-elimination-light"
-																: current.ultimateBravery.teamCount === 4 && advanceTeamCount === 4
-																	? "double-elimination"
-																	: current.ultimateBravery.format,
-													},
-												};
-											})
-										}
+								</label>
+							) : null}
+							{structure.dayOneFormat === "swiss-elimination" ? (
+								<label className="text-xs font-bold text-emerald-100/62">
+									Weiter / raus bei
+									<ThemedSelect
+										value={String(structure.swissWinsToAdvance)}
+										onChange={(value) => updateStructure({ swissWinsToAdvance: Number(value) as 2 | 3 })}
+										ariaLabel="Siege zum Weiterkommen"
+										options={[
+											{ value: "2", label: "2 Siegen / 2 Niederlagen", description: "Bis zu 3 Runden, ab 4 Teams." },
+											{ value: "3", label: "3 Siegen / 3 Niederlagen", description: "Bis zu 5 Runden, ab 16 Teams (Major-Format)." },
+										]}
 									/>
-								)}
-							</label>
-							<label className="text-xs font-bold text-emerald-100/62">
+								</label>
+							) : null}
+							{structure.dayOneFormat === "swiss" || structure.dayOneFormat === "swiss-elimination" ? (
+								<label className="text-xs font-bold text-emerald-100/62">
+									Paarungen in Runde 1
+									<ThemedSelect
+										value={structure.swissRoundOneSeeding}
+										onChange={(value) => updateStructure({ swissRoundOneSeeding: value as "random" | "seeded" })}
+										ariaLabel="Paarungen in Runde 1"
+										options={[
+											{ value: "random", label: "Zufällig gelost" },
+											{ value: "seeded", label: "Nach Setzliste", description: "#1 gegen den besten Seed der unteren Hälfte; Setzliste im Roster-Builder." },
+										]}
+									/>
+								</label>
+							) : null}
+						</FormatGroup>
+
+						<FormatGroup title="Tag 2 · Playoffs">
+							<label className="text-xs font-bold text-emerald-100/62 sm:col-span-2">
 								Playoff-Format
 								<ThemedSelect
-									value={settings.ultimateBravery.format}
-									onChange={(value) =>
-										setSettings((current) => ({
-											...current,
-											ultimateBravery: { ...current.ultimateBravery, format: value as TournamentSettings["ultimateBravery"]["format"] },
-										}))
-									}
+									value={structure.format}
+									onChange={(value) => updateStructure({ format: value as PlayoffFormat })}
 									ariaLabel="Playoff-Format"
-									options={[
-										{ value: "undecided", label: "Noch nicht entschieden" },
-										{ value: "double-elimination", label: "Double Elimination" },
-										{
-											value: "double-elimination-light",
-											label: "Double Elimination Light",
-											description:
-												settings.ultimateBravery.advanceTeamCount === 6
-													? "#1–#4 starten Upper, #5/#6 starten Lower"
-													: "#1/#2 mit Upper-Freilos, #7/#8 starten Lower",
-										},
-										{ value: "single-elimination", label: "Single Elimination" },
-									]}
+									options={PLAYOFF_FORMATS.map((format) => ({
+										value: format,
+										label: PLAYOFF_FORMAT_LABELS[format],
+										description: PLAYOFF_FORMAT_DETAILS[format],
+									}))}
 								/>
 							</label>
-							{settings.ultimateBravery.format === "double-elimination-light" ? (
-								<div className="rounded-2xl border border-lime-200/18 bg-lime-200/[0.065] p-4 sm:col-span-2">
-									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-100/62">
-										Double Elimination Light · {settings.ultimateBravery.advanceTeamCount} Teams
-									</div>
-									<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-										{settings.ultimateBravery.advanceTeamCount === 6
-											? "Seed #1 spielt gegen #4 und #2 gegen #3 im Upper Bracket. #5 und #6 steigen direkt gegen die Verlierer dieser Halbfinals im Lower Bracket ein."
-											: "Seed #1 und #2 erhalten ein Freilos ins Upper-Halbfinale. #3 bis #6 starten in Upper Runde 1; #7 und #8 steigen direkt im Lower Bracket ein."}{" "}
-										Das Grand Final ist immer ein einzelnes Do-or-die-Match ohne Bracket Reset.
-									</p>
-								</div>
-							) : settings.ultimateBravery.format === "double-elimination" ? (
-								<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4 sm:col-span-2">
-									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">
-										Double Elimination · {settings.ultimateBravery.advanceTeamCount} Teams
-									</div>
-									<p className="mt-2 text-xs leading-5 text-emerald-100/62">
-										Alle qualifizierten Teams starten im Upper Bracket. Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.
-									</p>
-								</div>
+							{structure.format === "single-elimination" ? (
+								<InlineToggle
+									label="Spiel um Platz 3"
+									detail="Die beiden Verlierer der Halbfinals spielen um Platz 3."
+									active={structure.thirdPlaceMatch}
+									onClick={() => updateStructure({ thirdPlaceMatch: !structure.thirdPlaceMatch })}
+								/>
 							) : null}
-							<div className="sm:col-span-2 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4">
-								<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
-								<div className="mt-2 text-sm font-black text-emerald-50">{plan.stage}</div>
-								<div className="mt-1 text-xs leading-5 text-emerald-100/60">{plan.qualification}</div>
-								{plan.warning ? (
-									<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-50">{plan.warning}</div>
-								) : null}
-							</div>
+							{structure.format === "double-elimination" || structure.format === "double-elimination-light" ? (
+								<InlineToggle
+									label="Bracket Reset im Grand Final"
+									detail="Gewinnt das Team aus dem Lower Bracket das Grand Final, folgt ein zweites Finale. Ohne Reset entscheidet ein Finale."
+									active={structure.grandFinalReset}
+									onClick={() => updateStructure({ grandFinalReset: !structure.grandFinalReset })}
+								/>
+							) : null}
+						</FormatGroup>
+
+						<FormatGroup title="Serienlänge">
+							{(
+								[
+									["dayOne", "Play-in & Tag 1"],
+									["playoffs", "Playoffs"],
+									["finals", "Finale"],
+								] as const
+							).map(([key, label]) => (
+								<label key={key} className="text-xs font-bold text-emerald-100/62">
+									{label}
+									<ThemedSelect
+										value={String(structure.bestOf[key])}
+										onChange={(value) => updateStructure({ bestOf: { ...structure.bestOf, [key]: Number(value) as BestOf } })}
+										ariaLabel={`Serienlänge ${label}`}
+										options={BEST_OF_VALUES.map((value) => ({
+											value: String(value),
+											label: `Best of ${value}`,
+											description: value === 1 ? "Ein Spiel entscheidet." : `Wer zuerst ${winsNeeded(value)} Spiele gewinnt.`,
+										}))}
+									/>
+								</label>
+							))}
+						</FormatGroup>
+
+						<FormatGroup title="Tabellen & Seiten">
+							{[0, 1, 2].map((index) => (
+								<label key={index} className="text-xs font-bold text-emerald-100/62">
+									{index + 1}. Tiebreaker
+									<ThemedSelect
+										value={structure.tiebreakers[index] ?? "none"}
+										onChange={(value) => updateTiebreaker(index, value === "none" ? null : (value as Tiebreaker))}
+										ariaLabel={`${index + 1}. Tiebreaker`}
+										options={[
+											...(index > 0 ? [{ value: "none", label: "Kein weiterer" }] : []),
+											...TIEBREAKERS.map((entry) => ({
+												value: entry,
+												label: TIEBREAKER_LABELS[entry],
+												disabled: structure.tiebreakers.includes(entry) && structure.tiebreakers[index] !== entry,
+											})),
+										]}
+									/>
+								</label>
+							))}
+							<label className="text-xs font-bold text-emerald-100/62">
+								Seitenwahl
+								<ThemedSelect
+									value={structure.sideSelection}
+									onChange={(value) => updateStructure({ sideSelection: value as SideSelectionRule })}
+									ariaLabel="Seitenwahl"
+									options={SIDE_SELECTION_RULES.map((rule) => ({ value: rule, label: SIDE_SELECTION_LABELS[rule] }))}
+								/>
+							</label>
+							<p className="text-[11px] leading-5 text-emerald-100/46 sm:col-span-2">{describeTiebreakers(structure.tiebreakers)}.</p>
+						</FormatGroup>
+
+						<div className="mt-4 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4" role="status">
+							<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
+							<ul className="mt-2 grid gap-1 text-sm font-bold text-emerald-50">
+								{plan.lines.map((line) => (
+									<li key={line}>{line}</li>
+								))}
+							</ul>
+							{review.errors.map((error) => (
+								<div key={error} className="mt-3 rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
+									{error}
+								</div>
+							))}
+							{review.warnings.map((warning) => (
+								<div key={warning} className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-50">
+									{warning}
+								</div>
+							))}
 						</div>
 						<button
 							type="button"
-							disabled={isPending}
+							disabled={isPending || review.errors.length > 0}
 							onClick={saveUltimateBravery}
 							className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
 						>
-							{isPending ? "Speichert…" : "Format speichern"}
+							{isPending ? "Speichert…" : review.errors.length ? "Erst Fehler beheben" : "Format speichern"}
 						</button>
 					</div>
 				) : null}
@@ -575,8 +553,25 @@ export function TournamentModePanel({
 									}
 									active={settings.fearless.lockOpponentChampions}
 									disabled={isPending}
-									onClick={toggleOpponentLocks}
+									onClick={() => saveFearless({ lockOpponentChampions: !settings.fearless.lockOpponentChampions })}
 								/>
+								<label className="mt-3 block text-xs font-bold text-emerald-100/62">
+									Fearless-Sperren gelten
+									<ThemedSelect
+										value={settings.fearless.scope}
+										disabled={isPending}
+										onChange={(value) => saveFearless({ scope: value === "series" ? "series" : "tournament" })}
+										ariaLabel="Geltungsbereich der Fearless-Sperren"
+										options={[
+											{ value: "tournament", label: "Für das ganze Turnier", description: "Ein gespielter Champion bleibt bis zum Ende gesperrt." },
+											{
+												value: "series",
+												label: "Nur innerhalb einer Serie",
+												description: "Die Sperren gelten in einer Bo3/Bo5-Serie und beginnen im nächsten Match neu.",
+											},
+										]}
+									/>
+								</label>
 							</div>
 						) : null}
 					</div>
@@ -720,5 +715,28 @@ function TogglePill({ active, disabled, onClick, label }: { active: boolean; dis
 		>
 			<span className={`block size-5 rounded-full transition ${active ? "translate-x-6 bg-lime-100 shadow-lg shadow-lime-200/30" : "bg-emerald-100/32"}`} />
 		</button>
+	);
+}
+
+function FormatGroup({ title, children }: { title: string; children: ReactNode }) {
+	return (
+		<fieldset className="mt-5 border-t border-white/8 pt-4">
+			<legend className="pr-3 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">{title}</legend>
+			<div className="mt-2 grid gap-3 sm:grid-cols-2">{children}</div>
+		</fieldset>
+	);
+}
+
+function InlineToggle({ label, detail, active, onClick }: { label: string; detail: string; active: boolean; onClick: () => void }) {
+	return (
+		<div
+			className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 sm:col-span-2 ${active ? "border-lime-200/22 bg-lime-200/[0.07]" : "border-white/10 bg-black/18"}`}
+		>
+			<div className="min-w-0">
+				<div className="text-xs font-black text-emerald-50">{label}</div>
+				<p className="mt-1 text-[11px] leading-5 text-emerald-100/50">{detail}</p>
+			</div>
+			<TogglePill active={active} disabled={false} onClick={onClick} label={`${label} umschalten`} />
+		</div>
 	);
 }

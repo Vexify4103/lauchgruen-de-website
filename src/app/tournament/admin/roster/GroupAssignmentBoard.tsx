@@ -19,17 +19,41 @@ function initialAssignments(teams: RosterTeam[], groupCount: number, plannedTeam
 	);
 }
 
+/** Random order, used for random group draws. */
+function shuffled<T>(values: T[]): T[] {
+	const result = [...values];
+	for (let index = result.length - 1; index > 0; index -= 1) {
+		const swap = Math.floor(Math.random() * (index + 1));
+		[result[index], result[swap]] = [result[swap], result[index]];
+	}
+	return result;
+}
+
 export function GroupAssignmentBoard({
-	teams,
+	teams: allTeams,
 	groupCount,
 	plannedTeamCount,
 	onSaved,
+	kind = "groups",
+	title,
+	description,
+	excludedTeamKeys = [],
+	teamStrength = {},
 }: {
 	teams: RosterTeam[];
 	groupCount: number;
 	plannedTeamCount: number;
 	onSaved?: () => void;
+	/** `seed-list`: a single ordered list (direct playoffs, seeded Swiss). */
+	kind?: "groups" | "seed-list";
+	title?: string;
+	description?: string;
+	/** Play-in teams without a Day-1 slot (still playing or knocked out). */
+	excludedTeamKeys?: string[];
+	/** Average rating per team, used for snake seeding. */
+	teamStrength?: Record<string, number>;
 }) {
+	const teams = allTeams.filter((team) => !excludedTeamKeys.includes(team.key));
 	const router = useRouter();
 	const [assignments, setAssignments] = useState(() => initialAssignments(teams, groupCount, plannedTeamCount));
 	const [message, setMessage] = useState("");
@@ -78,12 +102,36 @@ export function GroupAssignmentBoard({
 		setError("");
 	}
 
+	/** Strongest teams first; teams without a rating keep their alphabetical order at the end. */
+	function byStrength() {
+		return [...teams].sort((a, b) => (teamStrength[b.key] ?? 0) - (teamStrength[a.key] ?? 0) || a.name.localeCompare(b.name, "de"));
+	}
+
+	function distribute(order: RosterTeam[], snake: boolean) {
+		const next = new Map<string, { group: string; seed: number }>();
+		let placed = 0;
+		for (let row = 0; placed < order.length; row += 1) {
+			const rowGroups = snake && row % 2 === 1 ? [...groups].reverse() : groups;
+			let placedInRow = 0;
+			for (const group of rowGroups) {
+				if (row >= (groupSizes.get(group) ?? 0) || placed >= order.length) continue;
+				next.set(order[placed].key, { group, seed: row + 1 });
+				placed += 1;
+				placedInRow += 1;
+			}
+			if (placedInRow === 0) break;
+		}
+		setAssignments(next);
+		setMessage(snake ? "Snake-Verteilung nach Rang vorbereitet. Prüfen und speichern." : "Zufällige Verteilung vorbereitet. Prüfen und speichern.");
+		setError("");
+	}
+
 	function save() {
 		startTransition(async () => {
 			setMessage("");
 			setError("");
 			const effectiveAssignments = isSingleGroup ? new Map(orderedTeams.map((team, index) => [team.key, { group: "A", seed: index + 1 }])) : assignments;
-			const payload = Object.fromEntries(teams.map((team) => [team.key, effectiveAssignments.get(team.key) ?? null]));
+			const payload = Object.fromEntries(allTeams.map((team) => [team.key, effectiveAssignments.get(team.key) ?? null]));
 			const response = await fetch("/api/tournament/team-groups", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
@@ -105,13 +153,54 @@ export function GroupAssignmentBoard({
 		<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08160f]/86 shadow-xl shadow-black/22">
 			<header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/8 bg-gradient-to-r from-cyan-300/[0.06] to-transparent px-5 py-4">
 				<div>
-					<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">Tag 1 · Gruppenphase</div>
-					<h2 className="mt-1 text-xl font-black text-emerald-50">{isSingleGroup ? "Seed-Reihenfolge festlegen" : "Teams auf Gruppen verteilen"}</h2>
+					<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">{kind === "seed-list" ? "Tag 1 · Setzliste" : "Tag 1 · Gruppen"}</div>
+					<h2 className="mt-1 text-xl font-black text-emerald-50">{title ?? (isSingleGroup ? "Seed-Reihenfolge festlegen" : "Teams auf Gruppen verteilen")}</h2>
 					<p className="mt-1 text-xs leading-5 text-emerald-100/44">
-						{isSingleGroup
-							? "Seed #1 steht ganz oben. Die Reihenfolge erzeugt den Spielplan; die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase."
-							: "Die Slots bestimmen gleichzeitig Gruppe und initialen Seed. Die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase."}
+						{description ??
+							(isSingleGroup
+								? "Seed #1 steht ganz oben. Die Reihenfolge erzeugt den Spielplan; die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase."
+								: "Die Slots bestimmen gleichzeitig Gruppe und initialen Seed. Die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase.")}
 					</p>
+					{excludedTeamKeys.length ? (
+						<p className="mt-1 text-xs font-bold leading-5 text-amber-100/70">
+							{excludedTeamKeys.length} Play-in-Team{excludedTeamKeys.length === 1 ? "" : "s"} ohne Platz: Sieger erscheinen hier, sobald ihr Play-in-Match
+							entschieden ist.
+						</p>
+					) : null}
+				</div>
+				<div className="flex flex-wrap gap-2">
+					{isSingleGroup ? (
+						<button
+							type="button"
+							disabled={pending || teams.length === 0}
+							onClick={() => {
+								setAssignments(new Map(byStrength().map((team, index) => [team.key, { group: "A", seed: index + 1 }])));
+								setMessage("Nach Rang sortiert. Prüfen und speichern.");
+							}}
+							className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+						>
+							Nach Rang sortieren
+						</button>
+					) : (
+						<>
+							<button
+								type="button"
+								disabled={pending || teams.length === 0}
+								onClick={() => distribute(shuffled(teams), false)}
+								className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+							>
+								Zufällig verteilen
+							</button>
+							<button
+								type="button"
+								disabled={pending || teams.length === 0}
+								onClick={() => distribute(byStrength(), true)}
+								className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+							>
+								Snake nach Rang
+							</button>
+						</>
+					)}
 				</div>
 				<button
 					type="button"
@@ -224,6 +313,7 @@ export function GroupAssignmentBoard({
 			)}
 			{message || error ? (
 				<div
+					role={error ? "alert" : "status"}
 					className={`mx-4 mb-4 rounded-xl border px-3 py-2 text-xs font-bold ${error ? "border-red-300/24 bg-red-500/10 text-red-100" : "border-lime-200/20 bg-lime-200/8 text-lime-50"}`}
 				>
 					{error || message}

@@ -455,3 +455,19 @@ export async function clearUltimateBraveryRolls(): Promise<void> {
 export async function resetUltimateBraveryTestDraft(): Promise<void> {
 	await resetUltimateBraveryMatch("ub-test");
 }
+
+/**
+ * Moves a finished series game's rolls to `<matchId>#g<number>` so the next game can roll fresh
+ * builds while the archive keeps every game's builds.
+ */
+export async function archiveUltimateBraveryGameRolls(matchId: string, gameNumber: number): Promise<number> {
+	const collection = await rollsCollection();
+	const rolls = await collection.find({ matchId }).toArray();
+	if (!rolls.length) return 0;
+	const archivedMatchId = `${matchId}#g${gameNumber}`;
+	await collection.insertMany(
+		rolls.map((roll) => ({ ...roll, _id: `${archivedMatchId}:${roll.discordId}`, id: `${archivedMatchId}:${roll.discordId}`, matchId: archivedMatchId }))
+	);
+	await collection.deleteMany({ matchId });
+	return rolls.length;
+}

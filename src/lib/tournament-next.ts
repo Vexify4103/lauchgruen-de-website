@@ -14,6 +14,11 @@ import { playoffFormatLabel } from "@/lib/tournament-format";
 import { TOURNAMENT_KIND_LABELS, usesFlexibleEngine, usesUltimateBravery, type TournamentKind } from "@/lib/tournament-kind";
 import { getSwissStageState, type SwissStageState } from "@/lib/tournament-swiss";
 import { clearUltimateBraveryRolls, listAllUltimateBraveryRolls, type UltimateBraveryRoll } from "@/lib/ultimate-bravery";
+import { clearPlayIn, type PlayInPair } from "@/lib/tournament-play-in";
+import { clearStandingOverrides, type StandingOverrides } from "@/lib/tournament-standing-overrides";
+import type { StandingsResult } from "@/lib/tournament-standings";
+import type { DayOneFormat } from "@/lib/tournament-structure";
+import type { SeriesGame } from "@/lib/tournament-series";
 
 type ArchivedPlayer = Pick<TournamentTeam["players"][number], "name" | "role" | "riotId" | "verified" | "opggUrl" | "dpmUrl">;
 type ArchivedTeam = Omit<TournamentTeam, "captainRef" | "discordRoleId" | "players"> & { players: ArchivedPlayer[] };
@@ -45,6 +50,14 @@ export type TournamentArchiveSnapshot = {
 	swiss?: SwissStageState;
 	fearless?: TournamentSettings["fearless"];
 	ultimateBraveryRolls?: ArchivedUltimateBraveryRoll[];
+	/** Flexible engine: play-in pairs, final tables and staff decisions for ties. */
+	playIn?: PlayInPair[];
+	stageTables?: {
+		groups: Array<{ group: string; teams: string[]; standings: StandingsResult | null; placements: Record<number, string | null> | null }>;
+		swissStandings: StandingsResult | null;
+		playoffTable: StandingsResult | null;
+		overrides: StandingOverrides;
+	};
 };
 
 export type TournamentArchive = {
@@ -167,10 +180,18 @@ function publicTeam(team: TournamentTeam): ArchivedTeam {
 	};
 }
 
+/** Series games without the admin who recorded them. */
+function publicGames(games: SeriesGame[] | undefined): SeriesGame[] | undefined {
+	return games?.map(({ recordedBy: _recordedBy, ...game }) => {
+		void _recordedBy;
+		return game;
+	});
+}
+
 function publicMatch(match: StoredTournamentMatch): Omit<StoredTournamentMatch, "adminNote"> {
 	const { adminNote: _adminNote, ...rest } = match;
 	void _adminNote;
-	return rest;
+	return rest.games ? { ...rest, games: publicGames(rest.games) } : rest;
 }
 
 function publicWheel(wheel: TournamentWheelState): TournamentArchiveSnapshot["wheel"] {
@@ -190,7 +211,7 @@ function publicWheel(wheel: TournamentWheelState): TournamentArchiveSnapshot["wh
 function publicControlMatch(match: ControlMatch): ArchivedControlMatch {
 	const { adminNote: _adminNote, ...rest } = match;
 	void _adminNote;
-	return rest;
+	return { ...rest, games: publicGames(rest.games) ?? [] };
 }
 
 function publicRoll(roll: UltimateBraveryRoll): ArchivedUltimateBraveryRoll {
@@ -240,9 +261,19 @@ export function archiveDateLabel(structure: TournamentSettings["ultimateBravery"
 	return first ?? second ?? "Datum unbekannt";
 }
 
+const ARCHIVE_STAGE_LABELS: Record<DayOneFormat, string | null> = {
+	undecided: null,
+	none: null,
+	groups: "Gruppenphase",
+	gsl: "GSL-Gruppen",
+	swiss: "Swiss Stage",
+	"swiss-elimination": "Swiss mit Ausscheiden",
+};
+
 export function archiveFormatLabel(kind: TournamentKind, structure: TournamentSettings["ultimateBravery"]): string {
-	const stage = structure.dayOneFormat === "swiss" ? "Swiss Stage" : structure.dayOneFormat === "groups" ? "Gruppenphase" : null;
-	return [stage, playoffFormatLabel(structure.format), TOURNAMENT_KIND_LABELS[kind]].filter(Boolean).join(" + ");
+	const playIn = structure.playInTeamCount > 0 ? "Play-in" : null;
+	const series = structure.bestOf.finals > 1 ? `Finale Bo${structure.bestOf.finals}` : null;
+	return [playIn, ARCHIVE_STAGE_LABELS[structure.dayOneFormat], playoffFormatLabel(structure.format), series, TOURNAMENT_KIND_LABELS[kind]].filter(Boolean).join(" + ");
 }
 
 /**
@@ -268,7 +299,9 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 		readTournamentState(ctx.groupMatches),
 		getTournamentWheelState(),
 		listDraftStates(),
-		flexible && settings.ultimateBravery.dayOneFormat === "swiss" ? getSwissStageState(active.id) : Promise.resolve(null),
+		flexible && (settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination")
+			? getSwissStageState(active.id)
+			: Promise.resolve(null),
 		usesUltimateBravery(active) ? listAllUltimateBraveryRolls() : Promise.resolve([]),
 	]);
 	const snapshot: TournamentArchiveSnapshot = {
@@ -289,6 +322,17 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 			: {}),
 		...(active.kind === "fearless" ? { fearless: settings.fearless } : {}),
 		...(rolls.length > 0 ? { ultimateBraveryRolls: rolls.map(publicRoll) } : {}),
+		...(control.stages
+			? {
+					...(control.stages.playIn ? { playIn: control.stages.playIn.pairs } : {}),
+					stageTables: {
+						groups: control.stages.dayOne.groups.map(({ group, teams, standings, placements }) => ({ group, teams, standings, placements })),
+						swissStandings: control.stages.dayOne.swissStandings,
+						playoffTable: control.stages.playoffs.table,
+						overrides: control.stages.overrides,
+					},
+				}
+			: {}),
 	};
 	const archive = await upsertTournamentArchive({
 		id: active.id,
@@ -321,6 +365,8 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 		clearDraftStates(),
 		clearTournamentWheel(),
 		clearUltimateBraveryRolls(),
+		clearPlayIn(),
+		clearStandingOverrides(active.id),
 	]);
 	await updateTournamentSettings({
 		patch: {

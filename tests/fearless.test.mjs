@@ -34,3 +34,35 @@ test("ignores the champions of the match being drafted", () => {
 	const locks = computeFearlessLocks({ matches: history, matchId: "swiss-1-1", blueTeamName: "Alpha", redTeamName: "Bravo", rules: { lockOpponentChampions: true } });
 	assert.deepEqual(locks, { teamA: {}, teamB: {} });
 });
+
+const series = [
+	...history,
+	{
+		id: "ub-r1-1",
+		round: "Viertelfinale 1",
+		teamAName: "Alpha",
+		teamBName: "Bravo",
+		teamAChampions: ["Thresh"],
+		teamBChampions: ["Kaisa"],
+		games: [{ number: 1, teamAChampions: ["Orianna"], teamBChampions: ["Nautilus"] }],
+	},
+];
+
+test("earlier games of the running series lock their champions, the running game does not", () => {
+	const locks = computeFearlessLocks({ matches: series, matchId: "ub-r1-1", blueTeamName: "Alpha", redTeamName: "Bravo", rules: { lockOpponentChampions: false } });
+	assert.deepEqual(Object.keys(locks.teamA).sort(), ["Ahri", "Garen", "Orianna"]);
+	assert.equal(locks.teamA.Orianna.round, "Viertelfinale 1 · Spiel 1");
+	assert.equal(locks.teamA.Thresh, undefined);
+});
+
+test("series scope only locks champions from the same series", () => {
+	const locks = computeFearlessLocks({
+		matches: series,
+		matchId: "ub-r1-1",
+		blueTeamName: "Alpha",
+		redTeamName: "Bravo",
+		rules: { lockOpponentChampions: true, scope: "series" },
+	});
+	assert.deepEqual(Object.keys(locks.teamA).sort(), ["Nautilus", "Orianna"]);
+	assert.deepEqual(Object.keys(locks.teamB).sort(), ["Nautilus", "Orianna"]);
+});

@@ -2,6 +2,18 @@ import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_APPLICATION_DEADLINE, TOURNAMENT_APPLICATION_OPEN_AT } from "@/lib/tournament-application-deadline";
 import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
+import {
+	BEST_OF_VALUES,
+	DAY_ONE_FORMATS,
+	DEFAULT_STRUCTURE_OPTIONS,
+	PLAYOFF_FORMATS,
+	SIDE_SELECTION_RULES,
+	TIEBREAKERS,
+	deriveStructure,
+	isOneOf,
+	type BestOf,
+	type StructureConfig,
+} from "@/lib/tournament-structure";
 
 export { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 export { TOURNAMENT_KINDS, type TournamentKind } from "@/lib/tournament-kind";
@@ -25,22 +37,17 @@ export type TournamentSettings = {
 	fearless: {
 		/** Also lock every champion the current opponent has played earlier in the tournament. */
 		lockOpponentChampions: boolean;
+		/** `tournament`: a champion stays locked for the rest of the event. `series`: only within one Bo3/Bo5. */
+		scope: "tournament" | "series";
 	};
 	/**
 	 * Tournament structure for every flexible-engine kind (Ultimate Bravery and Fearless).
 	 * The key keeps its original name so existing settings documents stay readable.
 	 */
-	ultimateBravery: {
+	ultimateBravery: StructureConfig & {
 		startAt: string | null;
 		dayTwoStartAt: string | null;
-		teamCount: number;
 		playersPerTeam: number;
-		dayOneFormat: "undecided" | "groups" | "swiss";
-		groupCount: number;
-		groupRoundRobinLegs: 1 | 2;
-		swissRounds: number;
-		advanceTeamCount: number;
-		format: "undecided" | "double-elimination" | "double-elimination-light" | "single-elimination";
 		minimumSummonerLevel: number;
 		rerollsPerPlayer: number;
 		prizePool: string;
@@ -77,7 +84,7 @@ function defaultSettings(): TournamentSettings {
 		applicationDeadline: TOURNAMENT_APPLICATION_DEADLINE,
 		tournamentLive: envFlag("TOURNAMENT_LIVE", false),
 		draftEnabled: envFlag("TOURNAMENT_DRAFT_ENABLED", true),
-		fearless: { lockOpponentChampions: false },
+		fearless: { lockOpponentChampions: false, scope: "tournament" },
 		ultimateBravery: {
 			startAt: null,
 			dayTwoStartAt: null,
@@ -89,6 +96,9 @@ function defaultSettings(): TournamentSettings {
 			swissRounds: 3,
 			advanceTeamCount: 4,
 			format: "double-elimination",
+			...DEFAULT_STRUCTURE_OPTIONS,
+			bestOf: { ...DEFAULT_STRUCTURE_OPTIONS.bestOf },
+			tiebreakers: [...DEFAULT_STRUCTURE_OPTIONS.tiebreakers],
 			minimumSummonerLevel: 100,
 			rerollsPerPlayer: 2,
 			prizePool: "Wird noch angekündigt",
@@ -120,32 +130,37 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		dayTwoStartAt: normalizeOptionalDate(storedDates.dayTwoStartAt, defaults.ultimateBravery.dayTwoStartAt),
 	};
 	const teamCount = clampInteger(mergedUltimateBravery.teamCount, 2, 32, defaults.ultimateBravery.teamCount);
-	const ultimateBravery: TournamentSettings["ultimateBravery"] = {
+	const storedBestOf: Partial<Record<keyof TournamentSettings["ultimateBravery"]["bestOf"], unknown>> =
+		mergedUltimateBravery.bestOf && typeof mergedUltimateBravery.bestOf === "object" ? mergedUltimateBravery.bestOf : {};
+	const bestOf = (value: unknown, fallback: BestOf): BestOf => (isOneOf(BEST_OF_VALUES, value) ? value : fallback);
+	const tiebreakers = Array.isArray(mergedUltimateBravery.tiebreakers) ? mergedUltimateBravery.tiebreakers.filter((entry) => isOneOf(TIEBREAKERS, entry)) : [];
+	const ultimateBravery: TournamentSettings["ultimateBravery"] = deriveStructure({
 		...mergedUltimateBravery,
 		teamCount,
 		playersPerTeam: clampInteger(mergedUltimateBravery.playersPerTeam, 5, 10, defaults.ultimateBravery.playersPerTeam),
-		dayOneFormat: mergedUltimateBravery.dayOneFormat === "swiss" || mergedUltimateBravery.dayOneFormat === "groups" ? mergedUltimateBravery.dayOneFormat : "undecided",
+		dayOneFormat: isOneOf(DAY_ONE_FORMATS, mergedUltimateBravery.dayOneFormat) ? mergedUltimateBravery.dayOneFormat : "undecided",
 		groupCount: clampInteger(mergedUltimateBravery.groupCount, 1, teamCount, defaults.ultimateBravery.groupCount),
 		groupRoundRobinLegs: mergedUltimateBravery.groupRoundRobinLegs === 2 ? 2 : 1,
 		swissRounds: clampInteger(mergedUltimateBravery.swissRounds, 1, 10, defaults.ultimateBravery.swissRounds),
+		swissWinsToAdvance: mergedUltimateBravery.swissWinsToAdvance === 2 ? 2 : 3,
+		swissRoundOneSeeding: mergedUltimateBravery.swissRoundOneSeeding === "seeded" ? "seeded" : "random",
+		playInTeamCount: clampInteger(mergedUltimateBravery.playInTeamCount, 0, teamCount, 0),
 		advanceTeamCount: clampInteger(mergedUltimateBravery.advanceTeamCount, 2, teamCount, Math.min(defaults.ultimateBravery.advanceTeamCount, teamCount)),
-		format:
-			mergedUltimateBravery.format === "single-elimination" ||
-			mergedUltimateBravery.format === "double-elimination" ||
-			mergedUltimateBravery.format === "double-elimination-light"
-				? mergedUltimateBravery.format
-				: "undecided",
+		format: isOneOf(PLAYOFF_FORMATS, mergedUltimateBravery.format) ? mergedUltimateBravery.format : "undecided",
+		bestOf: {
+			dayOne: bestOf(storedBestOf.dayOne, 1),
+			playoffs: bestOf(storedBestOf.playoffs, 1),
+			finals: bestOf(storedBestOf.finals, 1),
+		},
+		thirdPlaceMatch: mergedUltimateBravery.thirdPlaceMatch === true,
+		grandFinalReset: mergedUltimateBravery.grandFinalReset === true,
+		tiebreakers: tiebreakers.length ? tiebreakers : [...DEFAULT_STRUCTURE_OPTIONS.tiebreakers],
+		sideSelection: isOneOf(SIDE_SELECTION_RULES, mergedUltimateBravery.sideSelection) ? mergedUltimateBravery.sideSelection : "higher-seed",
 		minimumSummonerLevel: clampInteger(mergedUltimateBravery.minimumSummonerLevel, 1, 1000, defaults.ultimateBravery.minimumSummonerLevel),
 		rerollsPerPlayer: clampInteger(mergedUltimateBravery.rerollsPerPlayer, 0, 5, defaults.ultimateBravery.rerollsPerPlayer),
 		prizePool:
 			typeof mergedUltimateBravery.prizePool === "string" && mergedUltimateBravery.prizePool.trim() ? mergedUltimateBravery.prizePool : defaults.ultimateBravery.prizePool,
-	};
-	if (ultimateBravery.dayOneFormat === "swiss") {
-		const allTeamsAdvance = ultimateBravery.advanceTeamCount === ultimateBravery.teamCount;
-		const winsToAdvance = Math.max(2, Math.ceil(Math.log2(teamCount)) - 1);
-		ultimateBravery.advanceTeamCount = allTeamsAdvance ? teamCount : Math.max(2, Math.floor(teamCount / 2));
-		ultimateBravery.swissRounds = allTeamsAdvance ? (teamCount === 8 ? 4 : Math.max(2, Math.ceil(Math.log2(teamCount)) + 1)) : winsToAdvance * 2 - 1;
-	}
+	});
 	return {
 		...defaults,
 		id: DOC_ID,
@@ -158,6 +173,7 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		draftEnabled: typeof rest.draftEnabled === "boolean" ? rest.draftEnabled : defaults.draftEnabled,
 		fearless: {
 			lockOpponentChampions: typeof rest.fearless?.lockOpponentChampions === "boolean" ? rest.fearless.lockOpponentChampions : defaults.fearless.lockOpponentChampions,
+			scope: rest.fearless?.scope === "series" ? "series" : "tournament",
 		},
 		ultimateBravery,
 		updatedAt: typeof rest.updatedAt === "string" && !Number.isNaN(new Date(rest.updatedAt).getTime()) ? rest.updatedAt : defaults.updatedAt,

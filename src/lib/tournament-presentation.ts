@@ -59,9 +59,28 @@ export function formatTournamentDay(value: string | null, withTime = true): stri
 }
 
 export function stageLabel(structure: TournamentSettings["ultimateBravery"]): string | null {
-	if (structure.dayOneFormat === "swiss") return "Swiss Stage";
-	if (structure.dayOneFormat === "groups") return structure.groupCount === 1 ? "Gruppenphase" : `${structure.groupCount} Gruppen`;
-	return null;
+	switch (structure.dayOneFormat) {
+		case "swiss":
+			return "Swiss Stage";
+		case "swiss-elimination":
+			return "Swiss mit Ausscheiden";
+		case "groups":
+			return structure.groupCount === 1 ? "Gruppenphase" : `${structure.groupCount} Gruppen`;
+		case "gsl":
+			return `${structure.groupCount} GSL-Gruppen`;
+		case "none":
+			return "Setzliste";
+		case "undecided":
+			return null;
+	}
+}
+
+/** "Best of 1", or the split when stages differ ("Bo1 · Finale Bo3"). */
+export function seriesLabel(structure: TournamentSettings["ultimateBravery"]): string {
+	const { dayOne, playoffs, finals } = structure.bestOf;
+	if (dayOne === playoffs && playoffs === finals) return `Best of ${dayOne}`;
+	if (dayOne === playoffs) return `Bo${dayOne} · Finale Bo${finals}`;
+	return `Tag 1 Bo${dayOne} · Playoffs Bo${playoffs}${finals !== playoffs ? ` · Finale Bo${finals}` : ""}`;
 }
 
 export function buildTournamentHero(input: { settings: TournamentSettings; teamCount: number; applicationsOpen: boolean; championTeamName?: string | null }): TournamentHeroData {
@@ -72,8 +91,9 @@ export function buildTournamentHero(input: { settings: TournamentSettings; teamC
 	const pills = [
 		...(days.length ? days : ["Termin folgt"]),
 		stageLabel(structure),
+		structure.playInTeamCount > 0 ? "Play-in" : null,
 		playoffFormatLabel(structure.format),
-		"Best of 1",
+		seriesLabel(structure),
 		TOURNAMENT_KIND_LABELS[active.kind],
 		active.kind === "fearless" ? (settings.fearless.lockOpponentChampions ? "Eigene + gegnerische Picks gesperrt" : "Eigene Picks gesperrt") : null,
 		`Level ${structure.minimumSummonerLevel}+`,
@@ -134,7 +154,12 @@ export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
 	const structure = settings.ultimateBravery;
 	const days = [formatTournamentDay(structure.startAt, false), formatTournamentDay(structure.dayTwoStartAt, false)].filter(Boolean);
 	const common: RulebookEntry[] = [
-		{ title: "Alle Spiele Best of 1", text: "Jedes Match ist ein einzelnes Spiel. Ergebnisse zählen direkt für den weiteren Turnierverlauf." },
+		structure.bestOf.dayOne === 1 && structure.bestOf.playoffs === 1 && structure.bestOf.finals === 1
+			? { title: "Alle Spiele Best of 1", text: "Jedes Match ist ein einzelnes Spiel. Ergebnisse zählen direkt für den weiteren Turnierverlauf." }
+			: {
+					title: seriesLabel(structure),
+					text: "Serien gewinnt, wer zuerst die nötigen Spiele gewinnt. Nach jedem Spiel startet der Champ Select neu; die Seitenwahl folgt der Turnierregel.",
+				},
 		{
 			title: days.length ? `Beide Tage einplanen · ${days.join(" & ")}` : "Beide Turniertage einplanen",
 			text: "Mit der Bewerbung meldest du dich verbindlich für alle Spieltage an. Bitte sei 20 Minuten vor Start im Voice-Call.",
@@ -150,9 +175,13 @@ export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
 				...common,
 				{
 					title: "Fearless: gespielte Champions sind gesperrt",
-					text: settings.fearless.lockOpponentChampions
-						? "Jeder Champion, den dein Team im Turnier gespielt hat, ist für dein Team gesperrt. Zusätzlich darfst du nichts picken, was dein aktueller Gegner bereits gespielt hat."
-						: "Jeder Champion, den dein Team im Turnier gespielt hat, ist für den Rest des Turniers für dein Team gesperrt. Was andere Teams spielen, bleibt für euch frei.",
+					text:
+						(settings.fearless.scope === "series"
+							? "Jeder Champion, den dein Team in einer Serie gespielt hat, ist für die restlichen Spiele dieser Serie gesperrt; im nächsten Match beginnt es neu."
+							: "Jeder Champion, den dein Team im Turnier gespielt hat, ist für den Rest des Turniers für dein Team gesperrt.") +
+						(settings.fearless.lockOpponentChampions
+							? " Zusätzlich darfst du nichts picken, was dein aktueller Gegner bereits gespielt hat."
+							: " Was andere Teams spielen, bleibt für euch frei."),
 				},
 				{
 					title: "Champ Select auf der Website",

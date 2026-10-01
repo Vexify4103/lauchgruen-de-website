@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import type { SwissAuditEntry, SwissPairing, SwissStageState, SwissTeam } from "@/lib/tournament-swiss";
+import type { SwissAuditEntry, SwissCrossRecordPair, SwissPairing, SwissStageState, SwissTeam } from "@/lib/tournament-swiss";
 
 type Props = {
 	initialState: SwissStageState;
@@ -23,6 +23,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	const [roulette, setRoulette] = useState<[string, string] | null>(null);
 	const [revealed, setRevealed] = useState(false);
 	const [audit, setAudit] = useState(initialAudit);
+	const [crossRecord, setCrossRecord] = useState<{ round: number; pairs: SwissCrossRecordPair[] } | null>(null);
 	const lastRound = state.rounds.at(-1);
 	const finished = state.rounds.length >= configuredRounds && Boolean(lastRound?.complete);
 	const targetRound = lastRound && !lastRound.complete ? lastRound.round : state.rounds.length + 1;
@@ -30,7 +31,8 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	const unresolvedCurrentRound = Boolean(lastRound?.complete && lastRound.pairings.some((pairing) => !pairing.bye && !pairing.winnerTeamKey));
 	const targetBracket = state.nextBracket ?? (state.rounds.length === 0 ? "0-0" : unresolvedCurrentRound ? "Ergebnisse offen" : nextRecordBracket(state, testTeams));
 
-	function draw() {
+	function draw(allowCrossRecord = false) {
+		setCrossRecord(null);
 		setMessage("");
 		setError("");
 		setDrawing(true);
@@ -47,15 +49,24 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 			const response = await fetch("/api/tournament/swiss", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ action: "draw", test: testMode }),
+				body: JSON.stringify({ action: "draw", test: testMode, allowCrossRecord }),
 			});
 			const json = (await response.json().catch(() => null)) as {
 				state?: SwissStageState;
-				round?: { round: number; complete: boolean };
+				round?: { round: number; complete: boolean } | number;
 				pairing?: SwissPairing;
 				message?: string;
+				code?: string;
+				crossRecordPairs?: SwissCrossRecordPair[];
 			} | null;
-			if (!response.ok || !json?.state || !json.pairing) {
+			if (json?.code === "cross-record-required" && json.crossRecordPairs) {
+				// Nothing was stored: the admin decides whether pairings across score pools are acceptable.
+				setCrossRecord({ round: typeof json.round === "number" ? json.round : targetRound, pairs: json.crossRecordPairs });
+				setRoulette(null);
+				setDrawing(false);
+				return;
+			}
+			if (!response.ok || !json?.state || !json.pairing || typeof json.round === "number") {
 				setError(json?.message ?? "Swiss-Paarung konnte nicht ausgelost werden.");
 				setRoulette(null);
 				setDrawing(false);
@@ -150,7 +161,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 					<h2 className="mt-1 text-2xl font-black text-emerald-50">Eine Paarung nach der anderen.</h2>
 					<p className="mt-2 max-w-2xl text-xs leading-5 text-emerald-100/48">
 						{testMode
-							? "Sieger verändern die Bilanz-Brackets der nächsten Runde. Paarungen bleiben zufällig, Rematches sind ausgeschlossen."
+							? "Sieger verändern die Bilanz-Brackets der nächsten Runde. Gepaart wird zufällig innerhalb derselben Bilanz, Rematches sind ausgeschlossen."
 							: "Die gültige Runde wird verdeckt vorbereitet. Jeder Klick enthüllt mit Animation genau ein Match; frühere Gegner bleiben serverseitig gesperrt."}
 					</p>
 				</div>
@@ -164,7 +175,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 					<button
 						type="button"
 						disabled={drawing || finished || teams.length < 2 || unresolvedCurrentRound}
-						onClick={draw}
+						onClick={() => draw()}
 						className="rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-cyan-950/30 disabled:opacity-40"
 					>
 						{drawing
@@ -231,6 +242,29 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 					</div>
 				</details>
 			) : null}
+			<ConfirmDialog
+				open={Boolean(crossRecord)}
+				title={`Runde ${crossRecord?.round ?? targetRound}: bilanzübergreifend paaren?`}
+				description={
+					<>
+						In mindestens einer Bilanzgruppe gibt es keine Paarung ohne Rematch. Es wurde nichts gespeichert. Mit Freigabe lost der Server die Runde mit den wenigsten
+						bilanzübergreifenden Paarungen aus, zum Beispiel:
+						<ul className="mt-3 grid gap-1 font-bold">
+							{crossRecord?.pairs.map((pair) => (
+								<li key={`${pair.teamA}-${pair.teamB}`}>
+									{pair.teamA} ({pair.recordA}) gegen {pair.teamB} ({pair.recordB})
+								</li>
+							))}
+						</ul>
+						<span className="mt-3 block">Die Freigabe wird im Auslosungsprotokoll vermerkt.</span>
+					</>
+				}
+				confirmLabel="Freigeben und auslosen"
+				cancelLabel="Abbrechen"
+				tone="danger"
+				onConfirm={() => draw(true)}
+				onCancel={() => setCrossRecord(null)}
+			/>
 			<ConfirmDialog
 				open={redrawOpen}
 				title="Aktuelle Swiss-Runde neu auslosen?"

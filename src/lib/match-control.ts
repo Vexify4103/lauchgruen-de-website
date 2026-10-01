@@ -1,16 +1,19 @@
-import { computeGroupStandings, resolvePlayoffMatches, type ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
+import { resolvePlayoffMatches, type ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
+import type { BracketLayout, BracketStage } from "@/lib/bracket-engine";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { readTournamentState, type StoredTournamentMatch } from "@/lib/tournament-storage";
 import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { getSwissStageState } from "@/lib/tournament-swiss";
-import { computeUltimateBraveryGroupSeeds, resolveUltimateBraveryPlayoffMatches } from "@/lib/ultimate-bravery-playoffs";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import type { SeriesGame } from "@/lib/tournament-series";
+import { buildFlexibleStages, type FlexibleStages } from "@/lib/tournament-stages";
 
 export type ControlMatch = {
 	id: string;
-	phase: "groups" | "playoffs";
+	phase: "play-in" | "groups" | "playoffs";
+	/** Flexible engine: which best-of setting applies. */
+	stage?: BracketStage;
 	bracket?: "Upper" | "Lower" | "Grand";
 	round: string;
 	time: string;
@@ -28,8 +31,16 @@ export type ControlMatch = {
 	isCasted?: boolean;
 	winner?: string;
 	adminNote?: string;
+	/** Team that picks the side for the next game, if the side rule leaves it to a team. */
 	sideSelectionTeamName?: string;
 	sideSelectionSeed?: number;
+	bestOf: number;
+	games: SeriesGame[];
+	group?: string;
+	layout?: BracketLayout;
+	sources?: { teamA?: string; teamB?: string };
+	/** Bracket reset that is only played when the lower-bracket finalist wins the grand final. */
+	conditional?: boolean;
 	poolAssignment: WheelMatchAssignment | null;
 };
 
@@ -37,6 +48,8 @@ export type MatchControlContext = {
 	teams: TournamentTeam[];
 	matches: ControlMatch[];
 	stored: Record<string, StoredTournamentMatch>;
+	/** Only for the flexible kinds. */
+	stages: FlexibleStages | null;
 };
 
 function poolForMatch(history: WheelMatchAssignment[], current: WheelMatchAssignment | null, matchId: string) {
@@ -63,6 +76,8 @@ function groupToControlMatch(match: GroupMatch, stored: StoredTournamentMatch | 
 		isCasted: stored?.isCasted ?? false,
 		winner: stored?.winner,
 		adminNote: stored?.adminNote,
+		bestOf: 1,
+		games: [],
 		poolAssignment: assignment,
 	};
 }
@@ -87,6 +102,8 @@ function playoffToControlMatch(match: ResolvedPlayoffMatch, stored: StoredTourna
 		isCasted: stored?.isCasted ?? false,
 		winner: stored?.winner ?? match.winner ?? undefined,
 		adminNote: stored?.adminNote,
+		bestOf: 1,
+		games: [],
 		poolAssignment: assignment,
 	};
 }
@@ -94,69 +111,16 @@ function playoffToControlMatch(match: ResolvedPlayoffMatch, stored: StoredTourna
 export async function getMatchControlContext(): Promise<MatchControlContext> {
 	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
+	const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
 	if (usesFlexibleEngine(settings.activeTournament)) {
-		const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
-		if (settings.ultimateBravery.dayOneFormat === "groups") {
-			const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
-			const seeds = computeUltimateBraveryGroupSeeds(standings, ctx.groupMatches, settings.ultimateBravery.advanceTeamCount);
-			const groupMatches = ctx.groupMatches.map((match) => groupToControlMatch(match, state.matches[match.id], assignment(match.id)));
-			const playoffMatches = resolveUltimateBraveryPlayoffMatches({
-				format: settings.ultimateBravery.format,
-				teams: ctx.teams,
-				stored: state.matches,
-				seedNames: seeds,
-				playoffTeamCount: settings.ultimateBravery.advanceTeamCount,
-				seedSourceLabel: "Gruppenphasen-Seed",
-			}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: assignment(match.id) }));
-			return { teams: ctx.teams, stored: state.matches, matches: [...groupMatches, ...playoffMatches] };
-		}
-		if (settings.ultimateBravery.dayOneFormat !== "swiss") return { teams: ctx.teams, stored: state.matches, matches: [] };
-		const swiss = await getSwissStageState(settings.activeTournament.id);
-		const swissMatches: ControlMatch[] = swiss.rounds.flatMap((round) =>
-			round.pairings.flatMap((pairing) => {
-				if (pairing.bye || !pairing.teamBName) return [];
-				const stored = state.matches[pairing.id];
-				return [
-					{
-						id: pairing.id,
-						phase: "groups" as const,
-						round: `Swiss Runde ${round.round}`,
-						time: "Rolling Schedule",
-						teamAName: pairing.teamAName,
-						teamBName: pairing.teamBName,
-						teamALabel: pairing.teamAName,
-						teamBLabel: pairing.teamBName,
-						status: stored?.status ?? "Scheduled",
-						scoreA: stored?.scoreA,
-						scoreB: stored?.scoreB,
-						gameDurationSeconds: stored?.gameDurationSeconds,
-						teamAChampions: stored?.teamAChampions ?? [],
-						teamBChampions: stored?.teamBChampions ?? [],
-						blueSide: stored?.blueSide ?? "teamA",
-						isCasted: stored?.isCasted ?? false,
-						winner: stored?.winner,
-						adminNote: stored?.adminNote,
-						poolAssignment: assignment(pairing.id),
-					},
-				];
-			})
-		);
-		const playoffMatches = resolveUltimateBraveryPlayoffMatches({
-			format: settings.ultimateBravery.format,
-			swiss,
-			teams: ctx.teams,
-			requiredRounds: settings.ultimateBravery.swissRounds,
-			stored: state.matches,
-			playoffTeamCount: settings.ultimateBravery.advanceTeamCount,
-		}).map((match) => ({ ...match, phase: "playoffs" as const, poolAssignment: assignment(match.id) }));
-		return { teams: ctx.teams, stored: state.matches, matches: [...swissMatches, ...playoffMatches] };
+		const { matches, stages } = await buildFlexibleStages({ settings, ctx, stored: state.matches, assignment });
+		return { teams: ctx.teams, stored: state.matches, matches, stages };
 	}
 	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
-	const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
-
 	return {
 		teams: ctx.teams,
 		stored: state.matches,
+		stages: null,
 		matches: [
 			...ctx.groupMatches.map((match) => groupToControlMatch(match, state.matches[match.id], assignment(match.id))),
 			...playoffs.map((match) => playoffToControlMatch(match, state.matches[match.id], assignment(match.id))),

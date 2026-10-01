@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
-import { computeSwissRecords, findExactSwissRecordMatching, placementSwissCandidates, type SwissRuleRecord } from "@/lib/tournament-swiss-rules";
+import { computeSwissRecords, placementSwissCandidates, planSwissRecordRound, validateSwissRoundPlan, type SwissRuleRecord } from "@/lib/tournament-swiss-rules";
+import { seriesWinnerSide } from "@/lib/tournament-series";
 
 const COLLECTION = "tournament_swiss_stages";
 const AUDIT_COLLECTION = "tournament_swiss_audit";
@@ -50,6 +51,24 @@ export type SwissAuditEntry = {
 };
 
 type SwissAuditDoc = Omit<SwissAuditEntry, "id"> & { _id: string };
+
+export type SwissCrossRecordPair = { teamA: string; recordA: string; teamB: string; recordB: string };
+
+/** Thrown when a round can only be paired across score pools; the admin has to approve that explicitly. */
+export class SwissCrossRecordError extends Error {
+	readonly code = "cross-record-required";
+	readonly round: number;
+	readonly crossRecordPairs: SwissCrossRecordPair[];
+	constructor(round: number, crossRecordPairs: SwissCrossRecordPair[]) {
+		super(
+			`Runde ${round} lässt sich nicht innerhalb der Bilanzgruppen ohne Rematch paaren. Nötig wären ${crossRecordPairs.length} bilanzübergreifende Paarung(en): ${crossRecordPairs
+				.map((pair) => `${pair.teamA} (${pair.recordA}) gegen ${pair.teamB} (${pair.recordB})`)
+				.join(", ")}.`
+		);
+		this.round = round;
+		this.crossRecordPairs = crossRecordPairs;
+	}
+}
 
 async function writeSwissAudit(entry: Omit<SwissAuditEntry, "id" | "createdAt">) {
 	const document: SwissAuditDoc = { _id: crypto.randomUUID(), ...entry, createdAt: new Date().toISOString() };
@@ -105,32 +124,6 @@ function recordLabel(record: SwissRecord) {
 	return `${record.wins}-${record.losses}`;
 }
 
-function findRecordMatching(teams: SwissTeam[], records: Map<string, SwissRecord>, previousOpponents: Set<string>): Array<[SwissTeam, SwissTeam]> | null {
-	function distance(first: SwissTeam, second: SwissTeam) {
-		const a = records.get(first.key)!;
-		const b = records.get(second.key)!;
-		return Math.abs(a.wins - b.wins) + Math.abs(a.losses - b.losses);
-	}
-	function solve(remaining: SwissTeam[]): Array<[SwissTeam, SwissTeam]> | null {
-		if (!remaining.length) return [];
-		const [first, ...rest] = remaining;
-		const candidates = shuffle(rest).sort((a, b) => distance(first, a) - distance(first, b));
-		for (const opponent of candidates) {
-			if (previousOpponents.has(opponentKey(first.key, opponent.key))) continue;
-			const tail = solve(rest.filter((team) => team.key !== opponent.key));
-			if (tail) return [[first, opponent], ...tail];
-		}
-		return null;
-	}
-	return solve(
-		shuffle(teams).sort((a, b) => {
-			const first = records.get(a.key)!;
-			const second = records.get(b.key)!;
-			return second.wins - first.wins || first.losses - second.losses;
-		})
-	);
-}
-
 export async function listSwissTeams(): Promise<SwissTeam[]> {
 	const db = await getDb();
 	const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
@@ -181,6 +174,14 @@ export async function drawNextSwissMatchup(input: {
 	placementSwiss?: boolean;
 	requireCompletedRound?: boolean;
 	syncMatchResults?: boolean;
+	/** Explicit admin approval for pairings across score pools when no clean round exists. */
+	allowCrossRecord?: boolean;
+	/** Series length of Swiss matches; a result only counts once the series is decided. */
+	bestOf?: number;
+	/** Swiss with elimination: teams with this many wins or losses stop playing. */
+	eliminationThreshold?: number;
+	/** Seeded round 1: team keys from best to worst; #1 meets the first team of the lower half. */
+	roundOneOrder?: string[];
 }) {
 	const [document, teams] = await Promise.all([getSwissStageDocument(input.tournamentId), input.teams ? Promise.resolve(input.teams) : listSwissTeams()]);
 	const matchPrefix = input.matchPrefix ?? "swiss";
@@ -229,13 +230,23 @@ export async function drawNextSwissMatchup(input: {
 					.toArray()
 			: [];
 		const byId = new Map(matches.map((match) => [match.id, match]));
+		const latestRound = rounds.at(-1)?.round;
 		let changed = false;
 		for (const round of rounds)
 			for (const pairing of round.pairings) {
-				if (pairing.bye || pairing.winnerTeamKey) continue;
+				if (pairing.bye) continue;
 				const match = byId.get(pairing.id);
-				if (match?.scoreA === undefined || match.scoreB === undefined || match.scoreA === match.scoreB) continue;
-				pairing.winnerTeamKey = match.scoreA > match.scoreB ? pairing.teamAKey : (pairing.teamBKey ?? undefined);
+				const decided = seriesWinnerSide(match?.scoreA, match?.scoreB, input.bestOf ?? 1);
+				if (!decided) continue;
+				const winnerTeamKey = decided === "teamA" ? pairing.teamAKey : (pairing.teamBKey ?? undefined);
+				if (pairing.winnerTeamKey === winnerTeamKey) continue;
+				// Later rounds were paired from the stored winner, so an older result may not flip silently.
+				if (pairing.winnerTeamKey && round.round !== latestRound) {
+					throw new Error(
+						`Das Ergebnis von ${pairing.teamAName} gegen ${pairing.teamBName} (Runde ${round.round}) passt nicht mehr zur Swiss-Historie. Bitte zuerst klären, bevor weiter ausgelost wird.`
+					);
+				}
+				pairing.winnerTeamKey = winnerTeamKey;
 				changed = true;
 			}
 		if (changed) await db.collection<SwissStageDoc>(COLLECTION).updateOne({ _id: input.tournamentId }, { $set: { rounds, updatedAt: new Date().toISOString() } });
@@ -259,35 +270,79 @@ export async function drawNextSwissMatchup(input: {
 	const records = computeSwissRecords(teams, rounds);
 	const placementSwiss = input.placementSwiss === true && teams.length === 8 && input.maximumRounds === 4;
 	const previousPairings = rounds.find((round) => round.round === nextRound - 1)?.pairings ?? [];
-	let candidates = placementSwiss ? placementSwissCandidates(teams, previousPairings, nextRound) : teams;
+	const threshold = input.eliminationThreshold;
+	const candidates = placementSwiss
+		? placementSwissCandidates(teams, previousPairings, nextRound)
+		: threshold
+			? teams.filter((team) => {
+					const record = records.get(team.key)!;
+					return record.wins < threshold && record.losses < threshold;
+				})
+			: teams;
 	if (placementSwiss && nextRound === 4 && candidates.length !== 4) {
 		throw new Error("Runde 4 benötigt genau die vier Teams aus den Bilanzgruppen 2-1 und 1-2.");
 	}
+	if (!candidates.length) throw new Error("Alle Teams haben ihre Swiss-Bilanz bereits erreicht. Die Swiss Stage ist abgeschlossen.");
 	const byeCounts = new Map(teams.map((team) => [team.key, 0]));
 	for (const round of state.rounds) for (const pairing of round.pairings) if (pairing.bye) byeCounts.set(pairing.teamAKey, (byeCounts.get(pairing.teamAKey) ?? 0) + 1);
-	let byeTeam: SwissTeam | null = null;
-	if (candidates.length % 2 !== 0) {
-		const minimumByes = Math.min(...candidates.map((team) => byeCounts.get(team.key) ?? 0));
-		byeTeam = shuffle(candidates.filter((team) => (byeCounts.get(team.key) ?? 0) === minimumByes))[0];
-		candidates = candidates.filter((team) => team.key !== byeTeam?.key);
-	}
 	const pairingContext = candidates.map((team) => ({
 		teamKey: team.key,
 		teamName: team.name,
 		record: recordLabel(records.get(team.key)!),
 		previousOpponents: teams.filter((opponent) => previousOpponents.has(opponentKey(team.key, opponent.key))).map((opponent) => opponent.key),
 	}));
-	const exactMatching = input.pairByRecord ? findExactSwissRecordMatching(shuffle(candidates), records, previousOpponents) : null;
-	const matching =
-		exactMatching ??
-		(placementSwiss ? null : input.pairByRecord ? findRecordMatching(candidates, records, previousOpponents) : findRandomMatching(candidates, previousOpponents));
-	if (!matching) {
-		throw new Error(
-			placementSwiss
-				? "Die Platzierungs-Swiss kann diese Bilanzgruppe nicht ohne Rematch paaren. Es wurde keine bilanzübergreifende Paarung erzeugt."
-				: "Für diese Runde existiert keine gültige zufällige Paarung mehr, ohne ein früheres Match zu wiederholen."
-		);
+	let byeTeam: SwissTeam | null = null;
+	let matching: Array<[SwissTeam, SwissTeam]> | null = null;
+	let crossRecordPairs: Array<[SwissTeam, SwissTeam]> = [];
+	const seededOrder = nextRound === 1 && input.roundOneOrder?.length ? input.roundOneOrder : null;
+	if (seededOrder) {
+		// Seeded opening round: #1 against the best team of the lower half, and so on.
+		const byKey = new Map(candidates.map((team) => [team.key, team]));
+		const ordered = [...seededOrder.flatMap((key) => (byKey.has(key) ? [byKey.get(key)!] : [])), ...candidates.filter((team) => !seededOrder.includes(team.key))];
+		if (ordered.length % 2 !== 0) byeTeam = ordered.pop() ?? null;
+		const half = ordered.length / 2;
+		matching = Array.from({ length: half }, (_, index) => [ordered[index], ordered[index + half]] as [SwissTeam, SwissTeam]);
+	} else if (input.pairByRecord) {
+		const plan = planSwissRecordRound({ teams: candidates, records, previousOpponents, byeCounts, shuffle });
+		if (plan) {
+			byeTeam = plan.byeTeam;
+			matching = plan.pairs;
+			crossRecordPairs = plan.crossRecordPairs;
+		}
+	} else {
+		let pool = candidates;
+		if (pool.length % 2 !== 0) {
+			const minimumByes = Math.min(...pool.map((team) => byeCounts.get(team.key) ?? 0));
+			byeTeam = shuffle(pool.filter((team) => (byeCounts.get(team.key) ?? 0) === minimumByes))[0];
+			pool = pool.filter((team) => team.key !== byeTeam?.key);
+		}
+		matching = findRandomMatching(pool, previousOpponents);
 	}
+	const placementError = "Die Platzierungs-Swiss kann diese Bilanzgruppe nicht ohne Rematch paaren. Es wurde keine bilanzübergreifende Paarung erzeugt.";
+	if (!matching) throw new Error(placementSwiss ? placementError : "Für diese Runde existiert keine gültige Paarung mehr, ohne ein früheres Match zu wiederholen.");
+	if (crossRecordPairs.length) {
+		if (placementSwiss) throw new Error(placementError);
+		if (!input.allowCrossRecord) {
+			throw new SwissCrossRecordError(
+				nextRound,
+				crossRecordPairs.map(([teamA, teamB]) => ({
+					teamA: teamA.name,
+					recordA: recordLabel(records.get(teamA.key)!),
+					teamB: teamB.name,
+					recordB: recordLabel(records.get(teamB.key)!),
+				}))
+			);
+		}
+	}
+	const problems = validateSwissRoundPlan({
+		teams: candidates,
+		pairs: matching,
+		byeTeam,
+		records,
+		previousOpponents,
+		allowCrossRecord: !input.pairByRecord || crossRecordPairs.length > 0,
+	});
+	if (problems.length) throw new Error(`Auslosung abgebrochen, nichts wurde gespeichert: ${problems.join(" ")}`);
 	const pairings: SwissPairing[] = matching.map(([teamA, teamB], index) => ({
 		id: `${matchPrefix}-r${nextRound}-m${index + 1}`,
 		round: nextRound,
@@ -340,10 +395,13 @@ export async function drawNextSwissMatchup(input: {
 		round: nextRound,
 		pairingId: pairing.id,
 		detail: input.pairByRecord
-			? `Runde ${nextRound} wurde nach gleicher beziehungsweise nächster Bilanz ohne Rematches gepaart.`
+			? crossRecordPairs.length
+				? `Runde ${nextRound} wurde ohne Rematches gepaart; ${crossRecordPairs.length} bilanzübergreifende Paarung(en) wurden von der Turnierleitung freigegeben.`
+				: `Runde ${nextRound} wurde strikt innerhalb der Bilanzgruppen und ohne Rematches gepaart.`
 			: `Runde ${nextRound} wurde zufällig und ohne Rematches gepaart.`,
 		metadata: {
 			pairByRecord: Boolean(input.pairByRecord),
+			crossRecordApproved: crossRecordPairs.length > 0,
 			teamPool: pairingContext,
 			selectedPairings: pairings.map((entry) => ({ id: entry.id, teamAKey: entry.teamAKey, teamBKey: entry.teamBKey, recordA: entry.recordA, recordB: entry.recordB })),
 			revealOrder: revealOrder.map((entry) => entry.id),
@@ -376,6 +434,23 @@ export async function setSwissPairingWinner(tournamentId: string, pairingId: str
 		metadata: { winnerTeamKey, teamAKey: pairing.teamAKey, teamBKey: pairing.teamBKey },
 	});
 	return getSwissStageState(tournamentId);
+}
+
+/** Removes a stored winner again, for example when the last game of a series is undone. */
+export async function clearSwissPairingWinner(tournamentId: string, pairingId: string) {
+	const db = await getDb();
+	const document = await db.collection<SwissStageDoc>(COLLECTION).findOne({ _id: tournamentId });
+	const roundIndex = document?.rounds.findIndex((round) => round.pairings.some((entry) => entry.id === pairingId)) ?? -1;
+	if (roundIndex < 0) return;
+	if (document && roundIndex < document.rounds.length - 1) throw new Error("Das Ergebnis kann nicht mehr geändert werden, weil die nächste Runde bereits ausgelost wurde.");
+	await db
+		.collection<SwissStageDoc>(COLLECTION)
+		.updateOne(
+			{ _id: tournamentId, "rounds.pairings.id": pairingId },
+			{ $unset: { "rounds.$[].pairings.$[pairing].winnerTeamKey": "" }, $set: { updatedAt: new Date().toISOString() } },
+			{ arrayFilters: [{ "pairing.id": pairingId }] }
+		);
+	await writeSwissAudit({ tournamentId, action: "result-set", pairingId, detail: `Sieger für ${pairingId} wurde entfernt.` });
 }
 
 export async function resetSwissStage(tournamentId: string, matchPrefix = "swiss") {

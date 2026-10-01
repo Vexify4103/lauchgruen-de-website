@@ -7,6 +7,8 @@ import { RosterBuilder } from "./RosterBuilder";
 import { getAdminVersion } from "@/lib/admin-version";
 import { RefreshRanksButton } from "../applicants/RefreshRanksButton";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { mainEventTeamCount, seedSlotLayout } from "@/lib/tournament-structure";
+import { getPlayInOutcome } from "@/lib/tournament-play-in";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,14 @@ export default async function RosterPage() {
 	if (!isOwner) redirect("/tournament/admin");
 
 	const [snapshot, version, settings] = await Promise.all([loadRosterSnapshot(), getAdminVersion("roster"), getTournamentSettings()]);
+	const config = settings.ultimateBravery;
+	const playIn = config.playInTeamCount > 0 ? await getPlayInOutcome(settings.activeTournament.id, config.bestOf.dayOne) : null;
+	// Play-in teams only get a Day-1 slot after winning; losers never do.
+	const withoutSlot = new Set([
+		...(playIn?.eliminated ?? []),
+		...(playIn?.pairs ?? []).flatMap((pair) => [pair.teamAName, pair.teamBName]).filter((name) => !playIn?.qualified.includes(name)),
+	]);
+	const excludedTeamKeys = snapshot.teams.filter((team) => withoutSlot.has(team.name)).map((team) => team.key);
 
 	return (
 		<>
@@ -88,9 +98,10 @@ export default async function RosterPage() {
 			<RosterBuilder
 				snapshot={snapshot}
 				initialVersion={version}
-				dayOneFormat={settings.ultimateBravery.dayOneFormat}
-				groupCount={settings.ultimateBravery.groupCount}
-				plannedTeamCount={settings.ultimateBravery.teamCount}
+				dayOneFormat={config.dayOneFormat}
+				slotLayout={seedSlotLayout(config)}
+				plannedTeamCount={mainEventTeamCount(config)}
+				excludedTeamKeys={excludedTeamKeys}
 			/>
 		</>
 	);

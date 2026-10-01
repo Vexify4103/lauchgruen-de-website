@@ -1,14 +1,16 @@
-import type { TournamentSettings } from "@/lib/tournament-settings";
+import { PLAYOFF_FORMAT_LABELS, type PlayoffFormat } from "@/lib/tournament-structure";
 
-export function playoffFormatLabel(format: TournamentSettings["ultimateBravery"]["format"], short = false): string | null {
-	switch (format) {
-		case "double-elimination":
-			return short ? "Double" : "Double Elimination";
-		case "double-elimination-light":
-			return short ? "Double Light" : "Double Elimination Light";
-		case "single-elimination":
-			return short ? "Single" : "Single Elimination";
-		case "undecided":
-			return null;
-	}
+const SHORT_LABELS: Record<PlayoffFormat, string | null> = {
+	undecided: null,
+	"single-elimination": "Single",
+	"double-elimination": "Double",
+	"double-elimination-light": "Double Light",
+	"page-playoffs": "Page",
+	gauntlet: "Gauntlet",
+	"round-robin": "Round Robin",
+};
+
+export function playoffFormatLabel(format: PlayoffFormat, short = false): string | null {
+	if (format === "undecided") return null;
+	return short ? SHORT_LABELS[format] : PLAYOFF_FORMAT_LABELS[format];
 }
