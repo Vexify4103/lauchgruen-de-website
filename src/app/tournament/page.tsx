@@ -28,6 +28,14 @@ export default async function TournamentOverviewPage() {
 
 	return (
 		<>
+			{settings.activeTournament.description?.trim() ? (
+				<section className="page-section compact-top">
+					<div className="content-panel">
+						<p className="panel-kicker">Über das Turnier</p>
+						<p className="whitespace-pre-wrap">{settings.activeTournament.description}</p>
+					</div>
+				</section>
+			) : null}
 			{completion ? <ChampionSection completion={completion} roster={championRoster} /> : null}
 			<section className="page-section compact-top two-columns" aria-label="Regelwerk und Ablauf">
 				<RulebookPanel settings={settings} applicationsOpen={applicationsOpen} />

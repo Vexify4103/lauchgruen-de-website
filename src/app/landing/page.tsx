@@ -87,7 +87,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 						<div>
 							<p className="panel-kicker">{tournamentLabel}</p>
 							<h2>{tournament.name}</h2>
-							<p>{TOURNAMENT_TEASERS[tournament.kind]}</p>
+							<p className="whitespace-pre-wrap line-clamp-4">{tournament.description?.trim() || TOURNAMENT_TEASERS[tournament.kind]}</p>
 							<ul className="tournament-pills">
 								<li>{tournamentDays.length ? tournamentDays.join(" & ") : "Termin folgt"}</li>
 								<li>Community-Turnier</li>

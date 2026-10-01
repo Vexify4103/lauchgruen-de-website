@@ -10,8 +10,9 @@ import { ArchiveTournamentPanel } from "./ArchiveTournamentPanel";
 import { DiscordControlCenter } from "./DiscordControlCenter";
 import { TournamentModePanel, type TournamentSettingsSection } from "./TournamentModePanel";
 import { RefreshRanksButton } from "./applicants/RefreshRanksButton";
+import { TournamentInformationEditor } from "./TournamentInformationEditor";
 
-type ModalKey = TournamentSettingsSection | "riot" | "discord";
+type ModalKey = TournamentSettingsSection | "riot" | "discord" | "information";
 
 const MODE_COPY: Record<TournamentSettings["activeTournament"]["mode"], { label: string; line: string; detail: string }> = {
 	teaser: { label: "Ankündigung", line: "Angekündigt.", detail: "Nur Übersicht und Regeln sind öffentlich. Setze Format, Termine und Bewerbungszeitraum." },
@@ -27,17 +28,24 @@ export function ControlOverview({
 	settingsVersion,
 	stats,
 	archive,
+	defaultRules,
 }: {
 	settings: TournamentSettings;
+	defaultRules: string;
 	settingsVersion: number;
 	stats: { applications: number; teams: number; players: number; matchesFinished: number; matchesTotal: number; live: number; rosterPublished: boolean };
 	archive: { pending: boolean; championTeam: string | null };
 }) {
 	const router = useRouter();
 	const [modal, setModal] = useState<ModalKey | null>(null);
+	const [informationDirty, setInformationDirty] = useState(false);
 	const active = settings.activeTournament;
 	const mode = MODE_COPY[active.mode];
-	const close = () => setModal(null);
+	const close = () => {
+		if (modal === "information" && informationDirty && !window.confirm("Ungespeicherte Turnierinformationen verwerfen?")) return;
+		setInformationDirty(false);
+		setModal(null);
+	};
 	const saved = () => router.refresh();
 	const settingsModal = (key: TournamentSettingsSection, kicker: string, title: string, wide = false) => (
 		<AdminModal open={modal === key} kicker={kicker} title={title} onClose={close} wide={wide}>
@@ -86,6 +94,9 @@ export function ControlOverview({
 				<div className="control-tool-group">
 					<span>Turnier-Setup</span>
 					<div>
+						<button className="button ghost" type="button" onClick={() => setModal("information")}>
+							Turnierinformationen
+						</button>
 						<button className="button ghost" type="button" onClick={() => setModal("format")}>
 							Turnierformat
 						</button>
@@ -141,6 +152,17 @@ export function ControlOverview({
 			</dl>
 
 			{settingsModal("format", "Turnier-Setup", "Turnierformat", true)}
+			<AdminModal open={modal === "information"} kicker="Turnier-Setup" title="Turnierinformationen" onClose={close} wide>
+				{modal === "information" ? (
+					<TournamentInformationEditor
+						settings={settings}
+						initialVersion={settingsVersion}
+						defaultRules={defaultRules}
+						onSaved={saved}
+						onDirtyChange={setInformationDirty}
+					/>
+				) : null}
+			</AdminModal>
 			{settingsModal("rules", "Turnier-Setup", "Regeln & Preise", true)}
 			{settingsModal("applications", "Turnier-Setup", "Bewerbungszeitraum", true)}
 			<AdminModal open={modal === "lifecycle"} kicker="Turnier-Setup" title="Lebenszyklus" onClose={close} wide>

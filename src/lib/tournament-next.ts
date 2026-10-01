@@ -19,6 +19,7 @@ import { clearStandingOverrides, type StandingOverrides } from "@/lib/tournament
 import type { StandingsResult } from "@/lib/tournament-standings";
 import type { DayOneFormat } from "@/lib/tournament-structure";
 import type { SeriesGame } from "@/lib/tournament-series";
+import { getDefaultRulesMarkdown } from "@/lib/tournament-rulebook";
 
 type ArchivedPlayer = Pick<TournamentTeam["players"][number], "name" | "role" | "riotId" | "verified" | "opggUrl" | "dpmUrl">;
 type ArchivedTeam = Omit<TournamentTeam, "captainRef" | "discordRoleId" | "players"> & { players: ArchivedPlayer[] };
@@ -33,6 +34,7 @@ export type ArchivedUltimateBraveryRoll = Pick<
 >;
 
 export type TournamentArchiveSnapshot = {
+	information?: { description: string; rulesMarkdown: string };
 	/** Missing on archives created before tournament kinds existed (the A-Z event). */
 	kind?: TournamentKind;
 	teams: ArchivedTeam[];
@@ -305,6 +307,7 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 		usesUltimateBravery(active) ? listAllUltimateBraveryRolls() : Promise.resolve([]),
 	]);
 	const snapshot: TournamentArchiveSnapshot = {
+		information: { description: active.description ?? "", rulesMarkdown: active.rulesMarkdown?.trim() || getDefaultRulesMarkdown(settings) },
 		kind: active.kind,
 		teams: ctx.teams.map(publicTeam),
 		groupMatches: ctx.groupMatches,

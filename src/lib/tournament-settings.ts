@@ -23,6 +23,8 @@ export type TournamentSettings = {
 	activeTournament: {
 		id: string;
 		name: string;
+		description?: string;
+		rulesMarkdown?: string;
 		season: string;
 		mode: TournamentMode;
 		kind: TournamentKind;
@@ -188,7 +190,15 @@ function normalizeActiveTournament(raw: unknown, fallback: TournamentSettings["a
 	// "active" was the pre-mode name for preparation.
 	const mode = TOURNAMENT_MODES.includes(value.mode as TournamentMode) ? (value.mode as TournamentMode) : value.mode === "active" ? "preparation" : null;
 	if (!mode) return fallback;
-	return { id: value.id, name: value.name, season: value.season, mode, kind: tournamentKind({ id: value.id, kind: value.kind as TournamentKind | undefined }) };
+	return {
+		id: value.id,
+		name: value.name,
+		season: value.season,
+		mode,
+		kind: tournamentKind({ id: value.id, kind: value.kind as TournamentKind | undefined }),
+		description: typeof value.description === "string" ? value.description : "",
+		rulesMarkdown: typeof value.rulesMarkdown === "string" ? value.rulesMarkdown : "",
+	};
 }
 
 /** `null` means "not announced yet" and must survive normalisation; only missing or invalid values fall back. */

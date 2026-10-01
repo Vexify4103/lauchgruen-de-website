@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { applyTournamentInformation, tournamentInformationSchema } from "@/lib/tournament-information";
 import { z } from "zod";
 import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
@@ -18,6 +19,7 @@ const bestOfSchema = z.union([z.literal(1), z.literal(3), z.literal(5)]);
 
 const schema = z.object({
 	expectedVersion: z.number().int().min(0),
+	tournamentInformation: tournamentInformationSchema.optional(),
 	applicationsOpen: z.boolean().optional(),
 	applicationOpenAt: z.iso.datetime({ offset: true }).nullable().optional(),
 	applicationDeadlineOverride: z.boolean().optional(),
@@ -101,7 +103,15 @@ export async function PATCH(request: Request) {
 
 	const settings = await updateTournamentSettings({
 		patch: {
-			activeTournament: parsed.data.tournamentMode ? { ...currentSettings.activeTournament, mode: parsed.data.tournamentMode } : undefined,
+			activeTournament:
+				parsed.data.tournamentMode || parsed.data.tournamentInformation
+					? {
+							...(parsed.data.tournamentInformation
+								? applyTournamentInformation(currentSettings.activeTournament, parsed.data.tournamentInformation)
+								: currentSettings.activeTournament),
+							...(parsed.data.tournamentMode ? { mode: parsed.data.tournamentMode } : {}),
+						}
+					: undefined,
 			applicationsOpen: parsed.data.applicationsOpen,
 			applicationOpenAt: parsed.data.applicationOpenAt,
 			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
@@ -121,6 +131,7 @@ export async function PATCH(request: Request) {
 		actorDiscordId: discordId,
 		actorLabel: session.user.discordHandle ?? discordId,
 		metadata: {
+			tournamentInformation: parsed.data.tournamentInformation,
 			applicationsOpen: parsed.data.applicationsOpen,
 			applicationOpenAt: parsed.data.applicationOpenAt,
 			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
@@ -138,6 +149,7 @@ export async function PATCH(request: Request) {
 		targetId: "default",
 		createdBy: session.user.discordHandle ?? discordId,
 		payload: {
+			tournamentInformation: parsed.data.tournamentInformation,
 			applicationsOpen: parsed.data.applicationsOpen,
 			applicationOpenAt: parsed.data.applicationOpenAt,
 			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,

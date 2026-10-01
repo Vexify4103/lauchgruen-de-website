@@ -18,6 +18,7 @@ import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { WheelAdminClient } from "./WheelAdminClient";
 import { ControlOverview } from "./ControlOverview";
+import { getDefaultRulesMarkdown } from "@/lib/tournament-rulebook";
 
 const STATUS_LABELS: Record<string, string> = { Pending: "Draft", Live: "Im Spiel", Scheduled: "Geplant", Finished: "Beendet", Locked: "Offen" };
 
@@ -47,6 +48,7 @@ export default async function TournamentAdminPage() {
 	return (
 		<>
 			<ControlOverview
+				defaultRules={getDefaultRulesMarkdown(settings)}
 				settings={settings}
 				settingsVersion={versions.settings ?? 0}
 				stats={{
