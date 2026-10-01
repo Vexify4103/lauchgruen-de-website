@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { RiotGamesMark } from "@/components/BrandMarks";
 
 type VerifiedAccount = {
 	riotId: string;
@@ -126,39 +127,41 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 
 	if (verified) {
 		return (
-			<section className="account-panel">
-				<div className="flex flex-wrap items-start justify-between gap-4">
-					<div>
-						<div className="panel-kicker">Riot-Account</div>
-						<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">{verified.riotId}</h2>
-						<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-							Dein League-Account ist verifiziert und kann für Turniere sowie freigegebene Community-Overlays verwendet werden.
-						</p>
-					</div>
-					<span className="rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-lime-100">
-						Verifiziert
-					</span>
+			<article className="connection-card connected riot">
+				<span>
+					<RiotGamesMark />
+				</span>
+				<div>
+					<small>League-Identität</small>
+					<h3>Riot Games</h3>
+					<p>{verified.riotId}</p>
 				</div>
-				<div className="mt-5 grid gap-3 sm:grid-cols-3">
-					<AccountInfo label="Rang" value={verified.currentRankAuto ?? "Unranked"} />
-					<AccountInfo label="Beschwörerlevel" value={verified.summonerLevel ? String(verified.summonerLevel) : "Nicht gespeichert"} />
-					<AccountInfo label="Verifiziert am" value={formatDate(verified.verifiedAt)} />
-				</div>
-				<button
-					type="button"
-					onClick={() => setDisconnectConfirmOpen(true)}
-					disabled={Boolean(disconnectBlockedReason)}
-					className="mt-4 rounded-2xl border border-red-200/18 bg-red-500/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 transition hover:border-red-200/30 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-40"
-				>
-					Riot-Account trennen
+				<button type="button" className="connection-action danger" onClick={() => setDisconnectConfirmOpen(true)} disabled={Boolean(disconnectBlockedReason)}>
+					Trennen
 				</button>
-				{disconnectBlockedReason ? (
-					<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.07] px-4 py-3 text-xs font-bold leading-5 text-amber-50/78">
-						{disconnectBlockedReason}
-					</div>
-				) : null}
-				{status.kind === "loading" ? <StatusMessage message={status.message} /> : null}
-				{status.kind === "error" ? <ErrorMessage message={status.message} /> : null}
+				<div className="connection-body">
+					<dl className="connection-facts">
+						<div>
+							<dt>Rang</dt>
+							<dd>{verified.currentRankAuto ?? "Unranked"}</dd>
+						</div>
+						<div>
+							<dt>Level</dt>
+							<dd>{verified.summonerLevel ? String(verified.summonerLevel) : "–"}</dd>
+						</div>
+						<div>
+							<dt>Verifiziert</dt>
+							<dd>{formatDate(verified.verifiedAt)}</dd>
+						</div>
+					</dl>
+					{disconnectBlockedReason ? (
+						<p className="account-message" data-tone="warn">
+							{disconnectBlockedReason}
+						</p>
+					) : null}
+					{status.kind === "loading" ? <StatusMessage message={status.message} /> : null}
+					{status.kind === "error" ? <ErrorMessage message={status.message} /> : null}
+				</div>
 				<ConfirmDialog
 					open={disconnectConfirmOpen}
 					title="Riot-Account wirklich trennen?"
@@ -174,117 +177,94 @@ export function RiotVerificationCard({ verified, disconnectBlockedReason }: { ve
 					onCancel={() => setDisconnectConfirmOpen(false)}
 					onConfirm={() => void disconnect()}
 				/>
-			</section>
+			</article>
 		);
 	}
 
 	return (
-		<section className="account-panel">
-			<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/68">Riot-Verifizierung</div>
-			<h2 className="mt-2 text-2xl font-black text-emerald-50">Riot-ID einmalig bestätigen.</h2>
-			<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-				Diese Verknüpfung gilt auch ohne Turnierbewerbung und wird für spätere Overlays wiederverwendet. Als Besitznachweis wechselst du kurz dein League-Profilicon.
-			</p>
-
-			{!challenge ? (
-				<form onSubmit={start} className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
-					<input
-						name="riot-id"
-						aria-label="Riot-ID"
-						autoComplete="off"
-						spellCheck={false}
-						value={riotId}
-						onChange={(event) => setRiotId(event.target.value)}
-						required
-						placeholder="Name#TAG…"
-						className="h-12 rounded-2xl border border-white/10 bg-black/24 px-4 text-sm font-bold text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-amber-200/40"
-					/>
-					<button
-						type="submit"
-						disabled={status.kind === "loading"}
-						className="rounded-2xl bg-amber-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 disabled:opacity-55"
-					>
-						{status.kind === "loading" ? "Wird gesucht…" : "Verifizierung starten"}
-					</button>
-				</form>
-			) : (
-				<div className="mt-5 rounded-2xl border border-amber-100/12 bg-black/16 p-4">
-					<div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-						<IconState label="Benötigtes Icon" iconUrl={challenge.expectedIconUrl} iconId={challenge.expectedIconId} tone="expected" />
-						<div className="text-xs leading-6 text-emerald-100/64">
-							<div className="text-sm font-black text-emerald-50">{challenge.riotId}</div>
-							Setze dieses Icon im League-Client und lass es aktiv, bis die Prüfung erfolgreich war. Ein Logout ist nicht nötig.
-						</div>
-						<button
-							type="button"
-							onClick={() => void verify()}
-							disabled={status.kind === "loading"}
-							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
-						>
-							{status.kind === "loading" ? "Prüfe…" : "Jetzt prüfen"}
-						</button>
-					</div>
-					{challenge.checkedAt && challenge.currentIconUrl ? (
-						<div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/8 pt-4">
-							<IconState label="Von Riot gemeldet" iconUrl={challenge.currentIconUrl} iconId={challenge.currentIconId} tone="current" />
-							<div className="text-xs leading-5 text-[var(--muted)]">
-								Letzte direkte Riot-Abfrage: <strong className="text-emerald-50">{formatTime(challenge.checkedAt)}</strong>
-								<br />
-								Wenn hier noch dein altes Icon erscheint, hat Riot die Änderung serverseitig noch nicht übernommen.
-							</div>
-						</div>
-					) : null}
-				</div>
-			)}
-
-			{status.kind === "loading" ? <StatusMessage message={status.message} /> : null}
-			{status.kind === "error" ? <ErrorMessage message={status.message} /> : null}
-		</section>
-	);
-}
-
-function IconState({ label, iconUrl, iconId, tone }: { label: string; iconUrl: string; iconId: number; tone: "expected" | "current" }) {
-	return (
-		<div className="flex items-center gap-3">
-			<Image
-				src={iconUrl}
-				alt={`League-Profilicon ${iconId}`}
-				width={80}
-				height={80}
-				unoptimized
-				className={`size-20 rounded-2xl border ${tone === "expected" ? "border-amber-200/30" : "border-cyan-200/30"}`}
-			/>
+		<article className="connection-card riot">
+			<span>
+				<RiotGamesMark />
+			</span>
 			<div>
-				<div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/42">{label}</div>
-				<div className="mt-1 text-xs font-black text-emerald-50">Icon {iconId}</div>
+				<small>League-Identität</small>
+				<h3>Riot Games</h3>
+				<p>Nicht verknüpft</p>
 			</div>
-		</div>
-	);
-}
-
-function AccountInfo({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="rounded-2xl border border-white/8 bg-black/16 px-4 py-3">
-			<div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100/42">{label}</div>
-			<div className="mt-1 text-sm font-black text-emerald-50">{value}</div>
-		</div>
+			<b className="connection-badge" data-tone="warn">
+				Offen
+			</b>
+			<div className="connection-body">
+				{!challenge ? (
+					<>
+						<p>Bestätige deine Riot-ID einmalig über ein League-Profilicon. Die Verknüpfung gilt für alle Turniere und Community-Overlays.</p>
+						<form onSubmit={start} className="connection-form">
+							<input
+								name="riot-id"
+								aria-label="Riot-ID"
+								autoComplete="off"
+								spellCheck={false}
+								value={riotId}
+								onChange={(event) => setRiotId(event.target.value)}
+								required
+								placeholder="Name#TAG…"
+								className="account-input"
+							/>
+							<button type="submit" disabled={status.kind === "loading"} className="connection-action solid">
+								{status.kind === "loading" ? "Wird gesucht…" : "Prüf-Icon anzeigen"}
+							</button>
+						</form>
+					</>
+				) : (
+					<>
+						<div className="riot-challenge">
+							<Image src={challenge.expectedIconUrl} alt={`League-Profilicon ${challenge.expectedIconId}`} width={84} height={84} unoptimized />
+							<div>
+								<strong>Setze dieses Profilicon für {challenge.riotId}</strong>
+								<p>
+									Ändere im League-Client dein Profilbild zu Icon {challenge.expectedIconId} und lass es aktiv, bis die Prüfung erfolgreich war. Ein Logout ist
+									nicht nötig.
+								</p>
+							</div>
+							<button type="button" onClick={() => void verify()} disabled={status.kind === "loading"} className="connection-action solid">
+								{status.kind === "loading" ? "Prüfe…" : "Icon prüfen"}
+							</button>
+						</div>
+						{challenge.checkedAt && challenge.currentIconUrl ? (
+							<div className="riot-challenge">
+								<Image src={challenge.currentIconUrl} alt={`League-Profilicon ${challenge.currentIconId}`} width={84} height={84} unoptimized data-tone="current" />
+								<div>
+									<strong>Von Riot gemeldet: Icon {challenge.currentIconId}</strong>
+									<p>
+										Letzte Abfrage um {formatTime(challenge.checkedAt)}. Steht hier noch dein altes Icon, hat Riot die Änderung serverseitig noch nicht
+										übernommen.
+									</p>
+								</div>
+							</div>
+						) : null}
+					</>
+				)}
+				{status.kind === "loading" ? <StatusMessage message={status.message} /> : null}
+				{status.kind === "error" ? <ErrorMessage message={status.message} /> : null}
+			</div>
+		</article>
 	);
 }
 
 function StatusMessage({ message }: { message: string }) {
 	return (
-		<div role="status" className="mt-3 flex items-center gap-3 rounded-xl border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-3 text-xs font-bold text-cyan-50">
+		<p role="status" className="account-message flex items-center gap-3">
 			<LoadingOrb state="searching" />
 			{message}
-		</div>
+		</p>
 	);
 }
 
 function ErrorMessage({ message }: { message: string }) {
 	return (
-		<div role="alert" className="mt-3 rounded-xl border border-red-300/25 bg-red-500/10 px-4 py-3 text-xs text-red-100">
+		<p role="alert" className="account-message" data-tone="error">
 			{message}
-		</div>
+		</p>
 	);
 }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type PreferenceGroupView = {
 	code: string;
@@ -85,79 +86,56 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 	}
 
 	return (
-		<section className="account-panel">
-			<div className="flex flex-wrap items-start justify-between gap-3">
+		<section className="account-section" aria-labelledby="group-hub-title">
+			<div className="account-section-head">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/64">Wunschgruppe</div>
-					<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">Mit Freunden zusammenspielen</h2>
+					<span>Wunschgruppe</span>
+					<h2 id="group-hub-title">Mit Freunden spielen</h2>
 				</div>
-				{group ? (
-					<span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50/74">
-						{group.memberCount}/{group.maxMembers} Personen
-					</span>
-				) : null}
+				<small>Ein bis fünf Personen. Die Orga berücksichtigt euren Wunsch, Team-Balance hat aber Vorrang.</small>
 			</div>
 
-			<p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-				Teile deinen privaten Code mit bis zu vier weiteren Personen. Eine Wunschgruppe kann insgesamt ein bis fünf Mitglieder haben. Die Orga sieht euren Wunsch beim
-				Team-Building, eine gemeinsame Einteilung kann wegen der Balance aber nicht garantiert werden.
-			</p>
-
-			{!hasApplication ? (
-				<div className="mt-5 rounded-2xl border border-amber-200/18 bg-amber-200/[0.07] p-4 text-sm text-amber-50/76">
-					Speichere zuerst deine Turnierbewerbung, um eine Wunschgruppe zu erstellen oder einem Code beizutreten.
-				</div>
-			) : group ? (
-				<div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-					<button
-						type="button"
-						onClick={copyCode}
-						className="group flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-cyan-200/20 bg-black/20 px-5 py-4 text-left transition hover:border-cyan-200/38"
-					>
-						<span>
-							<span className="block text-[9px] font-black uppercase tracking-[0.22em] text-cyan-100/42">Dein privater Code</span>
-							<span className="mt-1 block font-mono text-2xl font-black tracking-[0.16em] text-cyan-50">{group.code}</span>
-						</span>
-						<span className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/62 group-hover:text-cyan-50">
-							{copied ? "Kopiert" : "Kopieren"}
-						</span>
-					</button>
-					<button
-						type="button"
-						onClick={() => mutate("leave")}
-						disabled={pending !== null}
-						className="rounded-2xl border border-red-200/16 bg-red-500/[0.06] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 transition hover:border-red-200/30 hover:text-red-50 disabled:opacity-50"
-					>
-						{pending === "leave" ? "Wird verlassen…" : "Gruppe verlassen"}
-					</button>
+			{group ? (
+				<div className="my-group-card">
+					<div>
+						<span>Deine Wunschgruppe</span>
+						<strong>
+							{group.memberCount}/{group.maxMembers} Personen
+						</strong>
+					</div>
+					<footer>
+						<code>{group.code}</code>
+						<button type="button" className="connection-action" onClick={copyCode}>
+							{copied ? "Kopiert ✓" : "Code kopieren"}
+						</button>
+						<button type="button" className="connection-action danger" onClick={() => mutate("leave")} disabled={pending !== null}>
+							{pending === "leave" ? "Wird verlassen…" : "Verlassen"}
+						</button>
+					</footer>
 				</div>
 			) : (
-				<div className="mt-5 grid gap-4 lg:grid-cols-2">
-					<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
-						<div className="text-sm font-black text-emerald-50">Neue Wunschgruppe</div>
-						<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Erzeuge einen Code und teile ihn privat mit deinen Mitspielern.</p>
-						<button
-							type="button"
-							onClick={() => mutate("create")}
-							disabled={pending !== null}
-							className="mt-4 rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-50"
-						>
+				<div className="group-hub-grid">
+					<section data-disabled={!hasApplication}>
+						<span className="group-hub-step">01 · Erstellen</span>
+						<h3>Neuen Code erzeugen</h3>
+						<p>Erstelle einen privaten Code und teile ihn mit bis zu vier Mitspielern.</p>
+						<button type="button" className="button primary small justify-self-start" onClick={() => mutate("create")} disabled={!hasApplication || pending !== null}>
 							{pending === "create" ? "Code wird erstellt…" : "Code erstellen"}
 						</button>
-					</div>
-
+					</section>
 					<form
-						className="rounded-2xl border border-white/9 bg-black/18 p-4"
+						data-disabled={!hasApplication}
 						onSubmit={(event) => {
 							event.preventDefault();
 							requestJoinConfirmation();
 						}}
 					>
-						<label htmlFor="preference-group-code" className="text-sm font-black text-emerald-50">
-							Bestehendem Code beitreten
-						</label>
-						<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Den Code erhältst du von einem Mitglied der Wunschgruppe.</p>
-						<div className="mt-4 flex gap-2">
+						<span className="group-hub-step">02 · Beitreten</span>
+						<h3>
+							<label htmlFor="preference-group-code">Code erhalten?</label>
+						</h3>
+						<p>Den Code bekommst du von einem Mitglied der Wunschgruppe.</p>
+						<div className="connection-form">
 							<input
 								id="preference-group-code"
 								name="preference-group-code"
@@ -167,71 +145,39 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 								placeholder="LG-XXXXXX…"
 								autoComplete="off"
 								maxLength={20}
-								className="min-w-0 flex-1 rounded-xl border border-white/12 bg-black/28 px-4 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-cyan-200/38"
+								disabled={!hasApplication}
+								className="account-input font-mono uppercase tracking-[0.12em]"
 							/>
-							<button
-								type="submit"
-								disabled={pending !== null || !joinCode.trim()}
-								className="rounded-xl border border-cyan-200/22 bg-cyan-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-cyan-50 disabled:opacity-40"
-							>
-								{pending === "join" ? "…" : "Beitreten"}
+							<button type="submit" className="connection-action solid" disabled={!hasApplication || pending !== null || !joinCode.trim()}>
+								{pending === "join" ? "Tritt bei…" : "Beitreten"}
 							</button>
 						</div>
 					</form>
 				</div>
 			)}
-
-			{confirmJoinCode ? (
-				<div role="dialog" aria-modal="true" aria-labelledby="group-join-warning-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-					<button type="button" aria-label="Hinweis schließen" onClick={cancelJoinConfirmation} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-					<div className="relative w-full max-w-xl rounded-[2rem] border border-amber-200/24 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/60">
-						<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-200/72">Wunschgruppe beitreten</div>
-						<h3 id="group-join-warning-title" className="mt-3 text-2xl font-black text-emerald-50">
-							Wichtig vor dem Beitritt
-						</h3>
-						<p className="mt-3 text-sm leading-6 text-emerald-100/68">
-							Wunschgruppen sind <strong className="font-black text-amber-100">nicht garantiert</strong>. Die Orga versucht, eure Gruppe beim Team-Building zu
-							berücksichtigen, aber faire Team-Balance hat Vorrang. Die Gruppe kann deshalb teilweise oder vollständig aufgeteilt werden.
-						</p>
-						<div className="mt-4 rounded-2xl border border-amber-200/18 bg-amber-200/[0.08] p-4 text-sm leading-6 text-amber-50/80">
-							Mit <strong className="font-black text-amber-100">„Ich verstehe“</strong> akzeptierst du, dass Team-Fairness und Balancing Vorrang vor deiner
-							Wunschgruppe haben. Du verzichtest außerdem darauf, später mit Staff-Mitgliedern darüber zu diskutieren, falls deine Wunschgruppe aus Balancing-Gründen
-							nicht vollständig zusammen eingeteilt werden kann.
-						</div>
-						<p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100/56">
-							Code: <span className="font-mono text-cyan-50">{confirmJoinCode}</span>
-						</p>
-						<div className="mt-6 flex flex-wrap justify-end gap-3">
-							<button
-								type="button"
-								onClick={cancelJoinConfirmation}
-								className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-white/24 hover:text-emerald-50"
-							>
-								Okay
-							</button>
-							<button
-								type="button"
-								onClick={confirmJoinPreferenceGroup}
-								disabled={pending !== null}
-								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20 disabled:opacity-50"
-							>
-								{pending === "join" ? "Tritt bei…" : "Ich verstehe"}
-							</button>
-						</div>
-					</div>
-				</div>
-			) : null}
+			{!hasApplication ? <p className="account-note">Speichere zuerst deine Turnierbewerbung, dann kannst du eine Wunschgruppe erstellen oder beitreten.</p> : null}
 
 			{message ? (
-				<div
-					role="status"
-					className={`mt-4 rounded-xl border px-4 py-3 text-xs font-bold ${
-						message.tone === "ok" ? "border-lime-200/20 bg-lime-200/[0.07] text-lime-50/80" : "border-red-200/20 bg-red-500/[0.07] text-red-100"
-					}`}
-				>
+				<p role="status" className="account-message" data-tone={message.tone === "error" ? "error" : undefined}>
 					{message.text}
-				</div>
+				</p>
 			) : null}
+
+			<ConfirmDialog
+				open={Boolean(confirmJoinCode)}
+				title="Wichtig vor dem Beitritt"
+				description={
+					<>
+						Wunschgruppen sind <strong>nicht garantiert</strong>. Die Orga versucht, eure Gruppe beim Team-Building zu berücksichtigen, aber faire Team-Balance hat
+						Vorrang; die Gruppe kann teilweise oder ganz aufgeteilt werden. Mit „Ich verstehe“ akzeptierst du das und verzichtest auf spätere Diskussionen mit dem Staff
+						darüber. Code: <strong className="font-mono">{confirmJoinCode}</strong>
+					</>
+				}
+				confirmLabel={pending === "join" ? "Tritt bei…" : "Ich verstehe"}
+				cancelLabel="Abbrechen"
+				onConfirm={() => void confirmJoinPreferenceGroup()}
+				onCancel={cancelJoinConfirmation}
+			/>
 		</section>
 	);
 }

@@ -193,53 +193,6 @@
 		color: var(--on-accent);
 		background: var(--accent);
 	}
-	.account-page {
-		max-width: var(--max);
-		margin-inline: auto;
-		padding: 48px 24px 72px;
-	}
-	.account-hero {
-		overflow: hidden;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		background: var(--panel-solid);
-	}
-	.account-nav {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		margin-bottom: 8px;
-	}
-	.account-panel {
-		padding: 28px;
-		border: 1px solid var(--line);
-		border-radius: var(--radius);
-		background: var(--panel);
-		min-width: 0;
-	}
-	.account-panel h2 {
-		font-family: var(--font-display);
-		letter-spacing: -0.04em;
-		overflow-wrap: anywhere;
-	}
-	.account-fact {
-		padding: 18px;
-		border: 1px solid var(--line);
-		border-radius: 16px;
-		background: var(--bg-soft);
-		overflow-wrap: anywhere;
-	}
-	.account-team {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
-		margin-top: 20px;
-	}
-	.account-team h2 {
-		grid-column: 1 / -1;
-	}
 	.builder-page {
 		padding: 44px 24px 72px;
 		max-width: 1600px;
@@ -358,8 +311,7 @@
 		.builder-layout {
 			grid-template-columns: 1fr;
 		}
-		.home-project,
-		.account-panel {
+		.home-project {
 			padding: 24px;
 		}
 		.home-community {
@@ -380,12 +332,6 @@
 		}
 		.builder-page {
 			padding-top: 32px;
-		}
-		.account-page {
-			padding-top: 32px;
-		}
-		.account-team {
-			grid-template-columns: 1fr;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

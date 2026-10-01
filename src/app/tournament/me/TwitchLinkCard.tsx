@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { TournamentTwitchLink } from "@/lib/tournament-storage";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { TwitchMark } from "@/components/BrandMarks";
 
 const statusMessages: Record<string, string> = {
 	connected: "Dein Twitch-Kanal wurde erfolgreich verbunden.",
@@ -81,91 +82,68 @@ export function TwitchLinkCard({
 	}
 
 	return (
-		<section id="streamer-overlay" className="account-panel">
-			<div className="flex flex-wrap items-start justify-between gap-4">
-				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-[#c9a8ff]">Twitch</div>
-					<h2 className="mt-2 text-2xl font-bold text-[var(--text)]">{link ? link.displayName : "Stream mit deinem Profil verbinden"}</h2>
-					<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-						Deine Twitch-Verknüpfung kann sowohl für Turniermatches als auch freiwillig für das öffentliche League-Overlay verwendet werden.
-					</p>
-				</div>
-				{link?.profileImageUrl ? (
-					// eslint-disable-next-line @next/next/no-img-element
-					<img src={link.profileImageUrl} alt="" width={56} height={56} className="size-14 rounded-2xl border border-[#c9a8ff]/30 object-cover" />
-				) : null}
+		<article id="streamer-overlay" className={`connection-card ${link ? "connected twitch" : "twitch"}`}>
+			<span>
+				<TwitchMark />
+			</span>
+			<div>
+				<small>Stream-Identität</small>
+				<h3>Twitch</h3>
+				<p>{link ? link.displayName : "Nicht verknüpft"}</p>
 			</div>
-
 			{link ? (
-				<div className="mt-5 grid gap-3">
-					<SettingToggle
-						checked={link.showWhenLive}
-						disabled={busy}
-						title="Während meiner Turniermatches anzeigen"
-						description="Ein Stream-Link erscheint nur, wenn dein Turniermatch live ist und dein Twitch-Kanal tatsächlich sendet."
-						onChange={(value) => void updateSetting("showWhenLive", value)}
-					/>
-					<SettingToggle
-						checked={Boolean(link.showInCommunityOverlay)}
-						disabled={busy || !verifiedRiotId}
-						title="Als Streamer in Community-Overlays erscheinen"
-						description={
-							verifiedRiotId
-								? `Wenn ${verifiedRiotId} in einem erkannten Live-Spiel auftaucht, dürfen Overlays deinen Twitch-Namen sichtbar und violett hervorheben.`
-								: "Dafür muss zuerst eine Riot-ID über das Profilbild-Verfahren verifiziert sein."
-						}
-						onChange={(value) => void updateSetting("showInCommunityOverlay", value)}
-					/>
-					<div className="rounded-2xl border border-[#c9a8ff]/15 bg-black/15 px-4 py-3 text-xs leading-5 text-[var(--muted)]">
-						Die Freigabe zeigt nur deinen Twitch-Anzeigenamen, nicht deine Discord-ID. Du kannst sie hier jederzeit wieder ausschalten.
-					</div>
-					<div className="flex flex-wrap gap-2">
-						<a
-							href={`https://twitch.tv/${encodeURIComponent(link.login)}`}
-							target="_blank"
-							rel="noreferrer"
-							className="rounded-2xl bg-[#9146ff] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-white transition hover:bg-[#a970ff]"
-						>
-							Kanal öffnen
-						</a>
-						<a
-							href={`/api/twitch/connect?from=${returnSource}`}
-							className="rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72"
-						>
-							Anderes Konto verbinden
-						</a>
-						{isOwner && link.showWhenLive ? (
-							<a
-								href="/tournament/teams?twitchPreview=1"
-								className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-50/82"
-							>
-								Live-Anzeige testen
-							</a>
-						) : null}
-						<button
-							type="button"
-							disabled={busy}
-							onClick={() => setDisconnectConfirmOpen(true)}
-							className="rounded-2xl border border-red-200/18 bg-red-500/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 disabled:opacity-50"
-						>
-							Verbindung trennen
-						</button>
-					</div>
-				</div>
+				<button type="button" className="connection-action danger" disabled={busy} onClick={() => setDisconnectConfirmOpen(true)}>
+					Trennen
+				</button>
 			) : (
-				<a
-					href={`/api/twitch/connect?from=${returnSource}`}
-					className="mt-5 inline-flex rounded-2xl bg-[#9146ff] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-[#9146ff]/20 transition hover:-translate-y-0.5 hover:bg-[#a970ff]"
-				>
-					Twitch-Konto verbinden
+				<a href={`/api/twitch/connect?from=${returnSource}`} className="connection-action twitch">
+					Verbinden ↗
 				</a>
 			)}
-
-			{message ? (
-				<p role="status" className="mt-4 text-xs font-bold text-emerald-100/64">
-					{message}
-				</p>
-			) : null}
+			<div className="connection-body">
+				{link ? (
+					<>
+						<SettingToggle
+							checked={link.showWhenLive}
+							disabled={busy}
+							title="Während meiner Turniermatches anzeigen"
+							description="Ein Stream-Link erscheint nur, wenn dein Turniermatch live ist und dein Kanal tatsächlich sendet."
+							onChange={(value) => void updateSetting("showWhenLive", value)}
+						/>
+						<SettingToggle
+							checked={Boolean(link.showInCommunityOverlay)}
+							disabled={busy || !verifiedRiotId}
+							title="Als Streamer in Community-Overlays erscheinen"
+							description={
+								verifiedRiotId
+									? `Taucht ${verifiedRiotId} in einem erkannten Live-Spiel auf, dürfen Overlays deinen Twitch-Namen zeigen. Deine Discord-ID bleibt verborgen.`
+									: "Dafür muss zuerst deine Riot-ID verifiziert sein."
+							}
+							onChange={(value) => void updateSetting("showInCommunityOverlay", value)}
+						/>
+						<div className="connection-actions">
+							<a href={`https://twitch.tv/${encodeURIComponent(link.login)}`} target="_blank" rel="noreferrer" className="connection-action">
+								Kanal öffnen ↗
+							</a>
+							<a href={`/api/twitch/connect?from=${returnSource}`} className="connection-action">
+								Anderes Konto verbinden
+							</a>
+							{isOwner && link.showWhenLive ? (
+								<a href="/tournament/teams?twitchPreview=1" className="connection-action">
+									Live-Anzeige testen
+								</a>
+							) : null}
+						</div>
+					</>
+				) : (
+					<p>Verbinde deinen Kanal, damit dein Stream bei Live-Matches und auf Wunsch in Community-Overlays erscheint. Du kannst die Freigaben jederzeit ändern.</p>
+				)}
+				{message ? (
+					<p role="status" className="account-message">
+						{message}
+					</p>
+				) : null}
+			</div>
 			<ConfirmDialog
 				open={disconnectConfirmOpen}
 				title="Twitch-Verknüpfung entfernen?"
@@ -176,7 +154,7 @@ export function TwitchLinkCard({
 				onCancel={() => setDisconnectConfirmOpen(false)}
 				onConfirm={() => void disconnect()}
 			/>
-		</section>
+		</article>
 	);
 }
 
@@ -194,11 +172,12 @@ function SettingToggle({
 	onChange: (value: boolean) => void;
 }) {
 	return (
-		<label className={`flex items-start gap-3 rounded-2xl border border-white/10 bg-black/18 p-4 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-			<input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-5 accent-[#9146ff]" />
+		<label className="setting-toggle" aria-disabled={disabled}>
+			<input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+			<i />
 			<span>
-				<span className="block text-sm font-black text-emerald-50">{title}</span>
-				<span className="mt-1 block text-xs leading-5 text-[var(--muted)]">{description}</span>
+				<strong>{title}</strong>
+				<small>{description}</small>
 			</span>
 		</label>
 	);

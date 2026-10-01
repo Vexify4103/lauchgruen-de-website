@@ -4,7 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-export function WithdrawApplicationButton({ deadlineLabel, onWithdrawn, className = "" }: { deadlineLabel: string; onWithdrawn?: (message: string) => void; className?: string }) {
+export function WithdrawApplicationButton({
+	deadlineLabel,
+	onWithdrawn,
+	className = "",
+	buttonClassName,
+}: {
+	deadlineLabel: string;
+	onWithdrawn?: (message: string) => void;
+	className?: string;
+	/** Replaces the default button look, e.g. `queue-action is-danger` on the account page. */
+	buttonClassName?: string;
+}) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
@@ -51,7 +62,10 @@ export function WithdrawApplicationButton({ deadlineLabel, onWithdrawn, classNam
 						type="button"
 						disabled={busy}
 						onClick={() => setOpen(true)}
-						className="inline-flex justify-center rounded-xl border border-rose-300/24 bg-rose-400/[0.08] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-400/[0.13] disabled:cursor-wait disabled:opacity-55"
+						className={
+							buttonClassName ??
+							"inline-flex justify-center rounded-xl border border-rose-300/24 bg-rose-400/[0.08] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-400/[0.13] disabled:cursor-wait disabled:opacity-55"
+						}
 					>
 						{busy ? "Bewerbung wird zurückgezogen…" : "Bewerbung zurückziehen"}
 					</button>
