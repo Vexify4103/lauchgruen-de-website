@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { WithdrawApplicationButton } from "../me/WithdrawApplicationButton";
+import { useApplicationProgressUpdate } from "./ApplicationProgress";
 
 type SubmitState = { status: "idle"; message: "" } | { status: "loading"; message: string } | { status: "success"; message: string } | { status: "error"; message: string };
 
@@ -39,7 +40,16 @@ type Challenge = {
 
 type ExistingApplication = Pick<
 	TournamentApplication,
-	"displayName" | "mainRole" | "preferredRoles" | "availableAllDates" | "notes" | "acceptedRules" | "acceptedDataStorage" | "discordDmOptIn"
+	| "displayName"
+	| "mainRole"
+	| "preferredRoles"
+	| "availableAllDates"
+	| "notes"
+	| "acceptedRules"
+	| "acceptedDataStorage"
+	| "discordDmOptIn"
+	| "hasCompetitiveExperience"
+	| "competitiveExperience"
 >;
 
 function linkedRiotId(riotId: string) {
@@ -69,6 +79,7 @@ export function ApplicationForm({
 	minimumLevelOverrideKind,
 	announcedDate,
 	applicationDeadlineLabel,
+	preferenceGroupLimit,
 }: {
 	discordIdentity: DiscordIdentity;
 	isGuildMember: boolean;
@@ -79,10 +90,13 @@ export function ApplicationForm({
 	minimumLevelOverrideKind: "regular" | "exception" | null;
 	announcedDate: string;
 	applicationDeadlineLabel: string;
+	preferenceGroupLimit: number;
 }) {
 	const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
+	const setProgress = useApplicationProgressUpdate();
 	const [preferredRoles, setPreferredRoles] = useState<string[]>(initialApplication?.preferredRoles ?? []);
 	const [hasApplication, setHasApplication] = useState(Boolean(initialApplication));
+	const [hasCompetitiveExperience, setHasCompetitiveExperience] = useState(initialApplication?.hasCompetitiveExperience === true);
 	const [state, setState] = useState<SubmitState>(initialState);
 	const [guildMember, setGuildMember] = useState(isGuildMember);
 	const [membershipStatus, setMembershipStatus] = useState<
@@ -125,6 +139,7 @@ export function ApplicationForm({
 
 		const form = formRef.current;
 		if (!form) return false;
+		if (!form.reportValidity()) return false;
 		const formData = new FormData(form);
 		setState({
 			status: "loading",
@@ -137,6 +152,8 @@ export function ApplicationForm({
 			preferredRoles: formData.getAll("preferredRoles").map(String),
 			availableAllDates: formData.get("availableAllDates") === "on",
 			notes: String(formData.get("notes") ?? ""),
+			hasCompetitiveExperience: formData.get("hasCompetitiveExperience") === "on",
+			competitiveExperience: String(formData.get("competitiveExperience") ?? ""),
 			acceptedRules: formData.get("acceptedRules") === "on",
 			acceptedDataStorage: formData.get("acceptedDataStorage") === "on",
 			discordDmOptIn: formData.get("discordDmOptIn") === "on",
@@ -163,6 +180,7 @@ export function ApplicationForm({
 			message: result?.message ?? "Bewerbung gespeichert.",
 		});
 		setHasApplication(true);
+		setProgress?.((progress) => ({ ...progress, submitted: true }));
 		const serialized = serializeApplicationForm(form);
 		setSavedForm(serialized);
 		setCurrentForm(serialized);
@@ -253,11 +271,19 @@ export function ApplicationForm({
 
 	return (
 		<div className="grid gap-6">
+			<p className="text-sm leading-6 text-[var(--muted)]">
+				<RequiredMark /> markiert Pflichtangaben. Felder mit „Optional“ kannst du frei lassen. Account-Daten werden automatisch übernommen.
+			</p>
 			<RiotVerifyPanel
 				verified={verified}
-				onVerified={(account) => setVerified(account)}
+				onVerified={(account) => {
+					setVerified(account);
+					setProgress?.((progress) => ({ ...progress, riotVerified: true }));
+				}}
 				onDisconnected={() => {
 					setVerified(null);
+					setHasApplication(false);
+					setProgress?.((progress) => ({ ...progress, riotVerified: false, submitted: false }));
 					setState(initialState);
 				}}
 			/>
@@ -270,134 +296,186 @@ export function ApplicationForm({
 				onClickCapture={() => {
 					window.setTimeout(syncCurrentForm, 0);
 				}}
-				className={`grid gap-5 ${verified ? "" : "pointer-events-none opacity-50"}`}
+				className="application-form"
 			>
-				<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] px-4 py-3">
-					<div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100/68">Schritt 3 von 3 · Bewerbung ausfüllen und senden</div>
+				<div className="application-form-heading">
+					<p className="panel-kicker">Schritt 3 · Deine Angaben</p>
+					<h2>{hasApplication ? "Deine Bewerbung aktualisieren" : "Erzähl uns von dir."}</h2>
+					<p>Wähle deine Rollen und bestätige deine Teilnahme. Wir kümmern uns um die Teams.</p>
 				</div>
-				{hasApplication ? (
-					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
-						<div>Du bist bereits angemeldet. Hier kannst du deine Bewerbung aktualisieren.</div>
-						<div className="mt-2 text-cyan-50/78">
-							Auf deiner{" "}
-							<Link href="/tournament/me" className="font-black text-cyan-100 underline decoration-cyan-200/40 underline-offset-4 hover:text-white">
-								Profilseite
-							</Link>{" "}
-							kannst du außerdem eine Wunschgruppe mit bis zu fünf Personen erstellen oder einem Code beitreten und optional deinen Twitch-Account verbinden.
-						</div>
-					</div>
-				) : null}
-				{minimumLevelOverrideKind ? (
-					<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
-						<span className="font-black">Teilnahme-Freigabe aktiv:</span> Dein Account-Mindestlevel wird als{" "}
-						{minimumLevelOverrideKind === "regular" ? "Dauergast" : "Ausnahme"} nicht blockiert. Discord-Mitgliedschaft, Riot-Verifizierung und alle übrigen Regeln
-						gelten weiterhin.
-					</div>
-				) : null}
-
-				<div className="grid min-w-0 gap-2">
-					<div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Angekündigte Turniertermine</div>
-					<div className="min-w-0 rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm leading-6 text-emerald-50 [overflow-wrap:anywhere]">
-						{announcedDate}
-					</div>
-				</div>
-
-				<Consent name="availableAllDates" defaultChecked={initialApplication?.availableAllDates ?? false}>
-					Ich kann an beiden angekündigten Turniertagen verbindlich teilnehmen und bin mindestens 20 Minuten vor Start im Voice-Call. Wenn ich unsicher bin, schreibe ich
-					es in die Notizen.
-				</Consent>
-
-				<div className="grid gap-4 md:grid-cols-2">
-					<Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?…" defaultValue={initialApplication?.displayName ?? ""} />
-					<ThemedSelectField label="Main Rolle" name="mainRole" options={roleOptions} initialValue={initialApplication?.mainRole ?? ""} />
-					<ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
-					<ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
-					<ReadOnlyField label="Aktueller Rang (von Riot)" value={verified?.currentRankAuto ?? "Unranked"} />
-					<ReadOnlyField
-						label={minimumLevelOverrideKind ? "Account-Level (Freigabe aktiv)" : `Account-Level (mindestens ${minimumSummonerLevel})`}
-						value={verified?.summonerLevel ? String(verified.summonerLevel) : minimumLevelOverrideKind ? "Freigegeben" : "Neu verifizieren"}
-					/>
-				</div>
-
-				<div className="grid gap-2">
-					<label className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Wunschrollen</label>
-					<p className="text-xs leading-5 text-emerald-100/58">
-						Die Reihenfolge zählt beim Team-Balancing: Deine zuerst gewählte Rolle ist Wunsch #1, die nächste Wunsch #2 usw. Klicke die Rollen deshalb in deiner
-						tatsächlichen Wunschreihenfolge an. <strong className="text-emerald-50">Fill</strong> bedeutet jede Rolle und kann nicht mit Einzelrollen kombiniert werden.
-						Die Reihenfolge wird bestmöglich berücksichtigt, ist wegen fairer Teams aber keine Garantie.
-					</p>
-					<ThemedMultiSelect
-						name="preferredRoles"
-						value={preferredRoles}
-						onChange={setPreferredRoles}
-						placeholder="Eine oder mehrere Rollen wählen…"
-						options={roleOptions.map((role) => ({ value: role, label: role }))}
-						ordered
-						exclusiveValues={["Fill"]}
-					/>
-					{preferredRoles.length ? (
-						<div className="flex flex-wrap gap-2">
-							{preferredRoles.map((role, index) => (
-								<span
-									key={role}
-									className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100"
-								>
-									<span className="mr-1.5 text-cyan-100">#{index + 1}</span>
-									{role}
-								</span>
-							))}
+				{!verified ? <p className="application-note">Verifiziere zuerst deinen Riot-Account, um das Formular freizuschalten.</p> : null}
+				<fieldset disabled={!verified} className="application-fields">
+					<legend className="sr-only">Bewerbung ausfüllen</legend>
+					{hasApplication ? (
+						<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
+							<div>Du bist bereits angemeldet. Hier kannst du deine Bewerbung aktualisieren.</div>
+							<div className="mt-2 text-cyan-50/78">
+								Auf deiner{" "}
+								<Link href="/tournament/me" className="font-black text-cyan-100 underline decoration-cyan-200/40 underline-offset-4 hover:text-white">
+									Profilseite
+								</Link>{" "}
+								{preferenceGroupLimit > 0
+									? `kannst du außerdem eine Wunschgruppe mit bis zu ${preferenceGroupLimit} Personen erstellen oder einem Code beitreten und optional deinen Twitch-Account verbinden.`
+									: "kannst du optional deinen Twitch-Account verbinden."}
+							</div>
 						</div>
 					) : null}
-				</div>
+					{minimumLevelOverrideKind ? (
+						<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
+							<span className="font-black">Teilnahme-Freigabe aktiv:</span> Dein Account-Mindestlevel wird als{" "}
+							{minimumLevelOverrideKind === "regular" ? "Dauergast" : "Ausnahme"} nicht blockiert. Discord-Mitgliedschaft, Riot-Verifizierung und alle übrigen Regeln
+							gelten weiterhin.
+						</div>
+					) : null}
 
-				<label className="grid gap-2">
-					<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Notizen</span>
-					<textarea
-						name="notes"
-						rows={3}
-						autoComplete="off"
-						defaultValue={initialApplication?.notes ?? ""}
-						placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder Hinweise zur Verfügbarkeit…"
-						className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
-					/>
-				</label>
-
-				<div className="grid gap-3">
-					<Consent name="acceptedRules" defaultChecked={initialApplication?.acceptedRules ?? false}>
-						Ich habe die Ultimate-Bravery-Regeln gelesen und verstehe, dass toxisches Verhalten, Roll-Missbrauch oder absichtliches Stören zum Ausschluss führen kann.
-					</Consent>
-					<Consent name="acceptedDataStorage" defaultChecked={initialApplication?.acceptedDataStorage ?? false}>
-						Ich bin damit einverstanden, dass meine Turnierbewerbung zur Eventorganisation gespeichert wird.
-					</Consent>
-					<Consent name="discordDmOptIn" defaultChecked={initialApplication?.discordDmOptIn !== false} required={false}>
-						Ich möchte wichtige Turnier-Neuigkeiten per Discord-DM vom Bot erhalten, zum Beispiel meine veröffentlichte Teamzuweisung und einen Captain-Status.
-					</Consent>
-				</div>
-
-				{state.message ? (
-					<div
-						role={state.status === "error" ? "alert" : "status"}
-						className={`rounded-2xl border px-4 py-3 text-sm ${
-							state.status === "error" ? "border-red-300/30 bg-red-500/10 text-red-100" : "border-lime-200/24 bg-lime-200/10 text-lime-50"
-						}`}
-					>
-						{state.message}
+					<div className="grid min-w-0 gap-2">
+						<div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">Angekündigte Turniertermine</div>
+						<div className="min-w-0 rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm leading-6 text-emerald-50 [overflow-wrap:anywhere]">
+							{announcedDate}
+						</div>
 					</div>
-				) : null}
 
-				<button
-					type="submit"
-					disabled={state.status === "loading" || !verified}
-					className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:opacity-60"
-				>
-					{state.status === "loading"
-						? hasApplication
-							? "Änderungen werden gespeichert…"
-							: "Wird abgeschickt…"
-						: hasApplication
-							? "Bewerbung ändern"
-							: "Bewerbung absenden"}
-				</button>
+					<Consent name="availableAllDates" defaultChecked={initialApplication?.availableAllDates ?? false}>
+						Ich kann an beiden angekündigten Turniertagen verbindlich teilnehmen und bin mindestens 20 Minuten vor Start im Voice-Call. Wenn ich unsicher bin, schreibe
+						ich es in die Notizen.
+					</Consent>
+
+					<div className="grid gap-4 md:grid-cols-2">
+						<Field label="Anzeigename" name="displayName" placeholder="Wie soll das Orga-Team dich nennen?…" defaultValue={initialApplication?.displayName ?? ""} />
+						<ThemedSelectField label="Main Rolle" name="mainRole" options={roleOptions} initialValue={initialApplication?.mainRole ?? ""} />
+						<ReadOnlyField label="Riot-ID (verifiziert)" value={verified?.riotId ?? "—"} />
+						<ReadOnlyField label="Discord-Account" value={discordIdentity.handle} />
+						<ReadOnlyField label="Aktueller Rang (von Riot)" value={verified?.currentRankAuto ?? "Unranked"} />
+						<ReadOnlyField
+							label={minimumLevelOverrideKind ? "Account-Level (Freigabe aktiv)" : `Account-Level (mindestens ${minimumSummonerLevel})`}
+							value={verified?.summonerLevel ? String(verified.summonerLevel) : minimumLevelOverrideKind ? "Freigegeben" : "Neu verifizieren"}
+						/>
+					</div>
+
+					<div className="grid gap-2">
+						<div className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+							Wunschrollen <RequiredMark />
+						</div>
+						<p className="text-xs leading-5 text-emerald-100/58">
+							Die Reihenfolge zählt beim Team-Balancing: Deine zuerst gewählte Rolle ist Wunsch #1, die nächste Wunsch #2 usw. Klicke die Rollen deshalb in deiner
+							tatsächlichen Wunschreihenfolge an. <strong className="text-emerald-50">Fill</strong> bedeutet jede Rolle und kann nicht mit Einzelrollen kombiniert
+							werden. Die Reihenfolge wird bestmöglich berücksichtigt, ist wegen fairer Teams aber keine Garantie.
+						</p>
+						<ThemedMultiSelect
+							ariaLabel="Wunschrollen (Pflichtfeld)"
+							name="preferredRoles"
+							value={preferredRoles}
+							onChange={setPreferredRoles}
+							placeholder="Eine oder mehrere Rollen wählen…"
+							options={roleOptions.map((role) => ({ value: role, label: role }))}
+							ordered
+							exclusiveValues={["Fill"]}
+						/>
+						{preferredRoles.length ? (
+							<div className="flex flex-wrap gap-2">
+								{preferredRoles.map((role, index) => (
+									<span
+										key={role}
+										className="rounded-full border border-lime-200/18 bg-lime-200/[0.07] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-lime-100"
+									>
+										<span className="mr-1.5 text-cyan-100">#{index + 1}</span>
+										{role}
+									</span>
+								))}
+							</div>
+						) : null}
+					</div>
+
+					<div className="grid gap-3">
+						<label className="application-consent">
+							<input
+								type="checkbox"
+								name="hasCompetitiveExperience"
+								checked={hasCompetitiveExperience}
+								onChange={(event) => setHasCompetitiveExperience(event.target.checked)}
+								aria-controls="competitive-experience-details"
+								className="mt-1 size-4 shrink-0 accent-lime-300"
+							/>
+							<span>
+								Ich habe bereits Competitive-Erfahrung in League of Legends gesammelt. <OptionalMark />
+							</span>
+						</label>
+						<div id="competitive-experience-details" hidden={!hasCompetitiveExperience}>
+							<label className="grid gap-2" htmlFor="competitive-experience">
+								<span className="text-xs font-black uppercase tracking-[0.2em] text-[var(--accent)]">
+									Deine Competitive-Erfahrung <RequiredMark />
+								</span>
+								<span id="competitive-experience-hint" className="text-sm leading-6 text-[var(--muted)]">
+									Zum Beispiel Turniere, Ligen, Teams, deine Rolle und wie lange du dabei warst. Pflichtfeld, wenn du den Haken gesetzt hast.
+								</span>
+								<textarea
+									id="competitive-experience"
+									name="competitiveExperience"
+									rows={4}
+									required={hasCompetitiveExperience}
+									disabled={!hasCompetitiveExperience}
+									maxLength={1500}
+									autoComplete="off"
+									aria-describedby="competitive-experience-hint"
+									defaultValue={initialApplication?.competitiveExperience ?? ""}
+									placeholder="Zum Beispiel: Zwei Saisons als Support in einer Amateur-Liga…"
+									className="application-input"
+								/>
+							</label>
+						</div>
+					</div>
+
+					<label className="grid gap-2">
+						<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+							Notizen <OptionalMark />
+						</span>
+						<textarea
+							name="notes"
+							rows={3}
+							autoComplete="off"
+							defaultValue={initialApplication?.notes ?? ""}
+							placeholder="Mitspieler, Shotcalling-Erfahrung, Stream-Einschränkungen oder Hinweise zur Verfügbarkeit…"
+							className="application-input"
+						/>
+					</label>
+
+					<div className="grid gap-3">
+						<Consent name="acceptedRules" defaultChecked={initialApplication?.acceptedRules ?? false}>
+							Ich habe die{" "}
+							<Link href="/tournament/terms" className="font-bold text-[var(--accent)] underline underline-offset-4">
+								aktuellen Turnierregeln
+							</Link>{" "}
+							gelesen und verstehe, dass toxisches Verhalten, Regelverstöße oder absichtliches Stören zum Ausschluss führen können.
+						</Consent>
+						<Consent name="acceptedDataStorage" defaultChecked={initialApplication?.acceptedDataStorage ?? false}>
+							Ich bin damit einverstanden, dass meine Turnierbewerbung zur Eventorganisation gespeichert wird.
+						</Consent>
+						<Consent name="discordDmOptIn" defaultChecked={initialApplication?.discordDmOptIn !== false} required={false}>
+							Ich möchte wichtige Turnier-Neuigkeiten per Discord-DM vom Bot erhalten, zum Beispiel meine veröffentlichte Teamzuweisung und einen Captain-Status.
+						</Consent>
+					</div>
+
+					{state.message ? (
+						<div
+							role={state.status === "error" ? "alert" : "status"}
+							className={`rounded-2xl border px-4 py-3 text-sm ${
+								state.status === "error" ? "border-red-300/30 bg-red-500/10 text-red-100" : "border-lime-200/24 bg-lime-200/10 text-lime-50"
+							}`}
+						>
+							{state.message}
+						</div>
+					) : null}
+
+					<button type="submit" disabled={state.status === "loading" || !verified} className="button primary application-submit">
+						{state.status === "loading"
+							? hasApplication
+								? "Änderungen werden gespeichert…"
+								: "Wird abgeschickt…"
+							: hasApplication
+								? "Bewerbung ändern"
+								: "Bewerbung absenden"}
+					</button>
+				</fieldset>
 				{hasApplication ? (
 					<div className="rounded-2xl border border-rose-300/14 bg-rose-400/[0.045] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
 						<div>
@@ -409,6 +487,7 @@ export function ApplicationForm({
 							className="mt-3 shrink-0 sm:mt-0"
 							onWithdrawn={(message) => {
 								setHasApplication(false);
+								setProgress?.((progress) => ({ ...progress, submitted: false }));
 								setState({ status: "success", message });
 							}}
 						/>
@@ -461,7 +540,7 @@ function RiotVerifyPanel({
 
 	if (verified) {
 		return (
-			<div className="rounded-2xl border border-lime-200/24 bg-lime-200/10 p-5">
+			<div className="application-verification is-verified">
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
 						<div className="text-xs font-black uppercase tracking-[0.2em] text-lime-100/68">Schritt 2 von 3 · abgeschlossen</div>
@@ -616,30 +695,33 @@ function RiotVerifyPanel({
 	}
 
 	return (
-		<div className="rounded-2xl border border-amber-200/24 bg-amber-200/[0.06] p-5">
-			<div className="text-xs font-black uppercase tracking-[0.2em] text-amber-100/72">Schritt 2 von 3 · Riot-Account verifizieren</div>
+		<div className="application-verification">
+			<div className="text-xs font-black uppercase tracking-[0.2em] text-amber-100/72">
+				Schritt 2 von 3 · Riot-Account verifizieren <RequiredMark />
+			</div>
 			<p className="mt-2 text-sm leading-6 text-emerald-100/72">
 				Beweise den Besitz deiner Riot-ID, indem du dein League-Profilicon wechselst. Lass das Challenge-Icon eingestellt, bis die Webseite die Verifizierung bestätigt.
 			</p>
 
 			{!challenge ? (
 				<form onSubmit={start} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-					<input
-						name="riot-id"
-						aria-label="Riot-ID"
-						autoComplete="off"
-						spellCheck={false}
-						value={riotIdInput}
-						onChange={(event) => setRiotIdInput(event.target.value)}
-						required
-						placeholder="Name#TAG…"
-						className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/34"
-					/>
-					<button
-						type="submit"
-						disabled={status.kind === "loading"}
-						className="rounded-2xl bg-amber-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-amber-950 disabled:opacity-60"
-					>
+					<label className="grid gap-2">
+						<span className="text-xs font-bold text-[var(--muted)]">
+							Riot-ID <RequiredMark />
+						</span>
+						<input
+							name="riot-id"
+							aria-label="Riot-ID"
+							autoComplete="off"
+							spellCheck={false}
+							value={riotIdInput}
+							onChange={(event) => setRiotIdInput(event.target.value)}
+							required
+							placeholder="Name#TAG…"
+							className="application-input"
+						/>
+					</label>
+					<button type="submit" disabled={status.kind === "loading"} className="button primary self-end">
 						{status.kind === "loading" ? "Wird gesucht…" : "Verifizierung starten"}
 					</button>
 				</form>
@@ -655,12 +737,7 @@ function RiotVerifyPanel({
 							</div>
 							<div className="text-xs text-amber-100/52">Läuft ab um {new Date(challenge.expiresAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin" })}.</div>
 						</div>
-						<button
-							type="button"
-							onClick={verify}
-							disabled={status.kind === "loading"}
-							className="rounded-2xl bg-lime-200 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-60"
-						>
+						<button type="button" onClick={verify} disabled={status.kind === "loading"} className="button primary">
 							{status.kind === "loading" ? "Prüfe…" : "Jetzt prüfen"}
 						</button>
 					</div>
@@ -719,15 +796,10 @@ function formatRiotCheckTime(value: string) {
 function Field({ label, name, placeholder, defaultValue }: { label: string; name: string; placeholder: string; defaultValue?: string }) {
 	return (
 		<label className="grid gap-2">
-			<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">{label}</span>
-			<input
-				name={name}
-				required
-				autoComplete="off"
-				defaultValue={defaultValue}
-				placeholder={placeholder}
-				className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
-			/>
+			<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+				{label} <RequiredMark />
+			</span>
+			<input name={name} required autoComplete="off" defaultValue={defaultValue} placeholder={placeholder} className="application-input" />
 		</label>
 	);
 }
@@ -736,8 +808,11 @@ function ThemedSelectField({ label, name, options, initialValue = "" }: { label:
 	const [value, setValue] = useState(initialValue);
 	return (
 		<label className="grid gap-2">
-			<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">{label}</span>
+			<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">
+				{label} <RequiredMark />
+			</span>
 			<ThemedSelect
+				ariaLabel={`${label} (Pflichtfeld)`}
 				name={name}
 				value={value}
 				onChange={setValue}
@@ -753,16 +828,37 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 	return (
 		<label className="grid gap-2">
 			<span className="text-xs font-black uppercase tracking-[0.26em] text-lime-200/64">{label}</span>
-			<input value={value} readOnly className="rounded-2xl border border-white/10 bg-black/24 px-4 py-3 text-sm text-emerald-50 outline-none" />
+			<input value={value} readOnly className="application-input" />
 		</label>
 	);
 }
 
 function Consent({ name, children, defaultChecked = false, required = true }: { name: string; children: ReactNode; defaultChecked?: boolean; required?: boolean }) {
 	return (
-		<label className="flex gap-3 rounded-2xl border border-white/10 bg-black/16 p-4 text-sm leading-6 text-emerald-100/72">
+		<label className="application-consent">
 			<input required={required} type="checkbox" name={name} defaultChecked={defaultChecked} className="mt-1 size-4 shrink-0 accent-lime-300" />
-			<span>{children}</span>
+			<span>
+				{children} {required ? <RequiredMark /> : <OptionalMark />}
+			</span>
 		</label>
+	);
+}
+
+function RequiredMark() {
+	return (
+		<>
+			<span aria-hidden="true" className="ml-1 text-base font-black text-[#f9a8d4]">
+				*
+			</span>
+			<span className="sr-only"> (Pflichtfeld)</span>
+		</>
+	);
+}
+
+function OptionalMark() {
+	return (
+		<span className="ml-2 inline-block rounded-md border border-[var(--line)] px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-[var(--muted)]">
+			Optional
+		</span>
 	);
 }

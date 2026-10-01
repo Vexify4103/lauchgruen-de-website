@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { wishGroupLimit } from "@/lib/preference-group-settings";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { TOURNAMENT_OWNER_DISCORD_IDS, adminCreatePreferenceGroup, adminMovePreferenceGroupMember } from "@/lib/tournament-storage";
 
@@ -42,6 +44,13 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "Ungültige Gruppendaten." }, { status: 400 });
 	}
 
+	const settings = await getTournamentSettings();
+	const maxMembers = wishGroupLimit(settings.wishGroupMode);
+	const adding = parsed.data.action === "create" || parsed.data.targetCode !== null;
+	if (adding && maxMembers === 0) return NextResponse.json({ message: "Wunschgruppen sind deaktiviert." }, { status: 403 });
+	if (parsed.data.action === "create" && new Set(parsed.data.discordIds).size > maxMembers) {
+		return NextResponse.json({ message: `Wunschgruppen erlauben maximal ${maxMembers} Personen.` }, { status: 400 });
+	}
 	const versionClaim = await claimAdminVersion({
 		resource: "preference-groups",
 		expectedVersion: parsed.data.expectedVersion,
@@ -53,7 +62,7 @@ export async function POST(request: Request) {
 
 	try {
 		if (parsed.data.action === "create") {
-			const group = await adminCreatePreferenceGroup(parsed.data.discordIds);
+			const group = await adminCreatePreferenceGroup(parsed.data.discordIds, maxMembers);
 			await writeAdminAudit({
 				action: "preference_group.created_by_admin",
 				targetType: "preference_group",
@@ -66,7 +75,7 @@ export async function POST(request: Request) {
 			return NextResponse.json({ group, version: versionClaim.version });
 		}
 
-		const group = await adminMovePreferenceGroupMember(parsed.data.discordId, parsed.data.targetCode);
+		const group = await adminMovePreferenceGroupMember(parsed.data.discordId, parsed.data.targetCode, maxMembers);
 		await writeAdminAudit({
 			action: group ? "preference_group.member_moved_by_admin" : "preference_group.member_removed_by_admin",
 			targetType: "preference_group",

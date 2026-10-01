@@ -166,7 +166,7 @@ export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
 		},
 		{
 			title: `Account-Level ${structure.minimumSummonerLevel}+`,
-			text: "Das Mindestlevel reduziert offensichtliche Wegwerf-Accounts, ist aber kein vollständiger Smurf-Schutz.",
+			text: `Für die Teilnahme benötigst du einen verifizierten League-Account mit mindestens Level ${structure.minimumSummonerLevel}. Bei Fragen zu deiner Teilnahme wende dich an die Orga.`,
 		},
 	];
 	switch (settings.activeTournament.kind) {

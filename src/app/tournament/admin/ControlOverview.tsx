@@ -11,8 +11,9 @@ import { DiscordControlCenter } from "./DiscordControlCenter";
 import { TournamentModePanel, type TournamentSettingsSection } from "./TournamentModePanel";
 import { RefreshRanksButton } from "./applicants/RefreshRanksButton";
 import { TournamentInformationEditor } from "./TournamentInformationEditor";
+import { PreferenceGroupSettingsEditor } from "./PreferenceGroupSettingsEditor";
 
-type ModalKey = TournamentSettingsSection | "riot" | "discord" | "information";
+type ModalKey = TournamentSettingsSection | "riot" | "discord" | "information" | "groups";
 
 const MODE_COPY: Record<TournamentSettings["activeTournament"]["mode"], { label: string; line: string; detail: string }> = {
 	teaser: { label: "Ankündigung", line: "Angekündigt.", detail: "Nur Übersicht und Regeln sind öffentlich. Setze Format, Termine und Bewerbungszeitraum." },
@@ -106,6 +107,9 @@ export function ControlOverview({
 						<button className="button ghost" type="button" onClick={() => setModal("applications")}>
 							Bewerbungszeitraum
 						</button>
+						<button className="button ghost" type="button" onClick={() => setModal("groups")}>
+							Wunschgruppen
+						</button>
 						<button className="button ghost" type="button" onClick={() => setModal("lifecycle")}>
 							Lebenszyklus
 						</button>
@@ -165,6 +169,9 @@ export function ControlOverview({
 			</AdminModal>
 			{settingsModal("rules", "Turnier-Setup", "Regeln & Preise", true)}
 			{settingsModal("applications", "Turnier-Setup", "Bewerbungszeitraum", true)}
+			<AdminModal open={modal === "groups"} kicker="Turnier-Setup" title="Wunschgruppen" onClose={close}>
+				{modal === "groups" ? <PreferenceGroupSettingsEditor settings={settings} initialVersion={settingsVersion} onSaved={saved} /> : null}
+			</AdminModal>
 			<AdminModal open={modal === "lifecycle"} kicker="Turnier-Setup" title="Lebenszyklus" onClose={close} wide>
 				<div className="grid gap-5">
 					<TournamentModePanel initialSettings={settings} initialVersion={settingsVersion} section="lifecycle" onSaved={saved} />

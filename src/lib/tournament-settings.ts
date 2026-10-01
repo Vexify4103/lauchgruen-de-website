@@ -2,6 +2,7 @@ import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_APPLICATION_DEADLINE, TOURNAMENT_APPLICATION_OPEN_AT } from "@/lib/tournament-application-deadline";
 import { TOURNAMENT_MODES, type TournamentMode } from "@/lib/tournament-mode";
 import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
+import { normalizeWishGroupMode, type WishGroupMode } from "@/lib/preference-group-settings";
 import {
 	BEST_OF_VALUES,
 	DAY_ONE_FORMATS,
@@ -30,6 +31,7 @@ export type TournamentSettings = {
 		kind: TournamentKind;
 	};
 	applicationsOpen: boolean;
+	wishGroupMode?: WishGroupMode;
 	applicationOpenAt: string | null;
 	applicationDeadlineOverride: boolean;
 	applicationDeadline: string;
@@ -81,6 +83,7 @@ function defaultSettings(): TournamentSettings {
 			kind: "az",
 		},
 		applicationsOpen: envFlag("TOURNAMENT_APPLICATIONS_ENABLED", true),
+		wishGroupMode: "team",
 		applicationOpenAt: TOURNAMENT_APPLICATION_OPEN_AT,
 		applicationDeadlineOverride: envFlag("TOURNAMENT_APPLICATION_DEADLINE_BYPASS", false),
 		applicationDeadline: TOURNAMENT_APPLICATION_DEADLINE,
@@ -168,6 +171,7 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		id: DOC_ID,
 		activeTournament: normalizeActiveTournament(rest.activeTournament, defaults.activeTournament),
 		applicationsOpen: typeof rest.applicationsOpen === "boolean" ? rest.applicationsOpen : defaults.applicationsOpen,
+		wishGroupMode: normalizeWishGroupMode(rest.wishGroupMode),
 		applicationOpenAt: openAt,
 		applicationDeadlineOverride: typeof rest.applicationDeadlineOverride === "boolean" ? rest.applicationDeadlineOverride : defaults.applicationDeadlineOverride,
 		applicationDeadline: deadline,
@@ -223,6 +227,7 @@ export async function updateTournamentSettings(input: {
 			TournamentSettings,
 			| "activeTournament"
 			| "applicationsOpen"
+			| "wishGroupMode"
 			| "applicationOpenAt"
 			| "applicationDeadlineOverride"
 			| "applicationDeadline"
@@ -242,6 +247,7 @@ export async function updateTournamentSettings(input: {
 	};
 	if (input.patch.activeTournament !== undefined) $set.activeTournament = input.patch.activeTournament;
 	if (input.patch.applicationsOpen !== undefined) $set.applicationsOpen = input.patch.applicationsOpen;
+	if (input.patch.wishGroupMode !== undefined) $set.wishGroupMode = input.patch.wishGroupMode;
 	if (input.patch.applicationOpenAt !== undefined) $set.applicationOpenAt = input.patch.applicationOpenAt;
 	if (input.patch.applicationDeadlineOverride !== undefined) $set.applicationDeadlineOverride = input.patch.applicationDeadlineOverride;
 	if (input.patch.applicationDeadline !== undefined) $set.applicationDeadline = input.patch.applicationDeadline;

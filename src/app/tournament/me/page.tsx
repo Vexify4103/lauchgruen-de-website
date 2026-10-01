@@ -5,16 +5,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
-import {
-	getVerifiedAccount,
-	getPreferenceGroupForDiscordId,
-	getTwitchLink,
-	listApplications,
-	TOURNAMENT_PREFERENCE_GROUP_LIMIT,
-	TOURNAMENT_OWNER_DISCORD_IDS,
-} from "@/lib/tournament-storage";
+import { getVerifiedAccount, getPreferenceGroupForDiscordId, getTwitchLink, listApplications, TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { normalizeWishGroupMode, wishGroupLimit } from "@/lib/preference-group-settings";
 import { PreferenceGroupCard } from "./PreferenceGroupCard";
 import { RiotVerificationCard } from "./RiotVerificationCard";
 import { TwitchLinkCard } from "./TwitchLinkCard";
@@ -347,10 +341,12 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 					</section>
 
 					<PreferenceGroupCard
+						mode={normalizeWishGroupMode(settings.wishGroupMode)}
+						registrationOpen={applicationsOpen}
 						hasApplication={Boolean(application)}
 						initialGroup={
 							preferenceGroup
-								? { code: preferenceGroup.code, memberCount: preferenceGroup.memberDiscordIds.length, maxMembers: TOURNAMENT_PREFERENCE_GROUP_LIMIT }
+								? { code: preferenceGroup.code, memberCount: preferenceGroup.memberDiscordIds.length, maxMembers: wishGroupLimit(settings.wishGroupMode) }
 								: null
 						}
 					/>

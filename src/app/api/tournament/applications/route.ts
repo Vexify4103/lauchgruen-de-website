@@ -14,6 +14,7 @@ import {
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSummonerByPuuid } from "@/lib/riot";
 import { normalizePreferredRoles } from "@/lib/role-preferences";
+import { applicationSchema } from "@/lib/tournament-application-schema";
 import {
 	TOURNAMENT_OWNER_DISCORD_IDS,
 	deleteApplicationsByDiscordId,
@@ -29,17 +30,6 @@ import {
 } from "@/lib/tournament-storage";
 
 export const runtime = "nodejs";
-
-const applicationSchema = z.object({
-	displayName: z.string().trim().min(2).max(60),
-	mainRole: z.string().trim().min(1).max(20),
-	preferredRoles: z.array(z.string().trim().min(1)).min(1).max(6),
-	availableAllDates: z.literal(true),
-	notes: z.string().trim().max(1500).optional().default(""),
-	acceptedRules: z.literal(true),
-	acceptedDataStorage: z.literal(true),
-	discordDmOptIn: z.boolean().default(true),
-});
 
 const applicationPatchSchema = z.object({
 	id: z.string().trim().min(1),
@@ -132,7 +122,15 @@ export async function POST(request: Request) {
 	const parsed = applicationSchema.safeParse(body);
 
 	if (!parsed.success) {
-		return NextResponse.json({ message: "Bitte fülle alle Pflichtfelder aus und akzeptiere die Regeln." }, { status: 400 });
+		const experienceIssue = parsed.error.issues.find((issue) => issue.path[0] === "competitiveExperience");
+		return NextResponse.json(
+			{
+				message: experienceIssue
+					? "Bitte beschreibe deine Competitive-Erfahrung (maximal 1500 Zeichen) oder entferne den Haken."
+					: "Bitte fülle alle Pflichtfelder aus und akzeptiere die Regeln.",
+			},
+			{ status: 400 }
+		);
 	}
 
 	const now = new Date().toISOString();

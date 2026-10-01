@@ -33,6 +33,7 @@ export function SiteHeader({
 	navItems,
 	status,
 	account,
+	primaryAction,
 }: {
 	homeHref: string;
 	homeLabel: string;
@@ -41,6 +42,7 @@ export function SiteHeader({
 	navItems: SiteNavItem[];
 	status?: ReactNode;
 	account?: ReactNode;
+	primaryAction?: { href: string; label: string };
 }) {
 	const pathname = usePathname();
 	const navId = useId();
@@ -56,7 +58,7 @@ export function SiteHeader({
 	}, [open]);
 
 	return (
-		<header className="site-header">
+		<header className={`site-header${primaryAction ? " has-primary-action" : ""}`}>
 			<TournamentLink className="wordmark" href={homeHref} aria-label={homeLabel}>
 				<span className="wordmark-orb">
 					<Image src="/tournament-bear-mark.png" alt="" width={42} height={42} priority unoptimized />
@@ -81,6 +83,16 @@ export function SiteHeader({
 				)}
 			</nav>
 			<div className="header-actions">
+				{primaryAction ? (
+					<TournamentLink
+						href={primaryAction.href}
+						className="header-apply-button"
+						aria-current={normalizePath(pathname) === normalizePath(primaryAction.href) ? "page" : undefined}
+					>
+						{primaryAction.label}
+						<span aria-hidden="true"> ↗</span>
+					</TournamentLink>
+				) : null}
 				{status}
 				{account}
 				<button className="menu-button" type="button" aria-label="Menü" aria-controls={navId} aria-expanded={open} onClick={() => setOpen((value) => !value)}>

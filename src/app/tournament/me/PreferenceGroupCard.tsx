@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { wishGroupLimit, isAllowedPreferenceGroup, type WishGroupMode } from "@/lib/preference-group-settings";
 
 type PreferenceGroupView = {
 	code: string;
@@ -10,7 +11,19 @@ type PreferenceGroupView = {
 	maxMembers: number;
 };
 
-export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialGroup: PreferenceGroupView | null; hasApplication: boolean }) {
+export function PreferenceGroupCard({
+	initialGroup,
+	hasApplication,
+	mode,
+	registrationOpen,
+}: {
+	initialGroup: PreferenceGroupView | null;
+	hasApplication: boolean;
+	mode: WishGroupMode;
+	registrationOpen: boolean;
+}) {
+	const maxMembers = wishGroupLimit(mode);
+	const canJoin = maxMembers > 0 && hasApplication && registrationOpen;
 	const [group, setGroup] = useState(initialGroup);
 	const [joinCode, setJoinCode] = useState("");
 	const [pending, setPending] = useState<"create" | "join" | "leave" | null>(null);
@@ -56,14 +69,14 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 	}
 
 	useUnsavedChanges({
-		dirty: Boolean(joinCode.trim()),
+		dirty: canJoin && Boolean(joinCode.trim()),
 		label: "Wunschgruppen-Code",
 		save: () => mutate("join", joinCode),
 	});
 
 	function requestJoinConfirmation() {
 		const code = joinCode.trim().toUpperCase();
-		if (!code) return;
+		if (!code || !canJoin) return;
 		setConfirmJoinCode(code);
 	}
 
@@ -92,7 +105,11 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 					<span>Wunschgruppe</span>
 					<h2 id="group-hub-title">Mit Freunden spielen</h2>
 				</div>
-				<small>Ein bis fünf Personen. Die Orga berücksichtigt euren Wunsch, Team-Balance hat aber Vorrang.</small>
+				<small>
+					{maxMembers
+						? `Bis zu ${maxMembers} Personen. Die Orga berücksichtigt euren Wunsch, Team-Balance hat aber Vorrang.`
+						: "Wunschgruppen sind für dieses Turnier deaktiviert."}
+				</small>
 			</div>
 
 			{group ? (
@@ -100,7 +117,8 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 					<div>
 						<span>Deine Wunschgruppe</span>
 						<strong>
-							{group.memberCount}/{group.maxMembers} Personen
+							{group.memberCount}
+							{maxMembers ? `/${maxMembers}` : ""} Personen
 						</strong>
 					</div>
 					<footer>
@@ -113,18 +131,18 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 						</button>
 					</footer>
 				</div>
-			) : (
+			) : maxMembers > 0 ? (
 				<div className="group-hub-grid">
-					<section data-disabled={!hasApplication}>
+					<section data-disabled={!canJoin}>
 						<span className="group-hub-step">01 · Erstellen</span>
 						<h3>Neuen Code erzeugen</h3>
-						<p>Erstelle einen privaten Code und teile ihn mit bis zu vier Mitspielern.</p>
-						<button type="button" className="button primary small justify-self-start" onClick={() => mutate("create")} disabled={!hasApplication || pending !== null}>
+						<p>Erstelle einen privaten Code und teile ihn mit bis zu {maxMembers - 1} Mitspielern.</p>
+						<button type="button" className="button primary small justify-self-start" onClick={() => mutate("create")} disabled={!canJoin || pending !== null}>
 							{pending === "create" ? "Code wird erstellt…" : "Code erstellen"}
 						</button>
 					</section>
 					<form
-						data-disabled={!hasApplication}
+						data-disabled={!canJoin}
 						onSubmit={(event) => {
 							event.preventDefault();
 							requestJoinConfirmation();
@@ -145,17 +163,26 @@ export function PreferenceGroupCard({ initialGroup, hasApplication }: { initialG
 								placeholder="LG-XXXXXX…"
 								autoComplete="off"
 								maxLength={20}
-								disabled={!hasApplication}
+								disabled={!canJoin || pending !== null}
 								className="account-input font-mono uppercase tracking-[0.12em]"
 							/>
-							<button type="submit" className="connection-action solid" disabled={!hasApplication || pending !== null || !joinCode.trim()}>
+							<button type="submit" className="connection-action solid" disabled={!canJoin || pending !== null || !joinCode.trim()}>
 								{pending === "join" ? "Tritt bei…" : "Beitreten"}
 							</button>
 						</div>
 					</form>
 				</div>
-			)}
-			{!hasApplication ? <p className="account-note">Speichere zuerst deine Turnierbewerbung, dann kannst du eine Wunschgruppe erstellen oder beitreten.</p> : null}
+			) : null}
+			{group && !isAllowedPreferenceGroup(mode, group.memberCount) ? (
+				<p className="account-note">
+					Diese Gruppe bleibt gespeichert, wird aber wegen der aktuellen Wunschgruppen-Einstellung nicht beim Team-Building berücksichtigt. Du kannst sie weiterhin
+					verlassen.
+				</p>
+			) : null}
+			{maxMembers > 0 && !registrationOpen ? <p className="account-note">Erstellen und Beitreten ist nur während der geöffneten Anmeldung möglich.</p> : null}
+			{maxMembers > 0 && !hasApplication ? (
+				<p className="account-note">Speichere zuerst deine Turnierbewerbung, dann kannst du eine Wunschgruppe erstellen oder beitreten.</p>
+			) : null}
 
 			{message ? (
 				<p role="status" className="account-message" data-tone={message.tone === "error" ? "error" : undefined}>

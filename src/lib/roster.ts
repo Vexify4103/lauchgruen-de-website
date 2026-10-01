@@ -12,6 +12,7 @@ import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queu
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
+import { isAllowedPreferenceGroup } from "@/lib/preference-group-settings";
 import { seedSlotLayout } from "@/lib/tournament-structure";
 import { resolveManualRosterIdentity } from "@/lib/roster-manual-player";
 
@@ -91,6 +92,8 @@ export type RosterApplicant = {
 	preferenceGroupCode?: string;
 	availableAllDates: boolean;
 	notes: string;
+	hasCompetitiveExperience?: boolean;
+	competitiveExperience?: string;
 	acceptedRules: boolean;
 	acceptedDataStorage: boolean;
 	createdAt: string;
@@ -170,7 +173,9 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 		})),
 	}));
 
-	const preferenceGroupByDiscordId = new Map(preferenceGroups.flatMap((group) => group.memberDiscordIds.map((discordId) => [discordId, group.code] as const)));
+	const groupSettings = await getTournamentSettings();
+	const activePreferenceGroups = preferenceGroups.filter((group) => isAllowedPreferenceGroup(groupSettings.wishGroupMode, group.memberDiscordIds.length));
+	const preferenceGroupByDiscordId = new Map(activePreferenceGroups.flatMap((group) => group.memberDiscordIds.map((discordId) => [discordId, group.code] as const)));
 	const applicants: RosterApplicant[] = visibleApplications.map((application) => toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)));
 	const applicantIds = new Set(applicants.map((applicant) => applicant.discordId));
 
@@ -267,6 +272,8 @@ function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): 
 		preferenceGroupCode,
 		availableAllDates: app.availableAllDates,
 		notes: app.notes,
+		hasCompetitiveExperience: app.hasCompetitiveExperience === true,
+		competitiveExperience: app.hasCompetitiveExperience ? (app.competitiveExperience ?? "") : "",
 		acceptedRules: app.acceptedRules,
 		acceptedDataStorage: app.acceptedDataStorage,
 		createdAt: app.createdAt,

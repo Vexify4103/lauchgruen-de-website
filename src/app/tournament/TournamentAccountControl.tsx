@@ -13,6 +13,7 @@ export function TournamentAccountControl({ account, accountUrl, compact = false 
 		return (
 			<DiscordSignInButton
 				redirectTo={accountUrl}
+				returnToCurrentPage
 				ariaLabel="Mit Discord anmelden"
 				pendingLabel="Weiter zu Discord…"
 				className={`profile-link inline-flex h-[42px] items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--panel)] py-1 pl-1 pr-3.5 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--line-strong)] disabled:cursor-wait disabled:opacity-65 ${compact ? "mx-auto" : ""}`}

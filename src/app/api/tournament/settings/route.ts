@@ -7,6 +7,7 @@ import { writeAuditLog } from "@/lib/tournament-audit";
 import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings, updateTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_MODES } from "@/lib/tournament-mode";
+import { WISH_GROUP_MODES } from "@/lib/preference-group-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getMatchControlContext } from "@/lib/match-control";
 import { resolveTournamentCompletion } from "@/lib/tournament-completion";
@@ -21,6 +22,7 @@ const schema = z.object({
 	expectedVersion: z.number().int().min(0),
 	tournamentInformation: tournamentInformationSchema.optional(),
 	applicationsOpen: z.boolean().optional(),
+	wishGroupMode: z.enum(WISH_GROUP_MODES).optional(),
 	applicationOpenAt: z.iso.datetime({ offset: true }).nullable().optional(),
 	applicationDeadlineOverride: z.boolean().optional(),
 	applicationDeadline: z.iso.datetime({ offset: true }).optional(),
@@ -113,6 +115,7 @@ export async function PATCH(request: Request) {
 						}
 					: undefined,
 			applicationsOpen: parsed.data.applicationsOpen,
+			wishGroupMode: parsed.data.wishGroupMode,
 			applicationOpenAt: parsed.data.applicationOpenAt,
 			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
 			applicationDeadline: parsed.data.applicationDeadline,
@@ -132,6 +135,7 @@ export async function PATCH(request: Request) {
 		actorLabel: session.user.discordHandle ?? discordId,
 		metadata: {
 			tournamentInformation: parsed.data.tournamentInformation,
+			wishGroupMode: parsed.data.wishGroupMode,
 			applicationsOpen: parsed.data.applicationsOpen,
 			applicationOpenAt: parsed.data.applicationOpenAt,
 			applicationDeadlineOverride: parsed.data.applicationDeadlineOverride,
@@ -149,6 +153,7 @@ export async function PATCH(request: Request) {
 		targetId: "default",
 		createdBy: session.user.discordHandle ?? discordId,
 		payload: {
+			wishGroupMode: parsed.data.wishGroupMode,
 			tournamentInformation: parsed.data.tournamentInformation,
 			applicationsOpen: parsed.data.applicationsOpen,
 			applicationOpenAt: parsed.data.applicationOpenAt,

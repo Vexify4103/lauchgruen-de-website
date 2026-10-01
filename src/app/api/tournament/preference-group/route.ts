@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { TOURNAMENT_PREFERENCE_GROUP_LIMIT, createPreferenceGroup, getPreferenceGroupForDiscordId, joinPreferenceGroup, leavePreferenceGroup } from "@/lib/tournament-storage";
+import { createPreferenceGroup, getPreferenceGroupForDiscordId, joinPreferenceGroup, leavePreferenceGroup } from "@/lib/tournament-storage";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { wishGroupLimit } from "@/lib/preference-group-settings";
+import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +18,12 @@ const actionSchema = z.discriminatedUnion("action", [
 	z.object({ action: z.literal("leave") }),
 ]);
 
-function publicGroup(group: Awaited<ReturnType<typeof getPreferenceGroupForDiscordId>>) {
+function publicGroup(group: Awaited<ReturnType<typeof getPreferenceGroupForDiscordId>>, maxMembers: number) {
 	if (!group) return null;
 	return {
 		code: group.code,
 		memberCount: group.memberDiscordIds.length,
-		maxMembers: TOURNAMENT_PREFERENCE_GROUP_LIMIT,
+		maxMembers,
 	};
 }
 
@@ -31,8 +34,8 @@ export async function GET() {
 		return NextResponse.json({ message: "Nicht angemeldet." }, { status: 401 });
 	}
 
-	const group = await getPreferenceGroupForDiscordId(discordId);
-	return NextResponse.json({ group: publicGroup(group) });
+	const [group, settings] = await Promise.all([getPreferenceGroupForDiscordId(discordId), getTournamentSettings()]);
+	return NextResponse.json({ group: publicGroup(group, wishGroupLimit(settings.wishGroupMode)), mode: settings.wishGroupMode });
 }
 
 export async function POST(request: Request) {
@@ -57,10 +60,16 @@ export async function POST(request: Request) {
 			});
 		}
 
-		const group = parsed.data.action === "create" ? await createPreferenceGroup(discordId) : await joinPreferenceGroup(discordId, parsed.data.code);
+		const settings = await getTournamentSettings();
+		const maxMembers = wishGroupLimit(settings.wishGroupMode);
+		if (maxMembers === 0) return NextResponse.json({ message: "Wunschgruppen sind für dieses Turnier deaktiviert." }, { status: 403 });
+		if (!areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline, settings.applicationOpenAt)) {
+			return NextResponse.json({ message: "Wunschgruppen können nur während der geöffneten Anmeldung erstellt oder erweitert werden." }, { status: 403 });
+		}
+		const group = parsed.data.action === "create" ? await createPreferenceGroup(discordId) : await joinPreferenceGroup(discordId, parsed.data.code, maxMembers);
 
 		return NextResponse.json({
-			group: publicGroup(group),
+			group: publicGroup(group, maxMembers),
 			message: parsed.data.action === "create" ? "Dein Wunschgruppen-Code ist bereit." : "Du bist der Wunschgruppe beigetreten.",
 		});
 	} catch (error) {
@@ -79,7 +88,7 @@ export async function POST(request: Request) {
 				status: 409,
 			},
 			GROUP_FULL: {
-				message: "Diese Wunschgruppe hat bereits fünf Mitglieder.",
+				message: "Diese Wunschgruppe hat die erlaubte Größe bereits erreicht.",
 				status: 409,
 			},
 			CODE_GENERATION_FAILED: {

@@ -3,6 +3,7 @@
 @import "./admin-system.css";
 @import "./site-pages.css";
 @import "./account.css";
+@import "./application.css";
 
 :root {
 	color-scheme: dark;

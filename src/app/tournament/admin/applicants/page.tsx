@@ -129,6 +129,7 @@ export default async function ApplicantsPage() {
 			/>
 
 			<PreferenceGroupManager
+				mode={settings.wishGroupMode ?? "team"}
 				applicants={sorted.map((app) => ({
 					discordId: app.discordId,
 					displayName: app.displayName,
@@ -266,6 +267,15 @@ function ApplicantCard({
 					)}
 				</div>
 			</div>
+
+			{app.hasCompetitiveExperience ? (
+				<div>
+					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Competitive-Erfahrung</div>
+					<p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-white/8 bg-black/22 p-3 text-xs leading-5 text-emerald-100/72">
+						{app.competitiveExperience || "Erfahrung angegeben, aber keine Beschreibung hinterlegt."}
+					</p>
+				</div>
+			) : null}
 
 			{app.notes ? (
 				<div>

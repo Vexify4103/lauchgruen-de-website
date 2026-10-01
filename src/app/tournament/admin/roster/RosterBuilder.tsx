@@ -2337,6 +2337,12 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 					}
 				/>
 				<ApplicationDetailRow label="Termine" value={applicant.availableAllDates ? "Für beide Tage bestätigt" : "Nicht bestätigt"} />
+				{applicant.hasCompetitiveExperience ? (
+					<div>
+						<div className="font-black uppercase tracking-[0.14em] text-lime-200/52">Competitive-Erfahrung</div>
+						<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-white/8 bg-black/20 p-2 leading-5 text-emerald-100/72">{applicant.competitiveExperience || "Keine Beschreibung hinterlegt."}</p>
+					</div>
+				) : null}
 				<ApplicationDetailRow label="Eingegangen" value={`${submittedAt} Uhr`} />
 				<ApplicationDetailRow
 					label="Zustimmungen"

@@ -26,6 +26,7 @@ export function TournamentChrome({
 	accountControl,
 	compactAccountControl,
 	footerTournamentLabel,
+	applicationsOpen,
 }: {
 	children: ReactNode;
 	navItems: SiteNavItem[];
@@ -37,6 +38,7 @@ export function TournamentChrome({
 	accountControl: ReactNode;
 	compactAccountControl: ReactNode;
 	footerTournamentLabel: string;
+	applicationsOpen: boolean;
 }) {
 	const pathname = usePathname();
 	const path = relativePath(pathname);
@@ -75,6 +77,7 @@ export function TournamentChrome({
 						navItems={navItems}
 						status={<StatusChip status={status} />}
 						account={accountControl}
+						primaryAction={applicationsOpen ? { href: "/tournament/apply", label: "Bewerben" } : undefined}
 					/>
 				)}
 

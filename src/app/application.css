@@ -1,0 +1,326 @@
+@layer components {
+	.header-apply-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-height: 44px;
+		padding: 0 20px;
+		border: 1px solid var(--accent-strong);
+		border-radius: 13px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font:
+			800 13px/1 var(--font-display),
+			sans-serif;
+		box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 18%, transparent);
+		white-space: nowrap;
+		transition:
+			background 0.2s ease,
+			transform 0.2s ease;
+	}
+	.header-apply-button:hover {
+		background: var(--accent-strong);
+		transform: translateY(-1px);
+	}
+	.header-apply-button[aria-current="page"] {
+		box-shadow: inset 0 0 0 2px var(--on-accent);
+	}
+	.header-apply-button:focus-visible,
+	.application-page :is(a, button, input, textarea, summary, [role="combobox"]):focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 4px;
+	}
+	.application-page {
+		padding-top: 56px;
+		padding-bottom: 80px;
+	}
+	.application-intro {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+		align-items: end;
+		gap: 32px;
+		padding-bottom: 36px;
+		margin-bottom: 32px;
+		border-bottom: 1px solid var(--line);
+	}
+	.application-title {
+		font:
+			700 clamp(32px, 4vw, 56px)/1.08 var(--font-display),
+			sans-serif;
+		letter-spacing: -0.05em;
+		color: var(--text);
+		text-wrap: balance;
+		overflow-wrap: anywhere;
+	}
+	.application-title span {
+		color: var(--accent);
+	}
+	.application-lead {
+		margin-top: 20px;
+		color: var(--muted);
+		line-height: 1.7;
+		overflow-wrap: anywhere;
+	}
+	.application-deadline {
+		display: grid;
+		gap: 12px;
+		padding: 24px;
+		border: 1px solid var(--line-strong);
+		border-radius: 20px;
+		background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--panel-solid)), var(--panel-solid));
+	}
+	.application-deadline strong {
+		font:
+			600 17px/1.5 var(--font-display),
+			sans-serif;
+	}
+	.application-deadline a {
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--accent);
+	}
+	.application-deadline a:hover {
+		text-decoration: underline;
+	}
+	.application-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 0.65fr) minmax(0, 1.35fr);
+		gap: 24px;
+		align-items: start;
+	}
+	.application-sidebar {
+		display: grid;
+		gap: 18px;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.application-form-panel {
+		min-width: 0;
+		background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 3%, var(--panel-solid)), var(--panel-solid));
+	}
+	.application-note {
+		border-left: 2px solid var(--accent);
+		padding: 12px 16px;
+		background: color-mix(in srgb, var(--accent) 5%, transparent);
+		color: var(--muted);
+		font-size: 13px;
+		line-height: 1.7;
+		overflow-wrap: anywhere;
+	}
+	.application-steps {
+		display: grid;
+		margin-top: 20px;
+	}
+	.application-steps li {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 16px 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.application-steps li:last-child {
+		border-bottom: 0;
+	}
+	.application-steps li > span {
+		display: grid;
+		place-items: center;
+		flex: 0 0 36px;
+		height: 36px;
+		border: 1px solid var(--line-strong);
+		border-radius: 12px;
+		font:
+			600 12px var(--font-display),
+			sans-serif;
+		color: var(--muted);
+	}
+	.application-steps li[data-complete="true"] > span {
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+	.application-steps strong {
+		display: block;
+		font-size: 14px;
+		font-weight: 700;
+	}
+	.application-steps small {
+		display: block;
+		margin-top: 4px;
+		font-size: 12px;
+		color: var(--muted);
+	}
+	.application-rules {
+		scroll-margin-top: 100px;
+	}
+	.application-rules summary {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		list-style: none;
+		cursor: pointer;
+		font:
+			600 15px/1.5 var(--font-display),
+			sans-serif;
+	}
+	.application-rules summary::-webkit-details-marker {
+		display: none;
+	}
+	.application-rules summary span {
+		color: var(--accent);
+	}
+	.application-rules[open] summary span {
+		transform: rotate(45deg);
+	}
+	.application-login {
+		padding: 12px 4px;
+	}
+	.application-login h2 {
+		font:
+			600 clamp(26px, 3vw, 36px)/1.2 var(--font-display),
+			sans-serif;
+		text-wrap: balance;
+	}
+	.application-discord-icon {
+		display: grid;
+		place-items: center;
+		width: 64px;
+		height: 64px;
+		border: 1px solid #5865f2;
+		border-radius: 20px;
+		color: #c7ccff;
+		background: #5865f21a;
+	}
+	.application-discord-button {
+		background: #5865f2;
+		color: white;
+		border-color: #7289ff;
+	}
+	.application-discord-button:hover {
+		background: #4752c4;
+	}
+	.application-form,
+	.application-fields {
+		display: grid;
+		gap: 24px;
+		min-width: 0;
+	}
+	.application-fields {
+		border: 0;
+		padding: 0;
+		margin: 0;
+	}
+	.application-fields:disabled {
+		opacity: 0.55;
+	}
+	.application-form-heading {
+		border-bottom: 1px solid var(--line);
+		padding-bottom: 20px;
+	}
+	.application-form-heading h2 {
+		margin-top: 10px;
+	}
+	.application-form-heading > p:last-child {
+		margin-top: 10px;
+		color: var(--muted);
+		font-size: 14px;
+		line-height: 1.7;
+	}
+	.application-input {
+		min-width: 0;
+		width: 100%;
+		border: 1px solid var(--line-strong);
+		border-radius: 12px;
+		background: var(--bg-soft);
+		padding: 14px 16px;
+		font-size: 14px;
+		color: var(--text);
+		transition: border-color 0.2s ease;
+	}
+	.application-input::placeholder {
+		color: var(--muted);
+		opacity: 0.65;
+	}
+	.application-input:hover {
+		border-color: var(--accent);
+	}
+	.application-input[readonly] {
+		color: var(--muted);
+		border-color: var(--line);
+	}
+	.application-consent {
+		display: flex;
+		gap: 12px;
+		padding: 16px;
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		background: var(--bg-soft);
+		color: var(--muted);
+		font-size: 14px;
+		line-height: 1.7;
+		cursor: pointer;
+	}
+	.application-consent:has(input:checked) {
+		border-color: var(--line-strong);
+		background: color-mix(in srgb, var(--accent) 4%, var(--bg-soft));
+	}
+	.application-verification {
+		padding: 22px;
+		border: 1px solid var(--line-strong);
+		border-radius: 20px;
+		background: var(--bg-soft);
+	}
+	.application-verification.is-verified {
+		border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+		background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft));
+	}
+	.application-submit {
+		width: 100%;
+		min-height: 52px;
+	}
+	.application-empty {
+		max-width: 760px;
+		margin: 0 auto;
+	}
+	.application-empty .application-title {
+		margin-top: 20px;
+	}
+	@media (max-width: 1000px) {
+		.application-layout {
+			grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+		}
+	}
+	@media (max-width: 760px) {
+		.application-page {
+			padding-top: 32px;
+			padding-bottom: 48px;
+		}
+		.application-intro,
+		.application-layout {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 20px;
+		}
+		.application-form-panel {
+			padding: 22px 18px;
+		}
+		.application-discord-button {
+			width: 100%;
+		}
+		.site-header.has-primary-action {
+			gap: 10px;
+		}
+		.has-primary-action .wordmark > span[translate] {
+			display: none;
+		}
+		.header-apply-button {
+			padding: 0 14px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.header-apply-button {
+			transition: none;
+		}
+		.header-apply-button:hover {
+			transform: none;
+		}
+	}
+}

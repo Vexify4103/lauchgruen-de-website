@@ -22,6 +22,8 @@ export type TournamentApplication = {
 	preferredRoles: string[];
 	availableAllDates: true;
 	notes: string;
+	hasCompetitiveExperience?: boolean;
+	competitiveExperience?: string;
 	acceptedRules: true;
 	acceptedDataStorage: true;
 	discordDmOptIn: boolean;
@@ -232,6 +234,8 @@ function normalizeApplication(app: TournamentApplication): TournamentApplication
 	return {
 		...app,
 		preferredRoles: normalizePreferredRoles(app.preferredRoles ?? []),
+		hasCompetitiveExperience: app.hasCompetitiveExperience === true,
+		competitiveExperience: app.hasCompetitiveExperience === true ? (app.competitiveExperience ?? "") : "",
 		// Applications created before DM preferences existed are opted in by
 		// default. They can disable notifications from the application or /me.
 		discordDmOptIn: app.discordDmOptIn !== false,
@@ -396,9 +400,9 @@ export async function createPreferenceGroup(discordId: string): Promise<Tourname
 	throw new Error("CODE_GENERATION_FAILED");
 }
 
-export async function adminCreatePreferenceGroup(discordIds: string[]): Promise<TournamentPreferenceGroup> {
+export async function adminCreatePreferenceGroup(discordIds: string[], maxMembers = TOURNAMENT_PREFERENCE_GROUP_LIMIT): Promise<TournamentPreferenceGroup> {
 	const uniqueIds = [...new Set(discordIds.map((id) => id.trim()).filter(Boolean))];
-	if (uniqueIds.length === 0 || uniqueIds.length > TOURNAMENT_PREFERENCE_GROUP_LIMIT) {
+	if (uniqueIds.length === 0 || uniqueIds.length > maxMembers) {
 		throw new Error("INVALID_GROUP_SIZE");
 	}
 
@@ -438,7 +442,11 @@ export async function adminCreatePreferenceGroup(discordIds: string[]): Promise<
 	throw new Error("CODE_GENERATION_FAILED");
 }
 
-export async function adminMovePreferenceGroupMember(discordId: string, rawTargetCode: string | null): Promise<TournamentPreferenceGroup | null> {
+export async function adminMovePreferenceGroupMember(
+	discordId: string,
+	rawTargetCode: string | null,
+	maxMembers = TOURNAMENT_PREFERENCE_GROUP_LIMIT
+): Promise<TournamentPreferenceGroup | null> {
 	const application = await findApplicationByDiscordId(discordId);
 	if (!application) throw new Error("APPLICATION_REQUIRED");
 
@@ -457,7 +465,7 @@ export async function adminMovePreferenceGroupMember(discordId: string, rawTarge
 
 	const target = await col.findOne({ _id: targetCode });
 	if (!target) throw new Error("INVALID_GROUP_CODE");
-	if (target.memberDiscordIds.length >= TOURNAMENT_PREFERENCE_GROUP_LIMIT) {
+	if (target.memberDiscordIds.length >= maxMembers) {
 		throw new Error("GROUP_FULL");
 	}
 
@@ -466,7 +474,7 @@ export async function adminMovePreferenceGroupMember(discordId: string, rawTarge
 		{
 			_id: targetCode,
 			memberDiscordIds: { $ne: discordId },
-			$expr: { $lt: [{ $size: "$memberDiscordIds" }, TOURNAMENT_PREFERENCE_GROUP_LIMIT] },
+			$expr: { $lt: [{ $size: "$memberDiscordIds" }, maxMembers] },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },
@@ -493,7 +501,7 @@ export async function adminMovePreferenceGroupMember(discordId: string, rawTarge
 	return updated ? preferenceGroupFromDoc(updated) : null;
 }
 
-export async function joinPreferenceGroup(discordId: string, rawCode: string): Promise<TournamentPreferenceGroup> {
+export async function joinPreferenceGroup(discordId: string, rawCode: string, maxMembers = TOURNAMENT_PREFERENCE_GROUP_LIMIT): Promise<TournamentPreferenceGroup> {
 	const application = await findApplicationByDiscordId(discordId);
 	if (!application) {
 		throw new Error("APPLICATION_REQUIRED");
@@ -511,7 +519,7 @@ export async function joinPreferenceGroup(discordId: string, rawCode: string): P
 	const col = await preferenceGroupsCollection();
 	const target = await col.findOne({ _id: code });
 	if (!target) throw new Error("INVALID_GROUP_CODE");
-	if (target.memberDiscordIds.length >= TOURNAMENT_PREFERENCE_GROUP_LIMIT) {
+	if (target.memberDiscordIds.length >= maxMembers) {
 		throw new Error("GROUP_FULL");
 	}
 
@@ -519,7 +527,7 @@ export async function joinPreferenceGroup(discordId: string, rawCode: string): P
 		{
 			_id: code,
 			memberDiscordIds: { $ne: discordId },
-			$expr: { $lt: [{ $size: "$memberDiscordIds" }, TOURNAMENT_PREFERENCE_GROUP_LIMIT] },
+			$expr: { $lt: [{ $size: "$memberDiscordIds" }, maxMembers] },
 		},
 		{
 			$addToSet: { memberDiscordIds: discordId },

@@ -111,6 +111,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 					/>
 				) : null}
 				<TournamentChrome
+					applicationsOpen={applicationsOpen}
 					navItems={navItems}
 					hero={hero}
 					subnavItems={subnavItems}

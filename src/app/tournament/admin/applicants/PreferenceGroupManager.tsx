@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
+import { wishGroupLimit, isAllowedPreferenceGroup, type WishGroupMode } from "@/lib/preference-group-settings";
 
 type ApplicantOption = {
 	discordId: string;
@@ -19,9 +20,18 @@ type GroupView = {
 	memberDiscordIds: string[];
 };
 
-const MAX_GROUP_MEMBERS = 5;
-
-export function PreferenceGroupManager({ applicants, groups, initialVersion }: { applicants: ApplicantOption[]; groups: GroupView[]; initialVersion: number }) {
+export function PreferenceGroupManager({
+	applicants,
+	groups,
+	initialVersion,
+	mode,
+}: {
+	applicants: ApplicantOption[];
+	groups: GroupView[];
+	initialVersion: number;
+	mode: WishGroupMode;
+}) {
+	const maxMembers = wishGroupLimit(mode);
 	const router = useRouter();
 	const { showConflict } = useAdminConflict();
 	const [version, setVersion] = useState(initialVersion);
@@ -84,7 +94,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 	}
 
 	useUnsavedChanges({
-		dirty: newMembers.length > 0,
+		dirty: maxMembers > 0 && newMembers.length > 0,
 		label: "Neue Wunschgruppe",
 		save: createGroup,
 	});
@@ -101,8 +111,9 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/68">Wunschgruppen verwalten</div>
 					<h2 className="mt-2 text-2xl font-black text-emerald-50">Gemeinsam spielen – fair eingeteilt</h2>
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">
-						Hier könnt ihr Bewerber zu Wunschgruppen mit bis zu fünf Personen zusammenfassen oder ihre Gruppenzugehörigkeit anpassen. Der Auto-Balancer berücksichtigt
-						diese Wünsche nach Möglichkeit, eine gemeinsame Einteilung ist jedoch nicht garantiert.
+						{maxMembers
+							? `Wunschgruppen erlauben bis zu ${maxMembers} Personen. Der Auto-Balancer berücksichtigt gültige Gruppen nach Möglichkeit, eine gemeinsame Einteilung ist jedoch nicht garantiert.`
+							: "Wunschgruppen sind deaktiviert. Bestehende Gruppen bleiben gespeichert, werden aber nicht berücksichtigt. Mitglieder können weiterhin entfernt werden."}
 					</p>
 				</div>
 				<span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50/72">
@@ -113,11 +124,13 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 			<div className="mt-5 grid gap-4 xl:grid-cols-2">
 				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
 					<div className="text-sm font-black text-emerald-50">Neue Wunschgruppe erstellen</div>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/48">Wähle ein bis fünf Bewerber aus, die noch keiner Wunschgruppe angehören.</p>
+					<p className="mt-1 text-xs leading-5 text-emerald-100/48">
+						{maxMembers ? `Wähle bis zu ${maxMembers} Bewerber aus, die noch keiner Wunschgruppe angehören.` : "Erstellen ist deaktiviert."}
+					</p>
 					<div className="mt-4">
 						<ThemedMultiSelect
 							value={newMembers}
-							onChange={(values) => setNewMembers(values.slice(0, MAX_GROUP_MEMBERS))}
+							onChange={(values) => setNewMembers(values.slice(0, maxMembers))}
 							placeholder="Bewerber auswählen…"
 							options={ungrouped.map((applicant) => ({
 								value: applicant.discordId,
@@ -127,7 +140,7 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 					</div>
 					<button
 						type="button"
-						disabled={isPending || newMembers.length < 1 || newMembers.length > MAX_GROUP_MEMBERS}
+						disabled={isPending || newMembers.length < 1 || newMembers.length > maxMembers}
 						onClick={() =>
 							startTransition(async () => {
 								await createGroup();
@@ -161,16 +174,18 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 							placeholder="Zielgruppe auswählen…"
 							options={[
 								{ value: "", label: "Keine Wunschgruppe" },
-								...groups.map((group) => ({
-									value: group.code,
-									label: `${group.code} · ${group.memberDiscordIds.length}/${MAX_GROUP_MEMBERS}`,
-								})),
+								...groups
+									.filter((group) => maxMembers > 0 && (group.code === selectedApplicantEntry?.groupCode || group.memberDiscordIds.length < maxMembers))
+									.map((group) => ({
+										value: group.code,
+										label: `${group.code} · ${group.memberDiscordIds.length}/${maxMembers}`,
+									})),
 							]}
 						/>
 					</div>
 					<button
 						type="button"
-						disabled={isPending || !selectedApplicant}
+						disabled={isPending || !selectedApplicant || (maxMembers === 0 && Boolean(targetCode))}
 						onClick={() =>
 							startTransition(async () => {
 								await saveAssignment();
@@ -190,9 +205,13 @@ export function PreferenceGroupManager({ applicants, groups, initialVersion }: {
 							<div className="flex items-center justify-between gap-3">
 								<span className="font-mono text-sm font-black tracking-[0.12em] text-cyan-50">{group.code}</span>
 								<span className="text-[10px] font-black text-cyan-100/48">
-									{group.memberDiscordIds.length}/{MAX_GROUP_MEMBERS}
+									{group.memberDiscordIds.length}
+									{maxMembers ? `/${maxMembers}` : ""}
 								</span>
 							</div>
+							{!isAllowedPreferenceGroup(mode, group.memberDiscordIds.length) ? (
+								<p className="mt-2 text-xs text-amber-100">Inaktiv nach aktueller Einstellung</p>
+							) : null}
 							<div className="mt-3 flex flex-wrap gap-1.5">
 								{group.memberDiscordIds.map((discordId) => {
 									const applicant = applicantById.get(discordId);
