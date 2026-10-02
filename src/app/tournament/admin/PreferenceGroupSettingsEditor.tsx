@@ -61,7 +61,7 @@ export function PreferenceGroupSettingsEditor({ settings, initialVersion, onSave
 			<fieldset disabled={pending} className="grid gap-3">
 				<legend className="mb-3 text-sm font-bold">Welche Wunschgruppen sind erlaubt?</legend>
 				{OPTIONS.map((option) => (
-					<label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border)] p-4">
+					<label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] p-4">
 						<input
 							type="radio"
 							name="wish-group-mode"

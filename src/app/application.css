@@ -180,16 +180,6 @@
 			sans-serif;
 		text-wrap: balance;
 	}
-	.application-discord-icon {
-		display: grid;
-		place-items: center;
-		width: 64px;
-		height: 64px;
-		border: 1px solid #5865f2;
-		border-radius: 20px;
-		color: #c7ccff;
-		background: #5865f21a;
-	}
 	.application-discord-button {
 		background: #5865f2;
 		color: white;
