@@ -10,6 +10,7 @@ import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
 import { TOURNAMENT_KIND_LABELS, usesChampSelect, usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
+import { fearlessCapacity } from "@/lib/fearless-capacity";
 import {
 	BEST_OF_VALUES,
 	DAY_ONE_FORMATS,
@@ -543,6 +544,23 @@ export function TournamentModePanel({
 						</button>
 						{usesFearless(settings.activeTournament) ? (
 							<div className="mt-4">
+								<label className="mb-3 block text-xs font-bold text-emerald-100/62">
+									Fearless-Variante
+									<ThemedSelect
+										value={settings.fearless.variant}
+										disabled={isPending}
+										onChange={(value) => saveFearless({ variant: value === "match" ? "match" : "own" })}
+										ariaLabel="Fearless-Variante"
+										options={[
+											{ value: "own", label: "Klassisch", description: "Gesperrt ist, was das eigene Team gespielt hat." },
+											{
+												value: "match",
+												label: "Match-Fearless",
+												description: "Gesperrt ist alles, was in den eigenen Spielen gepickt wurde: eigene Picks und die Picks jedes Gegners.",
+											},
+										]}
+									/>
+								</label>
 								<CompactSetting
 									label="Fearless · Gegner-Champions"
 									value={settings.fearless.lockOpponentChampions ? "Auch gesperrt" : "Nur eigene gesperrt"}
@@ -572,6 +590,7 @@ export function TournamentModePanel({
 										]}
 									/>
 								</label>
+								<FearlessCapacityNote structure={structure} rules={settings.fearless} />
 							</div>
 						) : null}
 					</div>
@@ -669,6 +688,33 @@ export function TournamentModePanel({
 				) : null}
 			</div>
 		</section>
+	);
+}
+
+/** Worst-case champion use of the current format, so the pool never runs dry mid-event. */
+function FearlessCapacityNote({ structure, rules }: { structure: TournamentSettings["ultimateBravery"]; rules: TournamentSettings["fearless"] }) {
+	if (structure.dayOneFormat === "undecided" || structure.format === "undecided") return null;
+	const capacity = fearlessCapacity(structure, rules);
+	const tone = !capacity.enough
+		? "border-red-300/30 bg-red-500/10 text-red-100"
+		: capacity.bottomLeft < 6
+			? "border-amber-200/30 bg-amber-200/10 text-amber-50"
+			: "border-white/10 bg-black/18 text-emerald-100/70";
+	return (
+		<div role={capacity.enough ? undefined : "alert"} className={`mt-3 rounded-2xl border px-4 py-3 text-xs leading-5 ${tone}`}>
+			<div className="font-black">
+				Schlimmster Fall: ein Team spielt {capacity.games} {capacity.games === 1 ? "Spiel" : "Spiele"}
+				{rules.scope === "series" ? " in einer Serie" : " im Turnier"}.
+			</div>
+			<p className="mt-1">
+				Vor dem letzten Spiel sind bis zu {capacity.lockedBeforeLastGame} von etwa {capacity.championPool} Champions gesperrt. Nach 10 Bans und den übrigen Picks bleiben
+				mindestens {capacity.leftForLastPick} für den letzten Pick. Bot-Lane-Champions übrig: {capacity.bottomLeft} von {capacity.bottomPool}.
+			</p>
+			{!capacity.enough ? <p className="mt-1 font-black">So gehen die Champions aus. Weniger Spiele, Bo1 oder Sperren nur pro Serie wählen.</p> : null}
+			{capacity.enough && capacity.bottomLeft < 6 ? (
+				<p className="mt-1 font-black">Bot-Lane wird knapp: Der Gegner kann die letzten echten ADCs bannen. Dann spielt ein Team einen anderen Champion auf Bot.</p>
+			) : null}
+		</div>
 	);
 }
 

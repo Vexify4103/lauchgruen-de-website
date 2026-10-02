@@ -43,6 +43,8 @@ export type TournamentSettings = {
 		lockOpponentChampions: boolean;
 		/** `tournament`: a champion stays locked for the rest of the event. `series`: only within one Bo3/Bo5. */
 		scope: "tournament" | "series";
+		/** `own`: a team's own picks lock for it. `match`: every pick in a team's games locks for it (Match-Fearless). */
+		variant: "own" | "match";
 	};
 	/**
 	 * Tournament structure for every flexible-engine kind (Ultimate Bravery and Fearless).
@@ -89,7 +91,7 @@ function defaultSettings(): TournamentSettings {
 		applicationDeadline: TOURNAMENT_APPLICATION_DEADLINE,
 		tournamentLive: envFlag("TOURNAMENT_LIVE", false),
 		draftEnabled: envFlag("TOURNAMENT_DRAFT_ENABLED", true),
-		fearless: { lockOpponentChampions: false, scope: "tournament" },
+		fearless: { lockOpponentChampions: false, scope: "tournament", variant: "own" },
 		ultimateBravery: {
 			startAt: null,
 			dayTwoStartAt: null,
@@ -180,6 +182,7 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		fearless: {
 			lockOpponentChampions: typeof rest.fearless?.lockOpponentChampions === "boolean" ? rest.fearless.lockOpponentChampions : defaults.fearless.lockOpponentChampions,
 			scope: rest.fearless?.scope === "series" ? "series" : "tournament",
+			variant: rest.fearless?.variant === "match" ? "match" : "own",
 		},
 		ultimateBravery,
 		updatedAt: typeof rest.updatedAt === "string" && !Number.isNaN(new Date(rest.updatedAt).getTime()) ? rest.updatedAt : defaults.updatedAt,

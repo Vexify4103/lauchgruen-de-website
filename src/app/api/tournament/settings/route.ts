@@ -29,7 +29,13 @@ const schema = z.object({
 	tournamentLive: z.boolean().optional(),
 	draftEnabled: z.boolean().optional(),
 	tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
-	fearless: z.object({ lockOpponentChampions: z.boolean(), scope: z.enum(["tournament", "series"]).optional().default("tournament") }).optional(),
+	fearless: z
+		.object({
+			lockOpponentChampions: z.boolean(),
+			scope: z.enum(["tournament", "series"]).optional().default("tournament"),
+			variant: z.enum(["own", "match"]).optional().default("own"),
+		})
+		.optional(),
 	ultimateBravery: z
 		.object({
 			startAt: z.iso.datetime({ offset: true }).nullable(),

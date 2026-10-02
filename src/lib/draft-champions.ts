@@ -71,7 +71,9 @@ export function disallowedChampionMessage(rules: DraftChampionRules, turn: Draft
 	if (rules.mode === "fearless") {
 		const lock = rules.locks[turn.side][champion];
 		const where = rules.scope === "series" ? "in dieser Serie" : "in diesem Turnier";
-		if (lock) return lock.source === "own" ? `${champion} hat euer Team ${where} bereits gespielt.` : `${champion} hat euer Gegner ${where} bereits gespielt.`;
+		if (lock?.source === "own") return `${champion} hat euer Team ${where} bereits gespielt.`;
+		if (lock?.source === "faced") return `${champion} wurde ${where} bereits gegen euer Team gespielt.`;
+		if (lock) return `${champion} hat euer Gegner ${where} bereits gespielt.`;
 		return `${champion} ist kein gültiger Champion.`;
 	}
 	return turn.kind === "ban" ? "Bans müssen aus dem gegnerischen Pool kommen." : "Picks müssen aus deinem eigenen Pool kommen.";

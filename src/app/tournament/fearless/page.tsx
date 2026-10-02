@@ -2,7 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getAllChampions } from "@/lib/champion-pools";
-import { playedChampionsByTeam } from "@/lib/fearless";
+import { lockedChampionsByTeam } from "@/lib/fearless";
 import { getMatchControlContext } from "@/lib/match-control";
 import { getRosterPublicationStatus } from "@/lib/roster";
 import { usesFearless } from "@/lib/tournament-kind";
@@ -15,7 +15,8 @@ export default async function FearlessPage() {
 	const [settings, roster] = await Promise.all([getTournamentSettings(), getRosterPublicationStatus()]);
 	if (!usesFearless(settings.activeTournament) || !roster.published) redirect("/tournament");
 	const [control, champions] = await Promise.all([getMatchControlContext(), getAllChampions()]);
-	const played = playedChampionsByTeam(control.matches);
+	const matchFearless = settings.fearless.variant === "match";
+	const played = lockedChampionsByTeam(control.matches, settings.fearless.variant);
 	const byName = new Map(champions.map((champion) => [champion.name, champion]));
 	const roundByMatch = new Map(control.matches.map((match) => [match.id, match.round]));
 	const teams = [...control.teams].sort((a, b) => (played.get(b.name)?.length ?? 0) - (played.get(a.name)?.length ?? 0) || a.name.localeCompare(b.name, "de"));
@@ -29,14 +30,19 @@ export default async function FearlessPage() {
 					<p>Fearless</p>
 					<h2 id="fearless-title">Verbrauchte Champions.</h2>
 					<span>
-						{lockOpponents
-							? "Jedes Team kann weder seine eigenen gespielten Champions noch die seines aktuellen Gegners picken. Die Liste zeigt, was jedes Team bereits gespielt hat."
-							: "Jeder Champion, den ein Team im Turnier gespielt hat, ist für dieses Team bis zum Ende gesperrt. Andere Teams dürfen ihn weiterhin picken."}
+						{matchFearless
+							? "Match-Fearless: Alles, was in den Spielen eines Teams gepickt wurde, ist für dieses Team gesperrt, auch die Picks seiner Gegner. Gedimmt = gegen das Team gespielt."
+							: lockOpponents
+								? "Jedes Team kann weder seine eigenen gespielten Champions noch die seines aktuellen Gegners picken. Die Liste zeigt, was jedes Team bereits gespielt hat."
+								: "Jeder Champion, den ein Team im Turnier gespielt hat, ist für dieses Team bis zum Ende gesperrt. Andere Teams dürfen ihn weiterhin picken."}
 					</span>
 				</div>
 				<div className="roster-grid">
 					{teams.map((team) => {
-						const locks = [...(played.get(team.name) ?? [])].sort((a, b) => a.champion.localeCompare(b.champion, "de"));
+						// Own picks first, then the champions played against the team.
+						const locks = [...(played.get(team.name) ?? [])].sort(
+							(a, b) => Number(a.source === "faced") - Number(b.source === "faced") || a.champion.localeCompare(b.champion, "de")
+						);
 						return (
 							<article key={team.id} id={`team-${team.id}`} className="roster-card scroll-mt-40">
 								<header className="roster-card-header">
@@ -53,8 +59,14 @@ export default async function FearlessPage() {
 											const champion = byName.get(lock.champion);
 											const round = roundByMatch.get(lock.matchId);
 											return (
-												<li key={lock.champion} className="!block !border-0 !p-0" title={`${lock.champion}${round ? ` · ${round}` : ""}`}>
-													<div className="relative aspect-square overflow-hidden rounded-lg border border-[var(--line)] bg-black/30 grayscale-[35%]">
+												<li
+													key={lock.champion}
+													className="!block !border-0 !p-0"
+													title={`${lock.champion}${lock.source === "faced" ? " · gegen das Team gespielt" : ""}${round ? ` · ${round}` : ""}`}
+												>
+													<div
+														className={`relative aspect-square overflow-hidden rounded-lg border border-[var(--line)] bg-black/30 ${lock.source === "faced" ? "opacity-55 grayscale" : "grayscale-[35%]"}`}
+													>
 														{champion ? <Image src={champion.imageUrl} alt="" fill sizes="56px" className="object-cover" /> : null}
 													</div>
 													<span className="mt-1 block truncate text-center text-[10px] font-bold text-[var(--muted)]">{lock.champion}</span>

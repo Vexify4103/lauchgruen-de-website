@@ -15,7 +15,7 @@ import { CopyOverlayButton } from "./CopyOverlayButton";
 import { getMatchControlContext } from "@/lib/match-control";
 import { teamMatchRecord } from "@/lib/tournament-team-records";
 import { usesFearless, usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
-import { playedChampionsByTeam } from "@/lib/fearless";
+import { lockedChampionsByTeam } from "@/lib/fearless";
 
 function CrownIcon() {
 	return (
@@ -96,7 +96,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				{ previewOffline: previewEnabled }
 			)
 		: [];
-	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? playedChampionsByTeam(control.matches) : null;
+	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? lockedChampionsByTeam(control.matches, settings.fearless.variant) : null;
 	const stageSeedLabel = (team: (typeof teams)[number]) => {
 		if (isAzTournament) return `${team.group}${team.seed}`;
 		if (team.group === PLAY_IN_GROUP) return playInEliminated.has(team.name) ? "Play-in · raus" : "Play-in";

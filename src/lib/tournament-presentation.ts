@@ -95,7 +95,13 @@ export function buildTournamentHero(input: { settings: TournamentSettings; teamC
 		playoffFormatLabel(structure.format),
 		seriesLabel(structure),
 		TOURNAMENT_KIND_LABELS[active.kind],
-		active.kind === "fearless" ? (settings.fearless.lockOpponentChampions ? "Eigene + gegnerische Picks gesperrt" : "Eigene Picks gesperrt") : null,
+		active.kind === "fearless"
+			? settings.fearless.variant === "match"
+				? "Match-Fearless: alle Picks eurer Spiele gesperrt"
+				: settings.fearless.lockOpponentChampions
+					? "Eigene + gegnerische Picks gesperrt"
+					: "Eigene Picks gesperrt"
+			: null,
 		`Level ${structure.minimumSummonerLevel}+`,
 	].filter((pill): pill is string => Boolean(pill));
 
@@ -176,12 +182,17 @@ export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
 				{
 					title: "Fearless: gespielte Champions sind gesperrt",
 					text:
-						(settings.fearless.scope === "series"
-							? "Jeder Champion, den dein Team in einer Serie gespielt hat, ist für die restlichen Spiele dieser Serie gesperrt; im nächsten Match beginnt es neu."
-							: "Jeder Champion, den dein Team im Turnier gespielt hat, ist für den Rest des Turniers für dein Team gesperrt.") +
-						(settings.fearless.lockOpponentChampions
-							? " Zusätzlich darfst du nichts picken, was dein aktueller Gegner bereits gespielt hat."
-							: " Was andere Teams spielen, bleibt für euch frei."),
+						settings.fearless.variant === "match"
+							? (settings.fearless.scope === "series"
+									? "Match-Fearless: Jeder Champion, der in einem Spiel eurer Serie gepickt wurde, egal von welchem Team, ist für beide Teams für den Rest der Serie gesperrt."
+									: "Match-Fearless: Jeder Champion, der in einem eurer Spiele gepickt wurde, egal ob von euch oder vom Gegner, ist für den Rest des Turniers für euer Team gesperrt. Pro Spiel kommen bis zu 10 Sperren dazu.") +
+								(settings.fearless.lockOpponentChampions ? " Zusätzlich darfst du nichts picken, was dein aktueller Gegner bereits gespielt hat." : "")
+							: (settings.fearless.scope === "series"
+									? "Jeder Champion, den dein Team in einer Serie gespielt hat, ist für die restlichen Spiele dieser Serie gesperrt; im nächsten Match beginnt es neu."
+									: "Jeder Champion, den dein Team im Turnier gespielt hat, ist für den Rest des Turniers für dein Team gesperrt.") +
+								(settings.fearless.lockOpponentChampions
+									? " Zusätzlich darfst du nichts picken, was dein aktueller Gegner bereits gespielt hat."
+									: " Was andere Teams spielen, bleibt für euch frei."),
 				},
 				{
 					title: "Champ Select auf der Website",

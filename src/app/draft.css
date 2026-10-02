@@ -298,6 +298,19 @@
 		background: color-mix(in srgb, var(--accent) 14%, var(--bg-soft));
 		color: var(--accent);
 	}
+	.draft-role-count {
+		margin-left: 6px;
+		padding: 1px 6px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		font-size: 10px;
+		font-variant-numeric: tabular-nums;
+		color: var(--accent);
+	}
+	.draft-role-count[data-low="true"] {
+		background: color-mix(in srgb, var(--danger) 16%, transparent);
+		color: var(--danger);
+	}
 	.draft-search {
 		flex: 1 1 160px;
 		min-width: 0;

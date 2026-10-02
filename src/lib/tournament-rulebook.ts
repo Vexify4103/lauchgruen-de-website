@@ -201,11 +201,26 @@ const ruleSections: RuleSection[] = [
 	},
 ];
 
+const MATCH_FEARLESS_SECTION: RuleSection = {
+	title: "Match-Fearless: alles aus euren Spielen ist gesperrt",
+	kinds: ["fearless"],
+	text: "Ein Champion gilt als gespielt, sobald er im abgeschlossenen Draft eines Spiels gepickt wurde. Gesperrt sind für dein Team alle Champions aus deinen Spielen: die Picks deines Teams und die Picks jedes Gegners, gegen den ihr gespielt habt.",
+	list: [
+		"Nach A gegen B sind alle zehn gepickten Champions für A und für B bis zum Ende des Turniers gesperrt",
+		"Champions aus Spielen anderer Teams bleiben für euch frei",
+		"In einer Bo3/Bo5 zählt jedes Spiel einzeln",
+		"Bans verbrauchen keine Champions",
+		"Die aktuelle Liste jedes Teams steht jederzeit öffentlich auf der Fearless-Seite",
+	],
+	footer: "Plant euren Pool breit: Pro Spiel kommen bis zu zehn Sperren dazu, besonders auf der Bot-Lane wird es in späten Runden eng.",
+};
+
 export function getDefaultRuleSections(settings: TournamentSettings) {
 	const config = settings.ultimateBravery;
 	const kind = tournamentKind(settings.activeTournament);
 	const displayedRuleSections = ruleSections
 		.filter((section) => !section.kinds || section.kinds.includes(kind))
+		.map((section) => (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match" ? MATCH_FEARLESS_SECTION : section))
 		.map((section) =>
 			section.title === "Turnierformat"
 				? {

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useDeferredValue, useEffect, useId, useRef, useState, useTransition, type DragEvent } from "react";
 import { championFitsRole } from "@/lib/champion-roles";
 import type { ChampionPool, ChampionPoolEntry } from "@/lib/champion-pools";
-import { fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
+import { fearlessLockBadge, fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
 import type { ControlMatch } from "@/lib/match-control";
 import {
 	DRAFT_FIRST_PHASE_BANS,
@@ -83,7 +83,7 @@ export function ChampSelectClient({
 	const [hideLocked, setHideLocked] = useState(false);
 	const [swapFrom, setSwapFrom] = useState<{ side: DraftSide; index: number } | null>(null);
 	const [message, setMessage] = useState("");
-	const [now, setNow] = useState(() => Date.now());
+	const [now, setNow] = useState<number | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const deferredSearch = useDeferredValue(search);
 	const timeoutHandledRef = useRef("");
@@ -103,6 +103,16 @@ export function ChampSelectClient({
 	const byName = new Map(allChampions.map((champion) => [champion.name, champion]));
 	const used = new Set(state.actions.filter((action) => !action.skipped).map((action) => action.champion));
 	const turnLocks: Record<string, FearlessLock> = currentTurn?.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
+	// Fearless: free champions per role for the team picking now (or the viewer's team), so thin roles show early.
+	const countSide: DraftSide | null = fearless ? (currentTurn?.kind === "pick" ? currentTurn.side : editableSide) : null;
+	const roleCounts = countSide
+		? Object.fromEntries(
+				DRAFT_ROLES.map((role) => [
+					role,
+					allChampions.filter((champion) => championFitsRole(champion.id, role) && !used.has(champion.name) && !fearlessLocks[countSide][champion.name]).length,
+				])
+			)
+		: null;
 	const pool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions, fearless) : allChampions;
 	const term = normalizeSearch(deferredSearch);
 	const visible = pool.filter(
@@ -124,8 +134,13 @@ export function ChampSelectClient({
 	}
 
 	useEffect(() => {
-		const interval = window.setInterval(() => setNow(Date.now()), 250);
-		return () => window.clearInterval(interval);
+		const tick = () => setNow(Date.now());
+		const first = window.setTimeout(tick, 0);
+		const interval = window.setInterval(tick, 250);
+		return () => {
+			window.clearTimeout(first);
+			window.clearInterval(interval);
+		};
 	}, []);
 
 	useEffect(() => {
@@ -278,8 +293,14 @@ export function ChampSelectClient({
 								className="draft-role-filter"
 								aria-pressed={roleFilter === role}
 								onClick={() => setRoleFilter(roleFilter === role ? null : role)}
+								title={roleCounts && countSide ? `${roleCounts[role]} freie ${DRAFT_ROLE_LABELS[role]}-Champions für ${SIDE_LABEL[countSide]}` : undefined}
 							>
 								{DRAFT_ROLE_LABELS[role]}
+								{roleCounts ? (
+									<small className="draft-role-count" data-low={roleCounts[role] <= 8}>
+										{roleCounts[role]}
+									</small>
+								) : null}
 							</button>
 						))}
 						<label htmlFor={searchId} className="sr-only">
@@ -334,7 +355,7 @@ export function ChampSelectClient({
 								>
 									<div className="draft-tile-art">
 										<Image src={champion.imageUrl} alt="" fill sizes="5rem" />
-										{lock ? <i className="draft-tile-lock">{lock.source === "own" ? "Gespielt" : "Gegner"}</i> : null}
+										{lock ? <i className="draft-tile-lock">{fearlessLockBadge(lock)}</i> : null}
 									</div>
 									<span>{champion.name}</span>
 								</button>
@@ -685,10 +706,11 @@ function ActionButton({
 
 type TimerState = { label: string; remainingMs: number; expired: boolean };
 
-function timerState(state: TournamentDraftState, now: number, rolePhase: boolean, complete: boolean): TimerState {
+/** `now` is null until the page is mounted, so server and first client render show the same full timer. */
+function timerState(state: TournamentDraftState, now: number | null, rolePhase: boolean, complete: boolean): TimerState {
 	const startedAt = rolePhase ? state.rolePhaseStartedAt : !complete && draftReady(state) ? state.currentTurnStartedAt : undefined;
 	const seconds = rolePhase ? DRAFT_ROLE_SECONDS : DRAFT_TURN_SECONDS;
-	if (!startedAt) return { label: String(seconds), remainingMs: seconds * 1000, expired: false };
+	if (!startedAt || now === null) return { label: String(seconds), remainingMs: seconds * 1000, expired: false };
 	const elapsed = Math.max(0, now - new Date(startedAt).getTime());
 	const remainingMs = Math.max(0, seconds * 1000 - elapsed);
 	return { label: String(Math.ceil(remainingMs / 1000)), remainingMs, expired: elapsed >= (rolePhase ? DRAFT_ROLE_TOTAL_MS : DRAFT_TOTAL_MS) };
