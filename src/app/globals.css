@@ -4,6 +4,7 @@
 @import "./site-pages.css";
 @import "./account.css";
 @import "./application.css";
+@import "./draft.css";
 
 :root {
 	color-scheme: dark;

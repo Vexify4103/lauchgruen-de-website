@@ -7,7 +7,7 @@ import type { ControlMatch } from "@/lib/match-control";
 import type { ChampionPool } from "@/lib/champion-pools";
 import type { TournamentTeam } from "@/lib/tournament-data";
 import type { RosterSnapshot } from "@/lib/roster";
-import { createDraftSequence, draftComplete, draftReady, type DraftSide, type TournamentDraftState } from "@/lib/tournament-draft-shared";
+import { createDraftSequence, draftComplete, draftReady, draftRoleOrder, type DraftSide, type TournamentDraftState } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
@@ -32,8 +32,8 @@ function draftedPicksForMatchTeams(draft: TournamentDraftState, blueSide: "teamA
 	if (!draftComplete(draft, sequence)) {
 		return { teamA: [] as string[], teamB: [] as string[] };
 	}
-	const bluePicks = draft.actions.filter((action) => action.kind === "pick" && action.side === "teamA").map((action) => action.champion);
-	const redPicks = draft.actions.filter((action) => action.kind === "pick" && action.side === "teamB").map((action) => action.champion);
+	const bluePicks = draftRoleOrder(draft, "teamA");
+	const redPicks = draftRoleOrder(draft, "teamB");
 	return blueSide === "teamA" ? { teamA: bluePicks, teamB: redPicks } : { teamA: redPicks, teamB: bluePicks };
 }
 
@@ -685,7 +685,7 @@ function DraftSummary({
 			<div className="mt-4 grid gap-3 md:grid-cols-4">
 				<SummaryTile label="Score" value={match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA}:${match.scoreB}` : "Noch offen"} />
 				<SummaryTile label="Spielzeit" value={match.gameDurationSeconds !== undefined ? formatGameDuration(match.gameDurationSeconds) : "Noch offen"} />
-				<SummaryTile label="Bans" value={bans.length > 0 ? bans.map((action) => action.champion).join(", ") : "Noch keine"} />
+				<SummaryTile label="Bans" value={bans.length > 0 ? bans.map((action) => (action.skipped ? "Kein Ban" : action.champion)).join(", ") : "Noch keine"} />
 				<SummaryTile label="Picks" value={picks.length > 0 ? picks.map((action) => action.champion).join(", ") : "Noch keine"} />
 			</div>
 

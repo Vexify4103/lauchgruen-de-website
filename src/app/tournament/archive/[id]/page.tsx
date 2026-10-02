@@ -397,7 +397,7 @@ function Drafts({ snapshot, kind }: { snapshot: Snapshot; kind: TournamentKind }
 									className="rounded-lg border border-[var(--line)] bg-black/18 px-2 py-1 text-xs font-bold text-[var(--muted)]"
 								>
 									{action.side === "teamA" ? "Blue" : "Red"} {action.kind === "ban" ? "Ban" : "Pick"}:{" "}
-									<span className="text-[var(--text)]">{action.champion}</span>
+									<span className="text-[var(--text)]">{"skipped" in action && action.skipped ? "kein Ban" : action.champion}</span>
 								</li>
 							))}
 						</ol>

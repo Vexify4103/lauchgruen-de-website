@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { TournamentLink as Link } from "../../TournamentLink";
 import { getChampionPools } from "@/lib/champion-pools";
 import { getDraftState } from "@/lib/tournament-draft";
-import { createDraftSequence, draftComplete } from "@/lib/tournament-draft-shared";
+import { DRAFT_ROLE_LABELS, DRAFT_ROLES, createDraftSequence, draftComplete, draftHasRoles, draftRoleOrder } from "@/lib/tournament-draft-shared";
 import { getMatchControlContext } from "@/lib/match-control";
 import { formatGameDuration } from "@/lib/match-duration";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
@@ -132,8 +132,11 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 	const fearless = usesFearless(settings.activeTournament);
 	const complete = draftComplete(draft, sequence);
 	const byName = new Map(pools.flatMap((pool) => pool.champions).map((champion) => [champion.name, champion]));
-	const bluePicks = draft.actions.filter((action) => action.side === "teamA" && action.kind === "pick");
-	const redPicks = draft.actions.filter((action) => action.side === "teamB" && action.kind === "pick");
+	const withRoles = draftHasRoles(draft);
+	const picksOf = (side: "teamA" | "teamB") =>
+		draftRoleOrder(draft, side).map((champion, index) => ({ champion, label: withRoles ? DRAFT_ROLE_LABELS[DRAFT_ROLES[index]] : undefined }));
+	const bluePicks = picksOf("teamA");
+	const redPicks = picksOf("teamB");
 	const blueBans = draft.actions.filter((action) => action.side === "teamA" && action.kind === "ban");
 	const redBans = draft.actions.filter((action) => action.side === "teamB" && action.kind === "ban");
 
@@ -254,8 +257,8 @@ function TeamDraft({
 	team: string;
 	pool?: string;
 	fearless: boolean;
-	picks: Array<{ champion: string }>;
-	bans: Array<{ champion: string }>;
+	picks: Array<{ champion: string; label?: string }>;
+	bans: Array<{ champion: string; skipped?: boolean }>;
 	byName: Map<string, { imageUrl: string }>;
 }) {
 	return (
@@ -278,7 +281,7 @@ function DraftRow({
 	banned = false,
 }: {
 	label: string;
-	actions: Array<{ champion: string }>;
+	actions: Array<{ champion: string; label?: string; skipped?: boolean }>;
 	byName: Map<string, { imageUrl: string }>;
 	banned?: boolean;
 }) {
@@ -287,15 +290,24 @@ function DraftRow({
 			<div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/46">{label}</div>
 			<div className="mt-2 flex flex-wrap gap-2">
 				{actions.length ? (
-					actions.map((action) => (
-						<div key={action.champion} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/20">
-							{byName.get(action.champion)?.imageUrl ? (
-								<Image src={byName.get(action.champion)!.imageUrl} alt="" width={48} height={48} className="size-12 object-cover" />
-							) : null}
-							<span className="block max-w-20 truncate px-1 py-1 text-center text-[9px] font-black text-emerald-50">{action.champion}</span>
-							{banned ? <span className="absolute inset-x-[-20%] top-5 h-0.5 -rotate-45 bg-red-200" /> : null}
-						</div>
-					))
+					actions.map((action, index) =>
+						action.skipped ? (
+							<div
+								key={`skip-${index}`}
+								className="grid size-12 place-items-center rounded-xl border border-white/10 bg-black/20 text-center text-[9px] font-black text-emerald-100/50"
+							>
+								Kein Ban
+							</div>
+						) : (
+							<div key={action.champion} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/20">
+								{byName.get(action.champion)?.imageUrl ? (
+									<Image src={byName.get(action.champion)!.imageUrl} alt="" width={48} height={48} className="size-12 object-cover" />
+								) : null}
+								<span className="block max-w-20 truncate px-1 py-1 text-center text-[9px] font-black text-emerald-50">{action.label ?? action.champion}</span>
+								{banned ? <span className="absolute inset-x-[-20%] top-5 h-0.5 -rotate-45 bg-red-200" /> : null}
+							</div>
+						)
+					)
 				) : (
 					<span className="text-sm font-bold text-emerald-100/42">Noch keine</span>
 				)}

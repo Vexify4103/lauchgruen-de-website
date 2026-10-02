@@ -185,7 +185,7 @@ export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
 				},
 				{
 					title: "Champ Select auf der Website",
-					text: "Captains draften im Website-Champ-Select: 3 Bans pro Team, 30 Sekunden pro Turn. Gesperrte Champions sind dort automatisch ausgegraut.",
+					text: "Captains draften im Website-Champ-Select im Turnier-Draft: 5 Bans pro Team in zwei Phasen, 30 Sekunden pro Turn, danach Rollenwahl. Gesperrte Champions sind dort automatisch ausgegraut.",
 				},
 				{
 					title: "Breiter Champion-Pool",

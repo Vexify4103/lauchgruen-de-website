@@ -1,25 +1,46 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useEffect, useId, useRef, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useId, useRef, useState, useTransition, type DragEvent } from "react";
+import { championFitsRole } from "@/lib/champion-roles";
 import type { ChampionPool, ChampionPoolEntry } from "@/lib/champion-pools";
 import { fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
 import type { ControlMatch } from "@/lib/match-control";
 import {
+	DRAFT_FIRST_PHASE_BANS,
+	DRAFT_BANS_PER_SIDE,
+	DRAFT_ROLE_LABELS,
+	DRAFT_ROLE_SECONDS,
+	DRAFT_ROLES,
 	DRAFT_TOTAL_MS,
+	DRAFT_ROLE_TOTAL_MS,
 	DRAFT_TURN_SECONDS,
 	createDraftSequence,
+	draftBans,
 	draftComplete,
+	draftHasRoles,
+	draftPicks,
 	draftReady,
+	draftRoleOrder,
 	nextDraftTurn,
+	rolePhaseActive,
+	swapRoleOrder,
 	type DraftAction,
+	type DraftRole,
 	type DraftSide,
+	type DraftTurn,
 	type TournamentDraftState,
 } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
 import { playDraftCompleteSound, playDraftStartSound, unlockTournamentAudio } from "@/lib/tournament-sounds";
 
-type EditableSide = "teamA" | "teamB" | null;
+type EditableSide = DraftSide | null;
+type ChampionEntry = ChampionPool["champions"][number];
+type DraftResponse = { draft?: TournamentDraftState; message?: string } | null;
+
+/** Local selection for "kein Ban"; never sent as a champion name. */
+const NO_BAN = "\u0000none";
+const SIDE_LABEL: Record<DraftSide, string> = { teamA: "Blue Side", teamB: "Red Side" };
 
 export function ChampSelectClient({
 	match,
@@ -29,12 +50,12 @@ export function ChampSelectClient({
 	redChampions,
 	fearlessLocks,
 	closedReason,
-	lockOpponentChampions,
 	editableSide,
 	blueTeamLabel,
 	redTeamLabel,
 	extraBanSide,
 	isOwner,
+	spectator = false,
 }: {
 	match: ControlMatch;
 	draft: TournamentDraftState;
@@ -44,47 +65,63 @@ export function ChampSelectClient({
 	redChampions: ChampionPool["champions"];
 	fearlessLocks: FearlessLocks;
 	closedReason: string | null;
-	lockOpponentChampions: boolean;
+	lockOpponentChampions?: boolean;
 	editableSide: EditableSide;
 	blueTeamLabel: string;
 	redTeamLabel: string;
 	extraBanSide: DraftSide | null;
 	isOwner: boolean;
+	/** Read-only stream/spectator view. */
+	spectator?: boolean;
 }) {
 	const fearless = mode === "fearless";
 	const searchId = useId();
 	const [state, setState] = useState(draft);
-	const [selectedChampion, setSelectedChampion] = useState("");
+	const [selected, setSelected] = useState("");
 	const [search, setSearch] = useState("");
+	const [roleFilter, setRoleFilter] = useState<DraftRole | null>(null);
 	const [hideLocked, setHideLocked] = useState(false);
-	const deferredSearch = useDeferredValue(search);
+	const [swapFrom, setSwapFrom] = useState<{ side: DraftSide; index: number } | null>(null);
 	const [message, setMessage] = useState("");
 	const [now, setNow] = useState(() => Date.now());
 	const [isPending, startTransition] = useTransition();
+	const deferredSearch = useDeferredValue(search);
 	const timeoutHandledRef = useRef("");
-	const lastBroadcastSelectionRef = useRef("");
-	const previousReadyRef = useRef(draftReady(draft));
-	const previousCompleteRef = useRef(draftComplete(draft, createDraftSequence(extraBanSide)));
+	const lastHoverRef = useRef("");
 
-	const draftSequence = createDraftSequence(extraBanSide);
-	const currentTurn = nextDraftTurn(state, draftSequence);
-	const complete = draftComplete(state, draftSequence);
+	const sequence = createDraftSequence(extraBanSide);
+	const currentTurn = nextDraftTurn(state, sequence);
 	const ready = draftReady(state);
-	const ownReady = editableSide ? Boolean(state.readyBy[editableSide]) : false;
-	const timer = getTimerState(state, now, draftSequence);
-	const allChampions = [...new Map([...blueChampions, ...redChampions].map((champion) => [champion.name, champion])).values()];
-	const usedChampions = new Set(state.actions.map((action) => action.champion));
-	const turnLocks = currentTurn && currentTurn.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
-	const candidatePool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions, fearless) : [];
-	const searchTerm = normalizeChampionSearch(deferredSearch);
-	const visiblePool = candidatePool.filter(
+	const complete = draftComplete(state, sequence);
+	const rolePhase = rolePhaseActive(state, sequence);
+	const finished = complete && !rolePhase;
+	const timer = timerState(state, now, rolePhase, complete);
+	const controlsSide = (side: DraftSide) => !spectator && (isOwner || editableSide === side);
+	const canDraft = Boolean(!spectator && !closedReason && ready && currentTurn && !timer.expired && controlsSide(currentTurn.side));
+
+	const allChampions = uniqueChampions([...blueChampions, ...redChampions]);
+	const byName = new Map(allChampions.map((champion) => [champion.name, champion]));
+	const used = new Set(state.actions.filter((action) => !action.skipped).map((action) => action.champion));
+	const turnLocks: Record<string, FearlessLock> = currentTurn?.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
+	const pool = currentTurn ? championsForTurn(currentTurn, blueChampions, redChampions, fearless) : allChampions;
+	const term = normalizeSearch(deferredSearch);
+	const visible = pool.filter(
 		(champion) =>
-			(!searchTerm || normalizeChampionSearch(champion.name).includes(searchTerm)) && !(hideLocked && (turnLocks[champion.name] || usedChampions.has(champion.name)))
+			(!term || normalizeSearch(champion.name).includes(term)) &&
+			(!roleFilter || championFitsRole(champion.id, roleFilter)) &&
+			!(hideLocked && (used.has(champion.name) || turnLocks[champion.name]))
 	);
-	const availableCount = candidatePool.filter((champion) => !turnLocks[champion.name] && !usedChampions.has(champion.name)).length;
-	const selectable = (champion: string) => Boolean(champion) && !usedChampions.has(champion) && !turnLocks[champion];
-	const canLock = Boolean(currentTurn && editableSide === currentTurn.side && ready && !timer.expired && selectable(selectedChampion));
-	const adminCanLock = Boolean(isOwner && currentTurn && ready && !timer.expired && selectable(selectedChampion));
+	const selectable = (name: string) => name === NO_BAN || (Boolean(name) && !used.has(name) && !turnLocks[name]);
+	// Actors preview their own click; everyone else sees the hover the server broadcast.
+	const serverHover = currentTurn && state.pendingSelection?.side === currentTurn.side && state.pendingSelection.kind === currentTurn.kind ? state.pendingSelection.champion : "";
+	const preview = canDraft && selected ? selected : serverHover;
+
+	const turnKey = `${state.actions.length}:${state.currentTurnStartedAt ?? ""}`;
+	const [selectionKey, setSelectionKey] = useState(turnKey);
+	if (selectionKey !== turnKey) {
+		setSelectionKey(turnKey);
+		setSelected("");
+	}
 
 	useEffect(() => {
 		const interval = window.setInterval(() => setNow(Date.now()), 250);
@@ -92,935 +129,640 @@ export function ChampSelectClient({
 	}, []);
 
 	useEffect(() => {
-		if (!previousReadyRef.current && ready) playDraftStartSound();
-		previousReadyRef.current = ready;
-	}, [ready]);
-
-	useEffect(() => {
-		if (!previousCompleteRef.current && complete) playDraftCompleteSound();
-		previousCompleteRef.current = complete;
-	}, [complete]);
-
-	useEffect(() => {
 		let cancelled = false;
-		const interval = window.setInterval(async () => {
-			const next = await fetchDraft(match.id);
-			if (!cancelled && next) setState(next);
-		}, 2500);
+		const interval = window.setInterval(
+			async () => {
+				const next = await fetchDraft(match.id);
+				if (!cancelled && next) setState(next);
+			},
+			spectator ? 800 : 1000
+		);
 		return () => {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [match.id]);
+	}, [match.id, spectator]);
 
+	const wasReady = useRef(ready);
 	useEffect(() => {
-		if (!currentTurn || !state.currentTurnStartedAt || !timer.expired) return;
-		const key = `${state.actions.length}-${state.currentTurnStartedAt}`;
+		if (!wasReady.current && ready) playDraftStartSound();
+		wasReady.current = ready;
+	}, [ready]);
+	const wasComplete = useRef(complete);
+	useEffect(() => {
+		if (!wasComplete.current && complete) playDraftCompleteSound();
+		wasComplete.current = complete;
+	}, [complete]);
+
+	// Captains and admins report an expired timer; the server decides what happens.
+	useEffect(() => {
+		if (spectator || (!editableSide && !isOwner) || !timer.expired) return;
+		const key = `${state.actions.length}:${state.currentTurnStartedAt ?? state.rolePhaseStartedAt ?? ""}`;
 		if (timeoutHandledRef.current === key) return;
 		timeoutHandledRef.current = key;
-		startTransition(async () => {
-			if (selectedChampion && (canLock || adminCanLock)) {
-				const response = await fetch("/api/tournament/draft", {
-					method: "PATCH",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						matchId: match.id,
-						champion: selectedChampion,
-					}),
-				});
-				const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; message?: string } | null;
-				if (json?.draft) {
-					setState(json.draft);
-					setMessage(`${selectedChampion} wurde automatisch ${currentTurn.kind === "ban" ? "gebannt" : "gelockt"}.`);
-					setSelectedChampion("");
-					setNow(Date.now());
-					return;
-				}
-				if (!response.ok) {
-					setMessage(json?.message ?? "Auto-Lock konnte nicht verarbeitet werden.");
-					return;
-				}
+		void post({ matchId: match.id, action: "timeout" }).then((json) => {
+			if (!json?.draft) {
+				// Clocks can differ slightly from the server's; try again shortly.
+				window.setTimeout(() => {
+					if (timeoutHandledRef.current === key) timeoutHandledRef.current = "";
+				}, 1500);
+				return;
 			}
-
-			const response = await fetch("/api/tournament/draft", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					matchId: match.id,
-					action: "timeout",
-				}),
-			});
-			const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; message?: string } | null;
-			if (json?.draft) {
-				const autoLocked = json.draft.actions.length > state.actions.length && !json.draft.resetReason;
-				setState(json.draft);
-				setSelectedChampion("");
-				if (autoLocked) {
-					setMessage("Ausgewählter Champion wurde automatisch gelockt.");
-					return;
-				}
-				setMessage(json.draft.resetReason ?? "Draft wurde wegen Timeout zurückgesetzt.");
-			} else if (!response.ok) {
-				setMessage(json?.message ?? "Timeout konnte nicht verarbeitet werden.");
-			}
+			setState(json.draft);
+			setMessage(timeoutMessage(json.draft, state));
 		});
-	}, [adminCanLock, canLock, currentTurn, match.id, selectedChampion, state.actions.length, state.currentTurnStartedAt, timer.expired]);
+	}, [editableSide, isOwner, match.id, spectator, state, timer.expired]);
+
+	function run(task: () => Promise<DraftResponse>, onDone?: (draft: TournamentDraftState) => void) {
+		setMessage("");
+		startTransition(async () => {
+			const json = await task();
+			if (!json?.draft) {
+				setMessage(json?.message ?? "Aktion fehlgeschlagen. Bitte erneut versuchen.");
+				return;
+			}
+			setState(json.draft);
+			onDone?.(json.draft);
+		});
+	}
 
 	async function markReady() {
-		if (!editableSide || state.readyBy[editableSide]) return;
-		setMessage("");
 		await unlockTournamentAudio();
-		startTransition(async () => {
-			const response = await fetch("/api/tournament/draft", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					matchId: match.id,
-					action: "ready",
-				}),
-			});
-			const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; message?: string } | null;
-			if (!response.ok || !json?.draft) {
-				setMessage(json?.message ?? "Ready konnte nicht gespeichert werden.");
-				return;
-			}
-			setState(json.draft);
-			setMessage(draftReady(json.draft) ? "Beide Captains sind ready. Timer läuft." : "Ready gespeichert. Warte auf den anderen Captain.");
+		run(
+			() => post({ matchId: match.id, action: "ready" }),
+			(next) => setMessage(draftReady(next) ? "" : "Ready. Warte auf den anderen Captain.")
+		);
+	}
+
+	function lockSelection() {
+		if (!canDraft || !selectable(selected)) return;
+		const body = selected === NO_BAN ? { matchId: match.id, skip: true } : { matchId: match.id, champion: selected };
+		run(
+			() => request("PATCH", body),
+			() => setSelected("")
+		);
+	}
+
+	function choose(name: string) {
+		if (!canDraft || !selectable(name)) return;
+		setSelected(name);
+		if (name === NO_BAN || !currentTurn) return;
+		const key = `${turnKey}:${name}`;
+		if (lastHoverRef.current === key) return;
+		lastHoverRef.current = key;
+		void post({ matchId: match.id, action: "select", champion: name }).then((json) => {
+			if (json?.draft) setState(json.draft);
 		});
 	}
 
-	async function lockChampion() {
-		if (!canLock && !adminCanLock) return;
-		setMessage("");
-		startTransition(async () => {
-			const response = await fetch("/api/tournament/draft", {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					matchId: match.id,
-					champion: selectedChampion,
-				}),
-			});
-			const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; message?: string } | null;
-			if (!response.ok || !json?.draft) {
-				setMessage(json?.message ?? "Draft konnte nicht gespeichert werden.");
-				return;
-			}
-			setState(json.draft);
-			setSelectedChampion("");
-			setNow(Date.now());
-			setMessage("Champion gelockt.");
+	function moveRole(side: DraftSide, from: number, to: number) {
+		const order = swapRoleOrder(draftRoleOrder(state, side), from, to);
+		setSwapFrom(null);
+		if (from === to) return;
+		setState((current) => ({ ...current, roles: { ...current.roles, [side]: { order } } }));
+		void post({ matchId: match.id, action: "roles", order, ...(isOwner ? { side } : {}) }).then((json) => {
+			if (json?.draft) setState(json.draft);
+			else if (json?.message) setMessage(json.message);
 		});
 	}
 
-	function selectChampion(champion: string) {
-		if (!selectable(champion)) return;
-		setSelectedChampion(champion);
-		if (!currentTurn || !ready || timer.expired) return;
-		if (!isOwner && editableSide !== currentTurn.side) return;
-		const key = `${state.actions.length}:${currentTurn.side}:${currentTurn.kind}:${champion}`;
-		if (lastBroadcastSelectionRef.current === key) return;
-		lastBroadcastSelectionRef.current = key;
-		void fetch("/api/tournament/draft", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				matchId: match.id,
-				action: "select",
-				champion,
-			}),
-		})
-			.then(async (response) => {
-				const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState } | null;
-				if (response.ok && json?.draft) setState(json.draft);
-			})
-			.catch(() => undefined);
+	function confirmRoles(side: DraftSide) {
+		run(() => post({ matchId: match.id, action: "confirmRoles", order: draftRoleOrder(state, side), ...(isOwner ? { side } : {}) }));
 	}
 
-	async function adminAction(action: "forceReady" | "reset" | "undo") {
-		if (!isOwner || isPending) return;
-		setMessage("");
-		await unlockTournamentAudio();
-		startTransition(async () => {
-			const response = await fetch("/api/tournament/draft", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					matchId: match.id,
-					action,
-				}),
-			});
-			const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; message?: string } | null;
-			if (!response.ok || !json?.draft) {
-				setMessage(json?.message ?? "Admin-Aktion fehlgeschlagen.");
-				return;
-			}
-			setState(json.draft);
-			setSelectedChampion("");
-			setNow(Date.now());
-			setMessage(action === "forceReady" ? "Ready Check wurde erzwungen." : action === "undo" ? "Letzter Lock wurde zurückgenommen." : "Draft wurde zurückgesetzt.");
-		});
+	function adminAction(action: "forceReady" | "reset" | "undo") {
+		if (action === "reset" && !window.confirm("Draft komplett zurücksetzen?")) return;
+		run(() => post({ matchId: match.id, action }));
 	}
+
+	const roleSide: DraftSide | null = rolePhase ? (editableSide ?? (isOwner ? (state.roles?.teamA?.confirmedAt ? "teamB" : "teamA") : null)) : null;
+	const laneProps = {
+		state,
+		byName,
+		currentTurn: ready && !closedReason ? currentTurn : null,
+		preview,
+		rolePhase,
+		swapFrom,
+		onSwapStart: setSwapFrom,
+		onMove: moveRole,
+	};
 
 	return (
-		<div className="grid gap-3">
-			<div className="hidden">
-				<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Tournament Draft · {match.id}</div>
-				<h1 className="mt-1 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
-					{blueTeamLabel} vs {redTeamLabel}
-				</h1>
-				<p className="mt-1 text-xs leading-5 text-emerald-100/54">
-					Beide Captains klicken zuerst ready. Danach hat jeder Turn {DRAFT_TURN_SECONDS}
-					Sekunden plus kurze 0-Sekunden-Pufferzeit. Bans zielen auf den gegnerischen Pool, Picks kommen aus dem eigenen Pool.
-				</p>
-			</div>
-
-			<div className="grid items-start gap-4 xl:grid-cols-[24vw_minmax(30rem,1fr)_24vw] 2xl:grid-cols-[25vw_minmax(42rem,1fr)_25vw]">
-				<DraftTrack
-					side="teamA"
-					title={blueTeamLabel}
-					poolLabel={
-						fearless
-							? fearlessSummary(fearlessLocks.teamA)
-							: poolSummary(match.blueSide === "teamA" ? (match.poolAssignment?.teamAPool ?? null) : (match.poolAssignment?.teamBPool ?? null))
-					}
-					locks={fearless ? fearlessLocks.teamA : null}
-					actions={state.actions}
-					allChampions={allChampions}
-					accent="blue"
-					banSlots={3 + (extraBanSide === "teamA" ? 1 : 0)}
-					currentTurn={currentTurn}
-					selectedChampion={selectedChampion}
-					ready={Boolean(state.readyBy.teamA)}
-				/>
-				<CurrentTurnPanel
+		<div className="draft-room">
+			<header className="draft-head">
+				<TeamHeader side="teamA" name={blueTeamLabel} detail={laneDetail("teamA", fearless, fearlessLocks, match)} ready={Boolean(state.readyBy.teamA)} />
+				<PhaseHeader
 					closedReason={closedReason}
-					turn={currentTurn}
-					complete={complete}
 					ready={ready}
-					readyBy={state.readyBy}
+					turn={currentTurn}
+					rolePhase={rolePhase}
+					finished={finished}
 					timer={timer}
-					editableSide={editableSide}
-					selectedChampion={selectedChampion}
-					onReady={markReady}
-					onLock={lockChampion}
-					disabled={isPending || !canLock}
-					adminCanLock={adminCanLock}
-					pending={isPending}
+					sequence={sequence}
+					done={state.actions.length}
 				/>
-				<DraftTrack
-					side="teamB"
-					title={redTeamLabel}
-					poolLabel={
-						fearless
-							? fearlessSummary(fearlessLocks.teamB)
-							: poolSummary(match.blueSide === "teamA" ? (match.poolAssignment?.teamBPool ?? null) : (match.poolAssignment?.teamAPool ?? null))
-					}
-					locks={fearless ? fearlessLocks.teamB : null}
-					actions={state.actions}
-					allChampions={allChampions}
-					accent="red"
-					banSlots={3 + (extraBanSide === "teamB" ? 1 : 0)}
-					currentTurn={currentTurn}
-					selectedChampion={selectedChampion}
-					ready={Boolean(state.readyBy.teamB)}
-				/>
+				<TeamHeader side="teamB" name={redTeamLabel} detail={laneDetail("teamB", fearless, fearlessLocks, match)} ready={Boolean(state.readyBy.teamB)} />
+			</header>
 
-				{currentTurn && !closedReason ? (
-					<section className="rounded-[1.25rem] border border-white/8 bg-black/16 p-3 shadow-xl shadow-black/20 sm:p-4 xl:col-start-2">
-						<div className="flex flex-wrap items-end justify-between gap-3">
-							<div>
-								<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{currentTurn.kind === "ban" ? "Ban-Auswahl" : "Pick-Auswahl"}</div>
-								<h2 className="mt-1 text-xl font-black text-emerald-50">
-									{turnLabel(currentTurn)} · {turnPoolLabel(currentTurn.kind, fearless)}
-								</h2>
-							</div>
-							<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black tabular-nums text-lime-100">{availableCount} verfügbar</div>
-						</div>
+			{closedReason ? <p className="draft-notice">{closedReason}</p> : null}
+
+			<div className="draft-board">
+				<PickLane side="teamA" editable={rolePhase && controlsSide("teamA") && !state.roles?.teamA?.confirmedAt} {...laneProps} />
+
+				<section className="draft-center" aria-label="Champion-Auswahl">
+					<div className="draft-toolbar">
+						{DRAFT_ROLES.map((role) => (
+							<button
+								key={role}
+								type="button"
+								className="draft-role-filter"
+								aria-pressed={roleFilter === role}
+								onClick={() => setRoleFilter(roleFilter === role ? null : role)}
+							>
+								{DRAFT_ROLE_LABELS[role]}
+							</button>
+						))}
+						<label htmlFor={searchId} className="sr-only">
+							Champion suchen
+						</label>
+						<input
+							id={searchId}
+							type="search"
+							name="champion-search"
+							autoComplete="off"
+							spellCheck={false}
+							placeholder="Champion suchen…"
+							value={search}
+							onChange={(event) => setSearch(event.target.value)}
+							className="draft-search"
+						/>
 						{fearless ? (
-							<div className="mt-3 flex flex-wrap items-center gap-3">
-								<label htmlFor={searchId} className="sr-only">
-									Champion suchen
-								</label>
-								<input
-									id={searchId}
-									type="search"
-									name="champion-search"
-									autoComplete="off"
-									spellCheck={false}
-									placeholder="Champion suchen…"
-									value={search}
-									onChange={(event) => setSearch(event.target.value)}
-									className="min-w-0 flex-1 rounded-xl border border-white/12 bg-black/28 px-3 py-2 text-sm font-semibold text-emerald-50 outline-none placeholder:text-emerald-100/32 focus-visible:border-lime-200/50"
-								/>
-								{currentTurn.kind === "pick" ? (
-									<label className="inline-flex cursor-pointer items-center gap-2 text-xs font-black text-emerald-100/70">
-										<input type="checkbox" checked={hideLocked} onChange={(event) => setHideLocked(event.target.checked)} className="size-4 accent-lime-300" />
-										Gesperrte ausblenden
-									</label>
-								) : null}
-							</div>
+							<label className="draft-toggle">
+								<input type="checkbox" checked={hideLocked} onChange={(event) => setHideLocked(event.target.checked)} />
+								Gesperrte ausblenden
+							</label>
 						) : null}
+					</div>
 
-						<div className="draft-scrollbar-hidden mt-3 max-h-[50vh] overflow-y-auto pr-1">
-							{visiblePool.length === 0 ? (
-								<p className="rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm font-bold text-emerald-100/56">
-									Kein Champion passt zur Suche.
-								</p>
-							) : null}
-							<div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 2xl:grid-cols-10">
-								{visiblePool.map((champion) => {
-									const used = usedChampions.has(champion.name);
-									const lock = turnLocks[champion.name];
-									const active = selectedChampion === champion.name;
-									return (
-										<button
-											key={champion.id}
-											type="button"
-											disabled={used || Boolean(lock) || !ready || timer.expired || (!isOwner && editableSide !== currentTurn.side) || isPending}
-											onClick={() => selectChampion(champion.name)}
-											title={lock ? fearlessLockLabel(lock) : used ? "Bereits in diesem Draft gewählt" : undefined}
-											aria-label={
-												lock ? `${champion.name}, gesperrt: ${fearlessLockLabel(lock)}` : used ? `${champion.name}, bereits gewählt` : champion.name
-											}
-											aria-pressed={active}
-											className={`group relative overflow-hidden rounded-xl border p-1.5 text-left transition-[transform,border-color,background-color] [contain-intrinsic-size:auto_7rem] [content-visibility:auto] ${
-												active
-													? "border-lime-200/60 bg-lime-200/16 shadow-lg shadow-lime-300/10"
-													: used || lock
-														? "border-white/6 bg-black/30 opacity-35 grayscale"
-														: "border-white/10 bg-black/18 hover:-translate-y-0.5 hover:border-lime-200/30"
-											} disabled:cursor-not-allowed`}
-										>
-											<ChampionIcon champion={champion} />
-											{lock ? (
-												<span className="absolute left-1 top-1 rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-amber-100">
-													{lock.source === "own" ? "Gespielt" : "Gegner"}
-												</span>
-											) : null}
-											<div className="mt-1.5 truncate text-center text-xs font-black text-emerald-50">{champion.name}</div>
-										</button>
-									);
-								})}
-							</div>
-						</div>
-
-						<div className="sticky bottom-3 z-20 mx-auto mt-4 max-w-xl rounded-2xl border border-lime-200/18 bg-[#111]/94 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl">
-							<div className="grid gap-3">
-								<div className="min-w-0 text-center">
-									<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">{!ready ? "Ready Check" : "Ausgewählt"}</div>
-									<div className="mt-1 truncate text-lg font-black text-emerald-50">
-										{!ready ? (ownReady ? "Du bist ready" : "Warte auf beide Captains") : selectedChampion || "Noch kein Champion gewählt"}
-									</div>
-									<div className="hidden text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Ausgewählt</div>
-									<div className="hidden mt-1 truncate text-lg font-black text-emerald-50">{selectedChampion || "Noch kein Champion gewählt"}</div>
+					<div className="draft-grid">
+						{currentTurn?.kind === "ban" && ready ? (
+							<button type="button" className="draft-tile" disabled={!canDraft} aria-pressed={canDraft && selected === NO_BAN} onClick={() => choose(NO_BAN)}>
+								<div className="draft-tile-art draft-none-art" aria-hidden="true">
+									<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2">
+										<circle cx="12" cy="12" r="9" />
+										<path d="M5.6 18.4 18.4 5.6" />
+									</svg>
 								</div>
+								<span>Kein Ban</span>
+							</button>
+						) : null}
+						{visible.map((champion) => {
+							const lock = turnLocks[champion.name];
+							const taken = used.has(champion.name);
+							return (
 								<button
+									key={champion.id}
 									type="button"
-									disabled={!ready ? !editableSide || ownReady || isPending : isPending || (!canLock && !adminCanLock)}
-									onClick={!ready ? markReady : lockChampion}
-									className={`mx-auto w-full max-w-sm rounded-xl px-6 py-3 text-xs font-black uppercase tracking-[0.18em] shadow-xl transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 ${
-										!ready ? "bg-lime-200 text-emerald-950 shadow-lime-300/20" : draftActionButtonClass(currentTurn.kind)
-									}`}
+									className="draft-tile"
+									disabled={!canDraft || taken || Boolean(lock) || isPending}
+									aria-pressed={canDraft && selected === champion.name}
+									data-hover={!canDraft && serverHover === champion.name}
+									data-used={taken || Boolean(lock)}
+									title={lock ? fearlessLockLabel(lock) : taken ? "Bereits gepickt oder gebannt" : undefined}
+									aria-label={lock ? `${champion.name}, gesperrt: ${fearlessLockLabel(lock)}` : taken ? `${champion.name}, bereits gewählt` : champion.name}
+									onClick={() => choose(champion.name)}
 								>
-									{!ready
-										? !editableSide
-											? "Nur Captains"
-											: "Ready"
-										: draftActionLabel({
-												champion: selectedChampion,
-												kind: currentTurn.kind,
-												admin: adminCanLock && !canLock,
-											})}
+									<div className="draft-tile-art">
+										<Image src={champion.imageUrl} alt="" fill sizes="5rem" />
+										{lock ? <i className="draft-tile-lock">{lock.source === "own" ? "Gespielt" : "Gegner"}</i> : null}
+									</div>
+									<span>{champion.name}</span>
 								</button>
-							</div>
-						</div>
-					</section>
-				) : null}
+							);
+						})}
+						{visible.length === 0 ? <p className="draft-empty">Kein Champion passt zu Suche und Filter.</p> : null}
+					</div>
+				</section>
 
-				<div className="xl:col-start-2">
-					{complete ? (
-						<CompletedDraftSummary actions={state.actions} champions={allChampions} blueTeamLabel={blueTeamLabel} redTeamLabel={redTeamLabel} />
-					) : (
-						<DraftOrder actions={state.actions} sequence={draftSequence} extraBanSide={extraBanSide} />
-					)}
-				</div>
+				<PickLane side="teamB" editable={rolePhase && controlsSide("teamB") && !state.roles?.teamB?.confirmedAt} {...laneProps} />
 			</div>
 
-			{isOwner ? (
-				<AdminDraftControls
-					disabled={isPending}
-					selectedChampion={selectedChampion}
-					canLock={adminCanLock}
-					onForceReady={() => adminAction("forceReady")}
-					onUndo={() => adminAction("undo")}
-					onReset={() => adminAction("reset")}
-					onLock={lockChampion}
-				/>
-			) : null}
+			<div className="draft-foot">
+				<BanRow side="teamA" state={state} byName={byName} extra={extraBanSide === "teamA"} currentTurn={ready ? currentTurn : null} preview={preview} />
+				<div className="draft-action">
+					<ActionButton
+						spectator={spectator}
+						closedReason={closedReason}
+						editableSide={editableSide}
+						isOwner={isOwner}
+						ready={ready}
+						ownReady={Boolean(editableSide && state.readyBy[editableSide])}
+						turn={currentTurn}
+						canDraft={canDraft}
+						selected={selected}
+						rolePhase={rolePhase}
+						roleSide={roleSide}
+						roleConfirmed={Boolean(roleSide && state.roles?.[roleSide]?.confirmedAt)}
+						finished={finished}
+						pending={isPending}
+						onReady={markReady}
+						onLock={lockSelection}
+						onConfirmRoles={confirmRoles}
+					/>
+					{rolePhase && roleSide && !state.roles?.[roleSide]?.confirmedAt ? (
+						<small>Ziehe deine Picks auf die richtige Lane oder tippe zwei Karten an, um sie zu tauschen.</small>
+					) : null}
+				</div>
+				<BanRow side="teamB" state={state} byName={byName} extra={extraBanSide === "teamB"} currentTurn={ready ? currentTurn : null} preview={preview} />
+			</div>
 
 			{message ? (
-				<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+				<p role="status" className="draft-message">
 					{message}
-				</div>
+				</p>
 			) : null}
 
-			<style>{`
-        .draft-scrollbar-hidden {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        .draft-scrollbar-hidden::-webkit-scrollbar {
-          display: none;
-        }
-        @keyframes draft-breathe {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(190, 242, 100, 0.0); }
-          50% { transform: scale(1.015); box-shadow: 0 0 0 4px rgba(190, 242, 100, 0.16); }
-        }
-      `}</style>
+			{isOwner && !spectator ? (
+				<div className="draft-admin">
+					<span>Admin</span>
+					<button type="button" className="button ghost small" disabled={isPending || complete} onClick={() => adminAction("forceReady")}>
+						Force Ready
+					</button>
+					<button type="button" className="button ghost small" disabled={isPending || state.actions.length === 0} onClick={() => adminAction("undo")}>
+						Letzten Lock zurücknehmen
+					</button>
+					<button type="button" className="button ghost small" disabled={isPending} onClick={() => adminAction("reset")}>
+						Draft zurücksetzen
+					</button>
+				</div>
+			) : null}
 		</div>
 	);
 }
 
-function championsForTurn(turn: { side: DraftSide; kind: "ban" | "pick" }, blueChampions: ChampionPool["champions"], redChampions: ChampionPool["champions"], fearless: boolean) {
+function TeamHeader({ side, name, detail, ready }: { side: DraftSide; name: string; detail: string; ready: boolean }) {
+	return (
+		<div className="draft-team" data-side={side}>
+			<h2>{name}</h2>
+			<p>
+				{SIDE_LABEL[side]} · {detail}
+			</p>
+			<span className="draft-ready" data-ready={ready}>
+				{ready ? "Ready" : "Wartet"}
+			</span>
+		</div>
+	);
+}
+
+function PhaseHeader({
+	closedReason,
+	ready,
+	turn,
+	rolePhase,
+	finished,
+	timer,
+	sequence,
+	done,
+}: {
+	closedReason: string | null;
+	ready: boolean;
+	turn: DraftTurn | null;
+	rolePhase: boolean;
+	finished: boolean;
+	timer: TimerState;
+	sequence: DraftTurn[];
+	done: number;
+}) {
+	const label = closedReason
+		? "Noch nicht freigegeben"
+		: finished
+			? "Draft abgeschlossen"
+			: rolePhase
+				? "Rollen bestätigen"
+				: !ready
+					? "Warte auf Captains"
+					: turn
+						? `${SIDE_LABEL[turn.side]} ${turn.kind === "ban" ? "bannt" : "pickt"}`
+						: "";
+	const showTimer = !closedReason && ready && !finished;
+	return (
+		<div className="draft-phase" aria-live="polite">
+			<div className="draft-phase-bar" data-side={showTimer && !rolePhase ? turn?.side : undefined} aria-hidden="true">
+				<span />
+				<span />
+			</div>
+			<strong>{label}</strong>
+			{showTimer ? (
+				<span className="draft-timer" data-urgent={timer.remainingMs > 0 && timer.remainingMs <= 5000} aria-label={`${timer.label} Sekunden`}>
+					{timer.label}
+				</span>
+			) : null}
+			<div className="draft-steps" aria-label={`${Math.min(done, sequence.length)} von ${sequence.length} Draft-Schritten`}>
+				{sequence.map((step, index) => (
+					<i key={index} data-side={step.side} data-kind={step.kind} data-state={index < done ? "done" : index === done && ready ? "now" : "open"} />
+				))}
+			</div>
+		</div>
+	);
+}
+
+function PickLane({
+	side,
+	state,
+	byName,
+	currentTurn,
+	preview,
+	rolePhase,
+	editable,
+	swapFrom,
+	onSwapStart,
+	onMove,
+}: {
+	side: DraftSide;
+	state: TournamentDraftState;
+	byName: Map<string, ChampionEntry>;
+	currentTurn: DraftTurn | null;
+	preview: string;
+	rolePhase: boolean;
+	editable: boolean;
+	swapFrom: { side: DraftSide; index: number } | null;
+	onSwapStart: (value: { side: DraftSide; index: number } | null) => void;
+	onMove: (side: DraftSide, from: number, to: number) => void;
+}) {
+	const [dropTarget, setDropTarget] = useState<number | null>(null);
+	const withRoles = draftHasRoles(state);
+	const picks = withRoles ? draftRoleOrder(state, side) : draftPicks(state, side);
+	const actions = state.actions.filter((action) => action.side === side && action.kind === "pick");
+	const activeIndex = currentTurn?.side === side && currentTurn.kind === "pick" ? picks.length : -1;
+	const confirmed = Boolean(state.roles?.[side]?.confirmedAt);
+
+	function onDrop(event: DragEvent, index: number) {
+		event.preventDefault();
+		setDropTarget(null);
+		const from = Number(event.dataTransfer.getData("text/plain"));
+		if (Number.isInteger(from)) onMove(side, from, index);
+	}
+
+	return (
+		<div className="draft-lane" data-side={side} aria-label={`Picks ${SIDE_LABEL[side]}`}>
+			{DRAFT_ROLES.map((role, index) => {
+				const name = picks[index];
+				const champion = name ? byName.get(name) : undefined;
+				const auto = actions.find((action) => action.champion === name)?.auto;
+				const previewChampion = !name && index === activeIndex && preview ? byName.get(preview) : undefined;
+				const shown = champion ?? previewChampion;
+				const content = (
+					<>
+						{shown ? <Image src={splashUrl(shown)} alt="" fill sizes="16rem" /> : <span className="draft-pick-empty">{index === activeIndex ? "Pickt…" : ""}</span>}
+						{withRoles ? <span className="draft-role-chip">{DRAFT_ROLE_LABELS[role]}</span> : null}
+						{auto === "random" ? <span className="draft-auto-chip">Zufall</span> : null}
+						{shown ? <span className="draft-pick-name">{shown.name}</span> : null}
+					</>
+				);
+				if (editable && name) {
+					const pressed = swapFrom?.side === side && swapFrom.index === index;
+					return (
+						<button
+							key={role}
+							type="button"
+							className="draft-pick"
+							data-swappable="true"
+							data-drop={dropTarget === index}
+							aria-pressed={pressed}
+							aria-label={`${name} als ${DRAFT_ROLE_LABELS[role]}${pressed ? ", ausgewählt zum Tauschen" : ""}`}
+							draggable
+							onDragStart={(event) => {
+								event.dataTransfer.setData("text/plain", String(index));
+								event.dataTransfer.effectAllowed = "move";
+							}}
+							onDragOver={(event) => {
+								event.preventDefault();
+								setDropTarget(index);
+							}}
+							onDragLeave={() => setDropTarget(null)}
+							onDrop={(event) => onDrop(event, index)}
+							onClick={() => (swapFrom?.side === side ? onMove(side, swapFrom.index, index) : onSwapStart({ side, index }))}
+						>
+							{content}
+						</button>
+					);
+				}
+				return (
+					<div
+						key={role}
+						className="draft-pick"
+						data-state={champion ? "locked" : previewChampion ? "preview" : index === activeIndex ? "active" : "open"}
+						title={rolePhase && confirmed ? "Rollen bestätigt" : undefined}
+					>
+						{content}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+function BanRow({
+	side,
+	state,
+	byName,
+	extra,
+	currentTurn,
+	preview,
+}: {
+	side: DraftSide;
+	state: TournamentDraftState;
+	byName: Map<string, ChampionEntry>;
+	extra: boolean;
+	currentTurn: DraftTurn | null;
+	preview: string;
+}) {
+	const bans = draftBans(state, side);
+	const firstPhase = DRAFT_FIRST_PHASE_BANS + (extra ? 1 : 0);
+	const total = DRAFT_BANS_PER_SIDE + (extra ? 1 : 0);
+	const activeIndex = currentTurn?.side === side && currentTurn.kind === "ban" ? bans.length : -1;
+	const slot = (index: number) => {
+		const action: DraftAction | undefined = bans[index];
+		const champion = action && !action.skipped ? byName.get(action.champion) : index === activeIndex && preview ? byName.get(preview) : undefined;
+		const state = action ? "locked" : champion ? "preview" : index === activeIndex ? "active" : "open";
+		return (
+			<div
+				key={index}
+				className="draft-ban"
+				data-state={state}
+				data-skipped={Boolean(action?.skipped)}
+				title={action ? (action.skipped ? "Kein Ban" : action.champion) : undefined}
+				aria-label={action ? (action.skipped ? "Kein Ban" : `Ban ${action.champion}`) : `Ban ${index + 1} offen`}
+			>
+				{champion ? <Image src={champion.imageUrl} alt="" fill sizes="2.5rem" /> : null}
+			</div>
+		);
+	};
+	return (
+		<div className="draft-bans" data-side={side} aria-label={`Bans ${SIDE_LABEL[side]}`}>
+			<div className="draft-ban-group">{Array.from({ length: firstPhase }, (_, index) => slot(index))}</div>
+			<div className="draft-ban-group">{Array.from({ length: total - firstPhase }, (_, index) => slot(firstPhase + index))}</div>
+		</div>
+	);
+}
+
+function ActionButton({
+	spectator,
+	closedReason,
+	editableSide,
+	isOwner,
+	ready,
+	ownReady,
+	turn,
+	canDraft,
+	selected,
+	rolePhase,
+	roleSide,
+	roleConfirmed,
+	finished,
+	pending,
+	onReady,
+	onLock,
+	onConfirmRoles,
+}: {
+	spectator: boolean;
+	closedReason: string | null;
+	editableSide: EditableSide;
+	isOwner: boolean;
+	ready: boolean;
+	ownReady: boolean;
+	turn: DraftTurn | null;
+	canDraft: boolean;
+	selected: string;
+	rolePhase: boolean;
+	roleSide: DraftSide | null;
+	roleConfirmed: boolean;
+	finished: boolean;
+	pending: boolean;
+	onReady: () => void;
+	onLock: () => void;
+	onConfirmRoles: (side: DraftSide) => void;
+}) {
+	const disabled = (label: string) => (
+		<button type="button" className="draft-action-button" disabled>
+			{label}
+		</button>
+	);
+	if (closedReason) return disabled("Noch nicht freigegeben");
+	if (finished) return disabled("Draft abgeschlossen");
+	if (rolePhase) {
+		if (spectator || !roleSide) return disabled("Rollenwahl läuft");
+		if (roleConfirmed) return disabled(isOwner && !editableSide ? "Rollen bestätigt" : "Warte auf Gegner");
+		return (
+			<button type="button" className="draft-action-button" disabled={pending} onClick={() => onConfirmRoles(roleSide)}>
+				{isOwner && !editableSide ? `Rollen ${SIDE_LABEL[roleSide]} bestätigen` : "Rollen bestätigen"}
+			</button>
+		);
+	}
+	if (!ready) {
+		if (spectator || !editableSide) return disabled("Warte auf Captains");
+		return (
+			<button type="button" className="draft-action-button" disabled={ownReady || pending} onClick={onReady}>
+				{ownReady ? "Warte auf Gegner" : "Ready"}
+			</button>
+		);
+	}
+	if (!turn) return disabled("Draft abgeschlossen");
+	if (!canDraft) return disabled(turn.kind === "ban" ? "Gegner bannt…" : "Gegner pickt…");
+	const label = !selected
+		? turn.kind === "ban"
+			? "Champion zum Bannen wählen"
+			: "Champion wählen"
+		: selected === NO_BAN
+			? "Kein Ban bestätigen"
+			: `${selected} ${turn.kind === "ban" ? "bannen" : "locken"}`;
+	return (
+		<button type="button" className="draft-action-button" data-kind={turn.kind} disabled={!selected || pending} onClick={onLock}>
+			{label}
+		</button>
+	);
+}
+
+type TimerState = { label: string; remainingMs: number; expired: boolean };
+
+function timerState(state: TournamentDraftState, now: number, rolePhase: boolean, complete: boolean): TimerState {
+	const startedAt = rolePhase ? state.rolePhaseStartedAt : !complete && draftReady(state) ? state.currentTurnStartedAt : undefined;
+	const seconds = rolePhase ? DRAFT_ROLE_SECONDS : DRAFT_TURN_SECONDS;
+	if (!startedAt) return { label: String(seconds), remainingMs: seconds * 1000, expired: false };
+	const elapsed = Math.max(0, now - new Date(startedAt).getTime());
+	const remainingMs = Math.max(0, seconds * 1000 - elapsed);
+	return { label: String(Math.ceil(remainingMs / 1000)), remainingMs, expired: elapsed >= (rolePhase ? DRAFT_ROLE_TOTAL_MS : DRAFT_TOTAL_MS) };
+}
+
+function timeoutMessage(next: TournamentDraftState, previous: TournamentDraftState): string {
+	if (next.resetReason && next.actions.length === 0) return next.resetReason;
+	if (next.rolesFinalizedAt && !previous.rolesFinalizedAt) return "Zeit abgelaufen: Die aktuelle Rollenverteilung gilt.";
+	const added = next.actions[previous.actions.length];
+	if (!added) return "";
+	if (added.skipped) return "Zeit abgelaufen: kein Ban.";
+	if (added.auto === "random") return `Zeit abgelaufen: ${added.champion} wurde zufällig gepickt.`;
+	return `Zeit abgelaufen: ${added.champion} wurde automatisch gelockt.`;
+}
+
+function laneDetail(side: DraftSide, fearless: boolean, locks: FearlessLocks, match: ControlMatch) {
+	if (fearless) {
+		const count = Object.keys(locks[side]).length;
+		return count === 0 ? "keine Fearless-Sperren" : `${count} gesperrt`;
+	}
+	const blueIsA = match.blueSide === "teamA";
+	const pool =
+		side === "teamA"
+			? blueIsA
+				? match.poolAssignment?.teamAPool
+				: match.poolAssignment?.teamBPool
+			: blueIsA
+				? match.poolAssignment?.teamBPool
+				: match.poolAssignment?.teamAPool;
+	return pool ? `Pool ${compactPoolLabel(pool)}` : "noch kein Pool";
+}
+
+function championsForTurn(turn: DraftTurn, blueChampions: ChampionEntry[], redChampions: ChampionEntry[], fearless: boolean) {
 	const own = turn.side === "teamA" ? blueChampions : redChampions;
 	const enemy = turn.side === "teamA" ? redChampions : blueChampions;
-	// Fearless drafts share one full roster; pools ban from the enemy pool.
+	// Fearless drafts share one roster; pool drafts ban from the enemy pool.
 	return turn.kind === "pick" || fearless ? own : enemy;
 }
 
-function turnPoolLabel(kind: "ban" | "pick", fearless: boolean) {
-	if (fearless) return kind === "ban" ? "alle Champions" : "ohne Fearless-Sperren";
-	return kind === "ban" ? "gegnerischer Pool" : "eigener Pool";
+function uniqueChampions(champions: ChampionEntry[]) {
+	return [...new Map(champions.map((champion) => [champion.name, champion])).values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-function normalizeChampionSearch(value: string) {
+function splashUrl(champion: ChampionPoolEntry) {
+	return `https://ddragon.leagueoflegends.com/cdn/img/champion/centered/${champion.id}_0.jpg`;
+}
+
+function normalizeSearch(value: string) {
 	return value
 		.toLowerCase()
 		.normalize("NFKD")
 		.replace(/[^a-z0-9]/g, "");
 }
 
-function poolSummary(pool: string | null) {
-	return pool ? `Pool ${compactPoolLabel(pool)}` : "Noch kein Pool gezogen";
-}
-
-function fearlessSummary(locks: Record<string, FearlessLock>) {
-	const count = Object.keys(locks).length;
-	return count === 0 ? "Fearless · noch keine Sperren" : `Fearless · ${count} ${count === 1 ? "Champion" : "Champions"} gesperrt`;
-}
-
-function draftActionLabel({ champion, kind, admin }: { champion: string; kind: "ban" | "pick"; admin?: boolean }) {
-	if (!champion) return "Champion wählen";
-	const action = kind === "ban" ? "bannen" : "locken";
-	return admin ? `${champion} als Admin ${action}` : `${champion} ${action}`;
-}
-
-function draftActionButtonClass(kind: "ban" | "pick") {
-	return kind === "ban" ? "bg-red-300 text-red-950 shadow-red-400/20" : "bg-sky-300 text-sky-950 shadow-sky-400/20";
-}
-
-type TimerState = {
-	label: string;
-	remainingMs: number;
-	expired: boolean;
-	progress: number;
-};
-
-function getTimerState(state: TournamentDraftState, now: number, sequence: Array<{ side: DraftSide; kind: "ban" | "pick" }>): TimerState {
-	const turnMs = DRAFT_TURN_SECONDS * 1000;
-	if (!state.currentTurnStartedAt || !draftReady(state) || draftComplete(state, sequence)) {
-		return {
-			label: String(DRAFT_TURN_SECONDS),
-			remainingMs: turnMs,
-			expired: false,
-			progress: 100,
-		};
+async function request(method: "POST" | "PATCH", body: Record<string, unknown>): Promise<DraftResponse> {
+	try {
+		const response = await fetch("/api/tournament/draft", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+		const json = (await response.json().catch(() => null)) as DraftResponse;
+		return response.ok ? json : { message: json?.message ?? "Aktion fehlgeschlagen." };
+	} catch {
+		return { message: "Keine Verbindung. Bitte erneut versuchen." };
 	}
+}
 
-	const elapsed = Math.max(0, now - new Date(state.currentTurnStartedAt).getTime());
-	const remainingMs = Math.max(0, turnMs - elapsed);
-	const totalRemainingMs = Math.max(0, DRAFT_TOTAL_MS - elapsed);
-	const inGrace = remainingMs <= 0;
-	return {
-		label: inGrace ? "0" : String(Math.ceil(remainingMs / 1000)),
-		remainingMs,
-		expired: totalRemainingMs <= 0,
-		progress: inGrace ? Math.round((totalRemainingMs / (DRAFT_TOTAL_MS - turnMs)) * 100) : Math.round((remainingMs / turnMs) * 100),
-	};
+function post(body: Record<string, unknown>) {
+	return request("POST", body);
 }
 
 async function fetchDraft(matchId: string): Promise<TournamentDraftState | null> {
-	const response = await fetch(`/api/tournament/draft?matchId=${encodeURIComponent(matchId)}`);
-	const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState } | null;
-	return response.ok && json?.draft ? json.draft : null;
-}
-
-function AdminDraftControls({
-	disabled,
-	selectedChampion,
-	canLock,
-	onForceReady,
-	onUndo,
-	onReset,
-	onLock,
-}: {
-	disabled: boolean;
-	selectedChampion: string;
-	canLock: boolean;
-	onForceReady: () => void;
-	onUndo: () => void;
-	onReset: () => void;
-	onLock: () => void;
-}) {
-	return (
-		<section className="rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.055] p-5 shadow-xl shadow-black/20">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-100/72">Admin Override</div>
-					<p className="mt-2 text-sm leading-6 text-amber-50/72">Panic buttons für Misclicks, Disconnects oder kaputte Ready Checks.</p>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-black/22 px-4 py-2 text-xs font-black text-amber-50/70">{selectedChampion || "Kein Champion gewählt"}</div>
-			</div>
-			<div className="mt-4 grid gap-2 sm:grid-cols-4">
-				<button
-					type="button"
-					disabled={disabled}
-					onClick={onForceReady}
-					className="rounded-2xl border border-lime-200/20 bg-lime-200/12 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-lime-50 disabled:opacity-45"
-				>
-					Force Ready
-				</button>
-				<button
-					type="button"
-					disabled={disabled || !canLock}
-					onClick={onLock}
-					className="rounded-2xl border border-sky-200/20 bg-sky-300/12 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-sky-50 disabled:opacity-45"
-				>
-					Admin Lock
-				</button>
-				<button
-					type="button"
-					disabled={disabled}
-					onClick={onUndo}
-					className="rounded-2xl border border-amber-200/24 bg-amber-200/12 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-amber-50 disabled:opacity-45"
-				>
-					Undo Last
-				</button>
-				<button
-					type="button"
-					disabled={disabled}
-					onClick={onReset}
-					className="rounded-2xl border border-red-300/24 bg-red-500/12 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-red-100 disabled:opacity-45"
-				>
-					Reset Draft
-				</button>
-			</div>
-		</section>
-	);
-}
-
-function CurrentTurnPanel({
-	closedReason,
-	turn,
-	complete,
-	ready,
-	readyBy,
-	timer,
-	editableSide,
-	selectedChampion,
-	disabled,
-	adminCanLock,
-	pending,
-	onReady,
-	onLock,
-}: {
-	closedReason: string | null;
-	turn: { side: DraftSide; kind: "ban" | "pick" } | null;
-	complete: boolean;
-	ready: boolean;
-	readyBy: TournamentDraftState["readyBy"];
-	timer: TimerState;
-	editableSide: EditableSide;
-	selectedChampion: string;
-	disabled: boolean;
-	adminCanLock: boolean;
-	pending: boolean;
-	onReady: () => void;
-	onLock: () => void;
-}) {
-	const editable = turn && editableSide === turn.side;
-	const ownReady = editableSide ? Boolean(readyBy[editableSide]) : false;
-	return (
-		<aside className="rounded-none border-0 bg-transparent p-0 text-center shadow-none">
-			<div className="hidden text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Aktueller Turn</div>
-			{closedReason ? (
-				<p className="mx-auto max-w-sm rounded-2xl border border-amber-200/18 bg-amber-200/8 px-4 py-3 text-sm font-bold leading-6 text-amber-100/76">{closedReason}</p>
-			) : complete ? (
-				<p className="mx-auto w-fit border-t-4 border-lime-300 px-8 pt-2 text-xs font-black uppercase tracking-[0.22em] text-lime-100">Draft abgeschlossen</p>
-			) : !ready ? (
-				<>
-					<p className="mx-auto w-fit border-t-4 border-lime-300/75 px-8 pt-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-50">Waiting for drafter</p>
-					<button type="button" disabled={!editableSide || ownReady || pending} onClick={onReady} className="hidden">
-						{!editableSide ? "Nur Captains können ready klicken" : ownReady ? "Du bist ready" : "Ready"}
-					</button>
-				</>
-			) : turn ? (
-				<>
-					<div className="mx-auto w-fit border-t-4 border-lime-300/75 px-8 pt-2">
-						<div className="text-sm font-black text-emerald-50">{turnLabel(turn)}</div>
-						<div className={`mt-1 text-3xl font-black tabular-nums ${timer.remainingMs <= 0 ? "text-amber-100" : "text-emerald-50"}`}>{timer.label}</div>
-						<div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-							<div
-								className={`h-full rounded-full transition-[width] ${timer.remainingMs <= 0 ? "bg-amber-200" : "bg-lime-200"}`}
-								style={{ width: `${timer.progress}%` }}
-							/>
-						</div>
-						{timer.remainingMs > 0 && timer.remainingMs <= 5000 ? (
-							<div className="mt-3 animate-pulse rounded-xl border border-red-300/30 bg-red-500/16 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-100">
-								Letzte 5 Sekunden
-							</div>
-						) : null}
-						<p className="hidden mt-2 text-xs leading-5 text-emerald-100/54">
-							{timer.remainingMs <= 0
-								? "Timer ist auf 0. Gleich wird ohne Champion gelockt und der Draft neu gestartet."
-								: turn.kind === "ban"
-									? "Wähle einen Champion aus dem gegnerischen Pool."
-									: "Wähle einen Champion aus deinem eigenen Pool."}
-						</p>
-					</div>
-					<button
-						type="button"
-						disabled={disabled}
-						onClick={onLock}
-						className={`hidden mt-3 w-full rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] shadow-xl disabled:cursor-not-allowed disabled:opacity-45 ${draftActionButtonClass(
-							turn.kind
-						)}`}
-					>
-						{editable
-							? draftActionLabel({
-									champion: selectedChampion,
-									kind: turn.kind,
-								})
-							: adminCanLock
-								? draftActionLabel({
-										champion: selectedChampion,
-										kind: turn.kind,
-										admin: true,
-									})
-								: "Nicht dein Turn"}
-					</button>
-				</>
-			) : null}
-		</aside>
-	);
-}
-
-function CompletedDraftSummary({
-	actions,
-	champions,
-	blueTeamLabel,
-	redTeamLabel,
-}: {
-	actions: DraftAction[];
-	champions: ChampionPool["champions"];
-	blueTeamLabel: string;
-	redTeamLabel: string;
-}) {
-	const byName = new Map(champions.map((champion) => [champion.name, champion]));
-	return (
-		<section className="rounded-[1.5rem] border border-lime-200/14 bg-lime-200/[0.055] p-4 shadow-xl shadow-black/20">
-			<div className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">Draft abgeschlossen</div>
-					<h2 className="mt-1 text-2xl font-black text-emerald-50">Finaler Draft</h2>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-black text-lime-100">{actions.length} Locks</div>
-			</div>
-			<div className="mt-4 grid gap-3 md:grid-cols-2">
-				<FinalTeamDraft label={blueTeamLabel} side="teamA" actions={actions} byName={byName} tone="blue" />
-				<FinalTeamDraft label={redTeamLabel} side="teamB" actions={actions} byName={byName} tone="red" />
-			</div>
-		</section>
-	);
-}
-
-function FinalTeamDraft({
-	label,
-	side,
-	actions,
-	byName,
-	tone,
-}: {
-	label: string;
-	side: DraftSide;
-	actions: DraftAction[];
-	byName: Map<string, ChampionPoolEntry>;
-	tone: "blue" | "red";
-}) {
-	const sideActions = actions.filter((action) => action.side === side);
-	const picks = sideActions.filter((action) => action.kind === "pick");
-	const bans = sideActions.filter((action) => action.kind === "ban");
-	return (
-		<div className={`rounded-2xl border p-3 ${tone === "blue" ? "border-sky-200/18 bg-sky-300/[0.055]" : "border-red-200/18 bg-red-400/[0.055]"}`}>
-			<div className={`text-xs font-black uppercase tracking-[0.18em] ${tone === "blue" ? "text-sky-100/72" : "text-red-100/72"}`}>{label}</div>
-			<div className="mt-3 grid grid-cols-5 gap-2">
-				{picks.map((action) => (
-					<ChampionMini key={`${action.side}-${action.kind}-${action.champion}`} champion={byName.get(action.champion)} label={action.champion} />
-				))}
-			</div>
-			<div className="mt-3 grid grid-cols-6 gap-2 opacity-80">
-				{bans.map((action) => (
-					<ChampionMini key={`${action.side}-${action.kind}-${action.champion}`} champion={byName.get(action.champion)} label={action.champion} banned />
-				))}
-			</div>
-		</div>
-	);
-}
-
-function ChampionMini({ champion, label, banned }: { champion?: ChampionPoolEntry; label: string; banned?: boolean }) {
-	return (
-		<div className="min-w-0">
-			<div className="relative overflow-hidden rounded-lg border border-white/10 bg-black/24">
-				{champion ? <ChampionIcon champion={champion} /> : null}
-				{banned ? <div className="pointer-events-none absolute inset-x-[-20%] top-1/2 h-0.5 -rotate-45 bg-red-100/80" /> : null}
-			</div>
-			<div className="mt-1 truncate text-center text-[10px] font-black text-emerald-50/78">{label}</div>
-		</div>
-	);
-}
-
-function DraftTrack({
-	side,
-	title,
-	poolLabel,
-	locks,
-	actions,
-	allChampions,
-	accent,
-	banSlots,
-	currentTurn,
-	selectedChampion,
-	ready,
-}: {
-	side: DraftSide;
-	title: string;
-	poolLabel: string;
-	locks: Record<string, FearlessLock> | null;
-	actions: DraftAction[];
-	allChampions: ChampionPool["champions"];
-	accent: "blue" | "red";
-	banSlots: number;
-	currentTurn: { side: DraftSide; kind: "ban" | "pick" } | null;
-	selectedChampion: string;
-	ready: boolean;
-}) {
-	const sideActions = actions.filter((action) => action.side === side);
-	const picks = sideActions.filter((action) => action.kind === "pick");
-	const bans = sideActions.filter((action) => action.kind === "ban");
-	const byName = new Map(allChampions.map((champion) => [champion.name, champion]));
-	const isBlue = accent === "blue";
-	const pendingChampion = currentTurn?.side === side && selectedChampion ? byName.get(selectedChampion) : undefined;
-	const pendingPickIndex = currentTurn?.side === side && currentTurn.kind === "pick" ? picks.length : -1;
-	const pendingBanIndex = currentTurn?.side === side && currentTurn.kind === "ban" ? bans.length : -1;
-	return (
-		<article className={`sticky top-4 border-0 bg-transparent p-0 shadow-none xl:row-span-3 ${isBlue ? "text-sky-50" : "text-red-50"}`}>
-			<header className={isBlue ? "" : "text-right"}>
-				<div className={`flex items-center gap-2 ${isBlue ? "justify-start" : "justify-end"}`}>
-					<div className={isBlue ? "text-xs font-black uppercase tracking-[0.24em] text-sky-100/70" : "text-xs font-black uppercase tracking-[0.24em] text-red-100/70"}>
-						{side === "teamA" ? "Blue Side" : "Red Side"}
-					</div>
-					<span
-						className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${
-							ready ? "border-lime-200/24 bg-lime-200/12 text-lime-100" : "border-white/10 bg-black/24 text-emerald-100/38"
-						}`}
-					>
-						{ready ? "Ready" : "Wartet"}
-					</span>
-				</div>
-				<h2 className={isBlue ? "mt-2 break-words text-2xl font-black text-sky-50 2xl:text-3xl" : "mt-2 break-words text-2xl font-black text-red-50 2xl:text-3xl"}>
-					{title}
-				</h2>
-				<p className="mt-1 text-sm font-bold text-emerald-100/52">{poolLabel}</p>
-			</header>
-
-			<div className="mt-4">
-				<div className="hidden text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/60">Picks</div>
-				<div className="mt-2 grid gap-2">
-					{Array.from({ length: 5 }).map((_, index) => (
-						<Slot
-							key={`pick-${index}`}
-							action={picks[index]}
-							champion={picks[index] ? byName.get(picks[index].champion) : undefined}
-							pendingChampion={pendingPickIndex === index ? pendingChampion : undefined}
-							active={pendingPickIndex === index}
-							label={`Pick ${index + 1}`}
-						/>
-					))}
-				</div>
-			</div>
-
-			<div className="mt-4">
-				<div className="hidden text-[10px] font-black uppercase tracking-[0.22em] text-red-100/60">Bans</div>
-				<div className="mt-2 grid grid-cols-4 gap-2">
-					{Array.from({ length: banSlots }).map((_, index) => (
-						<Slot
-							key={`ban-${index}`}
-							action={bans[index]}
-							champion={bans[index] ? byName.get(bans[index].champion) : undefined}
-							pendingChampion={pendingBanIndex === index ? pendingChampion : undefined}
-							active={pendingBanIndex === index}
-							compact
-							label={`B${index + 1}`}
-						/>
-					))}
-				</div>
-			</div>
-			{locks && Object.keys(locks).length > 0 ? <FearlessLockList locks={locks} byName={byName} align={isBlue ? "left" : "right"} /> : null}
-		</article>
-	);
-}
-
-function FearlessLockList({ locks, byName, align }: { locks: Record<string, FearlessLock>; byName: Map<string, ChampionPoolEntry>; align: "left" | "right" }) {
-	const entries = Object.values(locks).sort((a, b) => a.source.localeCompare(b.source) || a.champion.localeCompare(b.champion, "de"));
-	return (
-		<details className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-emerald-50">
-			<summary className={`cursor-pointer text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/80 ${align === "right" ? "text-right" : ""}`}>
-				Fearless-Sperren ({entries.length})
-			</summary>
-			<ul className="mt-3 grid grid-cols-6 gap-1.5" aria-label="Gesperrte Champions">
-				{entries.map((lock) => {
-					const champion = byName.get(lock.champion);
-					return (
-						<li key={lock.champion} title={`${lock.champion}: ${fearlessLockLabel(lock)}`} className="relative">
-							{champion ? (
-								<div className={`relative aspect-square overflow-hidden rounded-md grayscale ${lock.source === "opponent" ? "opacity-60" : ""}`}>
-									<Image
-										src={champion.imageUrl}
-										alt={`${lock.champion} (${lock.source === "own" ? "selbst gespielt" : "vom Gegner gespielt"})`}
-										fill
-										sizes="3rem"
-										className="object-cover"
-									/>
-								</div>
-							) : (
-								<span className="block truncate text-[10px] font-bold">{lock.champion}</span>
-							)}
-						</li>
-					);
-				})}
-			</ul>
-		</details>
-	);
-}
-
-function Slot({
-	action,
-	champion,
-	pendingChampion,
-	active,
-	compact,
-	label,
-}: {
-	action?: DraftAction;
-	champion?: ChampionPoolEntry;
-	pendingChampion?: ChampionPoolEntry;
-	active?: boolean;
-	compact?: boolean;
-	label?: string;
-}) {
-	if (!action && !pendingChampion) {
-		return (
-			<div
-				className={`grid place-items-center rounded-sm border bg-white/[0.055] ${compact ? "aspect-square" : "h-24 2xl:h-28"} ${
-					active ? "animate-[draft-breathe_1400ms_ease-in-out_infinite] border-lime-200/55 opacity-100" : "border-white/10 opacity-55"
-				}`}
-			>
-				<span className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/34">{label ?? "Open"}</span>
-			</div>
-		);
+	try {
+		const response = await fetch(`/api/tournament/draft?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" });
+		const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState } | null;
+		return response.ok && json?.draft ? json.draft : null;
+	} catch {
+		return null;
 	}
-
-	if (compact) {
-		const shownChampion = champion ?? pendingChampion;
-		return (
-			<div
-				className={`relative overflow-hidden rounded-sm border bg-red-500/10 ${
-					pendingChampion && !action ? "animate-[draft-breathe_1400ms_ease-in-out_infinite] border-red-200/60" : "border-red-200/22"
-				}`}
-			>
-				{shownChampion ? <ChampionIcon champion={shownChampion} /> : null}
-				<div className="pointer-events-none absolute inset-0 bg-black/20" />
-				{action ? <div className="pointer-events-none absolute inset-x-[-20%] top-1/2 h-0.5 -rotate-45 bg-red-100/80 shadow-lg shadow-red-500/30" /> : null}
-			</div>
-		);
-	}
-
-	const shownChampion = champion ?? pendingChampion;
-	return (
-		<div
-			className={`relative grid min-h-24 overflow-hidden rounded-sm border bg-lime-200/10 shadow-lg shadow-black/18 2xl:min-h-28 ${
-				pendingChampion && !action ? "animate-[draft-breathe_1400ms_ease-in-out_infinite] border-lime-200/60" : "border-lime-200/22"
-			}`}
-		>
-			{shownChampion ? (
-				<>
-					<div className="absolute inset-0 scale-125 opacity-35 blur-sm">
-						<Image src={shownChampion.imageUrl} alt="" fill sizes="20rem" className="object-cover" />
-					</div>
-					<div className="absolute inset-0 bg-gradient-to-r from-black/78 via-black/45 to-transparent" />
-				</>
-			) : null}
-			<div className="relative grid grid-cols-[4.25rem_1fr] items-center gap-3 p-2">
-				{shownChampion ? <ChampionIcon champion={shownChampion} /> : null}
-				<div className="min-w-0">
-					<div className="truncate text-sm font-black text-emerald-50">{action?.champion ?? pendingChampion?.name}</div>
-					<div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/42">{action?.kind ?? "selected"}</div>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function ChampionIcon({ champion }: { champion: ChampionPoolEntry }) {
-	return (
-		<div className="relative aspect-square overflow-hidden rounded-xl bg-emerald-950">
-			<Image src={champion.imageUrl} alt={champion.name} fill sizes="8rem" className="object-cover" />
-		</div>
-	);
-}
-
-function DraftOrder({ actions, sequence, extraBanSide }: { actions: DraftAction[]; sequence: Array<{ side: DraftSide; kind: "ban" | "pick" }>; extraBanSide: DraftSide | null }) {
-	return (
-		<div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
-			<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Draft Order</div>
-			{extraBanSide ? (
-				<p className="mt-2 text-xs font-bold text-lime-100/70">Gruppenplatz-2-Bonus: {turnLabel({ side: extraBanSide })} hat in diesem Match einen vierten Ban.</p>
-			) : null}
-			<div className="mt-4 flex flex-wrap gap-2">
-				{sequence.map((turn, index) => {
-					const action = actions[index];
-					return (
-						<div
-							key={`${turn.side}-${turn.kind}-${index}`}
-							className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
-								action
-									? "border-lime-200/24 bg-lime-200/10 text-lime-50"
-									: index === actions.length
-										? "border-amber-200/30 bg-amber-200/12 text-amber-100"
-										: "border-white/10 bg-black/18 text-emerald-100/38"
-							}`}
-						>
-							{index + 1}. {turn.side === "teamA" ? "Blue" : "Red"} {turn.kind}
-							{action ? ` · ${action.champion}` : ""}
-						</div>
-					);
-				})}
-			</div>
-		</div>
-	);
-}
-
-function turnLabel(turn: { side: DraftSide }) {
-	return turn.side === "teamA" ? "Blue Side" : "Red Side";
 }

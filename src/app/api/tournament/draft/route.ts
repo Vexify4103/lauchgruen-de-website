@@ -8,9 +8,11 @@ import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import {
+	confirmDraftRoles,
 	createDraftSequence,
 	draftComplete,
 	draftReady,
+	draftRoleOrder,
 	forceDraftReady,
 	getDraftState,
 	handleDraftTimeout,
@@ -19,6 +21,7 @@ import {
 	nextDraftTurn,
 	resetDraftState,
 	setDraftPendingSelection,
+	setDraftRoleOrder,
 	undoLastDraftAction,
 	type DraftSide,
 } from "@/lib/tournament-draft";
@@ -28,15 +31,20 @@ import { upsertMatch } from "@/lib/tournament-storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const patchSchema = z.object({
-	matchId: z.string().trim().min(1),
-	champion: z.string().trim().min(1),
-});
+// `skip` locks "kein Ban" for the current ban turn.
+const patchSchema = z.union([
+	z.object({ matchId: z.string().trim().min(1), champion: z.string().trim().min(1) }),
+	z.object({ matchId: z.string().trim().min(1), skip: z.literal(true) }),
+]);
 
 const postSchema = z.object({
 	matchId: z.string().trim().min(1),
-	action: z.enum(["ready", "timeout", "forceReady", "reset", "undo", "select"]),
+	action: z.enum(["ready", "timeout", "forceReady", "reset", "undo", "select", "roles", "confirmRoles"]),
 	champion: z.string().trim().min(1).optional(),
+	/** Role actions: the side's picks ordered Top, Jungle, Mid, Bot, Support. */
+	order: z.array(z.string().trim().min(1)).length(5).optional(),
+	/** Admins may arrange roles for either side. */
+	side: z.enum(["teamA", "teamB"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -120,10 +128,14 @@ export async function POST(request: Request) {
 		const ctx = await getMatchControlContext();
 		const match = ctx.matches.find((entry) => entry.id === parsed.data.matchId);
 		try {
+			const extraBanSide = match ? bonusBanSideForMatch(match, settings.activeTournament) : null;
+			const turn = nextDraftTurn(await getDraftState(parsed.data.matchId), createDraftSequence(extraBanSide));
+			const rules = match && turn?.kind === "pick" ? await resolveDraftChampionRules(settings, ctx.matches, match) : null;
 			const draft = await handleDraftTimeout({
 				matchId: parsed.data.matchId,
 				triggeredBy: session.user.discordHandle ?? discordId,
-				extraBanSide: match ? bonusBanSideForMatch(match, settings.activeTournament) : null,
+				extraBanSide,
+				allowedPicks: rules?.open && turn ? allowedChampionsForTurn(rules, turn) : [],
 			});
 			await writeTournamentEvent({
 				type: "draft.timeout",
@@ -147,6 +159,31 @@ export async function POST(request: Request) {
 	const match = ctx.matches.find((entry) => entry.id === parsed.data.matchId);
 	if (!match) {
 		return NextResponse.json({ message: "Match nicht gefunden." }, { status: 404 });
+	}
+
+	if (parsed.data.action === "roles" || parsed.data.action === "confirmRoles") {
+		const side = isOwner && parsed.data.side ? parsed.data.side : captainDraftSideForUser(ctx.teams, match, discordId);
+		if (!side) {
+			return NextResponse.json({ message: "Nur Captains dieses Matches können Rollen festlegen." }, { status: 403 });
+		}
+		if (parsed.data.action === "roles" && !parsed.data.order) {
+			return NextResponse.json({ message: "Rollenreihenfolge fehlt." }, { status: 400 });
+		}
+		const actor = session.user.discordHandle ?? discordId;
+		const extraBanSide = bonusBanSideForMatch(match, settings.activeTournament);
+		try {
+			const draft =
+				parsed.data.action === "roles"
+					? await setDraftRoleOrder({ matchId: match.id, side, order: parsed.data.order ?? [], updatedBy: actor, extraBanSide })
+					: await confirmDraftRoles({ matchId: match.id, side, order: parsed.data.order, confirmedBy: actor, extraBanSide });
+			if (parsed.data.action === "confirmRoles") {
+				await writeTournamentEvent({ type: "draft.roles_confirmed", targetType: "draft", targetId: match.id, createdBy: actor, payload: { side } });
+				await syncMatchStatusFromDraft({ matchId: match.id, draft, extraBanSide, actor });
+			}
+			return NextResponse.json({ draft });
+		} catch (error) {
+			return NextResponse.json({ message: error instanceof Error ? error.message : "Rollen konnten nicht gespeichert werden." }, { status: 400 });
+		}
 	}
 
 	if (parsed.data.action === "select") {
@@ -275,8 +312,12 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: "Nur der Captain des aktuellen Teams darf diesen Turn locken." }, { status: 403 });
 	}
 
-	if (!allowedChampionsForTurn(rules, turn).has(parsed.data.champion)) {
-		return NextResponse.json({ message: disallowedChampionMessage(rules, turn, parsed.data.champion) }, { status: 400 });
+	const champion = "champion" in parsed.data ? parsed.data.champion : null;
+	if (champion === null && turn.kind !== "ban") {
+		return NextResponse.json({ message: "Nur Bans können ausgelassen werden." }, { status: 400 });
+	}
+	if (champion !== null && !allowedChampionsForTurn(rules, turn).has(champion)) {
+		return NextResponse.json({ message: disallowedChampionMessage(rules, turn, champion) }, { status: 400 });
 	}
 
 	try {
@@ -284,7 +325,7 @@ export async function PATCH(request: Request) {
 			matchId: parsed.data.matchId,
 			side: turn.side,
 			kind: turn.kind,
-			champion: parsed.data.champion,
+			champion,
 			lockedBy: session.user.discordHandle ?? discordId,
 			extraBanSide,
 		});
@@ -292,17 +333,17 @@ export async function PATCH(request: Request) {
 			action: isOwner ? "draft.admin_lock" : "draft.lock",
 			targetType: "draft",
 			targetId: parsed.data.matchId,
-			summary: `${turn.kind} locked: ${parsed.data.champion}.`,
+			summary: champion === null ? "ban skipped." : `${turn.kind} locked: ${champion}.`,
 			actorDiscordId: discordId,
 			actorLabel: session.user.discordHandle ?? discordId,
-			metadata: { side: turn.side, kind: turn.kind, champion: parsed.data.champion },
+			metadata: { side: turn.side, kind: turn.kind, champion, skipped: champion === null },
 		});
 		await writeTournamentEvent({
 			type: turn.kind === "ban" ? "draft.ban_locked" : "draft.pick_locked",
 			targetType: "draft",
 			targetId: parsed.data.matchId,
 			createdBy: session.user.discordHandle ?? discordId,
-			payload: { side: turn.side, kind: turn.kind, champion: parsed.data.champion },
+			payload: { side: turn.side, kind: turn.kind, champion, skipped: champion === null },
 		});
 		await syncMatchStatusFromDraft({
 			matchId: parsed.data.matchId,
@@ -335,8 +376,9 @@ async function syncMatchStatusFromDraft({
 	const complete = draftComplete(draft, sequence);
 	const nextStatus = complete ? "Live" : draftReady(draft) || draft.actions.length > 0 || draft.pendingSelection ? "Pending" : null;
 
-	const bluePicks = draft.actions.filter((action) => action.kind === "pick" && action.side === "teamA").map((action) => action.champion);
-	const redPicks = draft.actions.filter((action) => action.kind === "pick" && action.side === "teamB").map((action) => action.champion);
+	// Stored Top → Support once roles are arranged, so match pages and overlays show the lanes.
+	const bluePicks = draftRoleOrder(draft, "teamA");
+	const redPicks = draftRoleOrder(draft, "teamB");
 	const championPatch = complete
 		? match.blueSide === "teamA"
 			? { teamAChampions: bluePicks, teamBChampions: redPicks }

@@ -3,7 +3,7 @@ import { getDb } from "@/lib/mongo";
 import { computeGroupStandings, resolvePlayoffMatches, type ResolvedPlayoffMatch } from "@/lib/bracket-resolver";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { readTournamentState, type StoredTournamentMatch } from "@/lib/tournament-storage";
-import { clearDraftStates, listDraftStates, type TournamentDraftState } from "@/lib/tournament-draft";
+import { clearDraftStates, draftRoleOrder, listDraftStates, type TournamentDraftState } from "@/lib/tournament-draft";
 import { clearTournamentWheel, getTournamentWheelState, type TournamentWheelState } from "@/lib/tournament-wheel";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { getTournamentSettings, updateTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
@@ -24,7 +24,9 @@ import { getDefaultRulesMarkdown } from "@/lib/tournament-rulebook";
 type ArchivedPlayer = Pick<TournamentTeam["players"][number], "name" | "role" | "riotId" | "verified" | "opggUrl" | "dpmUrl">;
 type ArchivedTeam = Omit<TournamentTeam, "captainRef" | "discordRoleId" | "players"> & { players: ArchivedPlayer[] };
 type ArchivedDraft = Pick<TournamentDraftState, "matchId" | "updatedAt"> & {
-	actions: Array<Pick<TournamentDraftState["actions"][number], "side" | "kind" | "champion" | "lockedAt">>;
+	actions: Array<Pick<TournamentDraftState["actions"][number], "side" | "kind" | "champion" | "lockedAt" | "skipped">>;
+	/** Picks per side ordered Top → Support, when the captains set roles. */
+	roles?: Partial<Record<"teamA" | "teamB", string[]>>;
 };
 
 export type ArchivedControlMatch = Omit<ControlMatch, "adminNote">;
@@ -225,7 +227,8 @@ function publicDrafts(drafts: TournamentDraftState[]): ArchivedDraft[] {
 	return drafts.map((draft) => ({
 		matchId: draft.matchId,
 		updatedAt: draft.updatedAt,
-		actions: draft.actions.map(({ side, kind, champion, lockedAt }) => ({ side, kind, champion, lockedAt })),
+		actions: draft.actions.map(({ side, kind, champion, lockedAt, skipped }) => ({ side, kind, champion, lockedAt, ...(skipped ? { skipped } : {}) })),
+		...(draft.rolePhaseStartedAt ? { roles: { teamA: draftRoleOrder(draft, "teamA"), teamB: draftRoleOrder(draft, "teamB") } } : {}),
 	}));
 }
 

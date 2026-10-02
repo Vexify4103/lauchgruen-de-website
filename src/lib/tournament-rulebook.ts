@@ -59,8 +59,10 @@ const ruleSections: RuleSection[] = [
 		text: "Picks und Bans laufen ausschließlich über den Website-Champ-Select. Nur Captains können dort locken; die Turnierleitung gibt jedes Match frei.",
 		list: [
 			"Beide Captains klicken zuerst Ready, danach läuft der Draft automatisch",
+			"Draft-Reihenfolge wie im Turnier-Draft: 3 Bans pro Team, 3 Picks pro Team, 2 weitere Bans pro Team, dann die letzten 2 Picks pro Team",
 			"Jeder Turn dauert 30 Sekunden; ein ausgewählter Champion wird bei Ablauf automatisch gelockt",
-			"Läuft ein Turn ohne Auswahl ab, wird der Draft zurückgesetzt",
+			"Läuft ein Ban ohne Auswahl ab, verfällt er (kein Ban). Läuft ein Pick ohne Auswahl ab, wird ein zufälliger erlaubter Champion gepickt",
+			"Nach dem letzten Pick ordnen beide Captains ihre Champions den Lanes zu und bestätigen die Rollen; nach 30 Sekunden gilt die aktuelle Zuordnung",
 			"Im Client wird exakt der Website-Draft übernommen",
 		],
 	},
