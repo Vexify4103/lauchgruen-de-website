@@ -122,8 +122,8 @@ export function buildTournamentHero(input: { settings: TournamentSettings; teamC
 		tagline: active.mode === "finished" && input.championTeamName ? `${input.championTeamName} gewinnt ${active.name}.` : TAGLINES[active.kind],
 		pills,
 		side: {
-			value: String(teamCount > 0 ? teamCount : structure.teamCount),
-			unit: teamCount > 0 ? "Teams" : "Teams geplant",
+			value: teamCount > 0 ? String(teamCount) : "Teams",
+			unit: teamCount > 0 ? "Teams" : "nach Anmeldungen",
 			note: active.mode === "finished" ? undefined : applicationsOpen ? "Bewerbungen sind offen" : active.mode === "live" ? "Matches laufen" : undefined,
 			cta,
 		},
