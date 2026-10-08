@@ -11,6 +11,11 @@ const require = createRequire(import.meta.url);
 const authRequire = createRequire(require.resolve("@auth/core"));
 const oauth = await import(pathToFileURL(authRequire.resolve("oauth4webapi")).href);
 
+test("Discord login requests identity and guild membership without email access", () => {
+	const scope = providerConfig?.match(/scope:\s*"([^"]+)"/)?.[1];
+	assert.deepEqual(scope?.split(/\s+/), ["identify", "guilds"]);
+});
+
 test("Discord callbacks accept their published issuer while preserving state validation", () => {
 	assert.equal(issuer, "https://discord.com");
 	assert.match(providerConfig, /checks:\s*\["state"\]/);

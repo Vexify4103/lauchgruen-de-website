@@ -144,7 +144,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			clientSecret: process.env.DISCORD_CLIENT_SECRET,
 			// Discord includes this issuer in its authorization callback (RFC 9207).
 			issuer: "https://discord.com",
-			authorization: { params: { scope: "identify email guilds" } },
+			authorization: { params: { scope: "identify guilds" } },
 			checks: ["state"],
 		}),
 	],
