@@ -340,6 +340,28 @@ type RiotGetOptions = {
 	expectedStatuses?: readonly number[];
 };
 
+const THROTTLE_LOG_WINDOW_MS = 5 * 60_000;
+
+const riotLogState = globalThis as unknown as {
+	__riotThrottleLog?: Map<string, { loggedAt: number; suppressed: number }>;
+};
+
+/**
+ * Returns null when this throttle message was already logged inside the current
+ * window. Otherwise returns how many repeats were hidden since the last log.
+ */
+function takeThrottleLogSlot(key: string): number | null {
+	riotLogState.__riotThrottleLog ??= new Map();
+	const entry = riotLogState.__riotThrottleLog.get(key);
+	const now = Date.now();
+	if (entry && now - entry.loggedAt < THROTTLE_LOG_WINDOW_MS) {
+		entry.suppressed += 1;
+		return null;
+	}
+	riotLogState.__riotThrottleLog.set(key, { loggedAt: now, suppressed: 0 });
+	return entry?.suppressed ?? 0;
+}
+
 async function riotGet<T>(url: string, credential: RiotApiCredential, options: RiotGetOptions = {}): Promise<T> {
 	const requestUrl = new URL(url);
 	const key = apiKey(credential);
@@ -405,12 +427,18 @@ async function riotGet<T>(url: string, credential: RiotApiCredential, options: R
 
 	if (!expectedStatus) {
 		if (response.status === 429) {
-			console.warn("[riot] request throttled", {
-				operation: options.operation ?? "unknown",
-				credential,
-				detail,
-				retryAfterSeconds: Math.ceil(rateLimitBackoffMs / 1_000),
-			});
+			// Riot's shared "server rate limit" fires in bursts and is handled by the
+			// backoff above. Log each kind once per window with a repeat count.
+			const suppressed = takeThrottleLogSlot(`${credential}:${options.operation ?? "unknown"}:${detail}`);
+			if (suppressed !== null) {
+				console.warn("[riot] request throttled", {
+					operation: options.operation ?? "unknown",
+					credential,
+					detail,
+					retryAfterSeconds: Math.ceil(rateLimitBackoffMs / 1_000),
+					...(suppressed > 0 ? { suppressedSinceLastLog: suppressed } : {}),
+				});
+			}
 		} else {
 			console.error("[riot] request failed", {
 				operation: options.operation ?? "unknown",
