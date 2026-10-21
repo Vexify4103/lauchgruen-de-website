@@ -53,6 +53,27 @@ N4CHT4R4_OBS_ALT_RIOT_PUUIDS=
 
 The two lists must use the same order when PUUIDs are supplied.
 
+## TLG Fabi A-Z challenge overlay
+
+OBS browser source: `https://lauchgruen.de/obs/tlgfabi` (size 720 x 300 on a
+1080p canvas; add `?scale=0.8` to shrink, `?test` to keep it visible offline).
+Only wins on the current alphabetical target champion advance the challenge.
+Progress is rebuilt from Riot match history and cached in the MongoDB
+collections `az_challenge_matches` and `az_challenge_state`.
+
+```txt
+RIOT_API_KEY_OBS_TLGFABI=
+# Optional overrides (defaults shown)
+TLGFABI_OBS_TWITCH_LOGIN=tlgfabi
+TLGFABI_OBS_RIOT_GAME_NAME=TLG Fabi
+TLGFABI_OBS_RIOT_TAG_LINE=7466
+TLGFABI_AZ_START_AT=2026-10-15T00:00:00Z
+# Comma-separated queue ids that count (420 = Solo/Duo, 440 = Flex)
+TLGFABI_AZ_QUEUE_IDS=420
+# Comma-separated champion names that count as done without a tracked win
+TLGFABI_AZ_MANUAL_DONE=
+```
+
 ## Docker
 
 ```bash

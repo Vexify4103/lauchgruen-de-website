@@ -99,7 +99,7 @@ type StreamerRiotAccountConfig = {
 };
 
 type StreamerConfig = {
-	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4";
+	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "tlgfabi";
 	displayName: string;
 	twitchLogin: string;
 	riotGameName: string;
@@ -167,7 +167,16 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		riotTagLine: process.env.N4CHT4R4_OBS_RIOT_TAG_LINE?.trim() || "cute",
 		alternateAccounts: alternateAccounts("N4CHT4R4"),
 	},
+	tlgfabi: {
+		slug: "tlgfabi",
+		displayName: "TLG Fabi",
+		twitchLogin: process.env.TLGFABI_OBS_TWITCH_LOGIN?.trim() || "tlgfabi",
+		riotGameName: process.env.TLGFABI_OBS_RIOT_GAME_NAME?.trim() || "TLG Fabi",
+		riotTagLine: process.env.TLGFABI_OBS_RIOT_TAG_LINE?.trim() || "7466",
+	},
 };
+
+export type StreamerSlug = StreamerConfig["slug"];
 
 const g = globalThis as unknown as {
 	__streamerObsSnapshots?: Record<
@@ -853,6 +862,23 @@ function emptySnapshot(config: StreamerConfig, error: unknown): LauchgruenObsRes
 			error instanceof RiotApiError && error.status === 429
 				? "Riot-Limit kurzzeitig ausgelastet. Neuer Versuch folgt automatisch."
 				: "Externer Dienst kurzzeitig nicht erreichbar.",
+	};
+}
+
+/**
+ * Primary Riot account of a fixed streamer, resolved with that streamer's own
+ * credential. Other OBS features (e.g. the A-Z challenge) reuse this PUUID.
+ */
+export async function getStreamerPrimaryAccount(slug: StreamerSlug): Promise<{ puuid: string; riotId: string; routing: RiotRoute; displayName: string; twitchLogin: string }> {
+	const config = STREAMERS[slug];
+	const [primaryConfig] = configuredRiotAccounts(config);
+	const resolved = await cachedAccount(config, primaryConfig);
+	return {
+		puuid: resolved.account.puuid,
+		riotId: `${resolved.account.gameName}#${resolved.account.tagLine}`,
+		routing: resolved.routing,
+		displayName: config.displayName,
+		twitchLogin: config.twitchLogin,
 	};
 }
 

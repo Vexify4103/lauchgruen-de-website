@@ -21,7 +21,15 @@ export class RiotApiError extends Error {
 	}
 }
 
-export type RiotApiCredential = "tournament" | "obs_public" | "obs_lauchgruen" | "obs_akuma" | "obs_hippokrate" | "obs_n4cht4r4" | "obs_nachtdienst";
+export type RiotApiCredential =
+	| "tournament"
+	| "obs_public"
+	| "obs_lauchgruen"
+	| "obs_akuma"
+	| "obs_hippokrate"
+	| "obs_n4cht4r4"
+	| "obs_nachtdienst"
+	| "obs_tlgfabi";
 
 export type ObsRiotCredential = Exclude<RiotApiCredential, "tournament">;
 
@@ -32,6 +40,7 @@ export const OBS_RIOT_CREDENTIALS = {
 	hippokrate: "obs_hippokrate",
 	n4cht4r4: "obs_n4cht4r4",
 	nachtdienst: "obs_nachtdienst",
+	tlgfabi: "obs_tlgfabi",
 } as const satisfies Record<string, ObsRiotCredential>;
 
 export type ObsOverlayName = keyof typeof OBS_RIOT_CREDENTIALS;
@@ -214,6 +223,7 @@ const RIOT_API_KEY_ENV_NAMES = {
 	obs_hippokrate: "RIOT_API_KEY_OBS_HIPPOKRATE",
 	obs_n4cht4r4: "RIOT_API_KEY_OBS_N4CHT4R4",
 	obs_nachtdienst: "RIOT_API_KEY_OBS_NACHTDIENST",
+	obs_tlgfabi: "RIOT_API_KEY_OBS_TLGFABI",
 } as const satisfies Record<RiotApiCredential, string>;
 
 function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> {
@@ -225,6 +235,7 @@ function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> 
 		obs_hippokrate: process.env.RIOT_API_KEY_OBS_HIPPOKRATE,
 		obs_n4cht4r4: process.env.RIOT_API_KEY_OBS_N4CHT4R4,
 		obs_nachtdienst: process.env.RIOT_API_KEY_OBS_NACHTDIENST,
+		obs_tlgfabi: process.env.RIOT_API_KEY_OBS_TLGFABI,
 	};
 }
 
@@ -680,10 +691,10 @@ export async function getMatchById(matchId: string): Promise<RiotMatch> {
 export async function getMatchIdsByPuuidForRoute(
 	puuid: string,
 	routing: RiotRoute,
-	input: { startTime?: number; count?: number; queue?: number; type?: "ranked" | "normal" | "tourney" | "tutorial" } = {}
+	input: { start?: number; startTime?: number; count?: number; queue?: number; type?: "ranked" | "normal" | "tourney" | "tutorial" } = {}
 ): Promise<string[]> {
 	const params = new URLSearchParams({
-		start: "0",
+		start: String(Math.max(0, input.start ?? 0)),
 		count: String(Math.min(Math.max(input.count ?? 20, 1), 100)),
 	});
 
@@ -739,6 +750,30 @@ export async function getActiveGameByPuuidForRoute(puuid: string, routing: RiotR
 			return null;
 		}
 
+		throw error;
+	}
+}
+
+export type RiotChampionMastery = {
+	championId: number;
+	championLevel: number;
+	championPoints: number;
+	lastPlayTime: number;
+};
+
+/** Mastery for one champion. Returns null when the account never played it. */
+export async function getChampionMasteryByPuuidForRoute(puuid: string, championId: number, routing: RiotRoute): Promise<RiotChampionMastery | null> {
+	const url =
+		`https://${routing.platform}.api.riotgames.com` +
+		`/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/by-champion/${encodeURIComponent(String(championId))}`;
+
+	try {
+		return await riotGet<RiotChampionMastery>(url, routing.credential, {
+			operation: "getChampionMasteryByPuuidForRoute",
+			expectedStatuses: [404],
+		});
+	} catch (error) {
+		if (error instanceof RiotApiError && error.status === 404) return null;
 		throw error;
 	}
 }

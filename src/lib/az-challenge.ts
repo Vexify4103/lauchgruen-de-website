@@ -1,0 +1,558 @@
+/**
+ * A-Z champion challenge for fixed streamer overlays.
+ *
+ * Rules: the streamer walks the champion list alphabetically and needs one win
+ * on each champion before moving on. Only games on the current target champion
+ * count as tries. Other champions (bans, taken picks, off-stream games) are
+ * ignored. Remakes never count.
+ *
+ * Match results are stored in MongoDB so a long challenge does not need the
+ * full match history from Riot on every refresh.
+ */
+import { getDb } from "@/lib/mongo";
+import {
+	championIconUrl,
+	getChampionMasteryByPuuidForRoute,
+	getMatchByIdForRoute,
+	getMatchIdsByPuuidForRoute,
+	isRiotMatchRemake,
+	RiotApiError,
+	type RiotRoute,
+} from "@/lib/riot";
+import { compactRankLabel, getStreamerObsSnapshot, getStreamerPrimaryAccount, type StreamerSlug } from "@/lib/streamer-obs";
+
+const MATCH_COLLECTION = "az_challenge_matches";
+const STATE_COLLECTION = "az_challenge_state";
+const DATA_DRAGON_BASE = "https://ddragon.leagueoflegends.com";
+const FALLBACK_DDRAGON_VERSION = "15.24.1";
+const ROSTER_CACHE_MS = 6 * 60 * 60_000;
+const SNAPSHOT_CACHE_MS = 20_000;
+const SYNC_INTERVAL_MS = 45_000;
+const MAX_DETAILS_PER_SYNC = 24;
+const MATCH_ID_PAGE_SIZE = 100;
+const MAX_MATCH_ID_PAGES = 10;
+const INCREMENTAL_OVERLAP_SECONDS = 6 * 60 * 60;
+const MASTERY_CACHE_MS = 10 * 60_000;
+const UPCOMING_COUNT = 6;
+const RECENT_COMPLETED_COUNT = 8;
+const ATTEMPT_HISTORY_COUNT = 10;
+const DEFAULT_START_AT = "2026-10-15T00:00:00Z";
+
+export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi">;
+
+type AzChallengeConfig = {
+	slug: AzChallengeSlug;
+	startAt: string;
+	queueIds: number[];
+	/** Champion names or numeric ids that count as done without a tracked win. */
+	manualDone: string[];
+};
+
+function envList(name: string): string[] {
+	return (process.env[name] ?? "")
+		.split(",")
+		.map((value) => value.trim())
+		.filter(Boolean);
+}
+
+function challengeConfig(slug: AzChallengeSlug): AzChallengeConfig {
+	const prefix = slug.toUpperCase();
+	const queueIds = envList(`${prefix}_AZ_QUEUE_IDS`)
+		.map(Number)
+		.filter((value) => Number.isInteger(value) && value > 0);
+	const rawStart = process.env[`${prefix}_AZ_START_AT`]?.trim() || DEFAULT_START_AT;
+	const startDate = new Date(rawStart);
+	return {
+		slug,
+		startAt: Number.isNaN(startDate.getTime()) ? DEFAULT_START_AT : startDate.toISOString(),
+		// Default: Ranked Solo/Duo, the queue the challenge runs in.
+		queueIds: queueIds.length ? queueIds : [420],
+		manualDone: envList(`${prefix}_AZ_MANUAL_DONE`),
+	};
+}
+
+export type AzChampion = {
+	id: number;
+	name: string;
+	letter: string;
+	iconUrl: string;
+	splashUrl: string;
+};
+
+export type AzMatchDoc = {
+	_id: string;
+	slug: AzChallengeSlug;
+	matchId: string;
+	queueId: number;
+	championId: number;
+	win: boolean;
+	remake: boolean;
+	kills: number;
+	deaths: number;
+	assists: number;
+	creepScore: number;
+	durationSeconds: number;
+	startedAt: string;
+	endedAt: string;
+	createdAt: string;
+};
+
+type AzStateDoc = {
+	_id: AzChallengeSlug;
+	puuid: string;
+	startAt: string;
+	backfilled: boolean;
+	lastSyncAt: string;
+};
+
+export type AzAttempt = {
+	matchId: string;
+	win: boolean;
+	kda: string;
+	kills: number;
+	deaths: number;
+	assists: number;
+	creepScore: number;
+	durationSeconds: number;
+	endedAt: string;
+};
+
+export type AzCompleted = {
+	champion: AzChampion;
+	tries: number;
+	manual: boolean;
+	winGame: AzAttempt | null;
+	completedAt: string | null;
+};
+
+export type AzLetterProgress = {
+	letter: string;
+	total: number;
+	done: number;
+	current: boolean;
+};
+
+export type AzChallengeSnapshot = {
+	slug: AzChallengeSlug;
+	displayName: string;
+	riotId: string;
+	twitchLogin: string;
+	online: boolean;
+	leagueLive: boolean;
+	/** True while a game in a counted queue is running on stream. */
+	challengeGameLive: boolean;
+	rankLabel: string | null;
+	leaguePoints: number | null;
+	lpDelta: number;
+	startAt: string;
+	dayNumber: number;
+	totalChampions: number;
+	completedCount: number;
+	percent: number;
+	finished: boolean;
+	current: {
+		champion: AzChampion;
+		position: number;
+		tryNumber: number;
+		losses: number;
+		attempts: AzAttempt[];
+		mastery: { level: number; points: number } | null;
+	} | null;
+	upcoming: AzChampion[];
+	lastCompleted: AzCompleted | null;
+	recentCompleted: AzCompleted[];
+	letters: AzLetterProgress[];
+	stats: {
+		games: number;
+		wins: number;
+		losses: number;
+		winRate: number;
+		averageTries: number;
+		firstTryCount: number;
+		offPicks: number;
+		hardest: { champion: AzChampion; tries: number } | null;
+	};
+	syncing: boolean;
+	updatedAt: string;
+	message?: string;
+};
+
+const g = globalThis as unknown as {
+	__azRoster?: { expiresAt: number; data: AzChampion[] };
+	__azRosterRequest?: Promise<AzChampion[]>;
+	__azSnapshots?: Map<string, { expiresAt: number; data: AzChallengeSnapshot }>;
+	__azSnapshotRequests?: Map<string, Promise<AzChallengeSnapshot>>;
+	__azSyncRequests?: Map<string, Promise<void>>;
+	__azMastery?: Map<string, { expiresAt: number; data: { level: number; points: number } | null }>;
+	__azIndexesReady?: boolean;
+};
+
+/* ------------------------------------------------------------------ roster */
+
+type DataDragonChampion = { id: string; key: string; name: string };
+
+async function dataDragonVersion(): Promise<string> {
+	try {
+		const response = await fetch(`${DATA_DRAGON_BASE}/api/versions.json`, { cache: "no-store" });
+		if (!response.ok) return FALLBACK_DDRAGON_VERSION;
+		const versions = (await response.json()) as unknown;
+		return Array.isArray(versions) && typeof versions[0] === "string" ? versions[0] : FALLBACK_DDRAGON_VERSION;
+	} catch {
+		return FALLBACK_DDRAGON_VERSION;
+	}
+}
+
+function letterOf(name: string): string {
+	return name.normalize("NFD").replace(/[^A-Za-z]/g, "").charAt(0).toUpperCase() || "#";
+}
+
+/** Every released champion, sorted like the League client (A-Z by display name). */
+export async function getAzRoster(): Promise<AzChampion[]> {
+	if (g.__azRoster && g.__azRoster.expiresAt > Date.now()) return g.__azRoster.data;
+	if (g.__azRosterRequest) return g.__azRosterRequest;
+
+	g.__azRosterRequest = (async () => {
+		const version = await dataDragonVersion();
+		const response = await fetch(`${DATA_DRAGON_BASE}/cdn/${version}/data/en_US/champion.json`, { cache: "no-store" });
+		if (!response.ok) throw new Error(`Champion-Liste konnte nicht geladen werden (${response.status}).`);
+		const json = (await response.json()) as { data: Record<string, DataDragonChampion> };
+		const roster = Object.values(json.data)
+			.map((champion) => ({
+				id: Number(champion.key),
+				name: champion.name,
+				letter: letterOf(champion.name),
+				iconUrl: championIconUrl(Number(champion.key)),
+				splashUrl: `${DATA_DRAGON_BASE}/cdn/img/champion/centered/${champion.id}_0.jpg`,
+			}))
+			.filter((champion) => Number.isInteger(champion.id) && champion.id > 0)
+			.sort((a, b) => a.name.localeCompare(b.name, "en"));
+		g.__azRoster = { data: roster, expiresAt: Date.now() + ROSTER_CACHE_MS };
+		return roster;
+	})()
+		.catch((error) => {
+			// A stale roster is better than a broken overlay.
+			if (g.__azRoster) return g.__azRoster.data;
+			throw error;
+		})
+		.finally(() => {
+			g.__azRosterRequest = undefined;
+		});
+	return g.__azRosterRequest;
+}
+
+/* -------------------------------------------------------------- match sync */
+
+async function collections() {
+	const db = await getDb();
+	const matches = db.collection<AzMatchDoc>(MATCH_COLLECTION);
+	const state = db.collection<AzStateDoc>(STATE_COLLECTION);
+	if (!g.__azIndexesReady) {
+		await matches.createIndex({ slug: 1, endedAt: 1 }).catch(() => undefined);
+		g.__azIndexesReady = true;
+	}
+	return { matches, state };
+}
+
+function matchNumber(matchId: string): number {
+	return Number(matchId.split("_").pop() ?? 0) || 0;
+}
+
+async function listChallengeMatchIds(puuid: string, routing: RiotRoute, config: AzChallengeConfig, startTime: number): Promise<string[]> {
+	const queue = config.queueIds.length === 1 ? config.queueIds[0] : undefined;
+	const ids: string[] = [];
+	for (let page = 0; page < MAX_MATCH_ID_PAGES; page += 1) {
+		const batch = await getMatchIdsByPuuidForRoute(puuid, routing, {
+			start: page * MATCH_ID_PAGE_SIZE,
+			count: MATCH_ID_PAGE_SIZE,
+			startTime,
+			...(queue ? { queue } : {}),
+		});
+		ids.push(...batch);
+		if (batch.length < MATCH_ID_PAGE_SIZE) break;
+	}
+	return ids;
+}
+
+function toMatchDoc(slug: AzChallengeSlug, puuid: string, match: Awaited<ReturnType<typeof getMatchByIdForRoute>>): AzMatchDoc | null {
+	const participant = match.info.participants.find((entry) => entry.puuid === puuid);
+	if (!participant) return null;
+	const startedAt = match.info.gameStartTimestamp ?? match.info.gameCreation;
+	const endedAt = match.info.gameEndTimestamp ?? startedAt + match.info.gameDuration * 1000;
+	return {
+		_id: `${slug}:${match.metadata.matchId}`,
+		slug,
+		matchId: match.metadata.matchId,
+		queueId: match.info.queueId,
+		championId: participant.championId,
+		win: participant.win,
+		remake: isRiotMatchRemake(match),
+		kills: participant.kills,
+		deaths: participant.deaths,
+		assists: participant.assists,
+		creepScore: participant.totalMinionsKilled + participant.neutralMinionsKilled,
+		durationSeconds: match.info.gameDuration,
+		startedAt: new Date(startedAt).toISOString(),
+		endedAt: new Date(endedAt).toISOString(),
+		createdAt: new Date().toISOString(),
+	};
+}
+
+/**
+ * Pulls new match ids, then loads unknown match details oldest first. Each run
+ * loads at most MAX_DETAILS_PER_SYNC details so a cold start never bursts the
+ * Riot key. Later polls continue the backfill.
+ */
+async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, routing: RiotRoute): Promise<void> {
+	const { matches, state } = await collections();
+	const stored = await state.findOne({ _id: config.slug });
+	const sameScope = stored?.puuid === puuid && stored.startAt === config.startAt;
+	if (sameScope && stored.backfilled && Date.now() - new Date(stored.lastSyncAt).getTime() < SYNC_INTERVAL_MS) return;
+
+	const challengeStartSeconds = Math.floor(new Date(config.startAt).getTime() / 1000);
+	let startTime = challengeStartSeconds;
+	if (sameScope && stored.backfilled) {
+		const newest = await matches.find({ slug: config.slug }).sort({ endedAt: -1 }).limit(1).next();
+		if (newest) startTime = Math.max(challengeStartSeconds, Math.floor(new Date(newest.startedAt).getTime() / 1000) - INCREMENTAL_OVERLAP_SECONDS);
+	}
+
+	const ids = await listChallengeMatchIds(puuid, routing, config, startTime);
+	const known = new Set(
+		(await matches.find({ slug: config.slug, matchId: { $in: ids } }, { projection: { matchId: 1 } }).toArray()).map((doc) => doc.matchId)
+	);
+	const missing = ids.filter((id) => !known.has(id)).sort((a, b) => matchNumber(a) - matchNumber(b));
+	const batch = missing.slice(0, MAX_DETAILS_PER_SYNC);
+
+	let failed = 0;
+	for (const matchId of batch) {
+		try {
+			const doc = toMatchDoc(config.slug, puuid, await getMatchByIdForRoute(matchId, routing));
+			if (doc) await matches.updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
+		} catch (error) {
+			failed += 1;
+			console.warn(`[az-challenge:${config.slug}] Match ${matchId} konnte nicht geladen werden:`, error);
+			// Stop on rate limits; the next poll continues the backfill.
+			if (error instanceof RiotApiError && error.status === 429) break;
+		}
+	}
+
+	const backfilled = failed === 0 && missing.length <= MAX_DETAILS_PER_SYNC;
+	await state.updateOne(
+		{ _id: config.slug },
+		{ $set: { puuid, startAt: config.startAt, backfilled, lastSyncAt: new Date().toISOString() } },
+		{ upsert: true }
+	);
+}
+
+async function syncOnce(config: AzChallengeConfig, puuid: string, routing: RiotRoute) {
+	g.__azSyncRequests ??= new Map();
+	const pending = g.__azSyncRequests.get(config.slug);
+	if (pending) return pending;
+	const request = syncChallengeMatches(config, puuid, routing).finally(() => g.__azSyncRequests?.delete(config.slug));
+	g.__azSyncRequests.set(config.slug, request);
+	return request;
+}
+
+async function cachedMastery(puuid: string, championId: number, routing: RiotRoute) {
+	g.__azMastery ??= new Map();
+	const key = `${routing.credential}:${puuid}:${championId}`;
+	const cached = g.__azMastery.get(key);
+	if (cached && cached.expiresAt > Date.now()) return cached.data;
+	try {
+		const mastery = await getChampionMasteryByPuuidForRoute(puuid, championId, routing);
+		const data = mastery ? { level: mastery.championLevel, points: mastery.championPoints } : null;
+		g.__azMastery.set(key, { data, expiresAt: Date.now() + MASTERY_CACHE_MS });
+		return data;
+	} catch {
+		return cached?.data ?? null;
+	}
+}
+
+/* ---------------------------------------------------------------- progress */
+
+function toAttempt(doc: AzMatchDoc): AzAttempt {
+	return {
+		matchId: doc.matchId,
+		win: doc.win,
+		kda: `${doc.kills}/${doc.deaths}/${doc.assists}`,
+		kills: doc.kills,
+		deaths: doc.deaths,
+		assists: doc.assists,
+		creepScore: doc.creepScore,
+		durationSeconds: doc.durationSeconds,
+		endedAt: doc.endedAt,
+	};
+}
+
+function normalizeName(value: string) {
+	return value
+		.normalize("NFD")
+		.replace(/[^A-Za-z0-9]/g, "")
+		.toLowerCase();
+}
+
+export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt">) {
+	const manual = new Set(config.manualDone.map(normalizeName));
+	const isManual = (champion: AzChampion) => manual.has(normalizeName(champion.name)) || manual.has(String(champion.id));
+	const startMs = new Date(config.startAt).getTime();
+	const games = docs
+		.filter((doc) => !doc.remake && config.queueIds.includes(doc.queueId) && new Date(doc.endedAt).getTime() >= startMs)
+		.sort((a, b) => new Date(a.endedAt).getTime() - new Date(b.endedAt).getTime());
+
+	const completed: AzCompleted[] = [];
+	let index = 0;
+	const skipManual = () => {
+		while (index < roster.length && isManual(roster[index])) {
+			completed.push({ champion: roster[index], tries: 0, manual: true, winGame: null, completedAt: null });
+			index += 1;
+		}
+	};
+	skipManual();
+
+	let attempts: AzMatchDoc[] = [];
+	let offPicks = 0;
+	let challengeGames = 0;
+	let challengeWins = 0;
+	for (const game of games) {
+		if (index >= roster.length) break;
+		const target = roster[index];
+		if (game.championId !== target.id) {
+			offPicks += 1;
+			continue;
+		}
+		attempts.push(game);
+		challengeGames += 1;
+		if (!game.win) continue;
+		challengeWins += 1;
+		completed.push({ champion: target, tries: attempts.length, manual: false, winGame: toAttempt(game), completedAt: game.endedAt });
+		attempts = [];
+		index += 1;
+		skipManual();
+	}
+
+	const tracked = completed.filter((entry) => !entry.manual);
+	const hardest = tracked.reduce<AzCompleted | null>((worst, entry) => (!worst || entry.tries > worst.tries ? entry : worst), null);
+	const currentLetter = roster[index]?.letter ?? null;
+	const letters = new Map<string, AzLetterProgress>();
+	for (let i = 0; i < 26; i += 1) {
+		const letter = String.fromCharCode(65 + i);
+		letters.set(letter, { letter, total: 0, done: 0, current: letter === currentLetter });
+	}
+	roster.forEach((champion, position) => {
+		const entry = letters.get(champion.letter);
+		if (!entry) return;
+		entry.total += 1;
+		if (position < index) entry.done += 1;
+	});
+
+	return {
+		index,
+		completed,
+		attempts,
+		offPicks,
+		letters: [...letters.values()],
+		stats: {
+			games: challengeGames,
+			wins: challengeWins,
+			losses: challengeGames - challengeWins,
+			winRate: challengeGames ? Math.round((challengeWins / challengeGames) * 100) : 0,
+			averageTries: tracked.length ? Math.round((tracked.reduce((sum, entry) => sum + entry.tries, 0) / tracked.length) * 10) / 10 : 0,
+			firstTryCount: tracked.filter((entry) => entry.tries === 1).length,
+			offPicks,
+			hardest: hardest ? { champion: hardest.champion, tries: hardest.tries } : null,
+		},
+	};
+}
+
+/* ---------------------------------------------------------------- snapshot */
+
+async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boolean }): Promise<AzChallengeSnapshot> {
+	const config = challengeConfig(slug);
+	const [roster, account, stream] = await Promise.all([
+		getAzRoster(),
+		getStreamerPrimaryAccount(slug),
+		getStreamerObsSnapshot(slug, { preview: options.preview }).catch((error) => {
+			console.warn(`[az-challenge:${slug}] Stream-Status nicht verfügbar:`, error);
+			return null;
+		}),
+	]);
+
+	let message: string | undefined;
+	try {
+		await syncOnce(config, account.puuid, account.routing);
+	} catch (error) {
+		// Keep showing stored progress when Riot or MongoDB hiccups.
+		console.warn(`[az-challenge:${slug}] Sync fehlgeschlagen:`, error);
+		message = "Riot-Daten kurzzeitig nicht erreichbar. Letzter Stand bleibt sichtbar.";
+	}
+
+	const { matches, state } = await collections();
+	const [docs, syncState] = await Promise.all([matches.find({ slug }).toArray(), state.findOne({ _id: slug })]);
+	const progress = computeAzProgress(roster, docs, config);
+	const currentChampion = roster[progress.index] ?? null;
+	const mastery = currentChampion ? await cachedMastery(account.puuid, currentChampion.id, account.routing) : null;
+	const tracked = progress.completed.filter((entry) => !entry.manual);
+	const lastCompleted = tracked.at(-1) ?? null;
+	const startMs = new Date(config.startAt).getTime();
+	const liveQueueId = stream?.liveQueueId ?? null;
+
+	return {
+		slug,
+		displayName: account.displayName,
+		riotId: account.riotId,
+		twitchLogin: account.twitchLogin,
+		online: stream?.online ?? false,
+		leagueLive: stream?.leagueLive ?? false,
+		challengeGameLive: Boolean(stream?.leagueLive && liveQueueId !== null && config.queueIds.includes(liveQueueId)),
+		rankLabel: stream?.rank ? compactRankLabel(stream.rank) : null,
+		leaguePoints: stream?.rank?.leaguePoints ?? null,
+		lpDelta: stream?.lpDelta ?? 0,
+		startAt: config.startAt,
+		dayNumber: Math.max(1, Math.floor((Date.now() - startMs) / 86_400_000) + 1),
+		totalChampions: roster.length,
+		completedCount: progress.index,
+		percent: roster.length ? Math.round((progress.index / roster.length) * 1000) / 10 : 0,
+		finished: roster.length > 0 && progress.index >= roster.length,
+		current: currentChampion
+			? {
+					champion: currentChampion,
+					position: progress.index + 1,
+					tryNumber: progress.attempts.length + 1,
+					losses: progress.attempts.length,
+					attempts: progress.attempts.slice(-ATTEMPT_HISTORY_COUNT).map(toAttempt),
+					mastery,
+				}
+			: null,
+		upcoming: roster.slice(progress.index + 1, progress.index + 1 + UPCOMING_COUNT),
+		lastCompleted,
+		recentCompleted: tracked.slice(-RECENT_COMPLETED_COUNT).reverse(),
+		letters: progress.letters,
+		stats: progress.stats,
+		syncing: !syncState?.backfilled,
+		updatedAt: new Date().toISOString(),
+		message: message ?? (options.preview ? "Testmodus: Overlay ist immer sichtbar." : undefined),
+	};
+}
+
+export async function getAzChallengeSnapshot(slug: AzChallengeSlug, options: { preview?: boolean } = {}): Promise<AzChallengeSnapshot> {
+	g.__azSnapshots ??= new Map();
+	g.__azSnapshotRequests ??= new Map();
+	const cacheKey = `${slug}:${options.preview ? "preview" : "live"}`;
+	const cached = g.__azSnapshots.get(cacheKey);
+	if (cached && cached.expiresAt > Date.now()) return cached.data;
+	const pending = g.__azSnapshotRequests.get(cacheKey);
+	if (pending) return pending;
+
+	const request = buildAzSnapshot(slug, options)
+		.then((data) => {
+			// While the backfill runs, refresh faster so progress fills in quickly.
+			g.__azSnapshots?.set(cacheKey, { data, expiresAt: Date.now() + (data.syncing ? 5_000 : SNAPSHOT_CACHE_MS) });
+			return data;
+		})
+		.catch((error) => {
+			if (cached) return { ...cached.data, message: "Externer Dienst kurzzeitig nicht erreichbar. Letzter Stand bleibt sichtbar." };
+			throw error;
+		})
+		.finally(() => g.__azSnapshotRequests?.delete(cacheKey));
+	g.__azSnapshotRequests.set(cacheKey, request);
+	return request;
+}
