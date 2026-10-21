@@ -64,11 +64,44 @@ test("advances only on a win with the current target champion", () => {
 		]
 	);
 	assert.equal(progress.attempts.length, 1);
-	assert.equal(progress.offPicks, 1);
+	assert.equal(progress.offPicks, 0);
 	assert.equal(progress.stats.firstTryCount, 2);
-	assert.equal(progress.stats.games, 7);
+	assert.equal(progress.stats.games, 8);
 	assert.equal(progress.stats.wins, 4);
 	assert.equal(progress.stats.hardest.champion.name, "Akali");
+});
+
+test("counts games played before a champion became the target as tries", () => {
+	minute = 0;
+	// Real order from TLG Fabi: two Ambessa losses while Akali/Akshan were the target.
+	const docs = [
+		game("Aatrox", true),
+		game("Ahri", true),
+		game("Ambessa", false),
+		game("Akali", true),
+		game("Ambessa", false),
+		game("Anivia", false),
+		game("Akshan", true),
+		game("Alistar", true),
+		game("Ambessa", true),
+		game("Aatrox", false), // replay of a finished champion is not a try
+	];
+	const progress = computeAzProgress(roster, docs, config);
+	const ambessa = progress.completed.find((entry) => entry.champion.name === "Ambessa");
+	assert.equal(ambessa.tries, 3);
+	assert.equal(roster[progress.index].name, "Amumu");
+	assert.equal(progress.offPicks, 1);
+	assert.equal(progress.stats.games, 9);
+});
+
+test("an early win does not skip the champion before its turn", () => {
+	minute = 0;
+	const docs = [game("Aatrox", true), game("Akali", true), game("Ahri", false)];
+	const progress = computeAzProgress(roster, docs, config);
+	assert.equal(roster[progress.index].name, "Ahri");
+	assert.equal(progress.attempts.length, 1);
+	const later = computeAzProgress(roster, [...docs, game("Ahri", true), game("Akali", false), game("Akali", true)], config);
+	assert.equal(later.completed.find((entry) => entry.champion.name === "Akali").tries, 3);
 });
 
 test("ignores games before the start and skips manual champions", () => {

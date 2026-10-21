@@ -191,7 +191,7 @@ function HuntScene({ data }: { data: AzChallengeSnapshot }) {
 		);
 	}
 	const next = data.upcoming[0];
-	const hidden = Math.max(0, current.losses - current.attempts.length);
+	const hidden = Math.max(0, current.tryNumber - 1 - current.attempts.length);
 
 	return (
 		<div className="azf-hunt">

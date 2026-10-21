@@ -408,26 +408,35 @@ export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], conf
 	};
 	skipManual();
 
-	let attempts: AzMatchDoc[] = [];
+	// Every game on a champion that is not done yet is a try for that champion,
+	// even when it was played before the champion became the target (e.g. the
+	// target was banned). Only a win while the champion is the target completes it.
+	const doneIds = new Set(roster.filter(isManual).map((champion) => champion.id));
+	const pending = new Map<number, AzMatchDoc[]>();
 	let offPicks = 0;
 	let challengeGames = 0;
 	let challengeWins = 0;
 	for (const game of games) {
 		if (index >= roster.length) break;
-		const target = roster[index];
-		if (game.championId !== target.id) {
+		if (doneIds.has(game.championId)) {
 			offPicks += 1;
 			continue;
 		}
-		attempts.push(game);
+		const tries = pending.get(game.championId) ?? [];
+		tries.push(game);
+		pending.set(game.championId, tries);
 		challengeGames += 1;
-		if (!game.win) continue;
-		challengeWins += 1;
-		completed.push({ champion: target, tries: attempts.length, manual: false, winGame: toAttempt(game), completedAt: game.endedAt });
-		attempts = [];
+		if (game.win) challengeWins += 1;
+
+		const target = roster[index];
+		if (game.championId !== target.id || !game.win) continue;
+		completed.push({ champion: target, tries: tries.length, manual: false, winGame: toAttempt(game), completedAt: game.endedAt });
+		doneIds.add(target.id);
+		pending.delete(target.id);
 		index += 1;
 		skipManual();
 	}
+	const attempts = roster[index] ? (pending.get(roster[index].id) ?? []) : [];
 
 	const tracked = completed.filter((entry) => !entry.manual);
 	const hardest = tracked.reduce<AzCompleted | null>((worst, entry) => (!worst || entry.tries > worst.tries ? entry : worst), null);
@@ -517,7 +526,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boole
 					champion: currentChampion,
 					position: progress.index + 1,
 					tryNumber: progress.attempts.length + 1,
-					losses: progress.attempts.length,
+					losses: progress.attempts.filter((attempt) => !attempt.win).length,
 					attempts: progress.attempts.slice(-ATTEMPT_HISTORY_COUNT).map(toAttempt),
 					mastery,
 				}
