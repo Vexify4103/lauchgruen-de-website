@@ -6,8 +6,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
 	try {
-		const preview = new URL(request.url).searchParams.has("test");
-		const snapshot = await getAzChallengeSnapshot("tlgfabi", { preview });
+		const params = new URL(request.url).searchParams;
+		const preview = params.has("test");
+		// `?test&ingame` simulates a live game on the target, `?test&ingame=Viktor` an off-pick.
+		const demoLive = preview && params.has("ingame") ? (params.get("ingame") ?? "") : undefined;
+		const snapshot = await getAzChallengeSnapshot("tlgfabi", { preview, demoLive });
 		return NextResponse.json(snapshot, {
 			headers: { "Cache-Control": "public, max-age=15, s-maxage=15" },
 		});

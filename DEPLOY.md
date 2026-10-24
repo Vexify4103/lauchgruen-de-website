@@ -57,6 +57,9 @@ The two lists must use the same order when PUUIDs are supplied.
 
 OBS browser source: `https://lauchgruen.de/obs/tlgfabi` (size 720 x 300 on a
 1080p canvas; add `?scale=0.8` to shrink, `?test` to keep it visible offline).
+While a counted game runs it shrinks to a compact bar (`?mode=full` or
+`?mode=compact` pins one layout). Test helpers: `?test&ingame` (live game on the
+target), `?test&ingame=Viktor` (off-pick), `?test&demo=win|loss|letter|milestone|streak|all`.
 Only wins on the current alphabetical target champion advance the challenge.
 Progress is rebuilt from Riot match history and cached in the MongoDB
 collections `az_challenge_matches` and `az_challenge_state`.

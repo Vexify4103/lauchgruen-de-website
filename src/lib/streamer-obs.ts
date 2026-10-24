@@ -196,7 +196,7 @@ const g = globalThis as unknown as {
 	__streamerObsRankRequests?: Map<string, Promise<RiotLeagueEntry[]>>;
 	__streamerObsMatchIds?: Map<string, { expiresAt: number; data: string[] }>;
 	__streamerObsMatchIdRequests?: Map<string, Promise<string[]>>;
-	__streamerObsLiveQueues?: Map<string, { queueId: number | null; fetchedAt: number; retryAt?: number }>;
+	__streamerObsLiveQueues?: Map<string, { queueId: number | null; championId?: number | null; fetchedAt: number; retryAt?: number }>;
 	__streamerObsLiveQueueRequests?: Map<string, Promise<number | null>>;
 	__streamerObsSelectedAccounts?: Map<string, { accountKey: string; streamId: string }>;
 	__streamerObsSelectedQueues?: Map<string, { queueId: 420 | 440; streamId: string }>;
@@ -224,6 +224,8 @@ export type LauchgruenObsResponse = {
 	online: boolean;
 	leagueLive: boolean;
 	liveQueueId: number | null;
+	/** Champion in the running game, when the Spectator API reports one. */
+	liveChampionId?: number | null;
 	streamTitle: string | null;
 	streamStartedAt: string | null;
 	streamDurationSeconds: number;
@@ -621,13 +623,15 @@ async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing
 		try {
 			const activeGame = await getActiveGameByPuuidForRoute(puuid, routing);
 			const queueId = activeGame?.gameQueueConfigId ?? null;
-			g.__streamerObsLiveQueues?.set(cacheKey, { queueId, fetchedAt: Date.now() });
+			const championId = activeGame?.participants.find((participant) => participant.puuid === puuid)?.championId ?? null;
+			g.__streamerObsLiveQueues?.set(cacheKey, { queueId, championId, fetchedAt: Date.now() });
 			return queueId;
 		} catch (error) {
 			// A transient Riot outage must not flash an active OBS source off-screen.
 			if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_STALE_MS) {
 				g.__streamerObsLiveQueues?.set(cacheKey, {
 					queueId: cached.queueId,
+					championId: cached.championId ?? null,
 					fetchedAt: cached.fetchedAt,
 					...(error instanceof RiotApiError && error.status === 429 ? { retryAt: Date.now() + LIVE_QUEUE_RATE_LIMIT_CACHE_MS } : {}),
 				});
@@ -645,6 +649,11 @@ async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing
 
 	g.__streamerObsLiveQueueRequests.set(cacheKey, request);
 	return request;
+}
+
+/** Champion of the running game, read from the cached Spectator result (no extra Riot call). */
+function cachedLiveChampionId(config: StreamerConfig, puuid: string, routing: RiotRoute): number | null {
+	return g.__streamerObsLiveQueues?.get(`${routing.credential}:${config.slug}:${puuid}`)?.championId ?? null;
 }
 
 async function selectStreamerAccount(config: StreamerConfig, accounts: ResolvedStreamerAccount[], leagueLive: boolean, streamId: string | null) {
@@ -775,6 +784,7 @@ async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: {
 		online: true,
 		leagueLive,
 		liveQueueId,
+		liveChampionId: detectedLiveQueueId !== null ? cachedLiveChampionId(config, account.puuid, routing) : null,
 		streamTitle: stream.title,
 		streamStartedAt: stream.startedAt,
 		streamDurationSeconds: Math.max(0, Math.floor((Date.now() - new Date(stream.startedAt).getTime()) / 1000)),

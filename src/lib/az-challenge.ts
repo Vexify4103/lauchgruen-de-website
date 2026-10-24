@@ -158,6 +158,25 @@ export type AzChallengeSnapshot = {
 		attempts: AzAttempt[];
 		mastery: { level: number; points: number } | null;
 	} | null;
+	/** Running Solo/Duo game, from the Spectator API. */
+	live: {
+		champion: AzChampion | null;
+		/** True when he plays the current target champion. */
+		onTarget: boolean;
+		/** Try number this game counts as, for not-yet-done challenge champions. */
+		tryNumber: number | null;
+	} | null;
+	insights: {
+		pace: { perDay: number; etaDays: number | null; etaDate: string | null };
+		/** How the current champion compares with the most tries any champion needed. */
+		record: { champion: AzChampion; tries: number; state: "none" | "close" | "broken" } | null;
+		playSeconds: number;
+		currentPlaySeconds: number;
+		deaths: number;
+		currentDeaths: number;
+		firstTryStreak: number;
+		today: { label: "Stream" | "Heute"; games: number; wins: number; losses: number; completed: AzChampion[] };
+	};
 	upcoming: AzChampion[];
 	lastCompleted: AzCompleted | null;
 	recentCompleted: AzCompleted[];
@@ -453,12 +472,22 @@ export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], conf
 		if (position < index) entry.done += 1;
 	});
 
+	let firstTryStreak = 0;
+	for (let i = tracked.length - 1; i >= 0 && tracked[i].tries === 1; i -= 1) firstTryStreak += 1;
+
 	return {
 		index,
 		completed,
 		attempts,
 		offPicks,
+		/** Counted games (queue + start date, no remakes), oldest first. */
+		games,
+		/** Tries already played on champions that are not done yet, by champion id. */
+		pendingTries: Object.fromEntries([...pending].map(([championId, tries]) => [championId, tries.length])) as Record<number, number>,
 		letters: [...letters.values()],
+		playSeconds: games.reduce((sum, game) => sum + game.durationSeconds, 0),
+		deaths: games.reduce((sum, game) => sum + game.deaths, 0),
+		firstTryStreak,
 		stats: {
 			games: challengeGames,
 			wins: challengeWins,
@@ -474,7 +503,31 @@ export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], conf
 
 /* ---------------------------------------------------------------- snapshot */
 
-async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boolean }): Promise<AzChallengeSnapshot> {
+export type AzSnapshotOptions = {
+	preview?: boolean;
+	/** Test helper (preview only): simulate a live game. "" = current target, otherwise a champion name. */
+	demoLive?: string;
+};
+
+/** Start of the current calendar day in Europe/Berlin, as epoch ms. */
+function berlinDayStart(now = new Date()): number {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "Europe/Berlin",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hourCycle: "h23",
+	}).formatToParts(now);
+	const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value ?? 0);
+	return now.getTime() - ((part("hour") * 60 + part("minute")) * 60 + part("second")) * 1000 - now.getMilliseconds();
+}
+
+function findChampion(roster: AzChampion[], value: string): AzChampion | null {
+	const wanted = normalizeName(value);
+	return roster.find((champion) => normalizeName(champion.name) === wanted || String(champion.id) === value) ?? null;
+}
+
+async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions): Promise<AzChallengeSnapshot> {
 	const config = challengeConfig(slug);
 	const [roster, account, stream] = await Promise.all([
 		getAzRoster(),
@@ -503,6 +556,41 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boole
 	const lastCompleted = tracked.at(-1) ?? null;
 	const startMs = new Date(config.startAt).getTime();
 	const liveQueueId = stream?.liveQueueId ?? null;
+	const challengeGameLive = Boolean(stream?.leagueLive && liveQueueId !== null && config.queueIds.includes(liveQueueId));
+	const now = Date.now();
+
+	// Live game: which champion and which try it counts as.
+	const demoChampion = options.preview && options.demoLive !== undefined ? (options.demoLive ? findChampion(roster, options.demoLive) : currentChampion) : null;
+	const liveChampionId = demoChampion?.id ?? (challengeGameLive ? (stream?.liveChampionId ?? null) : null);
+	const liveChampion = liveChampionId !== null ? (roster.find((champion) => champion.id === liveChampionId) ?? null) : null;
+	const liveIsOpen = liveChampion ? progress.completed.every((entry) => entry.champion.id !== liveChampion.id) : false;
+	const live =
+		demoChampion || challengeGameLive
+			? {
+					champion: liveChampion,
+					onTarget: Boolean(liveChampion && currentChampion && liveChampion.id === currentChampion.id),
+					tryNumber: liveChampion && liveIsOpen ? (progress.pendingTries[liveChampion.id] ?? 0) + 1 : null,
+				}
+			: null;
+
+	// Pace: finished champions per day since the start, projected to Z.
+	const elapsedDays = Math.max(1, (now - startMs) / 86_400_000);
+	const perDay = tracked.length / elapsedDays;
+	const remaining = Math.max(0, roster.length - progress.index);
+	const etaDays = perDay > 0 ? Math.ceil(remaining / perDay) : null;
+
+	// Record watch: compare current tries with the most tries any champion needed.
+	const hardest = progress.stats.hardest;
+	const currentTries = progress.attempts.length;
+	const record = hardest
+		? { champion: hardest.champion, tries: hardest.tries, state: currentTries >= hardest.tries ? ("broken" as const) : currentTries === hardest.tries - 1 ? ("close" as const) : ("none" as const) }
+		: null;
+
+	// Today: this stream when live, otherwise the Berlin calendar day.
+	const todayLabel: "Stream" | "Heute" = stream?.online && stream.streamStartedAt ? "Stream" : "Heute";
+	const todaySince = todayLabel === "Stream" && stream?.streamStartedAt ? new Date(stream.streamStartedAt).getTime() : berlinDayStart();
+	const todayGames = progress.games.filter((game) => new Date(game.endedAt).getTime() >= todaySince);
+	const todayWins = todayGames.filter((game) => game.win).length;
 
 	return {
 		slug,
@@ -511,7 +599,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boole
 		twitchLogin: account.twitchLogin,
 		online: stream?.online ?? false,
 		leagueLive: stream?.leagueLive ?? false,
-		challengeGameLive: Boolean(stream?.leagueLive && liveQueueId !== null && config.queueIds.includes(liveQueueId)),
+		challengeGameLive: challengeGameLive || Boolean(demoChampion),
 		rankLabel: stream?.rank ? compactRankLabel(stream.rank) : null,
 		leaguePoints: stream?.rank?.leaguePoints ?? null,
 		lpDelta: stream?.lpDelta ?? 0,
@@ -531,6 +619,27 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boole
 					mastery,
 				}
 			: null,
+		live,
+		insights: {
+			pace: {
+				perDay: Math.round(perDay * 100) / 100,
+				etaDays,
+				etaDate: etaDays !== null ? new Date(now + etaDays * 86_400_000).toISOString() : null,
+			},
+			record,
+			playSeconds: progress.playSeconds,
+			currentPlaySeconds: progress.attempts.reduce((sum, game) => sum + game.durationSeconds, 0),
+			deaths: progress.deaths,
+			currentDeaths: progress.attempts.reduce((sum, game) => sum + game.deaths, 0),
+			firstTryStreak: progress.firstTryStreak,
+			today: {
+				label: todayLabel,
+				games: todayGames.length,
+				wins: todayWins,
+				losses: todayGames.length - todayWins,
+				completed: tracked.filter((entry) => entry.completedAt && new Date(entry.completedAt).getTime() >= todaySince).map((entry) => entry.champion),
+			},
+		},
 		upcoming: roster.slice(progress.index + 1, progress.index + 1 + UPCOMING_COUNT),
 		lastCompleted,
 		recentCompleted: tracked.slice(-RECENT_COMPLETED_COUNT).reverse(),
@@ -542,10 +651,11 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: { preview?: boole
 	};
 }
 
-export async function getAzChallengeSnapshot(slug: AzChallengeSlug, options: { preview?: boolean } = {}): Promise<AzChallengeSnapshot> {
+export async function getAzChallengeSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions = {}): Promise<AzChallengeSnapshot> {
 	g.__azSnapshots ??= new Map();
 	g.__azSnapshotRequests ??= new Map();
-	const cacheKey = `${slug}:${options.preview ? "preview" : "live"}`;
+	const demoKey = options.preview && options.demoLive !== undefined ? `:live=${options.demoLive}` : "";
+	const cacheKey = `${slug}:${options.preview ? "preview" : "live"}${demoKey}`;
 	const cached = g.__azSnapshots.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
 	const pending = g.__azSnapshotRequests.get(cacheKey);

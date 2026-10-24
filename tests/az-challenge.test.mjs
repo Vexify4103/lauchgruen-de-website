@@ -92,6 +92,16 @@ test("counts games played before a champion became the target as tries", () => {
 	assert.equal(roster[progress.index].name, "Amumu");
 	assert.equal(progress.offPicks, 1);
 	assert.equal(progress.stats.games, 9);
+	assert.equal(progress.pendingTries[idOf("Anivia")], 1); // early Anivia loss waits as try #1
+	assert.equal(progress.firstTryStreak, 0);
+	assert.equal(progress.deaths, 20); // 10 counted games x 2 deaths
+	assert.equal(progress.playSeconds, 10 * 1800);
+});
+
+test("tracks the current first-try streak", () => {
+	minute = 0;
+	const progress = computeAzProgress(roster, [game("Aatrox", false), game("Aatrox", true), game("Ahri", true), game("Akali", true)], config);
+	assert.equal(progress.firstTryStreak, 2);
 });
 
 test("an early win does not skip the champion before its turn", () => {
