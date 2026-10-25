@@ -51,8 +51,9 @@ export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "g
 		excludedMatchIds: ["EUW1_8017912568"],
 	},
 	spaceffs: {
-		// Started on 25.10 (Berlin midnight, still summer time that night).
-		startAt: "2026-10-25T00:00:00+02:00",
+		// Started on 25.10 after his last Solo/Duo game that day (two Blitzcrank
+		// losses that ended ~18:51 Berlin were before the challenge).
+		startAt: "2026-10-25T19:00:00+01:00",
 		theme: "ice",
 		excludedMatchIds: [],
 	},
