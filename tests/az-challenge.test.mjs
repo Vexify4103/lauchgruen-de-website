@@ -37,7 +37,7 @@ function game(name, win, extra = {}) {
 
 const config = { queueIds: [420], manualDone: [], startAt: "2026-10-15T00:00:00Z" };
 
-test("advances only on a win with the current target champion", () => {
+test("counts tries until the first win per champion", () => {
 	minute = 0;
 	const docs = [
 		game("Aatrox", true),
@@ -104,14 +104,37 @@ test("tracks the current first-try streak", () => {
 	assert.equal(progress.firstTryStreak, 2);
 });
 
-test("an early win does not skip the champion before its turn", () => {
+test("a win out of order completes that champion (same rule as the tracking sheet)", () => {
 	minute = 0;
-	const docs = [game("Aatrox", true), game("Akali", true), game("Ahri", false)];
+	// Filled into another role: Zyra wins long before her turn.
+	const docs = [game("Aatrox", true), game("Zyra", false), game("Zyra", true), game("Akali", true), game("Ahri", false)];
 	const progress = computeAzProgress(roster, docs, config);
 	assert.equal(roster[progress.index].name, "Ahri");
 	assert.equal(progress.attempts.length, 1);
-	const later = computeAzProgress(roster, [...docs, game("Ahri", true), game("Akali", false), game("Akali", true)], config);
-	assert.equal(later.completed.find((entry) => entry.champion.name === "Akali").tries, 3);
+	assert.equal(progress.doneCount, 3);
+	assert.equal(progress.completed.find((entry) => entry.champion.name === "Zyra").tries, 2);
+	assert.equal(progress.letters.find((entry) => entry.letter === "Z").done, 1);
+
+	// After Ahri, the target skips Akali (already won) and goes to Akshan.
+	const later = computeAzProgress(roster, [...docs, game("Ahri", true), game("Akali", false)], config);
+	assert.equal(roster[later.index].name, "Akshan");
+	assert.equal(later.offPicks, 1); // Akali replay after its win is ignored
+});
+
+test("excluded matches (played outside the challenge) are ignored", () => {
+	minute = 0;
+	const outside = game("Zyra", true);
+	const progress = computeAzProgress(roster, [game("Aatrox", true), outside], { ...config, excludedMatchIds: [outside.matchId] });
+	assert.equal(progress.doneCount, 1);
+	assert.equal(progress.letters.find((entry) => entry.letter === "Z").done, 0);
+	assert.equal(progress.stats.games, 1);
+});
+
+test("games under five minutes count as remakes", () => {
+	minute = 0;
+	const progress = computeAzProgress(roster, [game("Aatrox", true, { durationSeconds: 120 }), game("Aatrox", false)], config);
+	assert.equal(roster[progress.index].name, "Aatrox");
+	assert.equal(progress.attempts.length, 1);
 });
 
 test("ignores games before the start and skips manual champions", () => {

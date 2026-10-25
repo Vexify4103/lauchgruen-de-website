@@ -106,6 +106,8 @@ type StreamerConfig = {
 	riotTagLine: string;
 	alternateAccounts?: StreamerRiotAccountConfig[];
 	rankedOnly?: boolean;
+	/** Faster Spectator re-check for overlays that react to game start/end. */
+	liveCheckMs?: number;
 };
 
 function alternateAccounts(prefix: string, fallbackRiotIds: string[] = []): StreamerRiotAccountConfig[] {
@@ -173,6 +175,8 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		twitchLogin: process.env.TLGFABI_OBS_TWITCH_LOGIN?.trim() || "tlgfabi",
 		riotGameName: process.env.TLGFABI_OBS_RIOT_GAME_NAME?.trim() || "TLG Fabi",
 		riotTagLine: process.env.TLGFABI_OBS_RIOT_TAG_LINE?.trim() || "7466",
+		// The A-Z overlay switches to a compact bar in game, so check often.
+		liveCheckMs: 25_000,
 	},
 };
 
@@ -613,7 +617,7 @@ async function resolveLiveQueueId(config: StreamerConfig, puuid: string, routing
 	const cacheKey = `${routing.credential}:${config.slug}:${puuid}`;
 	const cached = g.__streamerObsLiveQueues.get(cacheKey);
 	if (cached?.retryAt && cached.retryAt > Date.now()) return cached.queueId;
-	if (cached && Date.now() - cached.fetchedAt < LIVE_QUEUE_CACHE_MS) return cached.queueId;
+	if (cached && Date.now() - cached.fetchedAt < (config.liveCheckMs ?? LIVE_QUEUE_CACHE_MS)) return cached.queueId;
 
 	g.__streamerObsLiveQueueRequests ??= new Map();
 	const pending = g.__streamerObsLiveQueueRequests.get(cacheKey);
@@ -713,7 +717,7 @@ async function resolveConfiguredStreamerAccounts(config: StreamerConfig) {
 
 async function buildStreamerObsSnapshot(slug: StreamerConfig["slug"], options: { preview?: boolean } = {}): Promise<LauchgruenObsResponse> {
 	const config = STREAMERS[slug];
-	const snapshotTtl = config.rankedOnly || config.alternateAccounts?.length ? 20_000 : SNAPSHOT_CACHE_MS;
+	const snapshotTtl = config.liveCheckMs ? Math.min(config.liveCheckMs, 20_000) : config.rankedOnly || config.alternateAccounts?.length ? 20_000 : SNAPSHOT_CACHE_MS;
 	const cacheKey = `${slug}:${options.preview ? "preview" : "live"}`;
 	const cached = g.__streamerObsSnapshots?.[cacheKey];
 	if (cached && cached.expiresAt > Date.now()) return cached.data;

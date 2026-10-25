@@ -26,7 +26,7 @@ const STATE_COLLECTION = "az_challenge_state";
 const DATA_DRAGON_BASE = "https://ddragon.leagueoflegends.com";
 const FALLBACK_DDRAGON_VERSION = "15.24.1";
 const ROSTER_CACHE_MS = 6 * 60 * 60_000;
-const SNAPSHOT_CACHE_MS = 20_000;
+const SNAPSHOT_CACHE_MS = 10_000;
 const SYNC_INTERVAL_MS = 45_000;
 const MAX_DETAILS_PER_SYNC = 24;
 const MATCH_ID_PAGE_SIZE = 100;
@@ -46,6 +46,14 @@ type AzChallengeConfig = {
 	queueIds: number[];
 	/** Champion names or numeric ids that count as done without a tracked win. */
 	manualDone: string[];
+	/** Match ids played outside the challenge (like "Counts: No" in Fabi's sheet). */
+	excludedMatchIds: string[];
+};
+
+/** Games Fabi marked as "not challenge" in his tracking sheet. */
+const DEFAULT_EXCLUDED_MATCH_IDS: Record<AzChallengeSlug, string[]> = {
+	// Viktor win on 2026-10-18, played outside the challenge.
+	tlgfabi: ["EUW1_8017912568"],
 };
 
 function envList(name: string): string[] {
@@ -68,6 +76,8 @@ function challengeConfig(slug: AzChallengeSlug): AzChallengeConfig {
 		// Default: Ranked Solo/Duo, the queue the challenge runs in.
 		queueIds: queueIds.length ? queueIds : [420],
 		manualDone: envList(`${prefix}_AZ_MANUAL_DONE`),
+		// The env list replaces the defaults when set.
+		excludedMatchIds: process.env[`${prefix}_AZ_EXCLUDE_MATCHES`] !== undefined ? envList(`${prefix}_AZ_EXCLUDE_MATCHES`) : DEFAULT_EXCLUDED_MATCH_IDS[slug],
 	};
 }
 
@@ -402,6 +412,11 @@ function toAttempt(doc: AzMatchDoc): AzAttempt {
 	};
 }
 
+/** Same remake rule as the tracking sheet: early surrender or under 5 minutes. */
+function isAzRemake(doc: AzMatchDoc) {
+	return doc.remake || doc.durationSeconds < 300;
+}
+
 function normalizeName(value: string) {
 	return value
 		.normalize("NFD")
@@ -409,34 +424,32 @@ function normalizeName(value: string) {
 		.toLowerCase();
 }
 
-export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt">) {
+export function computeAzProgress(
+	roster: AzChampion[],
+	docs: AzMatchDoc[],
+	config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt"> & Partial<Pick<AzChallengeConfig, "excludedMatchIds">>
+) {
+	const excluded = new Set(config.excludedMatchIds ?? []);
 	const manual = new Set(config.manualDone.map(normalizeName));
 	const isManual = (champion: AzChampion) => manual.has(normalizeName(champion.name)) || manual.has(String(champion.id));
 	const startMs = new Date(config.startAt).getTime();
 	const games = docs
-		.filter((doc) => !doc.remake && config.queueIds.includes(doc.queueId) && new Date(doc.endedAt).getTime() >= startMs)
+		.filter((doc) => !isAzRemake(doc) && !excluded.has(doc.matchId) && config.queueIds.includes(doc.queueId) && new Date(doc.endedAt).getTime() >= startMs)
 		.sort((a, b) => new Date(a.endedAt).getTime() - new Date(b.endedAt).getTime());
 
-	const completed: AzCompleted[] = [];
-	let index = 0;
-	const skipManual = () => {
-		while (index < roster.length && isManual(roster[index])) {
-			completed.push({ champion: roster[index], tries: 0, manual: true, winGame: null, completedAt: null });
-			index += 1;
-		}
-	};
-	skipManual();
-
-	// Every game on a champion that is not done yet is a try for that champion,
-	// even when it was played before the champion became the target (e.g. the
-	// target was banned). Only a win while the champion is the target completes it.
-	const doneIds = new Set(roster.filter(isManual).map((champion) => champion.id));
+	// Same rule as Fabi's tracking sheet: per champion, games count in date order
+	// until its first win (the win is a try too). A win completes the champion
+	// whenever it happens, even out of alphabetical order (e.g. filled into
+	// another role). Games after the first win are ignored.
+	const rosterById = new Map(roster.map((champion) => [champion.id, champion]));
+	const manualChampions = roster.filter(isManual);
+	const doneIds = new Set(manualChampions.map((champion) => champion.id));
+	const completed: AzCompleted[] = manualChampions.map((champion) => ({ champion, tries: 0, manual: true, winGame: null, completedAt: null }));
 	const pending = new Map<number, AzMatchDoc[]>();
 	let offPicks = 0;
 	let challengeGames = 0;
 	let challengeWins = 0;
 	for (const game of games) {
-		if (index >= roster.length) break;
 		if (doneIds.has(game.championId)) {
 			offPicks += 1;
 			continue;
@@ -445,16 +458,19 @@ export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], conf
 		tries.push(game);
 		pending.set(game.championId, tries);
 		challengeGames += 1;
-		if (game.win) challengeWins += 1;
-
-		const target = roster[index];
-		if (game.championId !== target.id || !game.win) continue;
-		completed.push({ champion: target, tries: tries.length, manual: false, winGame: toAttempt(game), completedAt: game.endedAt });
-		doneIds.add(target.id);
-		pending.delete(target.id);
-		index += 1;
-		skipManual();
+		if (!game.win) continue;
+		challengeWins += 1;
+		const champion = rosterById.get(game.championId);
+		if (!champion) continue;
+		completed.push({ champion, tries: tries.length, manual: false, winGame: toAttempt(game), completedAt: game.endedAt });
+		doneIds.add(champion.id);
+		pending.delete(champion.id);
 	}
+
+	// The target is the first champion in A-Z order without a win yet.
+	const firstOpen = roster.findIndex((champion) => !doneIds.has(champion.id));
+	const index = firstOpen === -1 ? roster.length : firstOpen;
+	const doneCount = roster.filter((champion) => doneIds.has(champion.id)).length;
 	const attempts = roster[index] ? (pending.get(roster[index].id) ?? []) : [];
 
 	const tracked = completed.filter((entry) => !entry.manual);
@@ -465,18 +481,22 @@ export function computeAzProgress(roster: AzChampion[], docs: AzMatchDoc[], conf
 		const letter = String.fromCharCode(65 + i);
 		letters.set(letter, { letter, total: 0, done: 0, current: letter === currentLetter });
 	}
-	roster.forEach((champion, position) => {
+	for (const champion of roster) {
 		const entry = letters.get(champion.letter);
-		if (!entry) return;
+		if (!entry) continue;
 		entry.total += 1;
-		if (position < index) entry.done += 1;
-	});
+		if (doneIds.has(champion.id)) entry.done += 1;
+	}
 
 	let firstTryStreak = 0;
 	for (let i = tracked.length - 1; i >= 0 && tracked[i].tries === 1; i -= 1) firstTryStreak += 1;
 
 	return {
+		/** Roster position of the current target (first champion without a win). */
 		index,
+		doneCount,
+		doneIds,
+		/** Manual entries first, then tracked completions in the order they happened. */
 		completed,
 		attempts,
 		offPicks,
@@ -563,7 +583,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	const demoChampion = options.preview && options.demoLive !== undefined ? (options.demoLive ? findChampion(roster, options.demoLive) : currentChampion) : null;
 	const liveChampionId = demoChampion?.id ?? (challengeGameLive ? (stream?.liveChampionId ?? null) : null);
 	const liveChampion = liveChampionId !== null ? (roster.find((champion) => champion.id === liveChampionId) ?? null) : null;
-	const liveIsOpen = liveChampion ? progress.completed.every((entry) => entry.champion.id !== liveChampion.id) : false;
+	const liveIsOpen = liveChampion ? !progress.doneIds.has(liveChampion.id) : false;
 	const live =
 		demoChampion || challengeGameLive
 			? {
@@ -576,7 +596,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	// Pace: finished champions per day since the start, projected to Z.
 	const elapsedDays = Math.max(1, (now - startMs) / 86_400_000);
 	const perDay = tracked.length / elapsedDays;
-	const remaining = Math.max(0, roster.length - progress.index);
+	const remaining = Math.max(0, roster.length - progress.doneCount);
 	const etaDays = perDay > 0 ? Math.ceil(remaining / perDay) : null;
 
 	// Record watch: compare current tries with the most tries any champion needed.
@@ -606,9 +626,9 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 		startAt: config.startAt,
 		dayNumber: Math.max(1, Math.floor((Date.now() - startMs) / 86_400_000) + 1),
 		totalChampions: roster.length,
-		completedCount: progress.index,
-		percent: roster.length ? Math.round((progress.index / roster.length) * 1000) / 10 : 0,
-		finished: roster.length > 0 && progress.index >= roster.length,
+		completedCount: progress.doneCount,
+		percent: roster.length ? Math.round((progress.doneCount / roster.length) * 1000) / 10 : 0,
+		finished: roster.length > 0 && progress.doneCount >= roster.length,
 		current: currentChampion
 			? {
 					champion: currentChampion,
@@ -640,7 +660,11 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 				completed: tracked.filter((entry) => entry.completedAt && new Date(entry.completedAt).getTime() >= todaySince).map((entry) => entry.champion),
 			},
 		},
-		upcoming: roster.slice(progress.index + 1, progress.index + 1 + UPCOMING_COUNT),
+		// Skip champions already won out of order.
+		upcoming: roster
+			.slice(progress.index + 1)
+			.filter((champion) => !progress.doneIds.has(champion.id))
+			.slice(0, UPCOMING_COUNT),
 		lastCompleted,
 		recentCompleted: tracked.slice(-RECENT_COMPLETED_COUNT).reverse(),
 		letters: progress.letters,

@@ -12,7 +12,7 @@ import { REACTION_MS, demoAzReactions, detectAzReactions, type AzReaction, type 
 export type { AzReactionDemo } from "./az-reactions";
 export type AzOverlayMode = "auto" | "full" | "compact";
 
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 10_000;
 const LAYOUT_SWITCH_MS = 420;
 const MAX_QUEUED_REACTIONS = 6;
 
@@ -51,7 +51,9 @@ export function TlgFabiAzOverlay({
 }) {
 	const [data, setData] = useState(initial);
 	const [scene, setScene] = useState<SceneId>("hunt");
-	const [leaving, setLeaving] = useState(false);
+	// Key of the scene that is playing its exit animation. Tied to a key (not a
+	// boolean) so a new scene or reaction can never inherit a stuck "leaving" state.
+	const [leavingKey, setLeavingKey] = useState<string | null>(null);
 	const [reactions, setReactions] = useState<AzReaction[]>(() => (demo && initial ? demoAzReactions(initial, demo) : []));
 	const previous = useRef(initial);
 
@@ -85,34 +87,41 @@ export function TlgFabiAzOverlay({
 	}, [endpoint, initial]);
 
 	const hasLast = Boolean(data?.lastCompleted);
+	const hasLastRef = useRef(hasLast);
+	useEffect(() => {
+		hasLastRef.current = hasLast;
+	}, [hasLast]);
 	const activeReaction = reactions[0] ?? null;
 	const activeKey = activeReaction ? activeReaction.id : scene;
 	const activeMs = activeReaction ? REACTION_MS[activeReaction.kind] : SCENE_MS[scene];
 	const reactionActive = activeReaction !== null;
+	const leaving = leavingKey === activeKey;
 
 	// Scene rotation; reactions interrupt it and hand back to the hunt scene.
+	// Only a new active key restarts the timers, so data polls never cut a
+	// running exit animation short.
 	useEffect(() => {
 		let leaveTimer: number | undefined;
 		const showTimer = window.setTimeout(() => {
-			setLeaving(true);
+			setLeavingKey(activeKey);
 			leaveTimer = window.setTimeout(() => {
 				if (reactionActive) {
 					setReactions((queue) => queue.slice(1));
 					setScene("hunt");
 				} else {
 					setScene((current) => {
-						const order = rotation(hasLast);
+						const order = rotation(hasLastRef.current);
 						return order[(order.indexOf(current) + 1) % order.length] ?? "hunt";
 					});
 				}
-				setLeaving(false);
+				setLeavingKey(null);
 			}, LEAVE_MS);
 		}, activeMs);
 		return () => {
 			window.clearTimeout(showTimer);
 			if (leaveTimer) window.clearTimeout(leaveTimer);
 		};
-	}, [activeKey, activeMs, reactionActive, hasLast]);
+	}, [activeKey, activeMs, reactionActive]);
 
 	// Layout: compact while a counted game runs, full between games and for reactions.
 	const wantedLayout: "full" | "compact" =

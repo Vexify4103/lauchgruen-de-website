@@ -36,7 +36,8 @@ export function AzCompactBar({ data }: { data: AzChallengeSnapshot }) {
 			</>
 		);
 		title = live.champion.name;
-		sub = live.tryNumber ? `Zählt für später: ${live.champion.name} Versuch #${live.tryNumber}` : `Ziel bleibt ${target?.name ?? "–"}`;
+		// Any win counts, so an off-pick win also ticks that champion off.
+		sub = live.tryNumber ? `Zählt mit: ${live.champion.name} Versuch #${live.tryNumber} · Sieg hakt ab` : `${live.champion.name} schon geschafft`;
 	}
 
 	return (

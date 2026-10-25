@@ -75,6 +75,9 @@ TLGFABI_AZ_START_AT=2026-10-15T00:00:00Z
 TLGFABI_AZ_QUEUE_IDS=420
 # Comma-separated champion names that count as done without a tracked win
 TLGFABI_AZ_MANUAL_DONE=
+# Comma-separated match ids played outside the challenge. Setting this
+# replaces the built-in list (currently EUW1_8017912568, Viktor on 18.10).
+TLGFABI_AZ_EXCLUDE_MATCHES=
 ```
 
 ## Docker
