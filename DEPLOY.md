@@ -53,16 +53,26 @@ N4CHT4R4_OBS_ALT_RIOT_PUUIDS=
 
 The two lists must use the same order when PUUIDs are supplied.
 
-## TLG Fabi A-Z challenge overlay
+## A-Z challenge overlays
 
-OBS browser source: `https://lauchgruen.de/obs/tlgfabi` (size 720 x 300 on a
-1080p canvas; add `?scale=0.8` to shrink, `?test` to keep it visible offline).
-While a counted game runs it shrinks to a compact bar (`?mode=full` or
-`?mode=compact` pins one layout). Test helpers: `?test&ingame` (live game on the
-target), `?test&ingame=Viktor` (off-pick), `?test&demo=win|loss|letter|milestone|streak|all`.
-Only wins on the current alphabetical target champion advance the challenge.
-Progress is rebuilt from Riot match history and cached in the MongoDB
-collections `az_challenge_matches` and `az_challenge_state`.
+| Streamer | OBS browser source | Theme |
+| --- | --- | --- |
+| TLG Fabi | `https://lauchgruen.de/obs/tlgfabi` | gold |
+| Spaceffs | `https://lauchgruen.de/obs/spaceffs` | ice |
+
+Size 720 x 300 on a 1080p canvas; add `?scale=0.8` to shrink, `?test` to keep
+it visible offline, `?theme=gold|ice` to switch colors. While a counted game
+runs it shrinks to a compact bar (`?mode=full` or `?mode=compact` pins one
+layout). Test helpers: `?test&ingame` (live game on the target),
+`?test&ingame=Viktor` (off-pick), `?test&demo=win|loss|letter|milestone|streak|all`.
+Per champion, games count until its first win; a win completes the champion in
+any order, and the target is the first champion A-Z without a win. Progress is
+rebuilt from Riot match history and cached in the MongoDB collections
+`az_challenge_matches` and `az_challenge_state`. Defaults per streamer live in
+`AZ_CHALLENGES` (`src/lib/az-challenge.ts`).
+
+Spaceffs uses `RIOT_API_KEY_OBS_SPACEFFS` and the same `SPACEFFS_*` overrides
+as below (default start `2026-10-25T00:00:00+02:00`).
 
 ```txt
 RIOT_API_KEY_OBS_TLGFABI=

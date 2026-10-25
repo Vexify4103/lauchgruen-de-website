@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { demoAzReactions, detectAzReactions } from "../src/components/obs/tlgfabi/az-reactions.ts";
+import { demoAzReactions, detectAzReactions } from "../src/components/obs/az-challenge/az-reactions.ts";
 
 const champ = (id, name) => ({ id, name, letter: name.charAt(0), iconUrl: "", splashUrl: "" });
 const amumu = champ(32, "Amumu");

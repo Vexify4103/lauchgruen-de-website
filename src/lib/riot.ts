@@ -29,7 +29,8 @@ export type RiotApiCredential =
 	| "obs_hippokrate"
 	| "obs_n4cht4r4"
 	| "obs_nachtdienst"
-	| "obs_tlgfabi";
+	| "obs_tlgfabi"
+	| "obs_spaceffs";
 
 export type ObsRiotCredential = Exclude<RiotApiCredential, "tournament">;
 
@@ -41,6 +42,7 @@ export const OBS_RIOT_CREDENTIALS = {
 	n4cht4r4: "obs_n4cht4r4",
 	nachtdienst: "obs_nachtdienst",
 	tlgfabi: "obs_tlgfabi",
+	spaceffs: "obs_spaceffs",
 } as const satisfies Record<string, ObsRiotCredential>;
 
 export type ObsOverlayName = keyof typeof OBS_RIOT_CREDENTIALS;
@@ -224,6 +226,7 @@ const RIOT_API_KEY_ENV_NAMES = {
 	obs_n4cht4r4: "RIOT_API_KEY_OBS_N4CHT4R4",
 	obs_nachtdienst: "RIOT_API_KEY_OBS_NACHTDIENST",
 	obs_tlgfabi: "RIOT_API_KEY_OBS_TLGFABI",
+	obs_spaceffs: "RIOT_API_KEY_OBS_SPACEFFS",
 } as const satisfies Record<RiotApiCredential, string>;
 
 function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> {
@@ -236,6 +239,7 @@ function configuredRiotApiKeys(): Record<RiotApiCredential, string | undefined> 
 		obs_n4cht4r4: process.env.RIOT_API_KEY_OBS_N4CHT4R4,
 		obs_nachtdienst: process.env.RIOT_API_KEY_OBS_NACHTDIENST,
 		obs_tlgfabi: process.env.RIOT_API_KEY_OBS_TLGFABI,
+		obs_spaceffs: process.env.RIOT_API_KEY_OBS_SPACEFFS,
 	};
 }
 

@@ -6,7 +6,7 @@ import { AzCompactBar } from "./AzCompactBar";
 import { AlphabetBar } from "./AzPieces";
 import { ReactionScene } from "./AzReactionScenes";
 import { AlphabetScene, Header, HuntScene, LastScene, NumbersScene, RoadScene } from "./AzScenes";
-import { LEAVE_MS, OVERLAY_CSS } from "./az-overlay-css";
+import { LEAVE_MS, OVERLAY_CSS, type AzTheme } from "./az-overlay-css";
 import { REACTION_MS, demoAzReactions, detectAzReactions, type AzReaction, type AzReactionDemo } from "./az-reactions";
 
 export type { AzReactionDemo } from "./az-reactions";
@@ -32,11 +32,12 @@ function rotation(hasLast: boolean): SceneId[] {
 	return hasLast ? ROTATION : ROTATION.filter((scene) => scene !== "last");
 }
 
-export function TlgFabiAzOverlay({
+export function AzChallengeOverlay({
 	initial,
 	endpoint,
 	forceVisible = false,
 	scale = 1,
+	theme = "gold",
 	mode = "auto",
 	demo,
 }: {
@@ -44,6 +45,7 @@ export function TlgFabiAzOverlay({
 	endpoint: string;
 	forceVisible?: boolean;
 	scale?: number;
+	theme?: AzTheme;
 	/** auto: compact while a counted game runs, full otherwise. */
 	mode?: AzOverlayMode;
 	/** Test helper: play sample reactions on load. */
@@ -149,7 +151,7 @@ export function TlgFabiAzOverlay({
 	const compact = shownLayout === "compact";
 
 	return (
-		<div className={`azf-root ${compact ? "is-compact" : ""}`} style={{ transform: scale !== 1 ? `scale(${scale})` : undefined }}>
+		<div className={`azf-root theme-${theme} ${compact ? "is-compact" : ""}`} style={{ transform: scale !== 1 ? `scale(${scale})` : undefined }}>
 			{compact ? (
 				<div key="compact" className={layoutLeaving ? "azf-layout-leave" : undefined}>
 					<AzCompactBar data={data} />

@@ -99,7 +99,7 @@ type StreamerRiotAccountConfig = {
 };
 
 type StreamerConfig = {
-	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "tlgfabi";
+	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "tlgfabi" | "spaceffs";
 	displayName: string;
 	twitchLogin: string;
 	riotGameName: string;
@@ -176,6 +176,14 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		riotGameName: process.env.TLGFABI_OBS_RIOT_GAME_NAME?.trim() || "TLG Fabi",
 		riotTagLine: process.env.TLGFABI_OBS_RIOT_TAG_LINE?.trim() || "7466",
 		// The A-Z overlay switches to a compact bar in game, so check often.
+		liveCheckMs: 25_000,
+	},
+	spaceffs: {
+		slug: "spaceffs",
+		displayName: "Spaceffs",
+		twitchLogin: process.env.SPACEFFS_OBS_TWITCH_LOGIN?.trim() || "space_ffs",
+		riotGameName: process.env.SPACEFFS_OBS_RIOT_GAME_NAME?.trim() || "TwTv Spaceffs",
+		riotTagLine: process.env.SPACEFFS_OBS_RIOT_TAG_LINE?.trim() || "ExG",
 		liveCheckMs: 25_000,
 	},
 };

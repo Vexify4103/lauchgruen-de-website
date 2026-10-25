@@ -36,9 +36,31 @@ const MASTERY_CACHE_MS = 10 * 60_000;
 const UPCOMING_COUNT = 6;
 const RECENT_COMPLETED_COUNT = 8;
 const ATTEMPT_HISTORY_COUNT = 10;
-const DEFAULT_START_AT = "2026-10-15T00:00:00Z";
+export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi" | "spaceffs">;
 
-export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi">;
+/**
+ * Streamers running the A-Z challenge. Every value can be overridden with
+ * `<SLUG>_AZ_START_AT`, `_AZ_QUEUE_IDS`, `_AZ_MANUAL_DONE` and `_AZ_EXCLUDE_MATCHES`.
+ */
+export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "gold" | "ice"; excludedMatchIds: string[] }> = {
+	tlgfabi: {
+		startAt: "2026-10-15T00:00:00Z",
+		theme: "gold",
+		// Games Fabi marked as "not challenge" in his tracking sheet:
+		// Viktor win on 2026-10-18.
+		excludedMatchIds: ["EUW1_8017912568"],
+	},
+	spaceffs: {
+		// Started on 25.10 (Berlin midnight, still summer time that night).
+		startAt: "2026-10-25T00:00:00+02:00",
+		theme: "ice",
+		excludedMatchIds: [],
+	},
+};
+
+export function isAzChallengeSlug(value: string): value is AzChallengeSlug {
+	return Object.hasOwn(AZ_CHALLENGES, value);
+}
 
 type AzChallengeConfig = {
 	slug: AzChallengeSlug;
@@ -48,12 +70,6 @@ type AzChallengeConfig = {
 	manualDone: string[];
 	/** Match ids played outside the challenge (like "Counts: No" in Fabi's sheet). */
 	excludedMatchIds: string[];
-};
-
-/** Games Fabi marked as "not challenge" in his tracking sheet. */
-const DEFAULT_EXCLUDED_MATCH_IDS: Record<AzChallengeSlug, string[]> = {
-	// Viktor win on 2026-10-18, played outside the challenge.
-	tlgfabi: ["EUW1_8017912568"],
 };
 
 function envList(name: string): string[] {
@@ -68,16 +84,17 @@ function challengeConfig(slug: AzChallengeSlug): AzChallengeConfig {
 	const queueIds = envList(`${prefix}_AZ_QUEUE_IDS`)
 		.map(Number)
 		.filter((value) => Number.isInteger(value) && value > 0);
-	const rawStart = process.env[`${prefix}_AZ_START_AT`]?.trim() || DEFAULT_START_AT;
-	const startDate = new Date(rawStart);
+	const defaults = AZ_CHALLENGES[slug];
+	const defaultStart = new Date(defaults.startAt).toISOString();
+	const startDate = new Date(process.env[`${prefix}_AZ_START_AT`]?.trim() || defaults.startAt);
 	return {
 		slug,
-		startAt: Number.isNaN(startDate.getTime()) ? DEFAULT_START_AT : startDate.toISOString(),
+		startAt: Number.isNaN(startDate.getTime()) ? defaultStart : startDate.toISOString(),
 		// Default: Ranked Solo/Duo, the queue the challenge runs in.
 		queueIds: queueIds.length ? queueIds : [420],
 		manualDone: envList(`${prefix}_AZ_MANUAL_DONE`),
 		// The env list replaces the defaults when set.
-		excludedMatchIds: process.env[`${prefix}_AZ_EXCLUDE_MATCHES`] !== undefined ? envList(`${prefix}_AZ_EXCLUDE_MATCHES`) : DEFAULT_EXCLUDED_MATCH_IDS[slug],
+		excludedMatchIds: process.env[`${prefix}_AZ_EXCLUDE_MATCHES`] !== undefined ? envList(`${prefix}_AZ_EXCLUDE_MATCHES`) : defaults.excludedMatchIds,
 	};
 }
 
