@@ -72,7 +72,9 @@ rebuilt from Riot match history and cached in the MongoDB collections
 `AZ_CHALLENGES` (`src/lib/az-challenge.ts`).
 
 Spaceffs uses `RIOT_API_KEY_OBS_SPACEFFS` and the same `SPACEFFS_*` overrides
-as below (default start `2026-10-25T19:00:00+01:00`).
+as below (default start `2026-10-25T19:00:00+01:00`). His Solo/Duo games count
+until `2026-10-27T00:00:00+01:00`; after that only Ranked Flex counts (`queues`
+in `AZ_CHALLENGES`). Setting `SPACEFFS_AZ_QUEUE_IDS` replaces that split.
 
 ```txt
 RIOT_API_KEY_OBS_TLGFABI=

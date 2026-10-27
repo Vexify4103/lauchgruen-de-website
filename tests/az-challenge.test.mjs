@@ -130,6 +130,25 @@ test("excluded matches (played outside the challenge) are ignored", () => {
 	assert.equal(progress.stats.games, 1);
 });
 
+test("queue windows: Solo/Duo counts until the switch, then only Flex", () => {
+	minute = 0;
+	const switchAt = "2026-10-15T14:00:00.000Z";
+	const queues = [
+		{ id: 420, until: switchAt },
+		{ id: 440, from: switchAt },
+	];
+	const docs = [
+		game("Aatrox", true), // 12:40 Solo/Duo, before the switch: counts
+		game("Ahri", false, { queueId: 440 }), // 13:20 Flex before the switch: ignored
+		game("Ahri", false, { queueId: 420, endedAt: "2026-10-15T15:00:00.000Z" }), // Solo/Duo after: ignored
+		game("Ahri", true, { queueId: 440, endedAt: "2026-10-15T16:00:00.000Z" }), // Flex after: counts
+	];
+	const progress = computeAzProgress(roster, docs, { ...config, queueIds: [420, 440], queues });
+	assert.equal(progress.doneCount, 2);
+	assert.equal(progress.completed.find((entry) => entry.champion.name === "Ahri").tries, 1);
+	assert.equal(progress.stats.games, 2);
+});
+
 test("games under five minutes count as remakes", () => {
 	minute = 0;
 	const progress = computeAzProgress(roster, [game("Aatrox", true, { durationSeconds: 120 }), game("Aatrox", false)], config);

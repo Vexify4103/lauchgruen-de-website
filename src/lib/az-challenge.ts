@@ -42,7 +42,7 @@ export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi" | "spaceffs">;
  * Streamers running the A-Z challenge. Every value can be overridden with
  * `<SLUG>_AZ_START_AT`, `_AZ_QUEUE_IDS`, `_AZ_MANUAL_DONE` and `_AZ_EXCLUDE_MATCHES`.
  */
-export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "gold" | "ice"; excludedMatchIds: string[] }> = {
+export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "gold" | "ice"; excludedMatchIds: string[]; queues?: AzQueueWindow[] }> = {
 	tlgfabi: {
 		startAt: "2026-10-15T00:00:00Z",
 		theme: "gold",
@@ -56,8 +56,27 @@ export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "g
 		startAt: "2026-10-25T19:00:00+01:00",
 		theme: "ice",
 		excludedMatchIds: [],
+		// Moved to Flex to protect his Solo/Duo rank. Solo/Duo games up to the
+		// switch still count; from 27.10 only Flex counts.
+		queues: [
+			{ id: 420, until: "2026-10-27T00:00:00+01:00" },
+			{ id: 440, from: "2026-10-27T00:00:00+01:00" },
+		],
 	},
 };
+
+/** A queue that counts for the challenge, optionally only inside a time window (game end time). */
+export type AzQueueWindow = { id: number; from?: string; until?: string };
+
+/** True when a game in `queueId` that ended at `atMs` counts for the challenge. */
+export function azQueueCounts(queues: AzQueueWindow[], queueId: number, atMs: number): boolean {
+	return queues.some(
+		(queue) =>
+			queue.id === queueId &&
+			(!queue.from || atMs >= new Date(queue.from).getTime()) &&
+			(!queue.until || atMs < new Date(queue.until).getTime())
+	);
+}
 
 export function isAzChallengeSlug(value: string): value is AzChallengeSlug {
 	return Object.hasOwn(AZ_CHALLENGES, value);
@@ -66,7 +85,10 @@ export function isAzChallengeSlug(value: string): value is AzChallengeSlug {
 type AzChallengeConfig = {
 	slug: AzChallengeSlug;
 	startAt: string;
+	/** Every queue id that can count (used to fetch match history). */
 	queueIds: number[];
+	/** Which queues count when. Defaults to `queueIds` without time limits. */
+	queues: AzQueueWindow[];
 	/** Champion names or numeric ids that count as done without a tracked win. */
 	manualDone: string[];
 	/** Match ids played outside the challenge (like "Counts: No" in Fabi's sheet). */
@@ -88,11 +110,14 @@ function challengeConfig(slug: AzChallengeSlug): AzChallengeConfig {
 	const defaults = AZ_CHALLENGES[slug];
 	const defaultStart = new Date(defaults.startAt).toISOString();
 	const startDate = new Date(process.env[`${prefix}_AZ_START_AT`]?.trim() || defaults.startAt);
+	// `<SLUG>_AZ_QUEUE_IDS` replaces the configured queues (without time windows).
+	// Default: Ranked Solo/Duo, the queue the challenge runs in.
+	const queues: AzQueueWindow[] = queueIds.length ? queueIds.map((id) => ({ id })) : (defaults.queues ?? [{ id: 420 }]);
 	return {
 		slug,
 		startAt: Number.isNaN(startDate.getTime()) ? defaultStart : startDate.toISOString(),
-		// Default: Ranked Solo/Duo, the queue the challenge runs in.
-		queueIds: queueIds.length ? queueIds : [420],
+		queueIds: [...new Set(queues.map((queue) => queue.id))],
+		queues,
 		manualDone: envList(`${prefix}_AZ_MANUAL_DONE`),
 		// The env list replaces the defaults when set.
 		excludedMatchIds: process.env[`${prefix}_AZ_EXCLUDE_MATCHES`] !== undefined ? envList(`${prefix}_AZ_EXCLUDE_MATCHES`) : defaults.excludedMatchIds,
@@ -305,19 +330,21 @@ function matchNumber(matchId: string): number {
 }
 
 async function listChallengeMatchIds(puuid: string, routing: RiotRoute, config: AzChallengeConfig, startTime: number): Promise<string[]> {
-	const queue = config.queueIds.length === 1 ? config.queueIds[0] : undefined;
-	const ids: string[] = [];
-	for (let page = 0; page < MAX_MATCH_ID_PAGES; page += 1) {
-		const batch = await getMatchIdsByPuuidForRoute(puuid, routing, {
-			start: page * MATCH_ID_PAGE_SIZE,
-			count: MATCH_ID_PAGE_SIZE,
-			startTime,
-			...(queue ? { queue } : {}),
-		});
-		ids.push(...batch);
-		if (batch.length < MATCH_ID_PAGE_SIZE) break;
+	// One listing per counted queue, so Arena/ARAM games are never downloaded.
+	const ids = new Set<string>();
+	for (const queue of config.queueIds) {
+		for (let page = 0; page < MAX_MATCH_ID_PAGES; page += 1) {
+			const batch = await getMatchIdsByPuuidForRoute(puuid, routing, {
+				start: page * MATCH_ID_PAGE_SIZE,
+				count: MATCH_ID_PAGE_SIZE,
+				startTime,
+				queue,
+			});
+			batch.forEach((id) => ids.add(id));
+			if (batch.length < MATCH_ID_PAGE_SIZE) break;
+		}
 	}
-	return ids;
+	return [...ids];
 }
 
 function toMatchDoc(slug: AzChallengeSlug, puuid: string, match: Awaited<ReturnType<typeof getMatchByIdForRoute>>): AzMatchDoc | null {
@@ -445,14 +472,18 @@ function normalizeName(value: string) {
 export function computeAzProgress(
 	roster: AzChampion[],
 	docs: AzMatchDoc[],
-	config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt"> & Partial<Pick<AzChallengeConfig, "excludedMatchIds">>
+	config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt"> & Partial<Pick<AzChallengeConfig, "excludedMatchIds" | "queues">>
 ) {
 	const excluded = new Set(config.excludedMatchIds ?? []);
+	const queues = config.queues ?? config.queueIds.map((id) => ({ id }));
 	const manual = new Set(config.manualDone.map(normalizeName));
 	const isManual = (champion: AzChampion) => manual.has(normalizeName(champion.name)) || manual.has(String(champion.id));
 	const startMs = new Date(config.startAt).getTime();
 	const games = docs
-		.filter((doc) => !isAzRemake(doc) && !excluded.has(doc.matchId) && config.queueIds.includes(doc.queueId) && new Date(doc.endedAt).getTime() >= startMs)
+		.filter((doc) => {
+			const endedMs = new Date(doc.endedAt).getTime();
+			return !isAzRemake(doc) && !excluded.has(doc.matchId) && endedMs >= startMs && azQueueCounts(queues, doc.queueId, endedMs);
+		})
 		.sort((a, b) => new Date(a.endedAt).getTime() - new Date(b.endedAt).getTime());
 
 	// Same rule as Fabi's tracking sheet: per champion, games count in date order
@@ -594,7 +625,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	const lastCompleted = tracked.at(-1) ?? null;
 	const startMs = new Date(config.startAt).getTime();
 	const liveQueueId = stream?.liveQueueId ?? null;
-	const challengeGameLive = Boolean(stream?.leagueLive && liveQueueId !== null && config.queueIds.includes(liveQueueId));
+	const challengeGameLive = Boolean(stream?.leagueLive && liveQueueId !== null && azQueueCounts(config.queues, liveQueueId, Date.now()));
 	const now = Date.now();
 
 	// Live game: which champion and which try it counts as.
