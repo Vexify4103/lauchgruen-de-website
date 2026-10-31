@@ -162,7 +162,7 @@ export function NicknameSyncButton() {
 					type="button"
 					onClick={syncNicknames}
 					disabled={busy}
-					className="rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-amber-100 transition hover:border-amber-200/50 hover:text-amber-50 disabled:opacity-60"
+					className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] hover:text-[var(--amber)] disabled:opacity-60"
 				>
 					{busy ? "Prüfung läuft…" : "Nicknames prüfen & reparieren"}
 				</button>
@@ -170,7 +170,7 @@ export function NicknameSyncButton() {
 					type="button"
 					onClick={() => setPendingReset(true)}
 					disabled={busy}
-					className="rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-100 transition hover:border-red-300/40 hover:text-red-100 disabled:opacity-60"
+					className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--text)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-60"
 				>
 					Nicknames entfernen
 				</button>
@@ -179,10 +179,10 @@ export function NicknameSyncButton() {
 				<div
 					className={`rounded-xl border px-3 py-2 text-xs ${
 						state.status === "success"
-							? "border-lime-200/24 bg-lime-200/10 text-lime-50"
+							? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
 							: state.status === "error"
-								? "border-red-300/30 bg-red-500/10 text-red-100"
-								: "border-amber-200/24 bg-amber-200/10 text-amber-50"
+								? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
+								: "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]"
 					}`}
 				>
 					{state.message}
@@ -192,17 +192,17 @@ export function NicknameSyncButton() {
 				<div
 					className={`rounded-xl border px-3 py-2 text-xs ${
 						job.status === "failed"
-							? "border-red-300/30 bg-red-500/10 text-red-100"
+							? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 							: job.status === "completed"
-								? "border-lime-200/24 bg-lime-200/10 text-lime-50"
-								: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
+								? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+								: "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]"
 					}`}
 				>
-					<span className="font-black">{job.title}</span>
+					<span className="font-semibold">{job.title}</span>
 					<span className="ml-2 tabular-nums">
 						{job.completed}/{job.total || "?"}
 					</span>
-					{job.current ? <span className="ml-2 text-white/60">{job.current}</span> : null}
+					{job.current ? <span className="ml-2 text-[var(--muted)]">{job.current}</span> : null}
 				</div>
 			) : null}
 		</div>

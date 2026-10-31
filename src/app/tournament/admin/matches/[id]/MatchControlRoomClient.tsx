@@ -269,14 +269,14 @@ export function MatchControlRoomClient({
 		<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_23rem]">
 			<section className="grid content-start gap-5">
 				{parallelMatches.length > 0 ? (
-					<div className="rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.06] p-4">
-						<div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/58">Läuft parallel</div>
+					<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
+						<div className="text-xs font-semibold text-[var(--muted)]">Läuft parallel</div>
 						<div className="mt-3 grid gap-2 sm:grid-cols-2">
 							{parallelMatches.map((parallel) => (
 								<Link
 									key={parallel.id}
 									href={`/tournament/admin/matches/${parallel.id}`}
-									className="rounded-xl border border-white/10 bg-black/18 px-4 py-3 text-sm font-black text-emerald-50 transition hover:border-cyan-200/30"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)]"
 								>
 									{parallel.teamALabel} vs {parallel.teamBLabel}
 								</Link>
@@ -287,28 +287,28 @@ export function MatchControlRoomClient({
 				<div className="admin-panel !mb-0">
 					<div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
 						<div className="min-w-0">
-							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">
+							<div className="text-xs font-semibold text-[var(--muted)]">
 								{ultimateBravery ? "Ultimate Bravery" : match.phase === "groups" ? "Tag 1" : match.phase === "play-in" ? "Play-in" : "Playoffs"} · {match.id}
 								{match.bestOf > 1 ? ` · Bo${match.bestOf}` : ""}
 							</div>
-							<h2 className="mt-2 text-balance break-words font-display text-3xl font-bold tracking-tight text-emerald-50 sm:text-4xl">
+							<h2 className="mt-2 text-balance break-words font-display text-3xl font-medium tracking-tight text-[var(--text)] sm:text-4xl">
 								{match.teamALabel} vs {match.teamBLabel}
 							</h2>
-							<p className="mt-3 text-sm font-bold text-emerald-100/54">
+							<p className="mt-3 text-sm font-medium text-[var(--muted)]">
 								{match.round} · {match.time}
 							</p>
 						</div>
 						<div className="flex w-full flex-wrap gap-2 2xl:w-auto 2xl:shrink-0 2xl:justify-end">
 							<Link
 								href={ultimateBravery ? `/tournament/matches/${match.id}` : `/tournament/champ-select/${match.id}`}
-								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-lime-50 transition hover:border-lime-200/48 md:flex-none"
+								className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-4 py-3 text-xs font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] md:flex-none"
 							>
 								{ultimateBravery ? "Spieleransicht" : "Draft steuern"}
 							</Link>
 							{draftEnabled && !ultimateBravery ? (
 								<Link
 									href={`/tournament/champ-select/${match.id}/spectate`}
-									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-sky-200/16 bg-sky-300/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-100 transition hover:border-sky-200/34 md:flex-none"
+									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] md:flex-none"
 								>
 									Zuschaueransicht
 								</Link>
@@ -318,7 +318,7 @@ export function MatchControlRoomClient({
 									type="button"
 									onClick={() => setResetDraftConfirmOpen(true)}
 									disabled={isPending}
-									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-red-200/18 bg-red-500/[0.07] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/76 transition hover:border-red-200/36 hover:text-red-50 disabled:opacity-50 md:flex-none"
+									className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[12px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-4 py-3 text-xs font-semibold text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-50 md:flex-none"
 								>
 									Draft zurücksetzen
 								</button>
@@ -333,8 +333,8 @@ export function MatchControlRoomClient({
 				</div>
 
 				{(poolFlow && match.poolAssignment) || flow === "fearless" ? (
-					<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
-						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">
+					<details className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
+						<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">
 							{flow === "fearless" ? "Gespielte Champions korrigieren (Fearless-Historie)" : "Gespielte Champions eintragen"}
 						</summary>
 						<div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -357,8 +357,8 @@ export function MatchControlRoomClient({
 				) : null}
 
 				{!ultimateBravery || status === "Scheduled" ? (
-					<details className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/18">
-						<summary className="cursor-pointer text-xs font-black uppercase tracking-[0.22em] text-lime-200/64">Match-Zusammenfassung und Draft</summary>
+					<details className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
+						<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">Match-Zusammenfassung und Draft</summary>
 						<div className="mt-4">
 							<DraftSummary match={match} draft={draft} sequence={draftSequence} teamAChampions={teamAChampions} teamBChampions={teamBChampions} embedded />
 						</div>
@@ -379,9 +379,9 @@ export function MatchControlRoomClient({
 				) : null}
 
 				{releaseFlow ? (
-					<div className="rounded-[1.6rem] border border-cyan-200/16 bg-cyan-300/[0.055] p-4 shadow-xl shadow-black/20">
-						<div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/58">Discord Match Call</div>
-						<p className="mt-2 text-xs leading-5 text-emerald-100/54">
+					<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
+						<div className="text-xs font-semibold text-[var(--muted)]">Discord Match Call</div>
+						<p className="mt-2 text-xs leading-5 text-[var(--muted)]">
 							{status === "Scheduled"
 								? ultimateBravery
 									? "Gibt die persönlichen Rolls frei und benachrichtigt beide Teamrollen in ihren privaten Textkanälen."
@@ -394,7 +394,7 @@ export function MatchControlRoomClient({
 							type="button"
 							onClick={() => prepareMatch(status === "Scheduled" ? "start" : "notify")}
 							disabled={isPending || (status === "Scheduled" ? !canPrepare : !canRetryNotifications)}
-							className="mt-4 w-full rounded-[1.2rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+							className="bg-[var(--accent)] mt-4 w-full rounded-[12px] px-5 py-4 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{isPending
 								? "Wird eingereiht…"
@@ -410,32 +410,32 @@ export function MatchControlRoomClient({
 						type="button"
 						onClick={() => prepareMatch("start")}
 						disabled={!canPrepare || isPending}
-						className="rounded-[1.4rem] bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+						className="bg-[var(--accent)] rounded-[12px] px-5 py-4 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{match.poolAssignment ? "Match vorbereitet" : "Match vorbereiten"}
 					</button>
 				)}
 
 				{poolFlow ? (
-					<div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-xl shadow-black/24">
-						<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">A-Z Pools</div>
+					<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-5">
+						<div className="text-xs font-semibold text-[var(--muted)]">A-Z Pools</div>
 						{match.poolAssignment ? (
 							<div className="mt-4 grid gap-3">
-								<div className="rounded-2xl border border-sky-200/16 bg-sky-300/8 p-3">
-									<div className="text-xs font-bold text-emerald-100/54">Blue Side</div>
-									<div className="mt-1 text-lg font-black text-sky-100">{blueSide === "teamA" ? match.teamALabel : match.teamBLabel}</div>
+								<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] p-3">
+									<div className="text-xs font-medium text-[var(--muted)]">Blue Side</div>
+									<div className="mt-1 text-lg font-semibold text-[var(--text)]">{blueSide === "teamA" ? match.teamALabel : match.teamBLabel}</div>
 								</div>
 								<PoolBadge label={match.poolAssignment.teamAName} pool={match.poolAssignment.teamAPool} />
 								<PoolBadge label={match.poolAssignment.teamBName} pool={match.poolAssignment.teamBPool} />
 							</div>
 						) : (
-							<p className="mt-3 text-sm leading-6 text-emerald-100/56">Noch keine Pools gezogen. Ziehe sie hier direkt für dieses Match.</p>
+							<p className="mt-3 text-sm leading-6 text-[var(--muted)]">Noch keine Pools gezogen. Ziehe sie hier direkt für dieses Match.</p>
 						)}
 						<button
 							type="button"
 							onClick={drawPools}
 							disabled={!canDraw || isPending}
-							className="mt-4 w-full rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+							className="bg-[var(--accent)] mt-4 w-full rounded-[12px] px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{match.poolAssignment ? "Pools vorhanden" : "Pools ziehen"}
 						</button>
@@ -448,14 +448,14 @@ export function MatchControlRoomClient({
 
 				<form
 					onSubmit={saveMatch}
-					className="order-first rounded-[1.6rem] border border-lime-200/16 bg-gradient-to-br from-lime-200/[0.075] via-white/[0.045] to-cyan-300/[0.04] p-4 shadow-xl shadow-black/24"
+					className="order-first rounded-[16px] border border-[var(--line-strong)] p-4"
 				>
 					<div className="flex items-center justify-between gap-3">
 						<div>
-							<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Matchsteuerung</div>
-							<div className="mt-1 text-lg font-black text-emerald-50">{match.bestOf > 1 ? `Serienstand (Bo${match.bestOf})` : "Ergebnis eintragen"}</div>
+							<div className="text-xs font-semibold text-[var(--muted)]">Matchsteuerung</div>
+							<div className="mt-1 text-lg font-semibold text-[var(--text)]">{match.bestOf > 1 ? `Serienstand (Bo${match.bestOf})` : "Ergebnis eintragen"}</div>
 						</div>
-						<span className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/48">
+						<span className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]">
 							{status}
 						</span>
 					</div>
@@ -473,16 +473,16 @@ export function MatchControlRoomClient({
 							disabled={match.games.length > 0}
 						/>
 						{match.bestOf > 1 ? (
-							<p className="col-span-2 text-[11px] leading-5 text-emerald-100/50">
+							<p className="col-span-2 text-xs leading-5 text-[var(--muted)]">
 								{match.games.length
 									? "Der Serienstand kommt aus den erfassten Spielen oben."
 									: `Erfasse die Spiele oben einzeln, oder trage hier direkt das Endergebnis ein (zum Beispiel ${Math.floor(match.bestOf / 2) + 1}:${Math.floor(match.bestOf / 2)}).`}
 							</p>
 						) : null}
 						<label
-							className={`col-span-2 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5 ${match.bestOf > 1 ? "hidden" : ""}`}
+							className={`col-span-2 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-2.5 ${match.bestOf > 1 ? "hidden" : ""}`}
 						>
-							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Spielzeit</span>
+							<span className="text-xs font-semibold text-[var(--muted)]">Spielzeit</span>
 							<input
 								name="game-duration"
 								autoComplete="off"
@@ -491,28 +491,28 @@ export function MatchControlRoomClient({
 								inputMode="numeric"
 								placeholder="mm:ss…"
 								pattern="\d{1,3}:[0-5]\d"
-								className="w-full rounded-lg border border-white/10 bg-black/24 px-2 py-2 text-center text-sm font-black text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+								className="w-full rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2 py-2 text-center text-sm font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 							/>
 						</label>
 					</div>
 					<div className="mt-3 grid grid-cols-2 gap-2">
 						{match.sideSelectionTeamName ? (
-							<div className="col-span-2 rounded-xl border border-lime-200/24 bg-lime-200/10 px-3 py-2.5">
-								<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-100/64">
+							<div className="col-span-2 rounded-xl border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-2.5">
+								<div className="text-xs font-semibold text-[var(--muted)]">
 									Seitenwahl{match.bestOf > 1 ? ` · Spiel ${match.games.length + 1}` : ""}
 								</div>
-								<div className="mt-1 text-sm font-black text-lime-50">
+								<div className="mt-1 text-sm font-semibold text-[var(--accent)]">
 									{match.sideSelectionTeamName}
 									{match.sideSelectionSeed ? ` (Seed #${match.sideSelectionSeed})` : ""} entscheidet über Blue oder Red Side.
 								</div>
 							</div>
 						) : null}
 						<div className="grid gap-1.5">
-							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Status (automatisch)</span>
-							<div className="flex min-h-11 items-center rounded-xl border border-white/10 bg-black/24 px-3 text-sm font-black text-emerald-100/72">{status}</div>
+							<span className="text-xs font-semibold text-[var(--muted)]">Status (automatisch)</span>
+							<div className="flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 text-sm font-semibold text-[var(--muted)]">{status}</div>
 						</div>
 						<label className="grid gap-1.5">
-							<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Blue Side</span>
+							<span className="text-xs font-semibold text-[var(--muted)]">Blue Side</span>
 							<ThemedSelect
 								name="blueSide"
 								value={blueSide}
@@ -523,14 +523,14 @@ export function MatchControlRoomClient({
 								]}
 							/>
 						</label>
-						<label className="col-span-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/16 p-3 transition hover:border-cyan-200/24">
+						<label className="col-span-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 transition hover:border-[var(--line-strong)]">
 							<span>
-								<span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/62">Live gecastet</span>
-								<span className="mt-1 block text-xs font-bold leading-5 text-emerald-100/54">Zeigt dieses Match im Zeitplan als Cast-Match an.</span>
+								<span className="block text-xs font-semibold text-[var(--muted)]">Live gecastet</span>
+								<span className="mt-1 block text-xs font-medium leading-5 text-[var(--muted)]">Zeigt dieses Match im Zeitplan als Cast-Match an.</span>
 							</span>
-							<span className="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-white/10 bg-black/30 p-1">
+							<span className="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-[var(--line)] bg-[var(--admin-inset)] p-1">
 								<input type="checkbox" name="is-casted" checked={isCasted} onChange={(event) => setIsCasted(event.target.checked)} className="peer sr-only" />
-								<span className="h-5 w-5 rounded-full bg-emerald-100/42 transition peer-focus-visible:ring-2 peer-focus-visible:ring-cyan-200 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-black peer-checked:translate-x-5 peer-checked:bg-cyan-200 peer-checked:shadow-lg peer-checked:shadow-cyan-300/30" />
+								<span className="h-5 w-5 rounded-full bg-[var(--admin-step)] transition peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--admin-bg)] peer-checked:translate-x-5 peer-checked:bg-[var(--muted)]" />
 							</span>
 						</label>
 					</div>
@@ -547,8 +547,8 @@ export function MatchControlRoomClient({
 							/>
 						</div>
 					)}
-					<details className="mt-3 rounded-xl border border-white/8 bg-black/14 p-3">
-						<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Admin-Notiz und Hinweise</summary>
+					<details className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+						<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">Admin-Notiz und Hinweise</summary>
 						<textarea
 							name="admin-note"
 							aria-label="Admin-Notiz"
@@ -557,7 +557,7 @@ export function MatchControlRoomClient({
 							onChange={(event) => setAdminNote(event.target.value)}
 							rows={2}
 							placeholder="Optional: Warum wurde das Ergebnis geändert?…"
-							className="mt-3 w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-sm font-bold text-emerald-50 outline-none transition placeholder:text-emerald-100/34 focus:border-lime-200/40"
+							className="mt-3 w-full rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm font-medium text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 						/>
 						<ProtectionWarnings
 							hasPools={Boolean(match.poolAssignment)}
@@ -570,20 +570,20 @@ export function MatchControlRoomClient({
 					<button
 						type="submit"
 						disabled={isPending}
-						className="mt-3 w-full rounded-xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-lg shadow-lime-300/10 transition hover:bg-lime-100 disabled:opacity-50"
+						className="mt-3 w-full rounded-xl bg-[var(--accent)] px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition hover:bg-[var(--accent)] disabled:opacity-50"
 					>
 						{isPending ? "Wird gespeichert…" : "Match speichern"}
 					</button>
 				</form>
 
 				{message ? (
-					<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					<div role="status" className="rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-4 py-3 text-sm font-medium text-[var(--accent)]">
 						{message}
 					</div>
 				) : null}
 
-				<details className="rounded-[1.4rem] border border-amber-200/14 bg-amber-200/[0.035] p-3">
-					<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/68">Notfall: Ersatzspieler</summary>
+				<details className="rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-3">
+					<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">Notfall: Ersatzspieler</summary>
 					<div className="mt-3">
 						<EmergencySubPanel match={match} roster={roster} version={rosterVersion} onVersionChange={setRosterVersion} onMessage={setMessage} embedded />
 					</div>
@@ -624,11 +624,11 @@ function ProtectionWarnings({
 	if (warnings.length === 0) return null;
 
 	return (
-		<div className="mt-4 rounded-2xl border border-amber-200/18 bg-amber-200/8 p-3">
-			<div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">Schutz-Hinweise</div>
+		<div className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-3">
+			<div className="text-xs font-semibold text-[var(--muted)]">Schutz-Hinweise</div>
 			<div className="mt-2 grid gap-2">
 				{warnings.map((warning) => (
-					<p key={warning} className="text-xs font-bold leading-5 text-amber-50/78">
+					<p key={warning} className="text-xs font-medium leading-5 text-[var(--muted)]">
 						{warning}
 					</p>
 				))}
@@ -659,9 +659,9 @@ function DraftSummary({
 
 	if (!hasContent) {
 		return (
-			<div className={embedded ? "" : "rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 shadow-xl shadow-black/20"}>
-				<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Match-Zusammenfassung</div>
-				<p className="mt-3 text-sm leading-6 text-emerald-100/52">
+			<div className={embedded ? "" : "rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5"}>
+				<div className="text-xs font-semibold text-[var(--muted)]">Match-Zusammenfassung</div>
+				<p className="mt-3 text-sm leading-6 text-[var(--muted)]">
 					Sobald Pools, Draft oder Score vorhanden sind, entsteht hier automatisch eine kompakte Zusammenfassung für Orga, Discord oder Stream.
 				</p>
 			</div>
@@ -669,15 +669,15 @@ function DraftSummary({
 	}
 
 	return (
-		<div className={embedded ? "" : "rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20"}>
+		<div className={embedded ? "" : "rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5"}>
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">Match-Zusammenfassung</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">
+					<div className="text-xs font-semibold text-[var(--muted)]">Match-Zusammenfassung</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">
 						{match.teamALabel} vs {match.teamBLabel}
 					</h2>
 				</div>
-				<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/58">
+				<span className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-1 text-xs font-semibold text-[var(--muted)]">
 					{complete ? "Draft abgeschlossen" : `Draft ${draft.actions.length}/${sequence.length}`}
 				</span>
 			</div>
@@ -685,13 +685,13 @@ function DraftSummary({
 			<div className="mt-4 grid gap-3 md:grid-cols-4">
 				<SummaryTile label="Score" value={match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA}:${match.scoreB}` : "Noch offen"} />
 				<SummaryTile label="Spielzeit" value={match.gameDurationSeconds !== undefined ? formatGameDuration(match.gameDurationSeconds) : "Noch offen"} />
-				<SummaryTile label="Bans" value={bans.length > 0 ? bans.map((action) => (action.skipped ? "Kein Ban" : action.champion)).join(", ") : "Noch keine"} />
-				<SummaryTile label="Picks" value={picks.length > 0 ? picks.map((action) => action.champion).join(", ") : "Noch keine"} />
+				<SummaryTile label="Bans" value={bans.length > 0 ? bans.map((action) => (action.skipped ? "Kein Ban" : action.champion)).join(",") : "Noch keine"} />
+				<SummaryTile label="Picks" value={picks.length > 0 ? picks.map((action) => action.champion).join(",") : "Noch keine"} />
 			</div>
 
 			<div className="mt-3 grid gap-3 md:grid-cols-2">
-				<SummaryTile label={`${match.teamALabel} gespielt`} value={teamAChampions.length > 0 ? teamAChampions.join(", ") : "Noch nicht eingetragen"} />
-				<SummaryTile label={`${match.teamBLabel} gespielt`} value={teamBChampions.length > 0 ? teamBChampions.join(", ") : "Noch nicht eingetragen"} />
+				<SummaryTile label={`${match.teamALabel} gespielt`} value={teamAChampions.length > 0 ? teamAChampions.join(",") : "Noch nicht eingetragen"} />
+				<SummaryTile label={`${match.teamBLabel} gespielt`} value={teamBChampions.length > 0 ? teamBChampions.join(",") : "Noch nicht eingetragen"} />
 			</div>
 		</div>
 	);
@@ -699,17 +699,17 @@ function DraftSummary({
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="rounded-2xl border border-white/8 bg-black/18 p-4">
-			<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-200/52">{label}</div>
-			<div className="mt-2 text-sm font-bold leading-6 text-emerald-100/78">{value}</div>
+		<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+			<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
+			<div className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">{value}</div>
 		</div>
 	);
 }
 
 function ScoreField({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
 	return (
-		<label className="grid gap-2 rounded-xl border border-white/8 bg-black/16 p-2.5">
-			<span className="min-w-0 truncate text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52" title={label}>
+		<label className="grid gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-2.5">
+			<span className="min-w-0 truncate text-xs font-semibold text-[var(--muted)]" title={label}>
 				{label}
 			</span>
 			<ThemedNumberInput value={value} onChange={onChange} min={0} ariaLabel={`Score ${label}`} disabled={disabled} />
@@ -740,10 +740,10 @@ function LobbyChecklist({
 		{ label: "Match beendet", ok: matchFinished },
 	];
 	return (
-		<div className="rounded-[1.4rem] border border-lime-200/12 bg-lime-200/[0.045] p-3 shadow-xl shadow-black/20">
+		<div className="rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] p-3">
 			<div className="flex items-center justify-between gap-3">
-				<div className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Lobby Checklist</div>
-				<div className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[10px] font-black text-lime-100">
+				<div className="text-xs font-semibold text-[var(--muted)]">Lobby Checklist</div>
+				<div className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
 					{items.filter((item) => item.ok).length}/{items.length}
 				</div>
 			</div>
@@ -751,12 +751,12 @@ function LobbyChecklist({
 				{items.map((item) => (
 					<div
 						key={item.label}
-						className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-[10px] font-bold ${
-							item.ok ? "border-lime-200/18 bg-lime-200/8 text-lime-50" : "border-white/8 bg-black/18 text-emerald-100/46"
+						className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium ${
+							item.ok ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]"
 						}`}
 					>
 						<span className="truncate">{item.label}</span>
-						<span className={`size-2 shrink-0 rounded-full ${item.ok ? "bg-lime-200" : "bg-white/16"}`} />
+						<span className={`size-2 shrink-0 rounded-full ${item.ok ? "bg-[var(--accent)]" : "bg-[var(--admin-step)]"}`} />
 					</div>
 				))}
 			</div>
@@ -784,11 +784,11 @@ function CoinTossButton({
 	const winnerLabel = winner === "teamA" ? teamALabel : teamBLabel;
 	const finalRotation = winner === "teamA" ? "rotateY(0deg)" : "rotateY(180deg)";
 	return (
-		<div className={`rounded-xl border border-amber-200/16 bg-amber-200/[0.055] ${compact ? "p-2.5" : "p-3"}`}>
+		<div className={`rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] ${compact ? "p-2.5" : "p-3"}`}>
 			<div className="flex items-center gap-3">
 				<div className={`relative grid shrink-0 place-items-center ${compact ? "size-10" : "size-14"}`} style={{ perspective: "500px" }}>
 					<div
-						className={`relative rounded-full shadow-xl shadow-amber-300/20 ${compact ? "size-9" : "size-12"} ${
+						className={`relative rounded-full ${compact ? "size-9" : "size-12"} ${
 							tossing
 								? winner === "teamA"
 									? "animate-[coin-flip-a_1400ms_cubic-bezier(0.2,0.8,0.2,1)]"
@@ -805,36 +805,36 @@ function CoinTossButton({
 					</div>
 				</div>
 				<div className="min-w-0 flex-1">
-					<div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/70">Coin Toss</div>
-					<div className="mt-1 truncate text-sm font-black text-emerald-50">{tossing ? "Münze fliegt…" : `${winnerLabel} darf Side wählen`}</div>
+					<div className="text-xs font-semibold text-[var(--muted)]">Coin Toss</div>
+					<div className="mt-1 truncate text-sm font-semibold text-[var(--text)]">{tossing ? "Münze fliegt…" : `${winnerLabel} darf Side wählen`}</div>
 				</div>
 			</div>
 			<button
 				type="button"
 				disabled={disabled || tossing}
 				onClick={onToss}
-				className={`${compact ? "mt-2 py-2" : "mt-3 py-2.5"} w-full rounded-lg border border-amber-200/24 bg-amber-200/12 px-4 text-[10px] font-black uppercase tracking-[0.16em] text-amber-50 transition hover:border-amber-200/42 disabled:cursor-not-allowed disabled:opacity-45`}
+				className={`${compact ? "mt-2 py-2" : "mt-3 py-2.5"} w-full rounded-lg border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-4 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] disabled:cursor-not-allowed disabled:opacity-45`}
 			>
 				{tossing ? "Toss läuft…" : "Coin Toss starten"}
 			</button>
 			<style>{`
-        @keyframes coin-flip-a {
-          0% { transform: rotateY(0deg) translateY(0) scale(1); }
-          20% { transform: rotateY(540deg) translateY(-16px) scale(1.08); }
-          42% { transform: rotateY(1080deg) translateY(-6px) scale(1.04); }
-          64% { transform: rotateY(1620deg) translateY(-12px) scale(1.06); }
-          84% { transform: rotateY(2160deg) translateY(0) scale(1); }
-          100% { transform: rotateY(2520deg) translateY(0) scale(1); }
-        }
-        @keyframes coin-flip-b {
-          0% { transform: rotateY(0deg) translateY(0) scale(1); }
-          20% { transform: rotateY(540deg) translateY(-16px) scale(1.08); }
-          42% { transform: rotateY(1080deg) translateY(-6px) scale(1.04); }
-          64% { transform: rotateY(1620deg) translateY(-12px) scale(1.06); }
-          84% { transform: rotateY(2160deg) translateY(0) scale(1); }
-          100% { transform: rotateY(2700deg) translateY(0) scale(1); }
-        }
-      `}</style>
+ @keyframes coin-flip-a {
+ 0% { transform: rotateY(0deg) translateY(0) scale(1); }
+ 20% { transform: rotateY(540deg) translateY(-16px) scale(1.08); }
+ 42% { transform: rotateY(1080deg) translateY(-6px) scale(1.04); }
+ 64% { transform: rotateY(1620deg) translateY(-12px) scale(1.06); }
+ 84% { transform: rotateY(2160deg) translateY(0) scale(1); }
+ 100% { transform: rotateY(2520deg) translateY(0) scale(1); }
+ }
+ @keyframes coin-flip-b {
+ 0% { transform: rotateY(0deg) translateY(0) scale(1); }
+ 20% { transform: rotateY(540deg) translateY(-16px) scale(1.08); }
+ 42% { transform: rotateY(1080deg) translateY(-6px) scale(1.04); }
+ 64% { transform: rotateY(1620deg) translateY(-12px) scale(1.06); }
+ 84% { transform: rotateY(2160deg) translateY(0) scale(1); }
+ 100% { transform: rotateY(2700deg) translateY(0) scale(1); }
+ }
+`}</style>
 		</div>
 	);
 }
@@ -842,10 +842,10 @@ function CoinTossButton({
 function CoinFace({ label, back }: { label: "A" | "B"; back?: boolean }) {
 	return (
 		<div
-			className={`absolute inset-0 grid place-items-center rounded-full border text-sm font-black text-emerald-950 ${
+			className={`bg-[var(--accent)] absolute inset-0 grid place-items-center rounded-full border text-sm font-semibold text-[var(--on-accent)] ${
 				label === "A"
-					? "border-amber-100/40 bg-gradient-to-br from-amber-100 via-lime-200 to-emerald-300"
-					: "border-sky-100/40 bg-gradient-to-br from-sky-100 via-cyan-200 to-lime-200"
+					? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] "
+					: "border-[var(--line-strong)] "
 			}`}
 			style={{
 				backfaceVisibility: "hidden",
@@ -872,13 +872,13 @@ function ChampionPicker({
 }) {
 	const selectedSet = new Set(selected);
 	return (
-		<div className={embedded ? "rounded-xl border border-white/8 bg-black/14 p-3" : "rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20"}>
+		<div className={embedded ? "rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3" : "rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5"}>
 			<div className="flex items-center justify-between gap-3">
-				<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/58">{title}</div>
-				<div className="text-xs font-black text-emerald-100/44">{selected.length} gewählt</div>
+				<div className="text-xs font-semibold text-[var(--muted)]">{title}</div>
+				<div className="text-xs font-semibold text-[var(--muted)]">{selected.length} gewählt</div>
 			</div>
 			{champions.length === 0 ? (
-				<p className="mt-3 text-sm italic text-emerald-100/42">Ziehe zuerst Pools, damit Champions auswählbar sind.</p>
+				<p className="mt-3 text-sm italic text-[var(--muted)]">Ziehe zuerst Pools, damit Champions auswählbar sind.</p>
 			) : (
 				<div className="mt-4 grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
 					{champions.map((champion) => {
@@ -886,8 +886,8 @@ function ChampionPicker({
 						return (
 							<label
 								key={champion.id}
-								className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${
-									active ? "border-lime-200/34 bg-lime-200/12 text-lime-50" : "border-white/8 bg-black/18 text-emerald-100/64 hover:border-lime-200/20"
+								className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+									active ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)] hover:border-[var(--line-strong)]"
 								}`}
 							>
 								<input
@@ -896,7 +896,7 @@ function ChampionPicker({
 									onChange={(event) => {
 										onChange(event.target.checked ? [...selected, champion.name] : selected.filter((name) => name !== champion.name));
 									}}
-									className="accent-lime-200"
+									className="accent-[var(--accent)]"
 								/>
 								<span className="truncate">{champion.name}</span>
 							</label>
@@ -910,9 +910,9 @@ function ChampionPicker({
 
 function PoolBadge({ label, pool }: { label: string; pool: string }) {
 	return (
-		<div className="rounded-2xl border border-lime-200/14 bg-lime-200/8 p-3">
-			<div className="truncate text-xs font-bold text-emerald-100/54">{label}</div>
-			<div className="mt-1 text-3xl font-black text-lime-100">{compactPoolLabel(pool)}</div>
+		<div className="rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] p-3">
+			<div className="truncate text-xs font-medium text-[var(--muted)]">{label}</div>
+			<div className="mt-1 text-3xl font-semibold text-[var(--accent)]">{compactPoolLabel(pool)}</div>
 		</div>
 	);
 }
@@ -1005,15 +1005,15 @@ function EmergencySubPanel({
 	if (matchTeams.length === 0) return null;
 
 	return (
-		<form onSubmit={submit} className={embedded ? "" : "rounded-[2rem] border border-amber-200/16 bg-amber-200/[0.055] p-5 shadow-xl shadow-black/20"}>
-			<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-100/72">Emergency Substitute</div>
-			<p className="mt-2 text-xs leading-5 text-amber-50/62">
+		<form onSubmit={submit} className={embedded ? "" : "rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-5"}>
+			<div className="text-xs font-semibold text-[var(--muted)]">Emergency Substitute</div>
+			<p className="mt-2 text-xs leading-5 text-[var(--muted)]">
 				Aktiviert einen Ersatzspieler für dieses Match. Bereits bestätigte Rolls der übrigen neun Spieler bleiben erhalten; nur der Roll des ausgewechselten Spielers wird
 				entfernt.
 			</p>
 			<div className="mt-4 grid gap-3">
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Team</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Team</span>
 					<ThemedSelect
 						name="subTeam"
 						value={teamKey || selectedTeam?.key || ""}
@@ -1025,7 +1025,7 @@ function EmergencySubPanel({
 					/>
 				</label>
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Incoming</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Incoming</span>
 					<ThemedSelect
 						name="incoming"
 						value={incomingDiscordId}
@@ -1040,7 +1040,7 @@ function EmergencySubPanel({
 					/>
 				</label>
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Wird ersetzt</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Wird ersetzt</span>
 					<ThemedSelect
 						name="outgoing"
 						value={outgoingDiscordId}
@@ -1061,7 +1061,7 @@ function EmergencySubPanel({
 					/>
 				</label>
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/52">Rolle</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Rolle</span>
 					<ThemedSelect
 						name="role"
 						value={role}
@@ -1076,7 +1076,7 @@ function EmergencySubPanel({
 			<button
 				type="submit"
 				disabled={isPending}
-				className="mt-4 w-full rounded-2xl border border-amber-200/24 bg-amber-200/12 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-amber-50 transition hover:border-amber-200/42 disabled:opacity-50"
+				className="mt-4 w-full rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-5 py-3 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] disabled:opacity-50"
 			>
 				Substitute speichern
 			</button>
@@ -1087,13 +1087,13 @@ function EmergencySubPanel({
 function TeamPanel({ side, team, pool, fallback }: { side: string; team: TournamentTeam | null; pool: string | null; fallback: string }) {
 	const riotIds = teamRiotIds(team);
 	return (
-		<article className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
+		<article className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{side}</div>
-					<h2 className="mt-2 break-words text-3xl font-black text-emerald-50">{team?.name ?? fallback}</h2>
+					<div className="text-xs font-semibold text-[var(--muted)]">{side}</div>
+					<h2 className="mt-2 break-words text-3xl font-semibold text-[var(--text)]">{team?.name ?? fallback}</h2>
 					{pool ? (
-						<div className="mt-2 inline-flex rounded-full border border-lime-200/20 bg-lime-200/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-50">
+						<div className="mt-2 inline-flex rounded-full border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
 							Pool {compactPoolLabel(pool)}
 						</div>
 					) : null}
@@ -1103,7 +1103,7 @@ function TeamPanel({ side, team, pool, fallback }: { side: string; team: Tournam
 						href={opggMultiSearchUrl(riotIds)}
 						target="_blank"
 						rel="noreferrer"
-						className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-100/72 hover:text-lime-100"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-xs font-semibold text-[var(--muted)] hover:text-[var(--accent)]"
 					>
 						OP.GG
 					</a>
@@ -1111,25 +1111,25 @@ function TeamPanel({ side, team, pool, fallback }: { side: string; team: Tournam
 			</div>
 
 			{team ? (
-				<details className="mt-4 rounded-xl border border-white/8 bg-black/14 p-3">
-					<summary className="flex cursor-pointer items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/58">
+				<details className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+					<summary className="flex cursor-pointer items-center justify-between gap-3 text-xs font-semibold text-[var(--muted)]">
 						<span>Roster anzeigen</span>
 						<span>{team.players.length} Spieler</span>
 					</summary>
 					<div className="mt-3 grid gap-2">
 						{team.players.map((player) => (
-							<div key={player.riotId} className="grid gap-2 rounded-xl border border-white/8 bg-black/20 p-3 sm:grid-cols-[5.5rem_1fr_auto] sm:items-center">
-								<div className="text-xs font-black uppercase tracking-[0.18em] text-lime-200/58">{player.role}</div>
+							<div key={player.riotId} className="grid gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 sm:grid-cols-[5.5rem_1fr_auto] sm:items-center">
+								<div className="text-xs font-semibold text-[var(--muted)]">{player.role}</div>
 								<div className="min-w-0">
-									<div className="truncate text-sm font-black text-emerald-50">{player.name}</div>
-									<div className="truncate text-xs text-emerald-100/46">{player.riotId}</div>
+									<div className="truncate text-sm font-semibold text-[var(--text)]">{player.name}</div>
+									<div className="truncate text-xs text-[var(--muted)]">{player.riotId}</div>
 								</div>
 								<div className="flex gap-2">
 									<a
 										href={player.opggUrl}
 										target="_blank"
 										rel="noreferrer"
-										className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100/64 hover:text-lime-100"
+										className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--accent)]"
 									>
 										OP.GG
 									</a>
@@ -1137,7 +1137,7 @@ function TeamPanel({ side, team, pool, fallback }: { side: string; team: Tournam
 										href={player.dpmUrl}
 										target="_blank"
 										rel="noreferrer"
-										className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100/64 hover:text-lime-100"
+										className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--accent)]"
 									>
 										DPM
 									</a>
@@ -1147,7 +1147,7 @@ function TeamPanel({ side, team, pool, fallback }: { side: string; team: Tournam
 					</div>
 				</details>
 			) : (
-				<p className="mt-4 rounded-2xl border border-amber-200/16 bg-amber-200/8 p-4 text-sm text-amber-50/76">
+				<p className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-4 text-sm text-[var(--muted)]">
 					Dieses Team ist noch nicht aufgelöst. Sobald Seeds/Bracket-Slots feststehen, erscheint hier das Roster.
 				</p>
 			)}
@@ -1207,34 +1207,34 @@ function SeriesPanel({
 	}
 
 	return (
-		<section className="order-first rounded-[1.6rem] border border-cyan-200/18 bg-cyan-300/[0.055] p-4 shadow-xl shadow-black/24" aria-labelledby={`series-${match.id}`}>
+		<section className="order-first rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4" aria-labelledby={`series-${match.id}`}>
 			<div className="flex items-center justify-between gap-3">
 				<div>
-					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/58">Serie · Best of {match.bestOf}</div>
-					<h3 id={`series-${match.id}`} className="mt-1 text-lg font-black text-emerald-50">
+					<div className="text-xs font-semibold text-[var(--muted)]">Serie · Best of {match.bestOf}</div>
+					<h3 id={`series-${match.id}`} className="mt-1 text-lg font-semibold text-[var(--text)]">
 						{match.teamALabel} {scoreA}:{scoreB} {match.teamBLabel}
 					</h3>
 				</div>
-				<span className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/56">
+				<span className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]">
 					{decided ? "Entschieden" : `Spiel ${nextGame}`}
 				</span>
 			</div>
 			{match.games.length ? (
 				<ol className="mt-3 grid gap-1.5">
 					{match.games.map((game) => (
-						<li key={game.number} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-black/18 px-3 py-2 text-xs">
-							<span className="font-black text-emerald-50">
+						<li key={game.number} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-xs">
+							<span className="font-semibold text-[var(--text)]">
 								Spiel {game.number}: {game.winner === "teamA" ? match.teamALabel : match.teamBLabel}
 							</span>
-							<span className="font-bold text-emerald-100/50">
-								{game.durationSeconds !== undefined ? formatGameDuration(game.durationSeconds) : "ohne Zeit"} · Blau:{" "}
+							<span className="font-medium text-[var(--muted)]">
+								{game.durationSeconds !== undefined ? formatGameDuration(game.durationSeconds) : "ohne Zeit"} · Blau:{""}
 								{game.blueSide === "teamB" ? match.teamBLabel : match.teamALabel}
 							</span>
 						</li>
 					))}
 				</ol>
 			) : (
-				<p className="mt-3 text-xs leading-5 text-emerald-100/54">Noch kein Spiel erfasst. Nach jedem Spiel startet der Champ Select für das nächste Spiel neu.</p>
+				<p className="mt-3 text-xs leading-5 text-[var(--muted)]">Noch kein Spiel erfasst. Nach jedem Spiel startet der Champ Select für das nächste Spiel neu.</p>
 			)}
 			{!decided && match.teamAName && match.teamBName ? (
 				<div className="mt-3 grid gap-2">
@@ -1245,14 +1245,14 @@ function SeriesPanel({
 								type="button"
 								aria-pressed={winner === side}
 								onClick={() => setWinner(side)}
-								className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-black ${winner === side ? "border-lime-200/40 bg-lime-200/16 text-lime-50" : "border-white/10 bg-black/20 text-emerald-100/70"}`}
+								className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-semibold ${winner === side ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]"}`}
 							>
 								{side === "teamA" ? match.teamALabel : match.teamBLabel}
 							</button>
 						))}
 					</div>
-					<label className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-white/8 bg-black/16 p-2.5">
-						<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/52">Spielzeit Spiel {nextGame}</span>
+					<label className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-2.5">
+						<span className="text-xs font-semibold text-[var(--muted)]">Spielzeit Spiel {nextGame}</span>
 						<input
 							name={`game-${nextGame}-duration`}
 							autoComplete="off"
@@ -1261,7 +1261,7 @@ function SeriesPanel({
 							inputMode="numeric"
 							placeholder="mm:ss…"
 							pattern="\d{1,3}:[0-5]\d"
-							className="w-full rounded-lg border border-white/10 bg-black/24 px-2 py-2 text-center text-sm font-black text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+							className="w-full rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2 py-2 text-center text-sm font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 						/>
 					</label>
 					<button
@@ -1270,7 +1270,7 @@ function SeriesPanel({
 						onClick={() =>
 							send({ action: "record", winner, gameDuration: duration }, `Spiel ${nextGame} gespeichert. Der Champ Select für Spiel ${nextGame + 1} ist bereit.`)
 						}
-						className="rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-40"
+						className="bg-[var(--accent)] rounded-xl px-4 py-3 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-40"
 					>
 						{pending ? "Speichert…" : `Spiel ${nextGame} abschließen`}
 					</button>
@@ -1281,7 +1281,7 @@ function SeriesPanel({
 					type="button"
 					disabled={pending || busy}
 					onClick={() => setUndoOpen(true)}
-					className="mt-3 w-full rounded-xl border border-amber-200/18 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 disabled:opacity-40"
+					className="mt-3 w-full rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--amber)] disabled:opacity-40"
 				>
 					Spiel {match.games.length} zurücknehmen
 				</button>

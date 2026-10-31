@@ -85,7 +85,7 @@ export function TournamentInformationEditor({
 				Öffentliche Texte bearbeiten, ohne Format, Teams oder Matches zu verändern. Änderungen werden erst mit „Informationen speichern“ veröffentlicht.
 			</p>
 			<fieldset disabled={pending} className="grid min-w-0 gap-5">
-				<label className="grid gap-2 text-sm font-bold">
+				<label className="grid gap-2 text-sm font-medium">
 					Turniername
 					<input
 						name="tournament-name"
@@ -100,7 +100,7 @@ export function TournamentInformationEditor({
 						}}
 					/>
 				</label>
-				<label className="grid gap-2 text-sm font-bold">
+				<label className="grid gap-2 text-sm font-medium">
 					Beschreibung
 					<textarea
 						name="tournament-description"
@@ -116,7 +116,7 @@ export function TournamentInformationEditor({
 					/>
 				</label>
 				<div className="grid gap-2">
-					<label htmlFor="tournament-rules" className="text-sm font-bold">
+					<label htmlFor="tournament-rules" className="text-sm font-medium">
 						Regelwerk (Markdown)
 					</label>
 					<p className="text-sm text-[var(--muted)]">
@@ -168,13 +168,13 @@ export function TournamentInformationEditor({
 			</fieldset>
 			{preview ? (
 				<section className="content-panel">
-					<h2 className="mb-4 text-2xl font-bold">{draft.name}</h2>
+					<h2 className="mb-4 text-2xl font-medium">{draft.name}</h2>
 					<p className="mb-5 whitespace-pre-wrap text-[var(--muted)]">{draft.description}</p>
 					<TournamentMarkdown>{draft.rulesMarkdown.trim() || defaultRules}</TournamentMarkdown>
 				</section>
 			) : null}
 			{message ? (
-				<p role={failed ? "alert" : "status"} className={failed ? "text-red-200" : "text-[var(--accent)]"}>
+				<p role={failed ? "alert" : "status"} className={failed ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
 					{message}
 				</p>
 			) : null}

@@ -33,11 +33,11 @@ export default async function SwissTestPage() {
 				</p>
 			</section>
 			{usesUltimateBravery(settings.activeTournament) ? (
-				<div className="mb-[18px] grid gap-4 rounded-[20px] border border-amber-200/18 bg-gradient-to-r from-amber-200/[0.075] via-[#08150e] to-cyan-200/[0.055] p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+				<div className="mb-[18px] grid gap-4 rounded-[20px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] via-[#08150e] p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
 					<div>
-						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-amber-100/58">5v5-Systemprobe</div>
-						<h2 className="mt-2 text-2xl font-black text-emerald-50">Eine Swiss-Paarung mit zehn echten Logins testen.</h2>
-						<p className="mt-2 max-w-3xl text-xs leading-6 text-emerald-100/50">
+						<div className="text-xs font-semibold text-[var(--muted)]">5v5-Systemprobe</div>
+						<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Swiss-Paarung mit zehn echten Logins testen</h2>
+						<p className="mt-2 max-w-3xl text-xs leading-6 text-[var(--muted)]">
 							Teile den Teilnehmer-Link mit zehn Testern. Jeder belegt genau eine Rolle und kann ausschließlich den eigenen Roll bedienen; das Admin-Cockpit zeigt
 							beide Teams und offene Reroll-Ausnahmen.
 						</p>
@@ -45,13 +45,13 @@ export default async function SwissTestPage() {
 					<div className="flex flex-wrap gap-2 md:justify-end">
 						<Link
 							href="/tournament/matches/ub-test"
-							className="rounded-xl border border-white/12 bg-white/[0.045] px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100 transition hover:border-lime-200/28 hover:text-lime-100"
+							className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-center text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 						>
 							Teilnehmer-Link öffnen
 						</Link>
 						<Link
 							href="/tournament/admin/matches/ub-test"
-							className="rounded-xl bg-gradient-to-r from-amber-200 to-cyan-200 px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.14em] text-emerald-950"
+							className="bg-[var(--accent)] rounded-xl px-4 py-3 text-center text-xs font-semibold text-[var(--on-accent)]"
 						>
 							Admin-Cockpit öffnen
 						</Link>

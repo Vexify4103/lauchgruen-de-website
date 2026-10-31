@@ -12,11 +12,11 @@ import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConf
 type MatchStatus = NonNullable<StoredTournamentMatch["status"]>;
 
 const statusToneClass: Record<MatchStatus, string> = {
-	Scheduled: "border-white/10 bg-black/24 text-emerald-100/80",
-	Live: "border-red-300/40 bg-red-500/20 text-red-100",
-	Finished: "border-lime-200/30 bg-lime-200/14 text-lime-50",
-	Pending: "border-amber-200/30 bg-amber-200/12 text-amber-100",
-	Locked: "border-white/10 bg-black/40 text-emerald-100/52",
+	Scheduled: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--text)]",
+	Live: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]",
+	Finished: "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]",
+	Pending: "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]",
+	Locked: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]",
 };
 
 export type AdminMatch = {
@@ -123,7 +123,7 @@ export function MatchAdminClient({
 	return (
 		<div className="grid gap-4">
 			{message ? (
-				<div role="status" className="rounded-2xl border border-lime-200/24 bg-lime-200/10 px-4 py-3 text-sm text-lime-50">
+				<div role="status" className="rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-4 py-3 text-sm text-[var(--accent)]">
 					{message}
 				</div>
 			) : null}
@@ -131,9 +131,9 @@ export function MatchAdminClient({
 			{groupMatchesByRound(initialMatches).map(({ label, matches }) => (
 				<section key={label} className="grid gap-3">
 					<div className="flex items-center gap-3 px-1">
-						<span className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">{label}</span>
-						<span className="h-px flex-1 bg-white/10" />
-						{matches.length > 1 ? <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/52">Parallel</span> : null}
+						<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
+						<span className="h-px flex-1 bg-[var(--admin-step)]" />
+						{matches.length > 1 ? <span className="text-xs font-semibold text-[var(--muted)]">Parallel</span> : null}
 					</div>
 					<div className="grid gap-4 xl:grid-cols-2">
 						{matches.map((match) => (
@@ -222,27 +222,27 @@ function MatchRow({
 				event.preventDefault();
 				void saveRow();
 			}}
-			className="grid gap-4 rounded-[1.7rem] border border-white/10 bg-black/18 p-4 sm:p-5"
+			className="grid gap-4 rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-4 sm:p-5"
 		>
 			<input type="hidden" name="id" value={base.id} />
 
 			<header className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
-					<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/58">{base.id}</div>
-					<div className="mt-2 break-words text-lg font-black text-emerald-50">
+					<div className="text-xs font-semibold text-[var(--muted)]">{base.id}</div>
+					<div className="mt-2 break-words text-lg font-semibold text-[var(--text)]">
 						<span>{base.teamA}</span>
-						<span className="mx-2 text-emerald-100/40">vs</span>
+						<span className="mx-2 text-[var(--muted)]">vs</span>
 						<span>{base.teamB}</span>
 					</div>
 				</div>
-				<span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${tone}`}>{status}</span>
+				<span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tone}`}>{status}</span>
 			</header>
 
 			<div className="grid gap-3 sm:grid-cols-2">
 				<NumberField short="A" team={base.teamA} value={scoreA} onChange={setScoreA} />
 				<NumberField short="B" team={base.teamB} value={scoreB} onChange={setScoreB} />
 				<label className="grid gap-2">
-					<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Spielzeit</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Spielzeit</span>
 					<input
 						name="game-duration"
 						autoComplete="off"
@@ -251,20 +251,20 @@ function MatchRow({
 						pattern="\d{1,3}:[0-5]\d"
 						value={gameDuration}
 						onChange={(event) => setGameDuration(event.target.value)}
-						className="w-full rounded-xl border border-white/10 bg-black/24 px-3 py-2.5 text-center text-sm font-black text-emerald-50 outline-none transition placeholder:text-emerald-100/24 focus:border-lime-200/40"
+						className="w-full rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 					/>
 				</label>
 
 				<div className="grid gap-2">
-					<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Status (automatisch)</span>
-					<div className="flex h-[42px] items-center rounded-xl border border-white/10 bg-black/24 px-3 text-sm font-black text-emerald-100/72">{status}</div>
+					<span className="text-xs font-semibold text-[var(--muted)]">Status (automatisch)</span>
+					<div className="flex h-[42px] items-center rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 text-sm font-semibold text-[var(--muted)]">{status}</div>
 				</div>
 
 				<div className="grid min-w-0 gap-2">
-					<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Sieger (auto)</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Sieger (auto)</span>
 					<div
-						className={`flex h-[42px] items-center truncate rounded-xl border px-3 text-sm font-black ${
-							stored.winner ? "border-lime-200/30 bg-lime-200/10 text-lime-50" : "border-white/10 bg-black/12 text-emerald-100/40"
+						className={`flex h-[42px] items-center truncate rounded-xl border px-3 text-sm font-semibold ${
+							stored.winner ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]"
 						}`}
 						title={stored.winner ?? "Wird aus den Scores berechnet"}
 					>
@@ -276,7 +276,7 @@ function MatchRow({
 					<button
 						type="submit"
 						disabled={status === "Locked" || saving}
-						className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+						className="bg-[var(--accent)] rounded-xl px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-40"
 					>
 						{saving ? "Wird gespeichert…" : status === "Locked" ? "Teilnehmer offen" : "Ergebnis speichern"}
 					</button>
@@ -284,7 +284,7 @@ function MatchRow({
 						type="button"
 						onClick={onPrepare}
 						disabled={poolsDrawn || preparing || status !== "Scheduled"}
-						className="rounded-xl border border-cyan-200/20 bg-cyan-300/8 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-emerald-100/32"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-5 py-3 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:bg-[var(--admin-step)] disabled:cursor-not-allowed disabled:border-[var(--line)] disabled:bg-[var(--admin-step)] disabled:text-[var(--muted)]"
 					>
 						{preparing
 							? ultimateBravery
@@ -304,7 +304,7 @@ function MatchRow({
 					</button>
 					<Link
 						href={`/tournament/admin/matches/${base.id}`}
-						className="rounded-xl border border-white/12 bg-white/[0.04] px-5 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-100/72 transition hover:border-lime-200/30 hover:text-lime-100"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-5 py-3 text-center text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 					>
 						Control Room
 					</Link>
@@ -317,7 +317,7 @@ function MatchRow({
 function NumberField({ short, team, value, onChange }: { short: string; team: string; value: string; onChange: (value: string) => void }) {
 	return (
 		<label className="grid gap-2" title={`Score · ${team}`}>
-			<span className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-200/58">Score {short}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">Score {short}</span>
 			<ThemedNumberInput min={0} value={value} onChange={onChange} ariaLabel={`Score ${short} · ${team}`} />
 		</label>
 	);

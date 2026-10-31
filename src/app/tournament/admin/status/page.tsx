@@ -46,7 +46,7 @@ export default async function AdminSystemStatusPage() {
 						<span>Community Overlays</span>
 						<h2>Cache und externe Fehler</h2>
 					</div>
-					<span className="rounded-full border border-white/10 px-3 py-1.5 text-[9px] font-black text-emerald-100/50">
+					<span className="rounded-full border border-[var(--line)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)]">
 						{status.overlays.inFlightSnapshots} laufende Requests
 					</span>
 				</div>
@@ -61,7 +61,7 @@ export default async function AdminSystemStatusPage() {
 					<Metric label="Match-ID-Cache" value={status.overlays.matchIdCacheEntries} />
 				</div>
 				<div
-					className={`mt-4 rounded-xl border px-4 py-3 text-xs leading-5 ${status.overlays.lastError ? "border-amber-200/18 bg-amber-200/[0.07] text-amber-50" : "border-lime-200/14 bg-lime-200/[0.05] text-lime-50/65"}`}
+					className={`mt-4 rounded-xl border px-4 py-3 text-xs leading-5 ${status.overlays.lastError ? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]" : "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--muted)]"}`}
 				>
 					{status.overlays.lastError
 						? `Letzter Fehler (${status.overlays.lastErrorAt ? new Date(status.overlays.lastErrorAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : "unbekannt"}): ${status.overlays.lastError}`
@@ -74,22 +74,22 @@ export default async function AdminSystemStatusPage() {
 
 function StatusCard({ title, ok, value, detail }: { title: string; ok: boolean; value: string; detail: string }) {
 	return (
-		<article className={`rounded-2xl border p-4 ${ok ? "border-lime-200/18 bg-lime-200/[0.07]" : "border-amber-200/20 bg-amber-200/[0.08]"}`}>
-			<div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/45">
-				<span className={`size-2 rounded-full ${ok ? "bg-lime-300" : "bg-amber-300"}`} />
+		<article className={`rounded-[12px] border p-4 ${ok ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)]"}`}>
+			<div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+				<span className={`size-2 rounded-full ${ok ? "bg-[var(--accent)]" : "bg-[var(--amber)]"}`} />
 				{title}
 			</div>
-			<div className="mt-3 text-xl font-black text-emerald-50">{value}</div>
-			<p className="mt-1 text-[10px] leading-5 text-emerald-100/48">{detail}</p>
+			<div className="mt-3 text-xl font-semibold text-[var(--text)]">{value}</div>
+			<p className="mt-1 text-xs leading-5 text-[var(--muted)]">{detail}</p>
 		</article>
 	);
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
 	return (
-		<div className="rounded-xl border border-white/8 bg-black/18 px-3 py-3">
-			<div className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-100/35">{label}</div>
-			<div className="mt-1 font-mono text-xl font-black text-cyan-50">{value}</div>
+		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-3">
+			<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
+			<div className="mt-1 font-mono text-xl font-semibold text-[var(--text)]">{value}</div>
 		</div>
 	);
 }

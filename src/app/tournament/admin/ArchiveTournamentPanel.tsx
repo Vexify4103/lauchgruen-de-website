@@ -10,8 +10,8 @@ type Props = {
 };
 
 const fieldClass =
-	"mt-1.5 w-full rounded-xl border border-white/12 bg-black/24 px-3 py-2.5 text-sm font-semibold text-emerald-50 outline-none transition placeholder:text-emerald-100/28 focus-visible:border-lime-200/50";
-const labelClass = "block text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/58";
+	"mt-1.5 w-full rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus-visible:border-[var(--accent)]";
+const labelClass = "block text-xs font-semibold text-[var(--muted)]";
 
 export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 	const formId = useId();
@@ -49,20 +49,20 @@ export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 
 	if (result) {
 		return (
-			<section aria-live="polite" className="rounded-[2rem] border border-lime-200/24 bg-lime-200/[0.07] p-6">
-				<div className="text-[10px] font-black uppercase tracking-[0.26em] text-lime-200/70">Archiviert</div>
-				<h2 className="mt-2 text-2xl font-black text-emerald-50">{activeName} ist jetzt im Archiv.</h2>
-				<p className="mt-2 text-sm leading-6 text-emerald-100/68">
+			<section aria-live="polite" className="rounded-[16px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] p-6">
+				<div className="text-xs font-semibold text-[var(--accent)]">Archiviert</div>
+				<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">{activeName} ist jetzt im Archiv</h2>
+				<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
 					{name} läuft ab sofort im Ankündigungsmodus. {result.cleanupOperationCount} Discord-Rollen werden im Hintergrund entfernt.
 				</p>
 				<div className="mt-5 flex flex-wrap gap-3">
 					<a
 						href={`/tournament/archive/${result.archiveId}`}
-						className="rounded-xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950"
+						className="rounded-xl bg-[var(--accent)] px-4 py-3 text-xs font-semibold text-[var(--on-accent)]"
 					>
 						Archiv ansehen
 					</a>
-					<a href="/tournament/admin" className="rounded-xl border border-white/14 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-100">
+					<a href="/tournament/admin" className="rounded-xl border border-[var(--line)] px-4 py-3 text-xs font-semibold text-[var(--text)]">
 						Admin neu laden
 					</a>
 				</div>
@@ -71,26 +71,26 @@ export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-amber-200/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.07),rgba(7,20,13,0.92)_48%)] p-5 shadow-xl shadow-black/22 sm:p-6">
+		<section className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-surface)] p-5 sm:p-6">
 			<div className="max-w-3xl">
-				<div className="text-[10px] font-black uppercase tracking-[0.26em] text-amber-100/64">Lebenszyklus · Abschluss</div>
-				<h2 className="mt-2 text-2xl font-black text-emerald-50">{activeName} archivieren und nächstes Turnier vorbereiten</h2>
-				<p className="mt-2 text-sm leading-6 text-emerald-100/60">
+				<div className="text-xs font-semibold text-[var(--muted)]">Lebenszyklus · Abschluss</div>
+				<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">{activeName} archivieren und nächstes Turnier vorbereiten</h2>
+				<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
 					Sichert Teams, Stage, Bracket, Drafts und Builds dauerhaft im öffentlichen Archiv. Danach werden Bewerbungen, Matches, Roster und Wunschgruppen geleert, die
 					Teamrollen in Discord entfernt und das nächste Turnier im Ankündigungsmodus aktiviert. Verknüpfte Riot- und Twitch-Konten bleiben erhalten.
 				</p>
 			</div>
 			{championTeam ? (
-				<p className="mt-4 inline-flex rounded-full border border-amber-100/24 bg-amber-200/10 px-3 py-1.5 text-xs font-black text-amber-50">Champion: {championTeam}</p>
+				<p className="mt-4 inline-flex rounded-full border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--amber)]">Champion: {championTeam}</p>
 			) : (
-				<p role="alert" className="mt-4 rounded-2xl border border-red-300/24 bg-red-500/10 p-3 text-sm font-bold text-red-50">
+				<p role="alert" className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] p-3 text-sm font-medium text-[var(--danger)]">
 					Das Grand Final hat noch kein gültiges Ergebnis. Erst danach kann archiviert werden.
 				</p>
 			)}
 
 			<form onSubmit={submit} className="mt-6 grid gap-5 lg:grid-cols-2" aria-describedby={`${formId}-warning`}>
-				<fieldset className="grid gap-4 rounded-2xl border border-white/10 bg-black/14 p-4">
-					<legend className="px-1 text-xs font-black uppercase tracking-[0.18em] text-lime-100">Nächstes Turnier</legend>
+				<fieldset className="grid gap-4 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+					<legend className="px-1 text-xs font-semibold text-[var(--accent)]">Nächstes Turnier</legend>
 					<label className={labelClass}>
 						Name
 						<input
@@ -135,7 +135,7 @@ export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 								setId(slugifyTournamentId(event.target.value));
 							}}
 						/>
-						<span className="mt-1 block text-[11px] font-semibold normal-case tracking-normal text-emerald-100/42">
+						<span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[var(--muted)]">
 							Wird später zur Archiv-URL /tournament/archive/{id || "…"}
 						</span>
 					</label>
@@ -151,8 +151,8 @@ export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 					</label>
 				</fieldset>
 
-				<fieldset className="grid content-start gap-4 rounded-2xl border border-white/10 bg-black/14 p-4">
-					<legend className="px-1 text-xs font-black uppercase tracking-[0.18em] text-lime-100">Archiv-Eintrag</legend>
+				<fieldset className="grid content-start gap-4 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+					<legend className="px-1 text-xs font-semibold text-[var(--accent)]">Archiv-Eintrag</legend>
 					<label className={labelClass}>
 						Notiz (optional)
 						<textarea className={`${fieldClass} min-h-24`} name="archive-note" maxLength={1200} value={note} onChange={(event) => setNote(event.target.value)} />
@@ -187,15 +187,15 @@ export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 					<button
 						type="submit"
 						disabled={!canSubmit}
-						className="rounded-xl bg-gradient-to-r from-amber-200 via-orange-200 to-rose-200 px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-red-950 shadow-lg shadow-amber-300/16 transition disabled:opacity-45"
+						className="bg-[var(--accent)] rounded-xl px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:opacity-45"
 					>
 						{isPending ? "Archiviere…" : "Archivieren & wechseln"}
 					</button>
-					<p id={`${formId}-warning`} className="text-xs leading-5 text-amber-50/64 lg:col-span-2">
+					<p id={`${formId}-warning`} className="text-xs leading-5 text-[var(--muted)] lg:col-span-2">
 						Dieser Schritt lässt sich nicht rückgängig machen. Die Daten bleiben nur im Archiv-Snapshot erhalten.
 					</p>
 					{error ? (
-						<p role="alert" className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-50 lg:col-span-2">
+						<p role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm font-medium text-[var(--danger)] lg:col-span-2">
 							{error}
 						</p>
 					) : null}

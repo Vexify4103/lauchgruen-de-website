@@ -24,11 +24,11 @@ type DiscordJobStatus = {
 };
 
 const tone: Record<CaptainRoleStatus["status"], string> = {
-	synced: "border-lime-200/20 bg-lime-200/10 text-lime-50",
-	"missing-role": "border-amber-200/22 bg-amber-200/10 text-amber-50",
-	"missing-member": "border-red-300/22 bg-red-500/10 text-red-100",
-	"missing-config": "border-amber-200/22 bg-amber-200/10 text-amber-50",
-	error: "border-red-300/22 bg-red-500/10 text-red-100",
+	synced: "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]",
+	"missing-role": "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]",
+	"missing-member": "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]",
+	"missing-config": "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]",
+	error: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]",
 };
 
 export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }) {
@@ -121,58 +121,58 @@ export function DiscordSyncPanel({ statuses }: { statuses: CaptainRoleStatus[] }
 	}
 
 	return (
-		<section className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
+		<section className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Discord Sync</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Captain-Rollen</h2>
-					<p className="mt-2 text-sm leading-6 text-emerald-100/58">Zeigt sofort, ob ein Captain seine Discord-Rolle hat oder ob der Bot gerade nicht reparieren kann.</p>
+					<div className="text-xs font-semibold text-[var(--muted)]">Discord Sync</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Captain-Rollen</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--muted)]">Zeigt sofort, ob ein Captain seine Discord-Rolle hat oder ob der Bot gerade nicht reparieren kann.</p>
 				</div>
 				<button
 					type="button"
 					disabled={isPending || jobRunning}
 					onClick={repair}
-					className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-xl shadow-lime-300/20 disabled:opacity-50"
+					className="rounded-[12px] bg-[var(--accent)] px-5 py-3 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-50"
 				>
 					{jobRunning ? "Queue läuft…" : "Rollen reparieren"}
 				</button>
 			</div>
 			{job ? (
 				<div
-					className={`mt-4 rounded-2xl border px-4 py-3 text-xs ${
+					className={`mt-4 rounded-[12px] border px-4 py-3 text-xs ${
 						job.status === "failed"
-							? "border-red-300/30 bg-red-500/10 text-red-100"
+							? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 							: job.status === "completed"
-								? "border-lime-200/24 bg-lime-200/10 text-lime-50"
-								: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
+								? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+								: "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]"
 					}`}
 				>
-					<span className="font-black">{job.title}</span>
+					<span className="font-semibold">{job.title}</span>
 					<span className="ml-2 tabular-nums">
 						{job.completed}/{job.total || "?"}
 					</span>
-					{job.current ? <span className="ml-2 text-white/60">{job.current}</span> : null}
+					{job.current ? <span className="ml-2 text-[var(--muted)]">{job.current}</span> : null}
 				</div>
 			) : null}
-			<div className="mt-4 rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm font-black text-lime-100">
+			<div className="mt-4 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
 				{isLoading ? <LoadingIndicator compact label="Captain-Rollen werden geprüft…" state="connecting" /> : `${synced}/${roleStatuses.length} Captain-Rollen synced`}
 			</div>
 			<div className="mt-4 grid gap-2 md:grid-cols-2">
 				{roleStatuses.map((entry) => (
-					<div key={`${entry.teamName}-${entry.discordId}`} className={`rounded-2xl border p-3 ${tone[entry.status]}`}>
-						<div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{entry.teamName}</div>
-						<div className="mt-1 text-sm font-black">{entry.captainLabel}</div>
+					<div key={`${entry.teamName}-${entry.discordId}`} className={`rounded-[12px] border p-3 ${tone[entry.status]}`}>
+						<div className="text-xs font-semibold opacity-70">{entry.teamName}</div>
+						<div className="mt-1 text-sm font-semibold">{entry.captainLabel}</div>
 						<div className="mt-1 text-xs opacity-70">{entry.message}</div>
 					</div>
 				))}
 				{isLoading && roleStatuses.length === 0
 					? Array.from({ length: 4 }).map((_, index) => (
-							<div key={index} aria-hidden="true" className="h-20 motion-safe:animate-pulse rounded-2xl border border-white/10 bg-black/18" />
+							<div key={index} aria-hidden="true" className="h-20 motion-safe:animate-pulse rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)]" />
 						))
 					: null}
 			</div>
 			{message ? (
-				<div role="status" className="mt-4 rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+				<div role="status" className="mt-4 rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-4 py-3 text-sm font-medium text-[var(--accent)]">
 					{message}
 				</div>
 			) : null}

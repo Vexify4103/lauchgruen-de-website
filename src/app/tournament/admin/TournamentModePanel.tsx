@@ -196,14 +196,14 @@ export function TournamentModePanel({
 	}
 
 	return (
-		<section className={section ? "" : "overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] shadow-xl shadow-black/24"}>
-			<div className={section ? "hidden" : "border-b border-white/8 bg-gradient-to-r from-lime-200/[0.08] via-white/[0.025] to-cyan-200/[0.05] p-5"}>
+		<section className={section ? "" : "overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)]"}>
+			<div className={section ? "hidden" : "border-b border-[var(--line)] p-5"}>
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Tournament Mode</div>
-						<h2 className="mt-2 text-2xl font-black text-emerald-50">Live-Schalter</h2>
+						<div className="text-xs font-semibold text-[var(--muted)]">Tournament Mode</div>
+						<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Live-Schalter</h2>
 					</div>
-					<div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-xs font-black text-emerald-100/54">
+					<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-2 text-xs font-semibold text-[var(--muted)]">
 						{new Date(settings.updatedAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin" })}
 					</div>
 				</div>
@@ -211,13 +211,13 @@ export function TournamentModePanel({
 
 			<div className={section ? "grid gap-4" : "grid gap-4 p-5"}>
 				{show("format") ? (
-					<div className="rounded-[1.75rem] border border-amber-200/16 bg-amber-200/[0.045] p-5">
-						<div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100/64">
+					<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-5">
+						<div className="text-xs font-semibold text-[var(--muted)]">
 							{settings.activeTournament.name} · {TOURNAMENT_KIND_LABELS[settings.activeTournament.kind]}
 						</div>
 
 						<FormatGroup title="Termine & Teilnehmer">
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Tag 1
 								<ThemedDateTimePicker
 									ariaLabel="Startzeit von Tag 1"
@@ -226,7 +226,7 @@ export function TournamentModePanel({
 									clearable
 								/>
 							</label>
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Tag 2
 								<ThemedDateTimePicker
 									ariaLabel="Startzeit von Tag 2"
@@ -235,7 +235,7 @@ export function TournamentModePanel({
 									clearable
 								/>
 							</label>
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Gesamtzahl Teams
 								<ThemedNumberInput
 									min={2}
@@ -245,7 +245,7 @@ export function TournamentModePanel({
 									onChange={(value) => updateStructure({ teamCount: Math.max(2, Math.min(32, Number(value) || 2)) })}
 								/>
 							</label>
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Play-in vor Tag 1
 								<ThemedSelect
 									value={String(structure.playInTeamCount)}
@@ -270,7 +270,7 @@ export function TournamentModePanel({
 						</FormatGroup>
 
 						<FormatGroup title="Tag 1">
-							<label className="text-xs font-bold text-emerald-100/62 sm:col-span-2">
+							<label className="text-xs font-medium text-[var(--muted)] sm:col-span-2">
 								Format an Tag 1
 								<ThemedSelect
 									value={structure.dayOneFormat}
@@ -285,7 +285,7 @@ export function TournamentModePanel({
 							</label>
 							{structure.dayOneFormat === "groups" ? (
 								<>
-									<label className="text-xs font-bold text-emerald-100/62">
+									<label className="text-xs font-medium text-[var(--muted)]">
 										Anzahl Gruppen
 										<ThemedNumberInput
 											min={1}
@@ -295,7 +295,7 @@ export function TournamentModePanel({
 											onChange={(value) => updateStructure({ groupCount: Number(value) || 1 })}
 										/>
 									</label>
-									<label className="text-xs font-bold text-emerald-100/62">
+									<label className="text-xs font-medium text-[var(--muted)]">
 										Begegnungen pro Paarung
 										<ThemedSelect
 											value={String(structure.groupRoundRobinLegs)}
@@ -307,7 +307,7 @@ export function TournamentModePanel({
 											]}
 										/>
 									</label>
-									<label className="text-xs font-bold text-emerald-100/62">
+									<label className="text-xs font-medium text-[var(--muted)]">
 										Teams in den Playoffs
 										<ThemedNumberInput
 											min={2}
@@ -320,7 +320,7 @@ export function TournamentModePanel({
 								</>
 							) : null}
 							{structure.dayOneFormat === "swiss" ? (
-								<label className="text-xs font-bold text-emerald-100/62">
+								<label className="text-xs font-medium text-[var(--muted)]">
 									Teams in den Playoffs
 									<ThemedSelect
 										value={structure.advanceTeamCount >= participants ? "all" : "half"}
@@ -334,7 +334,7 @@ export function TournamentModePanel({
 								</label>
 							) : null}
 							{structure.dayOneFormat === "swiss-elimination" ? (
-								<label className="text-xs font-bold text-emerald-100/62">
+								<label className="text-xs font-medium text-[var(--muted)]">
 									Weiter / raus bei
 									<ThemedSelect
 										value={String(structure.swissWinsToAdvance)}
@@ -348,7 +348,7 @@ export function TournamentModePanel({
 								</label>
 							) : null}
 							{structure.dayOneFormat === "swiss" || structure.dayOneFormat === "swiss-elimination" ? (
-								<label className="text-xs font-bold text-emerald-100/62">
+								<label className="text-xs font-medium text-[var(--muted)]">
 									Paarungen in Runde 1
 									<ThemedSelect
 										value={structure.swissRoundOneSeeding}
@@ -364,7 +364,7 @@ export function TournamentModePanel({
 						</FormatGroup>
 
 						<FormatGroup title="Tag 2 · Playoffs">
-							<label className="text-xs font-bold text-emerald-100/62 sm:col-span-2">
+							<label className="text-xs font-medium text-[var(--muted)] sm:col-span-2">
 								Playoff-Format
 								<ThemedSelect
 									value={structure.format}
@@ -403,7 +403,7 @@ export function TournamentModePanel({
 									["finals", "Finale"],
 								] as const
 							).map(([key, label]) => (
-								<label key={key} className="text-xs font-bold text-emerald-100/62">
+								<label key={key} className="text-xs font-medium text-[var(--muted)]">
 									{label}
 									<ThemedSelect
 										value={String(structure.bestOf[key])}
@@ -421,7 +421,7 @@ export function TournamentModePanel({
 
 						<FormatGroup title="Tabellen & Seiten">
 							{[0, 1, 2].map((index) => (
-								<label key={index} className="text-xs font-bold text-emerald-100/62">
+								<label key={index} className="text-xs font-medium text-[var(--muted)]">
 									{index + 1}. Tiebreaker
 									<ThemedSelect
 										value={structure.tiebreakers[index] ?? "none"}
@@ -438,7 +438,7 @@ export function TournamentModePanel({
 									/>
 								</label>
 							))}
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Seitenwahl
 								<ThemedSelect
 									value={structure.sideSelection}
@@ -447,23 +447,23 @@ export function TournamentModePanel({
 									options={SIDE_SELECTION_RULES.map((rule) => ({ value: rule, label: SIDE_SELECTION_LABELS[rule] }))}
 								/>
 							</label>
-							<p className="text-[11px] leading-5 text-emerald-100/46 sm:col-span-2">{describeTiebreakers(structure.tiebreakers)}.</p>
+							<p className="text-xs leading-5 text-[var(--muted)] sm:col-span-2">{describeTiebreakers(structure.tiebreakers)}.</p>
 						</FormatGroup>
 
-						<div className="mt-4 rounded-2xl border border-cyan-200/16 bg-cyan-300/[0.055] p-4" role="status">
-							<div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/62">Berechneter Ablauf</div>
-							<ul className="mt-2 grid gap-1 text-sm font-bold text-emerald-50">
+						<div className="mt-4 rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] p-4" role="status">
+							<div className="text-xs font-semibold text-[var(--muted)]">Berechneter Ablauf</div>
+							<ul className="mt-2 grid gap-1 text-sm font-medium text-[var(--text)]">
 								{plan.lines.map((line) => (
 									<li key={line}>{line}</li>
 								))}
 							</ul>
 							{review.errors.map((error) => (
-								<div key={error} className="mt-3 rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
+								<div key={error} className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--danger)]">
 									{error}
 								</div>
 							))}
 							{review.warnings.map((warning) => (
-								<div key={warning} className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-2 text-xs font-bold text-amber-50">
+								<div key={warning} className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--amber)]">
 									{warning}
 								</div>
 							))}
@@ -472,16 +472,16 @@ export function TournamentModePanel({
 							type="button"
 							disabled={isPending || review.errors.length > 0}
 							onClick={saveUltimateBravery}
-							className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
+							className="bg-[var(--accent)] mt-4 h-12 rounded-[12px] px-6 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-55"
 						>
 							{isPending ? "Speichert…" : review.errors.length ? "Erst Fehler beheben" : "Format speichern"}
 						</button>
 					</div>
 				) : null}
 				{show("rules") ? (
-					<div className="rounded-[1.75rem] border border-amber-200/16 bg-amber-200/[0.045] p-5">
+					<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-5">
 						<div className="grid gap-3 sm:grid-cols-2">
-							<label className="text-xs font-bold text-emerald-100/62">
+							<label className="text-xs font-medium text-[var(--muted)]">
 								Mindestlevel
 								<ThemedNumberInput
 									min={1}
@@ -494,7 +494,7 @@ export function TournamentModePanel({
 								/>
 							</label>
 							{usesUltimateBravery(settings.activeTournament) ? (
-								<label className="text-xs font-bold text-emerald-100/62">
+								<label className="text-xs font-medium text-[var(--muted)]">
 									Rerolls pro Spieler
 									<ThemedSelect
 										value={String(settings.ultimateBravery.rerollsPerPlayer)}
@@ -510,7 +510,7 @@ export function TournamentModePanel({
 								</label>
 							) : null}
 							<div className="sm:col-span-2">
-								<label htmlFor="tournament-prize-pool" className="text-xs font-bold text-emerald-100/62">
+								<label htmlFor="tournament-prize-pool" className="text-xs font-medium text-[var(--muted)]">
 									Preisankündigung
 								</label>
 								<textarea
@@ -522,14 +522,14 @@ export function TournamentModePanel({
 									rows={9}
 									onChange={(event) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, prizePool: event.target.value } }))}
 									placeholder={"# Preispool\n\n- 1. Platz: …\n- 2. Platz: …"}
-									className="mt-2 min-h-48 w-full resize-y rounded-2xl border border-white/10 bg-[#07110c] px-4 py-3 font-mono text-sm leading-6 text-emerald-50 outline-none transition focus:border-cyan-200/35 focus:ring-2 focus:ring-cyan-200/10"
+									className="mt-2 min-h-48 w-full resize-y rounded-[12px] border border-[var(--line)] bg-[var(--admin-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]"
 								/>
-								<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold leading-5 text-emerald-100/46">
+								<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-medium leading-5 text-[var(--muted)]">
 									<span>`#` Überschrift · `##` Untertitel · `-` Liste · `**fett**` · `_kursiv_` · `~~durchgestrichen~~` · `[Link](https://...)`</span>
 									<span>{settings.ultimateBravery.prizePool.length}/4000</span>
 								</div>
-								<div className="mt-4 rounded-2xl border border-amber-200/16 bg-amber-200/[0.055] p-4">
-									<div className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100/56">Öffentliche Vorschau</div>
+								<div className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-4">
+									<div className="mb-3 text-xs font-semibold text-[var(--muted)]">Öffentliche Vorschau</div>
 									<TournamentMarkdown>{settings.ultimateBravery.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
 								</div>
 							</div>
@@ -538,13 +538,13 @@ export function TournamentModePanel({
 							type="button"
 							disabled={isPending}
 							onClick={saveUltimateBravery}
-							className="mt-4 h-12 rounded-2xl bg-gradient-to-r from-amber-200 via-lime-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-55"
+							className="bg-[var(--accent)] mt-4 h-12 rounded-[12px] px-6 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-55"
 						>
 							{isPending ? "Speichert…" : "Regeln & Preise speichern"}
 						</button>
 						{usesFearless(settings.activeTournament) ? (
 							<div className="mt-4">
-								<label className="mb-3 block text-xs font-bold text-emerald-100/62">
+								<label className="mb-3 block text-xs font-medium text-[var(--muted)]">
 									Fearless-Variante
 									<ThemedSelect
 										value={settings.fearless.variant}
@@ -573,7 +573,7 @@ export function TournamentModePanel({
 									disabled={isPending}
 									onClick={() => saveFearless({ lockOpponentChampions: !settings.fearless.lockOpponentChampions })}
 								/>
-								<label className="mt-3 block text-xs font-bold text-emerald-100/62">
+								<label className="mt-3 block text-xs font-medium text-[var(--muted)]">
 									Fearless-Sperren gelten
 									<ThemedSelect
 										value={settings.fearless.scope}
@@ -596,9 +596,9 @@ export function TournamentModePanel({
 					</div>
 				) : null}
 				{show("lifecycle") ? (
-					<div className="rounded-[1.75rem] border border-cyan-200/16 bg-cyan-300/[0.045] p-5">
+					<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 						<label className="block">
-							<span className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/64">Sichtbarer Turnierstatus</span>
+							<span className="text-xs font-semibold text-[var(--muted)]">Sichtbarer Turnierstatus</span>
 							<ThemedSelect
 								value={settings.activeTournament.mode}
 								disabled={isPending}
@@ -607,7 +607,7 @@ export function TournamentModePanel({
 								options={TOURNAMENT_MODES.map((mode) => ({ value: mode, label: modeLabels[mode].label, description: modeLabels[mode].detail }))}
 							/>
 						</label>
-						<p className="mt-3 text-xs leading-5 text-emerald-100/58">{modeLabels[settings.activeTournament.mode].detail}</p>
+						<p className="mt-3 text-xs leading-5 text-[var(--muted)]">{modeLabels[settings.activeTournament.mode].detail}</p>
 						{usesChampSelect(settings.activeTournament) ? (
 							<div className="mt-4">
 								<CompactSetting
@@ -624,14 +624,14 @@ export function TournamentModePanel({
 				) : null}
 				{show("applications") ? (
 					<>
-						<div className={`rounded-[1.75rem] border p-5 ${settings.applicationsOpen ? "border-lime-200/24 bg-lime-200/[0.09]" : "border-white/10 bg-black/18"}`}>
+						<div className={`rounded-[16px] border p-5 ${settings.applicationsOpen ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-inset)]"}`}>
 							<div className="flex flex-wrap items-start justify-between gap-4">
 								<div className="min-w-0">
-									<div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/52">Bewerbungen</div>
-									<div className={`mt-2 text-4xl font-black tracking-tight ${settings.applicationsOpen ? "text-lime-50" : "text-emerald-100/42"}`}>
+									<div className="text-xs font-semibold text-[var(--muted)]">Bewerbungen</div>
+									<div className={`mt-2 text-4xl font-semibold tracking-tight ${settings.applicationsOpen ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>
 										{settings.applicationsOpen ? "Offen" : "Geschlossen"}
 									</div>
-									<p className="mt-2 max-w-md text-sm leading-6 text-emerald-100/58">
+									<p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
 										Master-Schalter für das Bewerbungsformular. Der Zeitraum unten entscheidet zusätzlich, wann Bewerbungen sichtbar sind.
 									</p>
 								</div>
@@ -639,29 +639,29 @@ export function TournamentModePanel({
 							</div>
 						</div>
 
-						<div className="rounded-[1.75rem] border border-white/10 bg-black/18 p-5">
+						<div className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-inset)] p-5">
 							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
 								<label className="min-w-0">
-									<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsstart</span>
+									<span className="block text-xs font-semibold text-[var(--muted)]">Bewerbungsstart</span>
 									<ThemedDateTimePicker ariaLabel="Bewerbungsstart" value={openAtInput} onChange={setOpenAtInput} clearable />
 								</label>
 								<label className="min-w-0">
-									<span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">Bewerbungsfrist</span>
+									<span className="block text-xs font-semibold text-[var(--muted)]">Bewerbungsfrist</span>
 									<ThemedDateTimePicker ariaLabel="Bewerbungsfrist" value={deadlineInput} onChange={setDeadlineInput} />
 								</label>
 								<button
 									type="button"
 									disabled={isPending}
 									onClick={saveApplicationWindow}
-									className="h-12 rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-6 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-55"
+									className="bg-[var(--accent)] h-12 rounded-[12px] px-6 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-55"
 								>
 									Zeitraum speichern
 								</button>
 							</div>
-							<p className="mt-3 text-xs leading-5 text-emerald-100/52">
-								Start: <span className="font-black text-emerald-50/80">{formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}</span> · Frist:{" "}
-								<span className="font-black text-emerald-50/80">{formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}</span>. Wenn der
-								Master-Schalter offen ist, wird <span className="font-black text-lime-100">/apply</span> automatisch nur in diesem Zeitraum verfügbar.
+							<p className="mt-3 text-xs leading-5 text-[var(--muted)]">
+								Start: <span className="font-semibold text-[var(--text)]">{formatTournamentApplicationOpenLabel(settings.applicationOpenAt)}</span> · Frist:{""}
+								<span className="font-semibold text-[var(--text)]">{formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}</span>. Wenn der
+								Master-Schalter offen ist, wird <span className="font-semibold text-[var(--accent)]">/apply</span> automatisch nur in diesem Zeitraum verfügbar.
 							</p>
 						</div>
 
@@ -675,14 +675,14 @@ export function TournamentModePanel({
 						/>
 
 						{settings.applicationsOpen && settings.applicationDeadlineOverride ? (
-							<div className="rounded-2xl border border-amber-200/22 bg-amber-200/10 px-4 py-3 text-sm font-bold leading-6 text-amber-50">
+							<div className="rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-4 py-3 text-sm font-medium leading-6 text-[var(--amber)]">
 								Notfall-Bewerbungen sind offen: Der normale Bewerbungsschluss wird gerade bewusst ignoriert.
 							</div>
 						) : null}
 					</>
 				) : null}
 				{message ? (
-					<div role="status" className="rounded-2xl border border-lime-200/18 bg-lime-200/8 px-4 py-3 text-sm font-bold text-lime-50">
+					<div role="status" className="rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-4 py-3 text-sm font-medium text-[var(--accent)]">
 						{message}
 					</div>
 				) : null}
@@ -696,23 +696,23 @@ function FearlessCapacityNote({ structure, rules }: { structure: TournamentSetti
 	if (structure.dayOneFormat === "undecided" || structure.format === "undecided") return null;
 	const capacity = fearlessCapacity(structure, rules);
 	const tone = !capacity.enough
-		? "border-red-300/30 bg-red-500/10 text-red-100"
+		? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 		: capacity.bottomLeft < 6
-			? "border-amber-200/30 bg-amber-200/10 text-amber-50"
-			: "border-white/10 bg-black/18 text-emerald-100/70";
+			? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]"
+			: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]";
 	return (
-		<div role={capacity.enough ? undefined : "alert"} className={`mt-3 rounded-2xl border px-4 py-3 text-xs leading-5 ${tone}`}>
-			<div className="font-black">
+		<div role={capacity.enough ? undefined : "alert"} className={`mt-3 rounded-[12px] border px-4 py-3 text-xs leading-5 ${tone}`}>
+			<div className="font-semibold">
 				Schlimmster Fall: ein Team spielt {capacity.games} {capacity.games === 1 ? "Spiel" : "Spiele"}
-				{rules.scope === "series" ? " in einer Serie" : " im Turnier"}.
+				{rules.scope === "series" ? "in einer Serie" : "im Turnier"}.
 			</div>
 			<p className="mt-1">
 				Vor dem letzten Spiel sind bis zu {capacity.lockedBeforeLastGame} von etwa {capacity.championPool} Champions gesperrt. Nach 10 Bans und den übrigen Picks bleiben
 				mindestens {capacity.leftForLastPick} für den letzten Pick. Bot-Lane-Champions übrig: {capacity.bottomLeft} von {capacity.bottomPool}.
 			</p>
-			{!capacity.enough ? <p className="mt-1 font-black">So gehen die Champions aus. Weniger Spiele, Bo1 oder Sperren nur pro Serie wählen.</p> : null}
+			{!capacity.enough ? <p className="mt-1 font-semibold">So gehen die Champions aus. Weniger Spiele, Bo1 oder Sperren nur pro Serie wählen.</p> : null}
 			{capacity.enough && capacity.bottomLeft < 6 ? (
-				<p className="mt-1 font-black">Bot-Lane wird knapp: Der Gegner kann die letzten echten ADCs bannen. Dann spielt ein Team einen anderen Champion auf Bot.</p>
+				<p className="mt-1 font-semibold">Bot-Lane wird knapp: Der Gegner kann die letzten echten ADCs bannen. Dann spielt ein Team einen anderen Champion auf Bot.</p>
 			) : null}
 		</div>
 	);
@@ -734,13 +734,13 @@ function CompactSetting({
 	onClick: () => void;
 }) {
 	return (
-		<div className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${active ? "border-lime-200/22 bg-lime-200/[0.07]" : "border-white/10 bg-black/18"}`}>
+		<div className={`flex items-center justify-between gap-4 rounded-[12px] border px-4 py-3 ${active ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-inset)]"}`}>
 			<div className="min-w-0">
 				<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-					<div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/48">{label}</div>
-					<div className={`text-sm font-black ${active ? "text-lime-50" : "text-emerald-100/50"}`}>{value}</div>
+					<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
+					<div className={`text-sm font-semibold ${active ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>{value}</div>
 				</div>
-				<p className="mt-1 text-xs leading-5 text-emerald-100/50">{detail}</p>
+				<p className="mt-1 text-xs leading-5 text-[var(--muted)]">{detail}</p>
 			</div>
 			<TogglePill active={active} disabled={disabled} onClick={onClick} label={`${label} umschalten`} />
 		</div>
@@ -756,18 +756,18 @@ function TogglePill({ active, disabled, onClick, label }: { active: boolean; dis
 			aria-label={label}
 			aria-pressed={active}
 			className={`h-8 w-14 shrink-0 rounded-full border p-1 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-55 ${
-				active ? "border-lime-200/42 bg-lime-200/22" : "border-white/10 bg-black/30"
+				active ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-inset)]"
 			}`}
 		>
-			<span className={`block size-5 rounded-full transition ${active ? "translate-x-6 bg-lime-100 shadow-lg shadow-lime-200/30" : "bg-emerald-100/32"}`} />
+			<span className={`block size-5 rounded-full transition ${active ? "translate-x-6 bg-[var(--accent)] " : "bg-[var(--admin-step)]"}`} />
 		</button>
 	);
 }
 
 function FormatGroup({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<fieldset className="mt-5 border-t border-white/8 pt-4">
-			<legend className="pr-3 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/48">{title}</legend>
+		<fieldset className="mt-5 border-t border-[var(--line)] pt-4">
+			<legend className="pr-3 text-xs font-semibold text-[var(--muted)]">{title}</legend>
 			<div className="mt-2 grid gap-3 sm:grid-cols-2">{children}</div>
 		</fieldset>
 	);
@@ -776,11 +776,11 @@ function FormatGroup({ title, children }: { title: string; children: ReactNode }
 function InlineToggle({ label, detail, active, onClick }: { label: string; detail: string; active: boolean; onClick: () => void }) {
 	return (
 		<div
-			className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 sm:col-span-2 ${active ? "border-lime-200/22 bg-lime-200/[0.07]" : "border-white/10 bg-black/18"}`}
+			className={`flex items-center justify-between gap-4 rounded-[12px] border px-4 py-3 sm:col-span-2 ${active ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-inset)]"}`}
 		>
 			<div className="min-w-0">
-				<div className="text-xs font-black text-emerald-50">{label}</div>
-				<p className="mt-1 text-[11px] leading-5 text-emerald-100/50">{detail}</p>
+				<div className="text-xs font-semibold text-[var(--text)]">{label}</div>
+				<p className="mt-1 text-xs leading-5 text-[var(--muted)]">{detail}</p>
 			</div>
 			<TogglePill active={active} disabled={false} onClick={onClick} label={`${label} umschalten`} />
 		</div>

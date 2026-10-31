@@ -111,12 +111,12 @@ export function DiscordControlCenter() {
 		: "Kein Turnierende hinterlegt";
 
 	return (
-		<section className="overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08150f]/88 shadow-xl shadow-black/22">
-			<header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/8 bg-gradient-to-r from-cyan-300/[0.065] via-transparent to-amber-200/[0.035] p-5">
+		<section className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08150f]/88">
+			<header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] p-5">
 				<div>
-					<div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-100/56">Discord Control Center</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Rollen, Nicknames und Queue</h2>
-					<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/52">
+					<div className="text-xs font-semibold text-[var(--muted)]">Discord Control Center</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Rollen, Nicknames und Queue</h2>
+					<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
 						Alle Massenänderungen laufen nacheinander durch eine persistente, rate-limit-schonende Queue.
 					</p>
 				</div>
@@ -148,9 +148,9 @@ export function DiscordControlCenter() {
 							tone="lime"
 						/>
 					</div>
-					<div className="rounded-2xl border border-amber-200/14 bg-amber-200/[0.045] p-4">
-						<div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-100/54">Nickname-Prüfung</div>
-						<p className="mt-2 text-xs leading-5 text-emerald-100/48">
+					<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+						<div className="text-xs font-semibold text-[var(--muted)]">Nickname-Prüfung</div>
+						<p className="mt-2 text-xs leading-5 text-[var(--muted)]">
 							Vergleicht alle Roster-Spieler mit dem Format „Anzeigename | Riot-ID“ und repariert ausschließlich Abweichungen.
 						</p>
 						<div className="mt-3">
@@ -178,7 +178,7 @@ export function DiscordControlCenter() {
 						/>
 					</div>
 					{status ? (
-						<div className="flex flex-wrap gap-2 text-[10px] font-bold">
+						<div className="flex flex-wrap gap-2 text-xs font-medium">
 							<ConfigBadge ok={status.configured.tournamentRole} label="Turnierrolle" />
 							<ConfigBadge ok={status.configured.captainRole} label="Captainrolle" />
 							<ConfigBadge
@@ -188,28 +188,28 @@ export function DiscordControlCenter() {
 						</div>
 					) : null}
 					{message ? (
-						<div role="status" className="rounded-xl border border-lime-200/20 bg-lime-200/8 px-3 py-2 text-xs font-bold text-lime-50">
+						<div role="status" className="rounded-xl border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--accent)]">
 							{message}
 						</div>
 					) : null}
 					{error ? (
-						<div role="alert" className="rounded-xl border border-red-300/24 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
+						<div role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--danger)]">
 							{error}
 						</div>
 					) : null}
 				</div>
 
-				<div className="min-w-0 rounded-2xl border border-white/8 bg-black/18 p-4">
+				<div className="min-w-0 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
 					<div className="flex items-center justify-between">
 						<div>
-							<div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/42">Queue-Historie</div>
-							<div className="mt-1 text-sm font-black text-emerald-50">Letzte Discord-Jobs</div>
+							<div className="text-xs font-semibold text-[var(--muted)]">Queue-Historie</div>
+							<div className="mt-1 text-sm font-semibold text-[var(--text)]">Letzte Discord-Jobs</div>
 						</div>
-						<span className="size-2 rounded-full bg-cyan-200 shadow-lg shadow-cyan-300/40" />
+						<span className="size-2 rounded-full bg-[var(--muted)]" />
 					</div>
 					<div className="themed-scrollbar mt-3 grid max-h-[28rem] gap-2 overflow-y-auto pr-1">
 						{jobs.length === 0 ? (
-							<div className="rounded-xl border border-white/8 bg-white/[0.025] p-3 text-xs text-emerald-100/40">Noch keine Discord-Jobs vorhanden.</div>
+							<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] p-3 text-xs text-[var(--muted)]">Noch keine Discord-Jobs vorhanden.</div>
 						) : (
 							jobs.map((job) => <JobRow key={job.id} job={job} busy={isPending} onRetry={() => retry(job.id)} />)
 						)}
@@ -245,17 +245,17 @@ export function DiscordControlCenter() {
 
 function StatusPill({ label, value }: { label: string; value: string | number }) {
 	return (
-		<div className="rounded-xl border border-white/9 bg-black/20 px-3 py-2">
-			<div className="text-base font-black text-emerald-50">{value}</div>
-			<div className="text-[8px] font-black uppercase tracking-[0.16em] text-emerald-100/38">{label}</div>
+		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2">
+			<div className="text-base font-semibold text-[var(--text)]">{value}</div>
+			<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
 		</div>
 	);
 }
 
 function ConfigBadge({ ok, label }: { ok: boolean; label: string }) {
 	return (
-		<span className={`rounded-full border px-2.5 py-1 ${ok ? "border-lime-200/20 bg-lime-200/8 text-lime-100" : "border-amber-200/20 bg-amber-200/8 text-amber-100"}`}>
-			{ok ? "✓" : "!"} {label}
+		<span className="tally rounded-full border border-[var(--line)] px-2.5 py-1" data-tone={ok ? "ok" : "warn"}>
+			{label}
 		</span>
 	);
 }
@@ -277,24 +277,24 @@ function ActionCard({
 	onClick: () => void;
 	tone: "cyan" | "lime" | "amber" | "red";
 }) {
-	const styles = {
-		cyan: "border-cyan-200/16 bg-cyan-300/[0.05] text-cyan-50",
-		lime: "border-lime-200/16 bg-lime-200/[0.05] text-lime-50",
-		amber: "border-amber-200/18 bg-amber-200/[0.055] text-amber-50",
-		red: "border-red-300/20 bg-red-500/[0.06] text-red-100",
+	const buttonTone = {
+		cyan: "text-[var(--text)]",
+		lime: "text-[var(--accent)]",
+		amber: "text-[var(--amber)]",
+		red: "text-[var(--danger)]",
 	};
 	return (
-		<div className={`flex min-h-44 flex-col rounded-2xl border p-4 ${styles[tone]}`}>
+		<div className="flex min-h-44 flex-col rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4 text-[var(--text)]">
 			<div className="flex items-start justify-between gap-3">
-				<h3 className="font-black">{title}</h3>
-				<span className="rounded-lg border border-current/15 bg-black/18 px-2 py-1 font-mono text-xs font-black">{count ?? "–"}</span>
+				<h3 className="font-semibold">{title}</h3>
+				<span className="rounded-lg border border-[var(--line)] px-2 py-1 font-mono text-xs font-semibold text-[var(--muted)]">{count ?? "–"}</span>
 			</div>
-			<p className="mt-2 flex-1 text-xs leading-5 opacity-55">{text}</p>
+			<p className="mt-2 flex-1 text-xs leading-5 text-[var(--muted)]">{text}</p>
 			<button
 				type="button"
 				disabled={disabled}
 				onClick={onClick}
-				className="mt-4 rounded-xl border border-current/24 bg-black/16 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition hover:bg-white/[0.07] disabled:opacity-45"
+				className={`mt-4 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold transition hover:border-[var(--line-strong)] disabled:opacity-45 ${buttonTone[tone]}`}
 			>
 				{button}
 			</button>
@@ -306,25 +306,25 @@ function JobRow({ job, busy, onRetry }: { job: Job; busy: boolean; onRetry: () =
 	const running = job.status === "queued" || job.status === "running";
 	return (
 		<div
-			className={`rounded-xl border p-3 ${job.status === "failed" ? "border-red-300/20 bg-red-500/[0.07]" : job.status === "completed" ? "border-lime-200/14 bg-lime-200/[0.045]" : "border-cyan-200/16 bg-cyan-300/[0.055]"}`}
+			className={`rounded-xl border p-3 ${job.status === "failed" ? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]" : job.status === "completed" ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-step)]"}`}
 		>
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
-					<div className="truncate text-xs font-black text-emerald-50">{job.title}</div>
-					<div className="mt-1 text-[9px] font-bold uppercase tracking-[0.13em] text-emerald-100/42">
+					<div className="truncate text-xs font-semibold text-[var(--text)]">{job.title}</div>
+					<div className="mt-1 text-xs font-medium text-[var(--muted)]">
 						{job.status} · {job.completed}/{job.total}
 						{job.failed ? ` · ${job.failed} Fehler` : ""}
 					</div>
 				</div>
 				{running ? <LoadingOrb state="searching" /> : null}
 			</div>
-			{job.current ? <div className="mt-2 truncate text-[10px] text-emerald-100/42">{job.current}</div> : null}
+			{job.current ? <div className="mt-2 truncate text-xs text-[var(--muted)]">{job.current}</div> : null}
 			{job.status === "failed" ? (
 				<button
 					type="button"
 					disabled={busy}
 					onClick={onRetry}
-					className="mt-2 rounded-lg border border-red-200/20 bg-red-200/[0.06] px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-red-100 disabled:opacity-45"
+					className="mt-2 rounded-lg border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--danger)] disabled:opacity-45"
 				>
 					Nur Fehler wiederholen
 				</button>
@@ -350,35 +350,35 @@ function TypedConfirmation({
 }) {
 	return (
 		<div role="dialog" aria-modal="true" aria-labelledby="remove-access-title" className="fixed inset-0 z-[90] grid place-items-center px-5">
-			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-black/72 backdrop-blur-sm" />
-			<div className="relative w-full max-w-lg rounded-[2rem] border border-red-300/24 bg-[#0b1710] p-6 shadow-2xl shadow-black/60">
-				<div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-200/64">Destruktive Discord-Aktion</div>
-				<h2 id="remove-access-title" className="mt-2 text-2xl font-black text-emerald-50">
+			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-[var(--admin-inset)]" />
+			<div className="relative w-full max-w-lg rounded-[16px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[var(--admin-surface)] p-6">
+				<div className="text-xs font-semibold text-[var(--danger)]">Destruktive Discord-Aktion</div>
+				<h2 id="remove-access-title" className="mt-2 text-2xl font-semibold text-[var(--text)]">
 					Turnierzugang entfernen
 				</h2>
-				<p className="mt-3 text-sm leading-6 text-emerald-100/58">
+				<p className="mt-3 text-sm leading-6 text-[var(--muted)]">
 					Die Turnierrolle wird von {count} Mitgliedern entfernt. Feedback- und Ergebnis-Channels können danach nicht mehr sichtbar sein.
 				</p>
 				<label className="mt-5 grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.16em] text-red-100/68">Zum Bestätigen eingeben: TURNIERZUGANG ENTFERNEN</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Zum Bestätigen eingeben: TURNIERZUGANG ENTFERNEN</span>
 					<input
 						name="confirmation"
 						autoComplete="off"
 						spellCheck={false}
 						value={value}
 						onChange={(event) => onChange(event.target.value)}
-						className="rounded-xl border border-red-300/20 bg-black/28 px-3 py-3 text-sm font-black text-emerald-50 outline-none focus:border-red-300/45"
+						className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[var(--admin-inset)] px-3 py-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[color-mix(in_srgb,var(--danger)_40%,transparent)]"
 					/>
 				</label>
 				<div className="mt-5 flex justify-end gap-2">
-					<button type="button" onClick={onCancel} className="rounded-xl border border-white/12 px-4 py-2 text-xs font-black text-emerald-100">
+					<button type="button" onClick={onCancel} className="rounded-xl border border-[var(--line)] px-4 py-2 text-xs font-semibold text-[var(--text)]">
 						Abbrechen
 					</button>
 					<button
 						type="button"
 						disabled={busy || value !== "TURNIERZUGANG ENTFERNEN"}
 						onClick={onConfirm}
-						className="rounded-xl bg-red-200 px-4 py-2 text-xs font-black text-red-950 disabled:opacity-35"
+						className="rounded-xl bg-[var(--danger)] px-4 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-35"
 					>
 						Rolle entfernen
 					</button>
