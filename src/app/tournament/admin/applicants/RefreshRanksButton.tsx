@@ -247,55 +247,55 @@ export function RefreshRanksButton({
 					}
 					void refreshPlayerData();
 				}}
-				className="inline-flex justify-self-start rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-200/34 disabled:cursor-not-allowed disabled:opacity-60"
+				className="inline-flex justify-self-start rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-60"
 			>
 				{running ? "Aktualisierung läuft" : label}
 			</button>
 
 			{showProgress ? (
-				<div aria-live="polite" className="overflow-hidden rounded-2xl border border-cyan-200/16 bg-[#071712]/94 shadow-xl shadow-black/20">
+				<div aria-live="polite" className="overflow-hidden rounded-[12px] border border-[var(--line)] bg-[#071712]/94">
 					<div className="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
 						<div>
-							<div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-100/50">Riot-Profil-Sync</div>
-							<div className="mt-1 text-xs font-bold text-emerald-50">{phaseLabel}</div>
+							<div className="text-xs font-semibold text-[var(--muted)]">Riot-Profil-Sync</div>
+							<div className="mt-1 text-xs font-medium text-[var(--text)]">{phaseLabel}</div>
 						</div>
 						<div className="text-right">
-							<div className="text-lg font-black tabular-nums text-cyan-100">
+							<div className="text-lg font-semibold tabular-nums text-[var(--text)]">
 								{bulkProgress.completed}/{bulkProgress.total}
 							</div>
-							<div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/42">{progressPercent}%</div>
+							<div className="text-xs font-semibold text-[var(--muted)]">{progressPercent}%</div>
 						</div>
 					</div>
 
-					<div className="mx-4 h-2 overflow-hidden rounded-full border border-white/8 bg-black/32">
+					<div className="mx-4 h-2 overflow-hidden rounded-full border border-[var(--line)] bg-[var(--admin-inset)]">
 						<div
-							className="h-full rounded-full bg-gradient-to-r from-lime-300 via-emerald-300 to-cyan-300 transition-[width] duration-500"
+							className="bg-[var(--accent)] h-full rounded-full transition-[width] duration-500"
 							style={{ width: `${progressPercent}%` }}
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-px bg-white/6 sm:grid-cols-4">
+					<div className="grid grid-cols-2 gap-px bg-[var(--admin-step)] sm:grid-cols-4">
 						<ProgressStat label="Geändert" value={bulkProgress.changed} tone="changed" />
 						<ProgressStat label="Unverändert" value={bulkProgress.unchanged} />
 						<ProgressStat label="Fehler" value={bulkProgress.failed} tone={bulkProgress.failed > 0 ? "error" : "neutral"} />
 						<ProgressStat label="Restzeit" value={running ? formatEta(etaMs) : "Fertig"} />
 					</div>
 
-					<div className="border-t border-white/7 px-4 py-3">
-						<div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
-							<span className="font-black uppercase tracking-[0.17em] text-emerald-100/42">
+					<div className="border-t border-[var(--line)] px-4 py-3">
+						<div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+							<span className="font-semibold text-[var(--muted)]">
 								{bulkProgress.phase === "request" ? "Gerade dran" : bulkProgress.phase === "pause" ? "Zuletzt geprüft" : "Letzter Stand"}
 							</span>
-							<span className="font-bold text-cyan-50">{bulkProgress.current ?? "Alle Profile verarbeitet"}</span>
+							<span className="font-medium text-[var(--text)]">{bulkProgress.current ?? "Alle Profile verarbeitet"}</span>
 						</div>
 						{recentEntries.length > 0 ? (
 							<div className="mt-2 grid gap-1.5">
 								{recentEntries.map((entry, index) => (
-									<div key={`${entry.label}-${index}`} className="flex min-w-0 items-start justify-between gap-3 rounded-lg bg-black/20 px-2.5 py-2 text-[10px]">
-										<span className="shrink-0 font-bold text-emerald-50/74">{entry.label}</span>
+									<div key={`${entry.label}-${index}`} className="flex min-w-0 items-start justify-between gap-3 rounded-lg bg-[var(--admin-inset)] px-2.5 py-2 text-xs">
+										<span className="shrink-0 font-medium text-[var(--muted)]">{entry.label}</span>
 										<span
 											className={`min-w-0 text-right font-semibold ${
-												entry.tone === "error" ? "text-red-200" : entry.tone === "changed" ? "text-lime-200" : "text-emerald-100/42"
+												entry.tone === "error" ? "text-[var(--danger)]" : entry.tone === "changed" ? "text-[var(--accent)]" : "text-[var(--muted)]"
 											}`}
 										>
 											{entry.detail}
@@ -309,14 +309,14 @@ export function RefreshRanksButton({
 			) : null}
 
 			{message ? (
-				<span role="status" className="max-w-2xl text-[10px] font-bold leading-5 text-emerald-100/54">
+				<span role="status" className="max-w-2xl text-xs font-medium leading-5 text-[var(--muted)]">
 					{message}
 				</span>
 			) : null}
 			<ConfirmDialog
 				open={bulkConfirmOpen}
 				title="Alle Riot-Daten aktualisieren?"
-				description={`Riot-ID, aktueller Rang und Summoner-Level ${scope === "verified" ? "aller dauerhaft verknüpften Riot-Konten" : "aller Bewerber"} werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten.${runtimeApplicants.length > 0 ? ` Geplant: ${runtimeApplicants.length} Profile.` : ""}`}
+				description={`Riot-ID, aktueller Rang und Summoner-Level ${scope === "verified" ? "aller dauerhaft verknüpften Riot-Konten" : "aller Bewerber"} werden nacheinander aktualisiert. Der Vorgang läuft absichtlich langsam, um die Riot Rate Limits einzuhalten.${runtimeApplicants.length > 0 ? ` Geplant: ${runtimeApplicants.length} Profile.`: ""}`}
 				confirmLabel="Aktualisierung starten"
 				cancelLabel="Abbrechen"
 				onCancel={() => setBulkConfirmOpen(false)}
@@ -328,16 +328,16 @@ export function RefreshRanksButton({
 
 function ProgressStat({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "changed" | "error" }) {
 	return (
-		<div className="bg-[#0a1b14] px-3 py-2.5">
-			<div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-100/34">{label}</div>
-			<div className={`mt-1 text-sm font-black tabular-nums ${tone === "error" ? "text-red-200" : tone === "changed" ? "text-lime-200" : "text-emerald-50"}`}>{value}</div>
+		<div className="bg-[var(--admin-surface)] px-3 py-2.5">
+			<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
+			<div className={`mt-1 text-sm font-semibold tabular-nums ${tone === "error" ? "text-[var(--danger)]" : tone === "changed" ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{value}</div>
 		</div>
 	);
 }
 
 function describeChanges(changes?: RefreshChange[]) {
 	if (!changes || changes.length === 0) return "Keine Änderungen";
-	return changes.map((change) => `${change.field}: ${change.before} → ${change.after}`).join(" · ");
+	return changes.map((change) => `${change.field}: ${change.before} → ${change.after}`).join("·");
 }
 
 function formatEta(milliseconds: number) {

@@ -190,17 +190,17 @@ function ApplicantCard({
 	version: number;
 }) {
 	return (
-		<article className="flex flex-col gap-3 rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
+		<article className="flex flex-col gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 			<header className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
-					<div className="truncate text-lg font-black text-emerald-50">{app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}</div>
+					<div className="truncate text-lg font-semibold text-[var(--text)]">{app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}</div>
 					<div className="mt-1 flex flex-wrap items-center gap-2">
-						<div className="min-w-0 truncate text-xs text-lime-200/72">{app.riotId}</div>
+						<div className="min-w-0 truncate text-xs text-[var(--accent)]">{app.riotId}</div>
 						<a
 							href={opggUrl(app.riotId)}
 							target="_blank"
 							rel="noreferrer"
-							className="shrink-0 rounded-lg border border-white/12 bg-black/24 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/68 transition hover:border-lime-200/34 hover:text-lime-100"
+							className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 						>
 							OP.GG
 						</a>
@@ -210,12 +210,13 @@ function ApplicantCard({
 					{assignedTo ? (
 						<span
 							title={`Zugewiesen zu ${assignedTo}`}
-							className="rounded-full border border-lime-200/30 bg-lime-200/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-lime-50"
+							className="tally rounded-full border border-[var(--line)] px-3 py-1"
+							data-tone="ok"
 						>
-							✓ {assignedTo}
+							{assignedTo}
 						</span>
 					) : (
-						<span className="rounded-full border border-amber-200/30 bg-amber-200/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
+						<span className="rounded-full border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--amber)]">
 							Offen
 						</span>
 					)}
@@ -230,9 +231,9 @@ function ApplicantCard({
 
 			<div className="grid gap-2 text-xs">
 				{eligibilityOverride ? (
-					<div className="mb-1 flex items-center justify-between gap-2 rounded-xl border border-cyan-200/18 bg-cyan-200/[0.07] px-3 py-2 text-cyan-50">
-						<span className="font-black">Mindestlevel freigegeben</span>
-						<span className="rounded-full border border-cyan-100/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]">
+					<div className="mb-1 flex items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-[var(--text)]">
+						<span className="font-semibold">Mindestlevel freigegeben</span>
+						<span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold">
 							{eligibilityOverride.kind === "regular" ? "Dauergast" : "Ausnahme"}
 						</span>
 					</div>
@@ -240,26 +241,26 @@ function ApplicantCard({
 				<Row label="Anzeigename">{app.displayName}</Row>
 				<Row label="Aktueller Rang">
 					<span className="flex flex-wrap items-center gap-2">
-						<span>{app.currentRankAuto ?? <span className="italic text-emerald-100/40">Unranked</span>}</span>
+						<span>{app.currentRankAuto ?? <span className="italic text-[var(--muted)]">Unranked</span>}</span>
 						<RefreshRanksButton applicationId={app.id} label="Profil aktualisieren" />
 					</span>
 				</Row>
-				<Row label="Account-Level">{app.summonerLevel ?? <span className="italic text-amber-100/50">erneut verifizieren</span>}</Row>
-				<Row label="Main Rolle">{app.mainRole ?? <span className="italic text-emerald-100/40">nicht angegeben</span>}</Row>
+				<Row label="Account-Level">{app.summonerLevel ?? <span className="italic text-[var(--muted)]">erneut verifizieren</span>}</Row>
+				<Row label="Main Rolle">{app.mainRole ?? <span className="italic text-[var(--muted)]">nicht angegeben</span>}</Row>
 			</div>
 
 			<EditApplicantForm app={app} initialVersion={version} />
 
 			<div>
-				<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Wunschrollen</div>
+				<div className="text-xs font-semibold text-[var(--muted)]">Wunschrollen</div>
 				<div className="mt-1.5 flex flex-wrap gap-1">
 					{app.preferredRoles.length === 0 ? (
-						<span className="text-xs italic text-emerald-100/40">keine angegeben</span>
+						<span className="text-xs italic text-[var(--muted)]">keine angegeben</span>
 					) : (
 						app.preferredRoles.map((r, index) => (
 							<span
 								key={r}
-								className="rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100/72"
+								className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]"
 							>
 								#{index + 1} · {r}
 							</span>
@@ -270,8 +271,8 @@ function ApplicantCard({
 
 			{app.hasCompetitiveExperience ? (
 				<div>
-					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Competitive-Erfahrung</div>
-					<p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-white/8 bg-black/22 p-3 text-xs leading-5 text-emerald-100/72">
+					<div className="text-xs font-semibold text-[var(--muted)]">Competitive-Erfahrung</div>
+					<p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs leading-5 text-[var(--muted)]">
 						{app.competitiveExperience || "Erfahrung angegeben, aber keine Beschreibung hinterlegt."}
 					</p>
 				</div>
@@ -279,14 +280,14 @@ function ApplicantCard({
 
 			{app.notes ? (
 				<div>
-					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">Notizen</div>
-					<p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/8 bg-black/22 p-3 text-xs leading-5 text-emerald-100/72">
+					<div className="text-xs font-semibold text-[var(--muted)]">Notizen</div>
+					<p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs leading-5 text-[var(--muted)]">
 						{app.notes}
 					</p>
 				</div>
 			) : null}
 
-			<footer className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3 text-[10px] text-emerald-100/40">
+			<footer className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
 				<span title={`Discord-ID ${app.discordId}`}>Eingegangen {formatDate(app.createdAt)}</span>
 				{app.createdAt !== app.updatedAt ? <span>Bearbeitet {formatDate(app.updatedAt)}</span> : null}
 			</footer>
@@ -297,8 +298,8 @@ function ApplicantCard({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="grid grid-cols-[7rem_1fr] gap-2 text-xs">
-			<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">{label}</span>
-			<span className="truncate font-bold text-emerald-50">{children}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
+			<span className="truncate font-medium text-[var(--text)]">{children}</span>
 		</div>
 	);
 }

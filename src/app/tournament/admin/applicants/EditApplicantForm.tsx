@@ -71,26 +71,26 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	}
 
 	return (
-		<details className="rounded-2xl border border-white/8 bg-black/16 p-3">
-			<summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/72">Bewerbung bearbeiten</summary>
+		<details className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+			<summary className="cursor-pointer text-xs font-semibold text-[var(--accent)]">Bewerbung bearbeiten</summary>
 			<div className="mt-3 grid gap-3">
-				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
+				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
 					Anzeigename
 					<input
 						name="display-name"
 						autoComplete="off"
 						value={displayName}
 						onChange={(event) => setDisplayName(event.target.value)}
-						className="rounded-xl border border-white/10 bg-black/28 px-3 py-2 text-sm font-bold text-emerald-50 outline-none focus:border-lime-200/40"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus:border-[var(--accent)]"
 					/>
 				</label>
 
-				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
+				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
 					Main Rolle
 					<ThemedSelect value={mainRole} onChange={setMainRole} options={roleOptions.map((role) => ({ value: role, label: role }))} />
 				</label>
 
-				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
+				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
 					Wunschrollen
 					<ThemedMultiSelect
 						value={preferredRoles}
@@ -102,7 +102,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 					/>
 				</label>
 
-				<label className="grid gap-1 text-xs font-bold text-emerald-100/70">
+				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
 					Notizen
 					<textarea
 						name="notes"
@@ -110,7 +110,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						value={notes}
 						onChange={(event) => setNotes(event.target.value)}
 						rows={4}
-						className="rounded-xl border border-white/10 bg-black/28 px-3 py-2 text-sm font-bold text-emerald-50 outline-none focus:border-lime-200/40"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus:border-[var(--accent)]"
 					/>
 				</label>
 
@@ -123,12 +123,12 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 								await save();
 							})
 						}
-						className="rounded-xl bg-lime-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-45"
+						className="rounded-xl bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-45"
 					>
 						{isPending ? "Speichert…" : "Speichern"}
 					</button>
 					{message ? (
-						<span role="status" className="text-xs font-bold text-emerald-100/60">
+						<span role="status" className="text-xs font-medium text-[var(--muted)]">
 							{message}
 						</span>
 					) : null}

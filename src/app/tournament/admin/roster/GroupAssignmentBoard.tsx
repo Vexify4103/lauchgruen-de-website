@@ -150,19 +150,19 @@ export function GroupAssignmentBoard({
 	}
 
 	return (
-		<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08160f]/86 shadow-xl shadow-black/22">
-			<header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/8 bg-gradient-to-r from-cyan-300/[0.06] to-transparent px-5 py-4">
+		<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08160f]/86">
+			<header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
 				<div>
-					<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">{kind === "seed-list" ? "Tag 1 · Setzliste" : "Tag 1 · Gruppen"}</div>
-					<h2 className="mt-1 text-xl font-black text-emerald-50">{title ?? (isSingleGroup ? "Seed-Reihenfolge festlegen" : "Teams auf Gruppen verteilen")}</h2>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/44">
+					<div className="text-xs font-semibold text-[var(--muted)]">{kind === "seed-list" ? "Tag 1 · Setzliste" : "Tag 1 · Gruppen"}</div>
+					<h2 className="mt-1 text-xl font-semibold text-[var(--text)]">{title ?? (isSingleGroup ? "Seed-Reihenfolge festlegen" : "Teams auf Gruppen verteilen")}</h2>
+					<p className="mt-1 text-xs leading-5 text-[var(--muted)]">
 						{description ??
 							(isSingleGroup
 								? "Seed #1 steht ganz oben. Die Reihenfolge erzeugt den Spielplan; die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase."
 								: "Die Slots bestimmen gleichzeitig Gruppe und initialen Seed. Die Playoff-Seeds entstehen später aus den Ergebnissen der Gruppenphase.")}
 					</p>
 					{excludedTeamKeys.length ? (
-						<p className="mt-1 text-xs font-bold leading-5 text-amber-100/70">
+						<p className="mt-1 text-xs font-medium leading-5 text-[var(--muted)]">
 							{excludedTeamKeys.length} Play-in-Team{excludedTeamKeys.length === 1 ? "" : "s"} ohne Platz: Sieger erscheinen hier, sobald ihr Play-in-Match
 							entschieden ist.
 						</p>
@@ -177,7 +177,7 @@ export function GroupAssignmentBoard({
 								setAssignments(new Map(byStrength().map((team, index) => [team.key, { group: "A", seed: index + 1 }])));
 								setMessage("Nach Rang sortiert. Prüfen und speichern.");
 							}}
-							className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+							className="rounded-xl border border-[var(--line)] px-3 py-3 text-xs font-semibold text-[var(--text)] disabled:opacity-45"
 						>
 							Nach Rang sortieren
 						</button>
@@ -187,7 +187,7 @@ export function GroupAssignmentBoard({
 								type="button"
 								disabled={pending || teams.length === 0}
 								onClick={() => distribute(shuffled(teams), false)}
-								className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+								className="rounded-xl border border-[var(--line)] px-3 py-3 text-xs font-semibold text-[var(--text)] disabled:opacity-45"
 							>
 								Zufällig verteilen
 							</button>
@@ -195,7 +195,7 @@ export function GroupAssignmentBoard({
 								type="button"
 								disabled={pending || teams.length === 0}
 								onClick={() => distribute(byStrength(), true)}
-								className="rounded-xl border border-white/12 px-3 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80 disabled:opacity-45"
+								className="rounded-xl border border-[var(--line)] px-3 py-3 text-xs font-semibold text-[var(--text)] disabled:opacity-45"
 							>
 								Snake nach Rang
 							</button>
@@ -206,27 +206,27 @@ export function GroupAssignmentBoard({
 					type="button"
 					disabled={pending || teams.length === 0}
 					onClick={save}
-					className="rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-45"
+					className="bg-[var(--accent)] rounded-xl px-4 py-3 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-45"
 				>
 					{pending ? "Wird gespeichert…" : isSingleGroup ? "Seed-Reihenfolge speichern" : "Gruppen speichern"}
 				</button>
 			</header>
 			{isSingleGroup ? (
 				<div className="p-4 sm:p-5">
-					<div className="overflow-hidden rounded-2xl border border-white/9 bg-black/18">
+					<div className="overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)]">
 						{orderedTeams.map((team, index) => (
 							<div
 								key={team.key}
-								className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/7 px-3 py-3 last:border-b-0 sm:grid-cols-[3.25rem_minmax(0,1fr)_auto_auto] sm:px-4"
+								className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--line)] px-3 py-3 last:border-b-0 sm:grid-cols-[3.25rem_minmax(0,1fr)_auto_auto] sm:px-4"
 							>
-								<strong className="font-mono text-lg font-black tabular-nums text-cyan-100/72">#{index + 1}</strong>
+								<strong className="font-mono text-lg font-semibold tabular-nums text-[var(--muted)]">#{index + 1}</strong>
 								<div className="min-w-0">
-									<div className="truncate text-sm font-black text-emerald-50 sm:text-base">{team.name}</div>
-									<div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-100/34">
-										{team.players.length} Spieler{team.captainDiscordId ? " · Captain gesetzt" : " · Captain fehlt"}
+									<div className="truncate text-sm font-semibold text-[var(--text)] sm:text-base">{team.name}</div>
+									<div className="mt-0.5 text-xs font-semibold text-[var(--muted)]">
+										{team.players.length} Spieler{team.captainDiscordId ? "· Captain gesetzt" : "· Captain fehlt"}
 									</div>
 								</div>
-								<span className="hidden rounded-lg border border-lime-200/12 bg-lime-200/[0.045] px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-lime-100/56 sm:block">
+								<span className="hidden rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--muted)] sm:block">
 									{index === 0 ? "Top Seed" : `Seed ${index + 1}`}
 								</span>
 								<div className="flex gap-1.5">
@@ -235,7 +235,7 @@ export function GroupAssignmentBoard({
 										disabled={index === 0 || pending}
 										onClick={() => moveSeed(team.key, -1)}
 										aria-label={`${team.name} einen Seed nach oben verschieben`}
-										className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/[0.035] text-sm font-black text-emerald-100 transition hover:border-cyan-200/30 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-20"
+										className="grid size-9 place-items-center rounded-lg border border-[var(--line)] bg-[var(--admin-step)] text-sm font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-20"
 									>
 										↑
 									</button>
@@ -244,7 +244,7 @@ export function GroupAssignmentBoard({
 										disabled={index === orderedTeams.length - 1 || pending}
 										onClick={() => moveSeed(team.key, 1)}
 										aria-label={`${team.name} einen Seed nach unten verschieben`}
-										className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/[0.035] text-sm font-black text-emerald-100 transition hover:border-cyan-200/30 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-20"
+										className="grid size-9 place-items-center rounded-lg border border-[var(--line)] bg-[var(--admin-step)] text-sm font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-20"
 									>
 										↓
 									</button>
@@ -253,12 +253,12 @@ export function GroupAssignmentBoard({
 						))}
 					</div>
 					{teams.length !== plannedTeamCount ? (
-						<p className="mt-3 rounded-xl border border-amber-200/18 bg-amber-200/[0.055] px-3 py-2 text-xs leading-5 text-amber-50/76">
+						<p className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--muted)]">
 							In den Einstellungen sind {plannedTeamCount} Teams geplant, aktuell existieren {teams.length}. Passe zuerst die Gesamtzahl an, damit der Spielplan
 							vollständig ist.
 						</p>
 					) : null}
-					<p className="mt-3 text-[10px] leading-5 text-emerald-100/42">
+					<p className="mt-3 text-xs leading-5 text-[var(--muted)]">
 						Das Speichern bleibt privat. Danach oben einmal „Teams veröffentlichen“ drücken. Wenn nur Seeds geändert wurden, erhalten Spieler keine neue
 						Platzierungs-DM.
 					</p>
@@ -266,10 +266,10 @@ export function GroupAssignmentBoard({
 			) : (
 				<div className="grid gap-3 p-4 lg:grid-cols-2 2xl:grid-cols-3">
 					{groups.map((group) => (
-						<div key={group} className="rounded-2xl border border-white/9 bg-black/18 p-3">
+						<div key={group} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
 							<div className="flex items-center justify-between">
-								<strong className="text-base text-emerald-50">Gruppe {group}</strong>
-								<span className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/42">
+								<strong className="text-base text-[var(--text)]">Gruppe {group}</strong>
+								<span className="text-xs font-semibold text-[var(--muted)]">
 									{[...assignments.values()].filter((entry) => entry.group === group).length}/{groupSizes.get(group)}
 								</span>
 							</div>
@@ -282,7 +282,7 @@ export function GroupAssignmentBoard({
 									});
 									return (
 										<div key={seed} className="grid grid-cols-[3.2rem_minmax(0,1fr)] items-center gap-2">
-											<span className="text-[9px] font-black uppercase tracking-[0.15em] text-lime-200/48">Seed {seed}</span>
+											<span className="text-xs font-semibold text-[var(--muted)]">Seed {seed}</span>
 											<ThemedSelect
 												value={occupant?.key ?? ""}
 												onChange={(value) => setSlot(group, seed, value)}
@@ -295,17 +295,17 @@ export function GroupAssignmentBoard({
 							</div>
 						</div>
 					))}
-					<div className="rounded-2xl border border-dashed border-amber-200/16 bg-amber-200/[0.035] p-3">
-						<div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-100/52">Nicht zugeteilt · {unassigned.length}</div>
+					<div className="rounded-[12px] border border-dashed border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-3">
+						<div className="text-xs font-semibold text-[var(--muted)]">Nicht zugeteilt · {unassigned.length}</div>
 						<div className="mt-3 flex flex-wrap gap-1.5">
 							{unassigned.length ? (
 								unassigned.map((team) => (
-									<span key={team.key} className="rounded-lg border border-white/9 bg-black/20 px-2 py-1 text-[10px] font-bold text-emerald-100/62">
+									<span key={team.key} className="rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2 py-1 text-xs font-medium text-[var(--muted)]">
 										{team.name}
 									</span>
 								))
 							) : (
-								<span className="text-xs text-lime-100/58">Alle Teams sind eingeordnet.</span>
+								<span className="text-xs text-[var(--muted)]">Alle Teams sind eingeordnet.</span>
 							)}
 						</div>
 					</div>
@@ -314,7 +314,7 @@ export function GroupAssignmentBoard({
 			{message || error ? (
 				<div
 					role={error ? "alert" : "status"}
-					className={`mx-4 mb-4 rounded-xl border px-3 py-2 text-xs font-bold ${error ? "border-red-300/24 bg-red-500/10 text-red-100" : "border-lime-200/20 bg-lime-200/8 text-lime-50"}`}
+					className={`mx-4 mb-4 rounded-xl border px-3 py-2 text-xs font-medium ${error ? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]" : "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"}`}
 				>
 					{error || message}
 				</div>

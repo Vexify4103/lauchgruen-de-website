@@ -121,7 +121,7 @@ export function EligibilityOverrideManager({
 	}
 
 	return (
-		<section className="mt-8 rounded-[2rem] border border-cyan-200/16 bg-gradient-to-br from-cyan-300/[0.07] via-emerald-300/[0.035] to-lime-200/[0.055] p-5 shadow-xl shadow-black/20">
+		<section className="mt-8 rounded-[16px] border border-[var(--line)] p-5">
 			<ConfirmDialog
 				open={Boolean(pendingRemoval)}
 				tone="danger"
@@ -137,18 +137,18 @@ export function EligibilityOverrideManager({
 			/>
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div className="max-w-3xl">
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/70">Teilnahme-Freigaben</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Ausnahmen und Dauergäste verwalten</h2>
-					<p className="mt-2 text-sm leading-6 text-emerald-100/64">
+					<div className="text-xs font-semibold text-[var(--muted)]">Teilnahme-Freigaben</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Ausnahmen und Dauergäste verwalten</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
 						Beide Kategorien umgehen das Account-Mindestlevel. Discord-Mitgliedschaft, Riot-Verifizierung und Blacklist bleiben immer aktiv.
 					</p>
 				</div>
-				<div className="rounded-2xl border border-cyan-100/16 bg-black/20 px-4 py-2 text-sm font-black text-cyan-50">{activeEntries.length} aktiv</div>
+				<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-2 text-sm font-semibold text-[var(--text)]">{activeEntries.length} aktiv</div>
 			</div>
 
-			<form onSubmit={addEntry} className="mt-5 grid gap-3 rounded-2xl border border-white/8 bg-black/16 p-4 lg:grid-cols-[0.8fr_1fr_1fr_1.45fr_auto] lg:items-end">
+			<form onSubmit={addEntry} className="mt-5 grid gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4 lg:grid-cols-[0.8fr_1fr_1fr_1.45fr_auto] lg:items-end">
 				<label className="grid gap-2">
-					<span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/64">Kategorie</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Kategorie</span>
 					<ThemedSelect
 						value={kind}
 						onChange={(value) => setKind(value as TournamentEligibilityOverrideKind)}
@@ -162,14 +162,14 @@ export function EligibilityOverrideManager({
 				<button
 					type="submit"
 					disabled={isPending || (!discordId.trim() && !riotId.trim()) || note.trim().length < 3}
-					className="rounded-2xl bg-gradient-to-r from-lime-200 via-emerald-200 to-cyan-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-lg shadow-lime-300/10 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+					className="bg-[var(--accent)] rounded-[12px] px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:cursor-not-allowed disabled:opacity-45"
 				>
 					Freigeben
 				</button>
 			</form>
 
 			{message ? (
-				<div role="status" className="mt-4 rounded-2xl border border-cyan-100/16 bg-black/22 px-4 py-3 text-sm font-bold text-cyan-50">
+				<div role="status" className="mt-4 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-3 text-sm font-medium text-[var(--text)]">
 					{message}
 				</div>
 			) : null}
@@ -178,12 +178,12 @@ export function EligibilityOverrideManager({
 				<details
 					open={listOpen}
 					onToggle={(event) => setListOpen((event.currentTarget as HTMLDetailsElement).open)}
-					className="group mt-5 rounded-2xl border border-white/8 bg-black/14 p-4"
+					className="group mt-5 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4"
 				>
-					<summary className="cursor-pointer list-none text-sm font-black text-emerald-50 marker:hidden">
+					<summary className="cursor-pointer list-none text-sm font-semibold text-[var(--text)] marker:hidden">
 						<span className="inline-flex items-center gap-2">
-							<span className="grid size-6 place-items-center rounded-full border border-cyan-100/16 bg-cyan-100/8" aria-hidden="true">
-								<span className="size-2 rotate-45 border-b-2 border-r-2 border-cyan-100/72 transition-transform duration-200 group-open:-rotate-[135deg]" />
+							<span className="grid size-6 place-items-center rounded-full border border-[var(--line)] bg-[var(--admin-step)]" aria-hidden="true">
+								<span className="size-2 rotate-45 border-b-2 border-r-2 border-[var(--line-strong)] transition-transform duration-200 group-open:-rotate-[135deg]" />
 							</span>
 							Alle Freigaben anzeigen ({entries.length})
 						</span>
@@ -195,15 +195,15 @@ export function EligibilityOverrideManager({
 								return (
 									<article
 										key={entry.id}
-										className={`rounded-2xl border p-4 ${active ? "border-cyan-100/16 bg-cyan-200/[0.055]" : "border-white/8 bg-black/20 opacity-55"}`}
+										className={`rounded-[12px] border p-4 ${active ? "border-[var(--line)] bg-[var(--admin-step)]" : "border-[var(--line)] bg-[var(--admin-inset)] opacity-55"}`}
 									>
 										<div className="flex items-center justify-between gap-2">
 											<span
-												className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${entry.kind === "regular" ? "border-lime-200/24 bg-lime-200/10 text-lime-50" : "border-cyan-200/24 bg-cyan-200/10 text-cyan-50"}`}
+												className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${entry.kind === "regular" ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]"}`}
 											>
 												{entry.kind === "regular" ? "Dauergast" : "Ausnahme"}
 											</span>
-											{!active ? <span className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/72">Abgelaufen</span> : null}
+											{!active ? <span className="text-xs font-semibold text-[var(--muted)]">Abgelaufen</span> : null}
 										</div>
 										<div className="mt-3 grid gap-1.5 text-sm">
 											<Row label="Discord">{entry.discordId ?? "—"}</Row>
@@ -218,7 +218,7 @@ export function EligibilityOverrideManager({
 											type="button"
 											disabled={isPending}
 											onClick={() => setPendingRemoval(entry)}
-											className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 underline decoration-red-200/30 underline-offset-4 hover:text-red-50 disabled:opacity-50"
+											className="mt-3 text-xs font-semibold text-[var(--muted)] underline decoration-[var(--danger)] underline-offset-4 hover:text-[var(--danger)] disabled:opacity-50"
 										>
 											Entfernen
 										</button>
@@ -236,7 +236,7 @@ export function EligibilityOverrideManager({
 function Field({ label, value, onChange, placeholder, required }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; required?: boolean }) {
 	return (
 		<label className="grid gap-2">
-			<span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/64">{label}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
 			<input
 				name={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
 				autoComplete="off"
@@ -245,7 +245,7 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 				onChange={(event) => onChange(event.target.value)}
 				required={required}
 				placeholder={placeholder}
-				className="rounded-xl border border-cyan-100/12 bg-black/24 px-3 py-2.5 text-sm font-bold text-emerald-50 outline-none placeholder:text-emerald-100/26 focus:border-cyan-100/38"
+				className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 			/>
 		</label>
 	);
@@ -254,8 +254,8 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="grid grid-cols-[4.5rem_1fr] gap-2">
-			<span className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/48">{label}</span>
-			<span className="break-words font-bold text-emerald-50/82">{children}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
+			<span className="break-words font-medium text-[var(--text)]">{children}</span>
 		</div>
 	);
 }

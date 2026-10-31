@@ -615,12 +615,12 @@ export function RosterBuilder({
 				`Auto-Balance hat ${result.assignments.length} Spieler auf ${snapshot.teams.length} Team(s) verteilt.` +
 				(splitCount > 0
 					? ` ${splitCount} Wunschgruppe(n) aufgeteilt` + (tooStrong > 0 ? ` (${tooStrong} zu stark)` : "") + (tooWeak > 0 ? ` (${tooWeak} zu schwach)` : "") + "."
-					: " Wunschgruppen wurden zusammengehalten.") +
+					: "Wunschgruppen wurden zusammengehalten.") +
 				(result.imputedApplicants > 0 ? ` ${result.imputedApplicants} Spieler ohne verwertbaren Rang wurden neutral mit dem Bewerber-Median bewertet.` : "") +
 				(result.highEloPreferredAssignments.length > 0
 					? ` Achtung: ${result.highEloPreferredAssignments.length} Master+-Spieler wurden auf einer Main- oder Wunschrolle eingeplant.`
 					: "") +
-				" Prüfen und speichern, wenn alles passt.",
+				"Prüfen und speichern, wenn alles passt.",
 		});
 	}
 
@@ -671,7 +671,7 @@ export function RosterBuilder({
 		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
-			text: [`Team "${json.name}" erstellt.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund erstellt." : "", ...warnings].filter(Boolean).join(" "),
+			text: [`Team "${json.name}" erstellt.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund erstellt." : "", ...warnings].filter(Boolean).join(""),
 		});
 		router.refresh();
 		return true;
@@ -759,7 +759,7 @@ export function RosterBuilder({
 		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: updateWarnings.length > 0 ? "error" : "ok",
-			text: [`Team "${json.name}" aktualisiert.`, json?.discordJob ? "Discord-Ressourcen werden im Hintergrund umbenannt." : "", ...updateWarnings].filter(Boolean).join(" "),
+			text: [`Team "${json.name}" aktualisiert.`, json?.discordJob ? "Discord-Ressourcen werden im Hintergrund umbenannt." : "", ...updateWarnings].filter(Boolean).join(""),
 		});
 		router.refresh();
 		return true;
@@ -806,7 +806,7 @@ export function RosterBuilder({
 		if (json?.discordJob) setDiscordJob(json.discordJob as DiscordJobStatus);
 		setMessage({
 			tone: warnings.length > 0 ? "error" : "ok",
-			text: [`Team "${team.name}" gelöscht.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund entfernt." : "", ...warnings].filter(Boolean).join(" "),
+			text: [`Team "${team.name}" gelöscht.`, json?.discordJob ? "Discord-Rolle und Channels werden im Hintergrund entfernt." : "", ...warnings].filter(Boolean).join(""),
 		});
 		router.refresh();
 	}
@@ -907,7 +907,7 @@ export function RosterBuilder({
 				return false;
 			}
 			const errs = (json?.errors as string[] | undefined) ?? [json?.message ?? "Save failed."];
-			setMessage({ tone: "error", text: errs.join(" · ") });
+			setMessage({ tone: "error", text: errs.join("·") });
 			return false;
 		}
 		setSavedRosterState(stateBeingSaved);
@@ -976,7 +976,7 @@ export function RosterBuilder({
 						? "Die Reparatur der veröffentlichten Discord-Rollen wurde eingeplant."
 						: "Alle veröffentlichten Discord-Rollen waren bereits korrekt."
 					: json?.published
-						? `Roster veröffentlicht · ${json.players} Spieler · ${json.dmQueued} Discord-DMs eingeplant${json.dmOptedOut ? ` · ${json.dmOptedOut} abgewählt` : ""}.`
+						? `Roster veröffentlicht · ${json.players} Spieler · ${json.dmQueued} Discord-DMs eingeplant${json.dmOptedOut ? ` · ${json.dmOptedOut} abgewählt`: ""}.`
 						: "Seit der letzten Veröffentlichung gibt es keine Änderungen.",
 			});
 			router.refresh();
@@ -1003,37 +1003,37 @@ export function RosterBuilder({
 	return (
 		<div className="grid gap-5 xl:grid-cols-[23rem_minmax(0,1fr)]">
 			{snapshot.testModeActive ? (
-				<div className="rounded-[1.6rem] border border-amber-200/28 bg-gradient-to-r from-amber-200/12 via-lime-200/[0.08] to-cyan-200/[0.06] px-5 py-4 shadow-xl shadow-amber-300/10 xl:col-span-2">
-					<div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Temporärer Testmodus aktiv</div>
-					<p className="mt-1 text-sm font-bold leading-6 text-amber-50/86">
+				<div className="rounded-[16px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] px-5 py-4 xl:col-span-2">
+					<div className="text-xs font-semibold text-[var(--muted)]">Temporärer Testmodus aktiv</div>
+					<p className="mt-1 text-sm font-medium leading-6 text-[var(--text)]">
 						Du arbeitest gerade mit {plannedTeamCount} vollständigen Dummy-Teams passend zu den Turniereinstellungen. Roster-Saves verändern nur die Testdaten und lösen
 						keine Discord-Synchronisation aus. Mit „Testmodus beenden“ wird der zuvor gesicherte echte Roster exakt wiederhergestellt.
 					</p>
 				</div>
 			) : null}
-			<aside className="flex flex-col overflow-hidden rounded-[2rem] border border-cyan-200/12 bg-[#08150f]/92 shadow-2xl shadow-black/24 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
-				<div className="border-b border-white/8 bg-gradient-to-br from-cyan-300/[0.07] via-transparent to-lime-200/[0.04] p-5">
+			<aside className="flex flex-col overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08150f]/92 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
+				<div className="border-b border-[var(--line)] p-5">
 					<div className="flex items-start justify-between gap-3">
 						<div>
-							<div className="text-[9px] font-black uppercase tracking-[0.25em] text-cyan-100/44">Spieler-Pool</div>
-							<h2 className="mt-1 text-xl font-black text-emerald-50">Nicht zugewiesen</h2>
+							<div className="text-xs font-semibold text-[var(--muted)]">Spieler-Pool</div>
+							<h2 className="mt-1 text-xl font-semibold text-[var(--text)]">Nicht zugewiesen</h2>
 						</div>
-						<div className="grid size-10 place-items-center rounded-xl border border-cyan-200/16 bg-cyan-300/[0.08] font-mono text-sm font-black text-cyan-50">
+						<div className="grid size-10 place-items-center rounded-xl border border-[var(--line)] bg-[var(--admin-step)] font-mono text-sm font-semibold text-[var(--text)]">
 							{unassigned.length}
 						</div>
 					</div>
 				</div>
 				<div
-					className="mx-4 mt-4 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-white/8 bg-black/22 px-3 py-2.5"
+					className="mx-4 mt-4 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5"
 					title={`Interner Vergleichswert: ${applicantEloSummary.average?.toLocaleString("de-DE") ?? "keine Wertung"}`}
 				>
-					<div className="row-span-2 text-lg font-black text-cyan-50">{formatRankScore(applicantEloSummary.average)}</div>
-					<div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/58">Bewerber Ø Rang</div>
-					<div className="text-[9px] font-bold text-cyan-100/38">
+					<div className="row-span-2 text-lg font-semibold text-[var(--text)]">{formatRankScore(applicantEloSummary.average)}</div>
+					<div className="text-xs font-semibold text-[var(--muted)]">Bewerber Ø Rang</div>
+					<div className="text-xs font-medium text-[var(--muted)]">
 						{applicantEloSummary.rated}/{applicantEloSummary.total} gewertet
 					</div>
 				</div>
-				<div className="mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl border border-white/8 bg-black/20 p-1">
+				<div className="mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-1">
 					{SORT_OPTIONS.map((opt) => {
 						const active = sortMode === opt.value;
 						return (
@@ -1042,10 +1042,10 @@ export function RosterBuilder({
 								type="button"
 								onClick={() => setSortMode(opt.value)}
 								title={opt.title}
-								className={`rounded-lg border px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] transition ${
+								className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${
 									active
-										? "border-lime-200/40 bg-lime-200/14 text-lime-50"
-										: "border-white/10 bg-black/24 text-emerald-100/60 hover:border-lime-200/24 hover:text-lime-100"
+										? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+										: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 								}`}
 							>
 								{opt.label}
@@ -1055,7 +1055,7 @@ export function RosterBuilder({
 				</div>
 				<div className="themed-scrollbar mx-2 mb-2 mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto px-2 pb-2">
 					{unassigned.length === 0 ? (
-						<div className="rounded-xl border border-white/8 bg-black/24 p-3 text-xs text-emerald-100/52">Alle verfügbaren Spieler sind zugewiesen.</div>
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Alle verfügbaren Spieler sind zugewiesen.</div>
 					) : (
 						unassigned.map((a) => (
 							<ApplicantCard
@@ -1113,11 +1113,11 @@ export function RosterBuilder({
 			</aside>
 
 			<main className="grid min-w-0 content-start gap-5">
-				<section className="overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/[0.04] shadow-xl shadow-black/20">
-					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+				<section className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)]">
+					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
 						<div>
-							<div className="text-xs font-black uppercase tracking-[0.24em] text-lime-200/64">Roster-Steuerung</div>
-							<div className="mt-1 text-[10px] font-bold text-emerald-100/42">
+							<div className="text-xs font-semibold text-[var(--muted)]">Roster-Steuerung</div>
+							<div className="mt-1 text-xs font-medium text-[var(--muted)]">
 								{snapshot.teams.length} Teams · {allApplicants.length} Spieler verfügbar
 							</div>
 						</div>
@@ -1126,7 +1126,7 @@ export function RosterBuilder({
 								<div
 									role="status"
 									className={`rounded-xl border px-3 py-1.5 text-xs ${
-										message.tone === "ok" ? "border-lime-200/30 bg-lime-200/10 text-lime-50" : "border-red-300/30 bg-red-500/10 text-red-100"
+										message.tone === "ok" ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 									}`}
 								>
 									{message.text}
@@ -1136,33 +1136,33 @@ export function RosterBuilder({
 								<div
 									className={`rounded-xl border px-3 py-1.5 text-xs ${
 										discordJob.status === "failed"
-											? "border-red-300/30 bg-red-500/10 text-red-100"
+											? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 											: discordJob.status === "completed"
-												? "border-lime-200/30 bg-lime-200/10 text-lime-50"
-												: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-50"
+												? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+												: "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]"
 									}`}
 								>
-									<span className="font-black">{discordJob.title}</span>
+									<span className="font-semibold">{discordJob.title}</span>
 									<span className="ml-2 tabular-nums">
 										{discordJob.completed}/{discordJob.total || "?"}
 									</span>
-									{discordJob.current ? <span className="ml-2 text-white/60">{discordJob.current}</span> : null}
-									{discordJob.failed > 0 ? <span className="ml-2 text-red-100">{discordJob.failed} Fehler</span> : null}
+									{discordJob.current ? <span className="ml-2 text-[var(--muted)]">{discordJob.current}</span> : null}
+									{discordJob.failed > 0 ? <span className="ml-2 text-[var(--danger)]">{discordJob.failed} Fehler</span> : null}
 								</div>
 							) : null}
 						</div>
 					</div>
 
 					<div className="grid gap-3 p-4 xl:grid-cols-[0.9fr_1.25fr_auto]">
-						<div className="rounded-2xl border border-white/8 bg-black/16 p-3">
-							<div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100/42">Teams verwalten</div>
+						<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+							<div className="mb-3 text-xs font-semibold text-[var(--muted)]">Teams verwalten</div>
 							<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
 								<button
 									type="button"
 									onClick={() => setCreateOpen(true)}
 									disabled={creating || autoRunning}
 									title="Neues Team mit Discord-Rolle und privaten Channels anlegen"
-									className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-cyan-200/28 hover:bg-cyan-300/[0.06] hover:text-cyan-50 disabled:opacity-45"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2.5 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:bg-[var(--admin-step)] hover:text-[var(--text)] disabled:opacity-45"
 								>
 									+ Team anlegen
 								</button>
@@ -1171,20 +1171,20 @@ export function RosterBuilder({
 									onClick={() => openManualSubstituteDialog()}
 									disabled={saving || autoRunning || snapshot.teams.length === 0}
 									title="Einen Ersatzspieler ohne Website-Bewerbung manuell eintragen"
-									className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:border-amber-200/30 hover:bg-amber-200/[0.06] hover:text-amber-50 disabled:opacity-45"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2.5 text-xs font-semibold text-[var(--text)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] hover:text-[var(--amber)] disabled:opacity-45"
 								>
 									+ Ersatzspieler
 								</button>
 							</div>
 						</div>
 
-						<div className="rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.035] p-3">
-							<div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/48">Teams ausgleichen</div>
+						<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] p-3">
+							<div className="mb-3 text-xs font-semibold text-[var(--muted)]">Teams ausgleichen</div>
 							<div className="flex flex-wrap items-center gap-2">
-								<div className="flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+								<div className="flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2">
 									<label
 										htmlFor="split-threshold"
-										className="text-[10px] font-black uppercase tracking-[0.14em] text-lime-100/70 whitespace-nowrap"
+										className="text-xs font-semibold text-[var(--accent)] whitespace-nowrap"
 										title="Maximale gewünschte Team-Abweichung. Wunschgruppen werden erst getrennt, wenn gemeinsames Platzieren deutlich unfair wäre oder Rollen stark kollidieren."
 									>
 										Fairness-Schwelle
@@ -1198,9 +1198,9 @@ export function RosterBuilder({
 										value={splitThreshold}
 										onChange={(event) => setSplitThreshold(Number(event.target.value))}
 										disabled={autoRunning}
-										className="h-1 w-16 cursor-pointer accent-lime-300"
+										className="h-1 w-16 cursor-pointer accent-[var(--accent)]"
 									/>
-									<span suppressHydrationWarning className="min-w-[2.5rem] text-center text-[10px] font-black tabular-nums text-lime-200">
+									<span suppressHydrationWarning className="min-w-[2.5rem] text-center text-xs font-semibold tabular-nums text-[var(--accent)]">
 										{splitThreshold}%
 									</span>
 								</div>
@@ -1208,9 +1208,9 @@ export function RosterBuilder({
 									type="button"
 									onClick={() => setAutoConfirm(true)}
 									disabled={autoRunning || saving}
-									className="min-h-10 rounded-xl border border-cyan-200/24 bg-cyan-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50 transition hover:border-cyan-200/45 hover:bg-cyan-300/15 disabled:opacity-45"
+									className="min-h-10 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] hover:bg-[var(--admin-step)] disabled:opacity-45"
 								>
-									{autoRunning ? "Auto-Balance läuft…" : "⚡ Auto-Balance"}
+									{autoRunning ? "Auto-Balance läuft…" : "Auto-Balance"}
 								</button>
 							</div>
 						</div>
@@ -1220,7 +1220,7 @@ export function RosterBuilder({
 								type="button"
 								onClick={() => void save()}
 								disabled={saving || publishing || autoRunning}
-								className="min-h-12 rounded-2xl border border-lime-200/24 bg-lime-200/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-lime-50 transition hover:border-lime-200/45 hover:bg-lime-200/15 disabled:opacity-50"
+								className="min-h-12 rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-6 py-3 text-xs font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] disabled:opacity-50"
 							>
 								{saving ? "Speichern…" : "Entwurf speichern"}
 							</button>
@@ -1229,11 +1229,11 @@ export function RosterBuilder({
 								onClick={() => void publish(false)}
 								disabled={saving || publishing || autoRunning || rosterDirty || !snapshot.publication.hasUnpublishedChanges || snapshot.testModeActive}
 								title={rosterDirty ? "Speichere den Entwurf zuerst." : "Macht Teams öffentlich, synchronisiert Discord-Rollen und sendet aktivierte DMs."}
-								className="min-h-14 rounded-2xl bg-gradient-to-br from-lime-200 via-emerald-200 to-cyan-200 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 shadow-xl shadow-lime-300/20 transition hover:-translate-y-0.5 hover:shadow-lime-300/30 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
+								className="bg-[var(--accent)] min-h-14 rounded-[12px] px-6 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
 							>
 								{publishing ? "Wird veröffentlicht…" : "Teams veröffentlichen"}
 							</button>
-							<p className="text-center text-[10px] font-bold leading-4 text-emerald-100/42">
+							<p className="text-center text-xs font-medium leading-4 text-[var(--muted)]">
 								{snapshot.publication.hasUnpublishedChanges
 									? "Privater Entwurf wartet auf Veröffentlichung."
 									: snapshot.publication.publishedAt
@@ -1243,8 +1243,8 @@ export function RosterBuilder({
 						</div>
 					</div>
 
-					<details className="border-t border-white/8 bg-black/10 px-4 py-3">
-						<summary className="cursor-pointer select-none text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/48 transition hover:text-emerald-50">
+					<details className="border-t border-[var(--line)] bg-[var(--admin-inset)] px-4 py-3">
+						<summary className="cursor-pointer select-none text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)]">
 							Wartung & Testwerkzeuge
 						</summary>
 						<div className="mt-3 flex flex-wrap gap-2">
@@ -1253,7 +1253,7 @@ export function RosterBuilder({
 								onClick={() => void publish(true)}
 								disabled={saving || publishing || autoRunning || rosterDirty}
 								title="Repariert fehlende Turnier-, Team- und Captain-Rollen für das aktuelle Roster. Nur benutzen, wenn Discord-Rollen fehlen."
-								className="rounded-xl border border-amber-200/22 bg-amber-200/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100 transition hover:border-amber-200/42 hover:text-amber-50 disabled:opacity-45"
+								className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] hover:text-[var(--amber)] disabled:opacity-45"
 							>
 								Discord-Rollen reparieren
 							</button>
@@ -1262,7 +1262,7 @@ export function RosterBuilder({
 								onClick={() => setTestDataAction("seed")}
 								disabled={seeding || autoRunning || snapshot.testModeActive}
 								title={`Echten Roster sichern und temporär durch ${plannedTeamCount} vollständige Dummy-Teams ersetzen`}
-								className="rounded-xl border border-white/12 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/72 transition hover:border-white/24 hover:text-emerald-50 disabled:opacity-45"
+								className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:opacity-45"
 							>
 								{seeding ? "Wird vorbereitet…" : snapshot.testModeActive ? "Testmodus aktiv" : "+ Testdaten"}
 							</button>
@@ -1271,7 +1271,7 @@ export function RosterBuilder({
 								onClick={() => setTestDataAction("clear")}
 								disabled={clearing || autoRunning}
 								title="Testdaten entfernen und den zuvor gesicherten echten Roster wiederherstellen"
-								className="rounded-xl border border-red-300/20 bg-red-500/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-100/78 transition hover:border-red-300/40 hover:bg-red-500/10 hover:text-red-50 disabled:opacity-45"
+								className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] hover:text-[var(--danger)] disabled:opacity-45"
 							>
 								{clearing ? "Wird wiederhergestellt…" : snapshot.testModeActive ? "Testmodus beenden" : "Testdaten bereinigen"}
 							</button>
@@ -1280,11 +1280,11 @@ export function RosterBuilder({
 				</section>
 
 				{balanceResult && balanceResult.teamStrengths.length > 0 ? (
-					<section className="rounded-[1.8rem] border border-emerald-200/14 bg-emerald-300/[0.035] p-4 shadow-xl shadow-black/16">
+					<section className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-100/64">Balance-Übersicht</div>
-								<p className="mt-1 text-xs leading-5 text-emerald-100/48">Durchschnittlicher Spielerskill: {Math.round(balanceResult.overallAverage)}</p>
+								<div className="text-xs font-semibold text-[var(--muted)]">Balance-Übersicht</div>
+								<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Durchschnittlicher Spielerskill: {Math.round(balanceResult.overallAverage)}</p>
 							</div>
 							{(() => {
 								const strengths = balanceResult.teamStrengths.map((t) => t.strength).filter((s) => s > 0);
@@ -1295,12 +1295,12 @@ export function RosterBuilder({
 								const spread = teamAverage > 0 ? Math.round(((max - min) / teamAverage) * 100) : 0;
 								return (
 									<span
-										className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+										className={`rounded-full border px-3 py-1 text-xs font-semibold ${
 											spread <= 15
-												? "border-lime-200/24 bg-lime-300/10 text-lime-100"
+												? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
 												: spread <= 30
-													? "border-amber-200/24 bg-amber-300/10 text-amber-100"
-													: "border-red-300/24 bg-red-400/10 text-red-200"
+													? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]"
+													: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 										}`}
 										title="Prozentuale Abweichung zwischen stärkstem und schwächstem Team"
 									>
@@ -1310,27 +1310,27 @@ export function RosterBuilder({
 							})()}
 						</div>
 						{balanceResult.imputedApplicants > 0 ? (
-							<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.07] px-3 py-2 text-[11px] font-bold leading-5 text-amber-50/76">
+							<div className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs font-medium leading-5 text-[var(--muted)]">
 								{balanceResult.imputedApplicants} Spieler ohne verwertbaren Solo/Duo-Rang wurden für die Balance mit dem Median aller gewerteten Bewerber berechnet.
 								Diese Spieler bitte manuell prüfen.
 							</div>
 						) : null}
 						{balanceResult.highEloPreferredAssignments.length > 0 ? (
-							<div className="mt-3 rounded-2xl border border-orange-300/28 bg-gradient-to-r from-orange-400/[0.11] to-red-400/[0.06] p-4 shadow-lg shadow-orange-950/20">
+							<div className="mt-3 rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] p-4">
 								<div className="flex items-center gap-2">
-									<span className="grid size-7 place-items-center rounded-lg bg-orange-200 text-sm font-black text-orange-950">!</span>
+									<span className="grid size-7 place-items-center rounded-lg bg-[var(--amber)] text-sm font-semibold text-[var(--on-accent)]">!</span>
 									<div>
-										<div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-100">Master+ auf Komfortrolle</div>
-										<div className="mt-0.5 text-[11px] font-bold text-orange-50/62">
+										<div className="text-xs font-semibold text-[var(--amber)]">Master+ auf Komfortrolle</div>
+										<div className="mt-0.5 text-xs font-medium text-[var(--muted)]">
 											Kann trotz rechnerisch ähnlicher Elo einen überproportionalen Einfluss auf Matches haben.
 										</div>
 									</div>
 								</div>
 								<div className="mt-3 grid gap-2 sm:grid-cols-2">
 									{balanceResult.highEloPreferredAssignments.map((entry) => (
-										<div key={entry.discordId} className="rounded-xl border border-orange-200/16 bg-black/20 px-3 py-2">
-											<div className="font-black text-orange-50">{entry.displayName}</div>
-											<div className="mt-0.5 text-[10px] font-bold text-orange-100/58">
+										<div key={entry.discordId} className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)] px-3 py-2">
+											<div className="font-semibold text-[var(--amber)]">{entry.displayName}</div>
+											<div className="mt-0.5 text-xs font-medium text-[var(--muted)]">
 												{teamByKey.get(entry.teamKey)?.name ?? entry.teamKey} · {entry.role} · {entry.rank}
 											</div>
 										</div>
@@ -1352,52 +1352,52 @@ export function RosterBuilder({
 									const barHeight = teamAverage > 0 ? Math.round((strength / teamAverage) * 100) : 0;
 									return (
 										<div key={teamKey} className="flex flex-col items-center gap-1">
-											<div className="relative h-16 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
+											<div className="relative h-16 w-full overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--admin-step)]">
 												<div
-													className="absolute bottom-0 left-0 right-0 rounded-md bg-gradient-to-t from-lime-400/40 to-emerald-400/20 transition-[height] duration-500"
+													className="absolute bottom-0 left-0 right-0 rounded-md bg-[color-mix(in_srgb,var(--accent)_35%,transparent)] transition-[height] duration-500"
 													style={{ height: `${Math.min(barHeight, 150)}%` }}
 												/>
-												<span className="absolute inset-0 flex items-center justify-center text-[10px] font-black tabular-nums text-emerald-50">
+												<span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums text-[var(--text)]">
 													{Math.round(strength)}
 												</span>
 											</div>
-											<span className="text-[9px] font-bold uppercase tracking-wider text-emerald-100/50 truncate max-w-full">{team?.name ?? teamKey}</span>
+											<span className="text-xs font-medium text-[var(--muted)] truncate max-w-full">{team?.name ?? teamKey}</span>
 										</div>
 									);
 								});
 							})()}
 						</div>
 						{balanceResult.splitGroups.length > 0 ? (
-							<div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[0.06] p-3">
-								<div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Aufgeteilte Wunschgruppen</div>
+							<div className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-3">
+								<div className="text-xs font-semibold text-[var(--amber)]">Aufgeteilte Wunschgruppen</div>
 								<div className="mt-2 space-y-1.5">
 									{balanceResult.splitGroups.map((group) => (
-										<div key={group.code} className="text-[11px] leading-4 text-amber-50/72">
-											<span className="font-bold text-amber-100">{group.code}</span>
+										<div key={group.code} className="text-xs leading-4 text-[var(--muted)]">
+											<span className="font-medium text-[var(--amber)]">{group.code}</span>
 											{group.reason === "role_conflict" || group.reason === "capacity" ? (
 												<>
-													{" — "}
+													{"—"}
 													{group.reason === "role_conflict" ? "wegen Rollen-Konflikten" : "wegen Team-Kapazität"}
 													{`. ${group.kept.length} zusammengehalten, ${group.moved.length} verschoben.`}
 												</>
 											) : group.reason === "too_strong" ? (
 												<>
-													{" — Gruppendurchschnitt "}
-													<span className="font-bold">{Math.round(group.groupAverage)}</span>
-													{" ist "}
-													<span className="font-bold">{Math.round(group.deviation * 100)}%</span>
-													{" über Gesamtdurchschnitt "}
-													<span className="font-bold">{Math.round(group.overallAverage)}</span>
+													{"— Gruppendurchschnitt"}
+													<span className="font-medium">{Math.round(group.groupAverage)}</span>
+													{"ist"}
+													<span className="font-medium">{Math.round(group.deviation * 100)}%</span>
+													{"über Gesamtdurchschnitt"}
+													<span className="font-medium">{Math.round(group.overallAverage)}</span>
 													{` (zu stark). ${group.kept.length} zusammengehalten, ${group.moved.length} verschoben.`}
 												</>
 											) : (
 												<>
-													{" — Gruppendurchschnitt "}
-													<span className="font-bold">{Math.round(group.groupAverage)}</span>
-													{" ist "}
-													<span className="font-bold">{Math.round(group.deviation * 100)}%</span>
-													{" unter Gesamtdurchschnitt "}
-													<span className="font-bold">{Math.round(group.overallAverage)}</span>
+													{"— Gruppendurchschnitt"}
+													<span className="font-medium">{Math.round(group.groupAverage)}</span>
+													{"ist"}
+													<span className="font-medium">{Math.round(group.deviation * 100)}%</span>
+													{"unter Gesamtdurchschnitt"}
+													<span className="font-medium">{Math.round(group.overallAverage)}</span>
 													{` (zu schwach). ${group.kept.length} zusammengehalten, ${group.moved.length} verschoben.`}
 												</>
 											)}
@@ -1410,13 +1410,13 @@ export function RosterBuilder({
 				) : null}
 
 				{preferenceGroups.length > 0 ? (
-					<section className="rounded-[1.8rem] border border-cyan-200/14 bg-cyan-300/[0.035] p-4 shadow-xl shadow-black/16">
+					<section className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-100/64">Wunschgruppen</div>
-								<p className="mt-1 text-xs leading-5 text-emerald-100/48">Gemeinsame Einteilung ist ein Wunsch und keine Garantie.</p>
+								<div className="text-xs font-semibold text-[var(--muted)]">Wunschgruppen</div>
+								<p className="mt-1 text-xs leading-5 text-[var(--muted)]">Gemeinsame Einteilung ist ein Wunsch und keine Garantie.</p>
 							</div>
-							<span className="rounded-full border border-cyan-200/16 bg-cyan-300/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-50/66">
+							<span className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-3 py-1 text-xs font-semibold text-[var(--muted)]">
 								{preferenceGroups.length} Wunschgruppen
 							</span>
 						</div>
@@ -1441,19 +1441,19 @@ export function RosterBuilder({
 								const groupSummary = preferenceGroupSummary.rows.find((row) => row.code === code);
 
 								return (
-									<div key={code} className="rounded-2xl border border-white/9 bg-black/18 p-3">
+									<div key={code} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
 										<div className="flex items-center justify-between gap-3">
 											<PreferenceGroupBadge code={code} />
-											<span className="text-[10px] font-black text-emerald-100/38">
+											<span className="text-xs font-semibold text-[var(--muted)]">
 												{groupSummary?.largestTogether ?? 0}/{members.length} zusammen
 											</span>
 										</div>
-										<div className="mt-2 text-[10px] font-bold text-cyan-100/54">{placement}</div>
+										<div className="mt-2 text-xs font-medium text-[var(--muted)]">{placement}</div>
 										<div className="mt-2 flex flex-wrap gap-1">
 											{members.map((member) => (
 												<span
 													key={member.discordId}
-													className="rounded-lg border border-white/8 bg-white/[0.035] px-2 py-1 text-[10px] font-bold text-emerald-100/68"
+													className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-2 py-1 text-xs font-medium text-[var(--muted)]"
 												>
 													{member.displayName}
 												</span>
@@ -1487,10 +1487,10 @@ export function RosterBuilder({
 						}
 					/>
 				) : (dayOneFormat === "swiss" || dayOneFormat === "swiss-elimination") && snapshot.teams.length > 0 ? (
-					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-200/14 bg-[#08160f]/86 p-5 shadow-xl shadow-black/22">
-						<div className="text-[9px] font-black uppercase tracking-[0.24em] text-cyan-100/54">Tag 1 · Swiss Stage</div>
-						<h2 className="mt-1 text-xl font-black text-emerald-50">Kein manuelles Seeding nötig</h2>
-						<p className="mt-2 max-w-3xl text-xs leading-6 text-emerald-100/50">
+					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08160f]/86 p-5">
+						<div className="text-xs font-semibold text-[var(--muted)]">Tag 1 · Swiss Stage</div>
+						<h2 className="mt-1 text-xl font-semibold text-[var(--text)]">Kein manuelles Seeding nötig</h2>
+						<p className="mt-2 max-w-3xl text-xs leading-6 text-[var(--muted)]">
 							Die erste Runde wird im Live-Cockpit zufällig gezogen. Weitere Runden losen nur Teams mit gleicher Bilanz gegeneinander und vermeiden Wiederholungen.
 							Die endgültige Seed-Reihenfolge entsteht automatisch aus den abgeschlossenen Swiss-Ergebnissen.
 						</p>
@@ -1499,8 +1499,8 @@ export function RosterBuilder({
 
 				{snapshot.teams.length > 0 ? (
 					<div className="flex items-center gap-3 pt-1">
-						<div className="text-[10px] font-black uppercase tracking-[0.24em] text-lime-200/52">Team-Workbench</div>
-						<div className="h-px flex-1 bg-gradient-to-r from-lime-200/16 to-transparent" />
+						<div className="text-xs font-semibold text-[var(--muted)]">Team-Workbench</div>
+						<div className="h-px flex-1 bg-[var(--line)]" />
 					</div>
 				) : null}
 				<div className="grid gap-4 lg:grid-cols-2">
@@ -1540,20 +1540,20 @@ export function RosterBuilder({
 
 			{manualSubOpen ? (
 				<div role="dialog" aria-modal="true" aria-labelledby="manual-player-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-					<button type="button" aria-label="Schließen" onClick={() => setManualSubOpen(false)} className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
-					<div className="relative w-full max-w-lg rounded-[1.8rem] border border-amber-200/18 bg-gradient-to-br from-emerald-950 via-emerald-950 to-black p-6 shadow-2xl shadow-black/50">
-						<div className="text-xs font-black uppercase tracking-[0.24em] text-amber-200/72">Manueller Roster-Eintrag</div>
-						<h2 id="manual-player-title" className="mt-2 text-2xl font-black text-emerald-50">
+					<button type="button" aria-label="Schließen" onClick={() => setManualSubOpen(false)} className="absolute inset-0 bg-[var(--admin-inset)]" />
+					<div className="bg-[var(--admin-surface)] relative w-full max-w-lg rounded-[16px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] p-6">
+						<div className="text-xs font-semibold text-[var(--amber)]">Manueller Roster-Eintrag</div>
+						<h2 id="manual-player-title" className="mt-2 text-2xl font-semibold text-[var(--text)]">
 							Spieler manuell eintragen
 						</h2>
-						<p className="mt-2 text-sm leading-6 text-emerald-100/58">
+						<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
 							Diese Person kann einen aktiven Slot oder einen Substitute-Slot erhalten, bekommt beim Veröffentlichen die Discord-Rollen und bleibt sichtbar als nicht
 							verifiziert markiert.
 						</p>
 
 						<div className="mt-5 grid gap-3">
 							<label className="grid gap-1.5">
-								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Team</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Team</span>
 								<ThemedSelect
 									value={manualSubTeamKey}
 									onChange={setManualSubTeamKey}
@@ -1562,18 +1562,18 @@ export function RosterBuilder({
 								/>
 							</label>
 							<label className="grid gap-1.5">
-								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Roster-Rolle</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Roster-Rolle</span>
 								<ThemedSelect
 									value={manualSubRole}
 									onChange={(value) => setManualSubRole(value as PlayerRole)}
 									ariaLabel="Roster-Rolle des manuellen Spielers"
 									options={ALL_ROLES.map((role) => ({ value: role, label: role === "Sub" ? "Substitute" : role }))}
 								/>
-								<span className="text-[10px] leading-4 text-emerald-100/36">Für ein vollständiges Team zählen alle Rollen außer „Sub“ als aktive Spieler.</span>
+								<span className="text-xs leading-4 text-[var(--muted)]">Für ein vollständiges Team zählen alle Rollen außer „Sub“ als aktive Spieler.</span>
 							</label>
 							<div className="grid gap-3 sm:grid-cols-2">
 								<label className="grid gap-1.5">
-									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Discord-ID</span>
+									<span className="text-xs font-semibold text-[var(--muted)]">Discord-ID</span>
 									<input
 										name="discord-id"
 										autoComplete="off"
@@ -1582,11 +1582,11 @@ export function RosterBuilder({
 										onChange={(event) => setManualSubDiscordId(event.target.value)}
 										inputMode="numeric"
 										placeholder="337568120028004362…"
-										className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+										className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 									/>
 								</label>
 								<label className="grid gap-1.5">
-									<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Discord-Benutzername</span>
+									<span className="text-xs font-semibold text-[var(--muted)]">Discord-Benutzername</span>
 									<input
 										name="discord-username"
 										autoComplete="off"
@@ -1594,12 +1594,12 @@ export function RosterBuilder({
 										value={manualSubDiscordUsername}
 										onChange={(event) => setManualSubDiscordUsername(event.target.value)}
 										placeholder="lethalfluff…"
-										className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+										className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 									/>
 								</label>
 							</div>
 							<label className="grid gap-1.5">
-								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Gewünschter Discord-Nickname</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Gewünschter Discord-Nickname</span>
 								<input
 									name="discord-nickname"
 									autoComplete="off"
@@ -1607,14 +1607,14 @@ export function RosterBuilder({
 									onChange={(event) => setManualSubDisplayName(event.target.value)}
 									maxLength={32}
 									placeholder="So soll die Person heißen…"
-									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 								/>
-								<span className="text-[10px] leading-4 text-emerald-100/36">
+								<span className="text-xs leading-4 text-[var(--muted)]">
 									Wird für „Nickname | Riot-ID“ verwendet und muss nicht dem Discord- oder Riot-Namen entsprechen.
 								</span>
 							</label>
 							<label className="grid gap-1.5">
-								<span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-200/58">Riot-ID</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Riot-ID</span>
 								<input
 									name="riot-id"
 									autoComplete="off"
@@ -1622,7 +1622,7 @@ export function RosterBuilder({
 									value={manualSubRiotId}
 									onChange={(event) => setManualSubRiotId(event.target.value)}
 									placeholder="LethalFluff#poof…"
-									className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/24 focus:border-lime-200/40"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 								/>
 							</label>
 						</div>
@@ -1631,14 +1631,14 @@ export function RosterBuilder({
 							<button
 								type="button"
 								onClick={() => setManualSubOpen(false)}
-								className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-100"
+								className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2.5 text-xs font-semibold text-[var(--text)]"
 							>
 								Abbrechen
 							</button>
 							<button
 								type="button"
 								onClick={addManualSubstitute}
-								className="rounded-xl bg-gradient-to-r from-amber-200 via-lime-200 to-emerald-200 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
+								className="bg-[var(--accent)] rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--on-accent)]"
 							>
 								Manuell hinzufügen
 							</button>
@@ -1652,7 +1652,7 @@ export function RosterBuilder({
 				title="Team wirklich löschen?"
 				description={
 					<>
-						<strong className="text-emerald-50">{deleteTeamTarget?.name}</strong> wird aus dem Bot entfernt. Alle Spieler dieses Teams fallen zurück in „Nicht
+						<strong className="text-[var(--text)]">{deleteTeamTarget?.name}</strong> wird aus dem Bot entfernt. Alle Spieler dieses Teams fallen zurück in „Nicht
 						zugewiesen“. Gespeicherte Match-Scores bleiben — sie referenzieren das Team aber ggf. ins Leere. Diese Aktion lässt sich nicht rückgängig machen.
 					</>
 				}
@@ -1669,8 +1669,8 @@ export function RosterBuilder({
 				description={
 					<>
 						Das löscht jede aktuelle Zuweisung und verteilt nach Rang neu. Wunschgruppen werden zusammengehalten, sofern ihr gemeinsamer Skill nicht zu stark vom
-						Gesamtdurchschnitt abweicht. Wunschrollen werden nach ihrer angegebenen Reihenfolge gewichtet: Wunsch #1 zählt deutlich stärker als #2, #3 usw.{" "}
-						<strong className="text-emerald-50">Captains werden zurückgesetzt.</strong> Du kannst danach manuell anpassen, bevor du speicherst.
+						Gesamtdurchschnitt abweicht. Wunschrollen werden nach ihrer angegebenen Reihenfolge gewichtet: Wunsch #1 zählt deutlich stärker als #2, #3 usw.{""}
+						<strong className="text-[var(--text)]">Captains werden zurückgesetzt.</strong> Du kannst danach manuell anpassen, bevor du speicherst.
 					</>
 				}
 				confirmLabel="Teams ausbalancieren"
@@ -1685,7 +1685,7 @@ export function RosterBuilder({
 				description={
 					<>
 						Der aktuelle echte Roster sowie Match-, Draft-, Swiss- und Ultimate-Bravery-Daten werden unverändert gesichert. Danach übernehmen
-						<strong className="text-emerald-50"> acht vollständige 5er-Teams</strong> und 40 Test-Bewerbungen. Damit kannst du Auto-Balance und den gesamten
+						<strong className="text-[var(--text)]"> acht vollständige 5er-Teams</strong> und 40 Test-Bewerbungen. Damit kannst du Auto-Balance und den gesamten
 						Turnierablauf testen. Roster-Saves bleiben währenddessen rein in MongoDB; Discord-Rollen und Channels werden nicht verändert.
 					</>
 				}
@@ -1713,30 +1713,30 @@ export function RosterBuilder({
 
 			{createOpen ? (
 				<div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-					<button type="button" aria-label="Schließen" onClick={() => setCreateOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-					<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
-						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Neues Team</div>
-						<h2 id="create-team-title" className="mt-2 text-lg font-black text-emerald-50">
+					<button type="button" aria-label="Schließen" onClick={() => setCreateOpen(false)} className="absolute inset-0 bg-[var(--admin-inset)]" />
+					<div className="bg-[var(--admin-surface)] relative w-full max-w-md rounded-[16px] border border-[var(--line)] p-5">
+						<div className="text-xs font-semibold text-[var(--accent)]">Neues Team</div>
+						<h2 id="create-team-title" className="mt-2 text-lg font-semibold text-[var(--text)]">
 							Team anlegen
 						</h2>
-						<p className="mt-1 text-xs text-emerald-100/52">
+						<p className="mt-1 text-xs text-[var(--muted)]">
 							Das Team wird gespeichert. Discord-Rolle sowie privater Text- und Voice-Channel werden anschließend automatisch über die Job-Queue erstellt.
 						</p>
 
 						<div className="mt-4 grid gap-3">
 							<label className="grid gap-1">
-								<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Teamname</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Teamname</span>
 								<input
 									name="team-name"
 									autoComplete="off"
 									value={newTeamName}
 									onChange={(e) => setNewTeamName(e.target.value)}
 									placeholder="z. B. Sprout Squad…"
-									className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 								/>
 							</label>
 
-							<div className="rounded-xl border border-cyan-200/14 bg-cyan-300/[0.045] px-3 py-3 text-xs leading-5 text-cyan-50/64">
+							<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
 								Teams werden immer neutral angelegt. Falls eine Gruppenphase gewählt ist, erfolgt die Einteilung anschließend gesammelt im Gruppenplaner des
 								Roster-Builders.
 							</div>
@@ -1746,7 +1746,7 @@ export function RosterBuilder({
 							<button
 								type="button"
 								onClick={() => setCreateOpen(false)}
-								className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-100"
+								className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-semibold text-[var(--text)]"
 							>
 								Abbrechen
 							</button>
@@ -1754,7 +1754,7 @@ export function RosterBuilder({
 								type="button"
 								onClick={createTeam}
 								disabled={creating || !newTeamName.trim()}
-								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
+								className="bg-[var(--accent)] rounded-xl px-4 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-60"
 							>
 								{creating ? "Wird erstellt…" : "Team erstellen"}
 							</button>
@@ -1765,25 +1765,25 @@ export function RosterBuilder({
 
 			{editTeamTarget ? (
 				<div role="dialog" aria-modal="true" aria-labelledby="edit-team-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-					<button type="button" aria-label="Schließen" onClick={() => setEditTeamTarget(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-					<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
-						<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Team bearbeiten</div>
-						<h2 id="edit-team-title" className="mt-2 text-lg font-black text-emerald-50">
+					<button type="button" aria-label="Schließen" onClick={() => setEditTeamTarget(null)} className="absolute inset-0 bg-[var(--admin-inset)]" />
+					<div className="bg-[var(--admin-surface)] relative w-full max-w-md rounded-[16px] border border-[var(--line)] p-5">
+						<div className="text-xs font-semibold text-[var(--accent)]">Team bearbeiten</div>
+						<h2 id="edit-team-title" className="mt-2 text-lg font-semibold text-[var(--text)]">
 							{editTeamTarget.name}
 						</h2>
-						<p className="mt-1 text-xs text-emerald-100/52">
+						<p className="mt-1 text-xs text-[var(--muted)]">
 							Ändert den Teamnamen sowie die zugehörigen Discord-Ressourcen. Gruppe und Seed werden zentral im Gruppenplaner verwaltet.
 						</p>
 
 						<div className="mt-4 grid gap-3">
 							<label className="grid gap-1">
-								<span className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/64">Teamname</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">Teamname</span>
 								<input
 									name="team-name"
 									autoComplete="off"
 									value={editTeamName}
 									onChange={(e) => setEditTeamName(e.target.value)}
-									className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50 outline-none placeholder:text-emerald-100/30 focus:border-lime-200/40"
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 								/>
 							</label>
 						</div>
@@ -1792,7 +1792,7 @@ export function RosterBuilder({
 							<button
 								type="button"
 								onClick={() => setEditTeamTarget(null)}
-								className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-100"
+								className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-semibold text-[var(--text)]"
 							>
 								Abbrechen
 							</button>
@@ -1800,7 +1800,7 @@ export function RosterBuilder({
 								type="button"
 								onClick={updateTeam}
 								disabled={editingTeam || !editTeamName.trim()}
-								className="rounded-xl bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:opacity-60"
+								className="bg-[var(--accent)] rounded-xl px-4 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-60"
 							>
 								{editingTeam ? "Speichert…" : "Team speichern"}
 							</button>
@@ -1811,14 +1811,14 @@ export function RosterBuilder({
 
 			{/* One-shot pulse animation when the auto-fill highlights a new assignment */}
 			<style>{`
-        @keyframes roster-row-pop {
-          0%   { background-color: rgba(190, 242, 100, 0.28); }
-          100% { background-color: transparent; }
-        }
-        .roster-row-pulse {
-          animation: roster-row-pop 800ms ease-out;
-        }
-      `}</style>
+ @keyframes roster-row-pop {
+ 0% { background-color: rgba(190, 242, 100, 0.28); }
+ 100% { background-color: transparent; }
+ }
+ .roster-row-pulse {
+ animation: roster-row-pop 800ms ease-out;
+ }
+`}</style>
 		</div>
 	);
 }
@@ -1861,11 +1861,11 @@ const TeamCard = memo(function TeamCard({
 	const averageElo = ratedStarterScores.length > 0 ? Math.round(ratedStarterScores.reduce((total, score) => total + score, 0) / ratedStarterScores.length) : null;
 
 	return (
-		<article className="rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/20">
+		<article className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
 			<header className="flex items-center justify-between gap-2">
 				<div className="min-w-0">
-					<div className="truncate text-lg font-black text-emerald-50">{team.name}</div>
-					<div className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/58">
+					<div className="truncate text-lg font-semibold text-[var(--text)]">{team.name}</div>
+					<div className="text-xs font-semibold text-[var(--muted)]">
 						{team.group ? `Gruppe ${team.group}` : "Keine Gruppe"}
 						{team.seed ? ` · Seed ${team.seed}` : ""}
 					</div>
@@ -1876,7 +1876,7 @@ const TeamCard = memo(function TeamCard({
 						onClick={() => onEditTeam(team.key)}
 						title="Team bearbeiten"
 						aria-label="Team bearbeiten"
-						className="inline-flex size-6 items-center justify-center rounded-md border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-lime-200/40 hover:text-lime-100"
+						className="inline-flex size-6 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 					>
 						✎
 					</button>
@@ -1886,7 +1886,7 @@ const TeamCard = memo(function TeamCard({
 						disabled={deletingThisTeam}
 						title="Team löschen"
 						aria-label="Team löschen"
-						className="inline-flex size-6 items-center justify-center rounded-md border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-rose-300/40 hover:text-rose-200 disabled:opacity-50"
+						className="inline-flex size-6 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-50"
 					>
 						✕
 					</button>
@@ -1894,12 +1894,12 @@ const TeamCard = memo(function TeamCard({
 			</header>
 
 			<div
-				className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-200/16 bg-cyan-300/[0.07] px-2.5 py-1"
+				className="mt-3 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1"
 				title={`Interner Vergleichswert: ${averageElo?.toLocaleString("de-DE") ?? "keine Wertung"}`}
 			>
-				<span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/52">Ø Rang</span>
-				<span className="text-xs font-black text-cyan-50">{formatRankScore(averageElo)}</span>
-				<span className="text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-100/34">{ratedStarterScores.length}/5 gewertet</span>
+				<span className="text-xs font-semibold text-[var(--muted)]">Ø Rang</span>
+				<span className="text-xs font-semibold text-[var(--text)]">{formatRankScore(averageElo)}</span>
+				<span className="text-xs font-medium text-[var(--muted)]">{ratedStarterScores.length}/5 gewertet</span>
 			</div>
 
 			<div className="mt-3 grid gap-2">
@@ -1911,9 +1911,9 @@ const TeamCard = memo(function TeamCard({
 								key={role}
 								type="button"
 								onClick={() => onAssignClick(team.key, role)}
-								className="flex w-full items-center justify-between rounded-xl border border-dashed border-white/14 bg-black/12 px-3 py-2 text-left text-xs font-bold text-emerald-100/52 transition hover:border-lime-200/40 hover:text-lime-100"
+								className="flex w-full items-center justify-between rounded-xl border border-dashed border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-left text-xs font-medium text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 							>
-								<span className="font-black uppercase tracking-[0.22em] text-lime-200/52">{role}</span>
+								<span className="font-semibold text-[var(--muted)]">{role}</span>
 								<span>+ Zuweisen</span>
 							</button>
 						);
@@ -1940,17 +1940,17 @@ const TeamCard = memo(function TeamCard({
 				<button
 					type="button"
 					onClick={() => onAssignClick(team.key, "Sub")}
-					className="flex w-full items-center justify-between rounded-xl border border-dashed border-amber-200/20 bg-amber-200/[0.05] px-3 py-2 text-left text-xs font-bold text-amber-100/68 transition hover:border-amber-200/44 hover:text-amber-50"
+					className="flex w-full items-center justify-between rounded-xl border border-dashed border-[var(--line-strong)] bg-transparent px-3 py-2 text-left text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
 				>
-					<span className="font-black uppercase tracking-[0.22em] text-amber-100/58">Substitute</span>
+					<span className="font-semibold text-[var(--muted)]">Substitute</span>
 					<span>+ Hinzufügen</span>
 				</button>
 				<button
 					type="button"
 					onClick={() => onAddManualSubstitute(team.key)}
-					className="flex w-full items-center justify-between rounded-xl border border-dashed border-orange-200/18 bg-orange-200/[0.04] px-3 py-2 text-left text-xs font-bold text-orange-100/66 transition hover:border-orange-200/40 hover:text-orange-50"
+					className="flex w-full items-center justify-between rounded-xl border border-dashed border-[var(--line-strong)] bg-transparent px-3 py-2 text-left text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
 				>
-					<span className="font-black uppercase tracking-[0.18em]">Ohne Bewerbung</span>
+					<span className="font-semibold">Ohne Bewerbung</span>
 					<span>+ Manuell</span>
 				</button>
 
@@ -2011,48 +2011,48 @@ const PlayerRow = memo(function PlayerRow({
 		<div
 			className={`grid gap-2.5 rounded-xl border px-3 py-2.5 ${
 				masterPlusOnRequestedRole
-					? "border-orange-300/38 bg-orange-300/[0.09] shadow-lg shadow-orange-950/15"
+					? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)]"
 					: isCaptain
-						? "border-lime-200/40 bg-lime-200/10"
-						: "border-white/10 bg-black/24"
+						? "border-[var(--line-strong)] bg-[var(--admin-step)]"
+						: "border-[var(--line)] bg-[var(--admin-inset)]"
 			} ${pulsing ? "roster-row-pulse" : ""}`}
 		>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
-					<div className="min-w-0 flex-1 truncate text-sm font-black text-emerald-50" title={playerLabel}>
+					<div className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text)]" title={playerLabel}>
 						{playerLabel}
 					</div>
 					{isCaptain ? (
-						<span className="shrink-0 rounded-full border border-lime-200/28 bg-lime-200/12 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-lime-50">
+						<span className="shrink-0 rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--accent)]">
 							Captain
 						</span>
 					) : null}
 					{rolePreferenceIndex >= 0 ? (
-						<span className="shrink-0 rounded-full border border-cyan-200/24 bg-cyan-200/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.11em] text-cyan-50">
+						<span className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-semibold text-[var(--text)]">
 							Wunsch #{rolePreferenceIndex + 1}
 						</span>
 					) : null}
 					{masterPlusOnRequestedRole ? (
 						<span
-							className="shrink-0 rounded-full border border-orange-200/30 bg-orange-200/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.11em] text-orange-50"
+							className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]"
 							title="Master+ auf Main- oder Wunschrolle: manuell auf Teamfairness prüfen"
 						>
 							Master+ Komfort
 						</span>
 					) : null}
 					{applicant?.source === "manual" ? (
-						<span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+						<span className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
 							Ohne Bewerbung
 						</span>
 					) : applicant?.verified === false ? (
-						<span className="shrink-0 rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+						<span className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
 							Nicht verifiziert
 						</span>
 					) : null}
 				</div>
 				<div
-					className="mt-0.5 truncate text-[10px] text-emerald-100/52"
-					title={[applicant?.riotId, applicant?.manualRankOverride || applicant?.currentRank].filter(Boolean).join(" · ")}
+					className="mt-0.5 truncate text-xs text-[var(--muted)]"
+					title={[applicant?.riotId, applicant?.manualRankOverride || applicant?.currentRank].filter(Boolean).join("·")}
 				>
 					{applicant?.riotId ?? "(no riot id)"}
 					{applicant?.manualRankOverride || applicant?.currentRank ? ` · ${applicant?.manualRankOverride || applicant?.currentRank}` : ""}
@@ -2066,13 +2066,13 @@ const PlayerRow = memo(function PlayerRow({
 
 			<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
 				<label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-					<span className="text-[9px] font-black uppercase tracking-[0.16em] text-lime-200/52">Rolle</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Rolle</span>
 					<ThemedSelect
 						value={role}
 						onChange={(value) => onSetRole(discordId, value as PlayerRole)}
 						ariaLabel={`Rolle von ${applicant?.displayName ?? discordId}`}
 						compact
-						className="font-black uppercase tracking-[0.12em] text-lime-100"
+						className="font-semibold text-[var(--accent)]"
 						options={ALL_ROLES.map((entry) => ({ value: entry, label: entry }))}
 					/>
 				</label>
@@ -2085,7 +2085,7 @@ const PlayerRow = memo(function PlayerRow({
 							rel="noreferrer"
 							title={`${applicant.riotId} auf OP.GG öffnen`}
 							aria-label={`${applicant.riotId} auf OP.GG öffnen`}
-							className="inline-flex h-8 items-center rounded-lg border border-white/12 bg-black/24 px-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100/64 transition hover:border-lime-200/34 hover:text-lime-100"
+							className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 						>
 							OP.GG
 						</a>
@@ -2098,8 +2098,8 @@ const PlayerRow = memo(function PlayerRow({
 							aria-label={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
 							className={`inline-flex size-8 items-center justify-center rounded-lg border text-xs transition ${
 								isCaptain
-									? "border-lime-200/40 bg-lime-200/14 text-lime-50"
-									: "border-white/12 bg-black/24 text-emerald-100/52 hover:border-lime-200/30 hover:text-lime-100"
+									? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+									: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 							}`}
 						>
 							⭐
@@ -2110,7 +2110,7 @@ const PlayerRow = memo(function PlayerRow({
 						onClick={() => onUnassign(discordId)}
 						title="Vom Team entfernen"
 						aria-label="Vom Team entfernen"
-						className="inline-flex size-8 items-center justify-center rounded-lg border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-red-300/30 hover:text-red-200"
+						className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)]"
 					>
 						✕
 					</button>
@@ -2170,22 +2170,22 @@ function ApplicantCard({
 	const hasOverride = Boolean(applicant.manualRankOverride);
 
 	return (
-		<div className="rounded-xl border border-white/10 bg-black/22 p-3">
-			<div className="truncate text-sm font-black text-emerald-50">{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}</div>
+		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+			<div className="truncate text-sm font-semibold text-[var(--text)]">{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}</div>
 			<div className="mt-0.5 flex items-center gap-2">
-				<div className="min-w-0 flex-1 truncate text-[10px] text-emerald-100/52">{applicant.riotId}</div>
+				<div className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]">{applicant.riotId}</div>
 				<a
 					href={opggUrl(applicant.riotId)}
 					target="_blank"
 					rel="noreferrer"
-					className="shrink-0 rounded-md border border-white/12 bg-black/24 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/58 transition hover:border-lime-200/34 hover:text-lime-100"
+					className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--admin-inset)] px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
 				>
 					OP.GG
 				</a>
 			</div>
 			<div className="mt-2 flex flex-wrap items-center gap-1">
 				{applicant.verified === false ? (
-					<span className="rounded-full border border-amber-200/28 bg-amber-200/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">
+					<span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
 						Nicht verifiziert
 					</span>
 				) : null}
@@ -2208,7 +2208,7 @@ function ApplicantCard({
 							}}
 							ariaLabel={`Rang-Tier von ${applicant.displayName}`}
 							compact
-							className="font-bold text-lime-100"
+							className="font-medium text-[var(--accent)]"
 							options={[{ value: "__reset__", label: "Auto (Riot)" }, { value: "", label: "Unranked" }, ...RANK_TIERS.map((tier) => ({ value: tier, label: tier }))]}
 						/>
 						{editingTier && !APEX_TIERS.has(editingTier) ? (
@@ -2220,7 +2220,7 @@ function ApplicantCard({
 								}}
 								ariaLabel={`Rang-Division von ${applicant.displayName}`}
 								compact
-								className="font-bold text-lime-100"
+								className="font-medium text-[var(--accent)]"
 								options={RANK_DIVISIONS.map((division) => ({ value: division, label: division }))}
 							/>
 						) : null}
@@ -2244,7 +2244,7 @@ function ApplicantCard({
 								<button
 									type="button"
 									onClick={() => onSaveRank(formatRankString(editingTier, undefined, editingLp ? Number(editingLp) : undefined))}
-									className="rounded-lg border border-lime-200/30 bg-lime-200/10 px-1.5 py-0.5 text-[10px] font-bold text-lime-100 transition hover:border-lime-200/50"
+									className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 								>
 									✓
 								</button>
@@ -2254,7 +2254,7 @@ function ApplicantCard({
 							<button
 								type="button"
 								onClick={() => onSaveRank(null)}
-								className="rounded-lg border border-lime-200/30 bg-lime-200/10 px-1.5 py-0.5 text-[10px] font-bold text-lime-100 transition hover:border-lime-200/50"
+								className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 							>
 								✓
 							</button>
@@ -2265,31 +2265,31 @@ function ApplicantCard({
 						type="button"
 						onClick={onStartEdit}
 						title={hasOverride ? `Überschrieben: ${applicant.manualRankOverride} (Klicken zum Ändern)` : "Klicken zum Überschreiben"}
-						className={`rounded-full border px-2 py-0.5 text-[10px] font-bold transition ${
+						className={`rounded-full border px-2 py-0.5 text-xs font-medium transition ${
 							hasOverride
-								? "border-amber-200/30 bg-amber-200/10 text-amber-100 hover:border-amber-200/50"
-								: "border-lime-200/24 bg-lime-200/10 text-lime-50 hover:border-lime-200/40"
+								? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)] hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)]"
+								: "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)] hover:border-[var(--line-strong)]"
 						}`}
 					>
-						{hasOverride ? "★ " : ""}
+						{hasOverride ? "★" : ""}
 						{effectiveRank}
 					</button>
 				) : (
 					<button
 						type="button"
 						onClick={onStartEdit}
-						className="rounded-full border border-dashed border-white/15 bg-white/[0.03] px-2 py-0.5 text-[10px] text-emerald-100/40 transition hover:border-white/25"
+						className="rounded-full border border-dashed border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs text-[var(--muted)] transition hover:border-[var(--line-strong)]"
 					>
 						Rang eintragen
 					</button>
 				)}
 				{applicant.mainRole ? (
-					<span className="rounded-full border border-cyan-200/24 bg-cyan-200/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-50">
+					<span className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--text)]">
 						Main {applicant.mainRole}
 					</span>
 				) : null}
 				{applicant.preferredRoles.map((r, index) => (
-					<span key={r} className="rounded-full border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100/60">
+					<span key={r} className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
 						#{index + 1} · {r}
 					</span>
 				))}
@@ -2308,7 +2308,7 @@ const dateFormatter = new Intl.DateTimeFormat("de-DE", {
 function ApplicationDetails({ applicant, compact = false }: { applicant: RosterApplicant; compact?: boolean }) {
 	if (applicant.source === "manual") {
 		return (
-			<div className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-amber-200/16 bg-amber-200/[0.05] px-3 py-2 text-[10px] leading-5 text-amber-100/72`}>
+			<div className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs leading-5 text-[var(--muted)]`}>
 				{applicant.verified
 					? "Manuell ohne Bewerbung eingetragen. Der Riot-Account ist verifiziert."
 					: "Manuell ohne Bewerbung eingetragen. Discord- und Riot-Konto wurden nicht über die Website verifiziert."}
@@ -2319,11 +2319,11 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 	const submittedAt = dateFormatter.format(new Date(applicant.createdAt));
 
 	return (
-		<details className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-cyan-200/12 bg-cyan-300/[0.035]`}>
-			<summary className="cursor-pointer list-none px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70 transition hover:text-cyan-50">
+		<details className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-[var(--line)] bg-[var(--admin-step)]`}>
+			<summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)]">
 				Bewerbung ansehen
 			</summary>
-			<div className="grid gap-2 border-t border-white/8 px-3 py-3 text-[11px]">
+			<div className="grid gap-2 border-t border-[var(--line)] px-3 py-3 text-xs">
 				<ApplicationDetailRow label="Anzeigename" value={applicant.displayName} />
 				<ApplicationDetailRow
 					label="Rollen"
@@ -2333,14 +2333,14 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 							applicant.preferredRoles.length > 0 ? `Wünsche: ${applicant.preferredRoles.map((role, index) => `#${index + 1} ${role}`).join(", ")}` : "",
 						]
 							.filter(Boolean)
-							.join(" · ") || "Keine Angaben"
+							.join("·") || "Keine Angaben"
 					}
 				/>
 				<ApplicationDetailRow label="Termine" value={applicant.availableAllDates ? "Für beide Tage bestätigt" : "Nicht bestätigt"} />
 				{applicant.hasCompetitiveExperience ? (
 					<div>
-						<div className="font-black uppercase tracking-[0.14em] text-lime-200/52">Competitive-Erfahrung</div>
-						<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-white/8 bg-black/20 p-2 leading-5 text-emerald-100/72">{applicant.competitiveExperience || "Keine Beschreibung hinterlegt."}</p>
+						<div className="font-semibold text-[var(--muted)]">Competitive-Erfahrung</div>
+						<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] p-2 leading-5 text-[var(--muted)]">{applicant.competitiveExperience || "Keine Beschreibung hinterlegt."}</p>
 					</div>
 				) : null}
 				<ApplicationDetailRow label="Eingegangen" value={`${submittedAt} Uhr`} />
@@ -2349,8 +2349,8 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 					value={applicant.acceptedRules && applicant.acceptedDataStorage ? "Regeln und Datenspeicherung bestätigt" : "Unvollständig"}
 				/>
 				<div>
-					<div className="font-black uppercase tracking-[0.14em] text-lime-200/52">Notiz</div>
-					<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/8 bg-black/20 p-2 leading-5 text-emerald-100/72">
+					<div className="font-semibold text-[var(--muted)]">Notiz</div>
+					<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] p-2 leading-5 text-[var(--muted)]">
 						{applicant.notes || "Keine Notiz hinterlegt."}
 					</p>
 				</div>
@@ -2362,25 +2362,25 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 function ApplicationDetailRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid gap-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
-			<span className="font-black uppercase tracking-[0.14em] text-lime-200/52">{label}</span>
-			<span className="min-w-0 break-words text-emerald-100/72">{value}</span>
+			<span className="font-semibold text-[var(--muted)]">{label}</span>
+			<span className="min-w-0 break-words text-[var(--muted)]">{value}</span>
 		</div>
 	);
 }
 
 function GroupSummaryTile({ label, value, tone }: { label: string; value: number | string; tone: "ok" | "warn" | "danger" | "neutral" | "info" }) {
 	const tones = {
-		ok: "border-lime-200/22 bg-lime-300/[0.08] text-lime-50",
-		warn: "border-amber-200/22 bg-amber-300/[0.08] text-amber-50",
-		danger: "border-red-300/22 bg-red-400/[0.08] text-red-100",
-		neutral: "border-white/10 bg-black/18 text-emerald-100/66",
-		info: "border-cyan-200/18 bg-cyan-300/[0.07] text-cyan-50",
+		ok: "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]",
+		warn: "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]",
+		danger: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]",
+		neutral: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]",
+		info: "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]",
 	} as const;
 
 	return (
 		<div className={`rounded-xl border px-3 py-2 ${tones[tone]}`}>
-			<div className="text-lg font-black tabular-nums">{value}</div>
-			<div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em] opacity-60">{label}</div>
+			<div className="text-lg font-semibold tabular-nums">{value}</div>
+			<div className="mt-0.5 text-xs font-semibold opacity-60">{label}</div>
 		</div>
 	);
 }
@@ -2418,16 +2418,16 @@ function Picker({
 
 	return (
 		<div role="dialog" aria-modal="true" aria-labelledby="team-dialog-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-			<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-5 shadow-2xl shadow-black/40">
-				<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/72">Zuweisen · {role}</div>
-				<h2 id="team-dialog-title" className="mt-2 text-lg font-black text-emerald-50">
+			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-[var(--admin-inset)]" />
+			<div className="bg-[var(--admin-surface)] relative w-full max-w-md rounded-[16px] border border-[var(--line)] p-5">
+				<div className="text-xs font-semibold text-[var(--accent)]">Zuweisen · {role}</div>
+				<h2 id="team-dialog-title" className="mt-2 text-lg font-semibold text-[var(--text)]">
 					{teamName}
 				</h2>
 
 				<div className="mt-4 max-h-[60vh] overflow-y-auto pr-1">
 					{decorated.length === 0 ? (
-						<div className="rounded-xl border border-white/10 bg-black/24 p-4 text-sm text-emerald-100/52">Keine verfügbaren verifizierten Bewerber mehr.</div>
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-4 text-sm text-[var(--muted)]">Keine verfügbaren verifizierten Bewerber mehr.</div>
 					) : (
 						<div className="grid gap-2">
 							{decorated.map(({ applicant, priority }) => {
@@ -2438,17 +2438,17 @@ function Picker({
 										type="button"
 										onClick={() => onPick(applicant.discordId)}
 										className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
-											preferred ? "border-lime-200/30 bg-lime-200/[0.06] hover:border-lime-200/50" : "border-white/10 bg-black/24 hover:border-lime-200/30"
+											preferred ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:border-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] hover:border-[var(--line-strong)]"
 										}`}
 									>
 										<div className="min-w-0">
-											<div className="truncate text-sm font-black text-emerald-50">
+											<div className="truncate text-sm font-semibold text-[var(--text)]">
 												{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}
 												{preferred ? (
-													<span className="ml-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime-200/72">Wunsch #{priority + 1}</span>
+													<span className="ml-2 text-xs font-medium text-[var(--accent)]">Wunsch #{priority + 1}</span>
 												) : null}
 											</div>
-											<div className="truncate text-[10px] text-emerald-100/52">
+											<div className="truncate text-xs text-[var(--muted)]">
 												{applicant.riotId}
 												{applicant.manualRankOverride || applicant.currentRank ? ` · ${applicant.manualRankOverride || applicant.currentRank}` : ""}
 											</div>
@@ -2469,7 +2469,7 @@ function Picker({
 					<button
 						type="button"
 						onClick={onCancel}
-						className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-100"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-semibold text-[var(--text)]"
 					>
 						Abbrechen
 					</button>
@@ -2483,7 +2483,7 @@ function PreferenceGroupBadge({ code }: { code: string }) {
 	return (
 		<span
 			title="Unverbindliche Wunschgruppe"
-			className="inline-flex rounded-full border border-cyan-200/22 bg-cyan-300/10 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50/76"
+			className="inline-flex rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--muted)]"
 		>
 			Wunsch · {code}
 		</span>

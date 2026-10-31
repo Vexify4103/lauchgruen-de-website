@@ -90,7 +90,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 	}
 
 	return (
-		<section className="mt-8 rounded-[2rem] border border-red-300/18 bg-red-500/[0.045] p-5 shadow-xl shadow-black/20">
+		<section className="mt-8 rounded-[16px] border border-[var(--line)] bg-[var(--admin-surface)] p-5">
 			<ConfirmDialog
 				open={Boolean(pendingRemoval)}
 				tone="danger"
@@ -106,13 +106,13 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 			/>
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-red-100/70">Blacklist</div>
-					<h2 className="mt-2 text-2xl font-black text-red-50">Spieler für zukünftige Turniere sperren</h2>
-					<p className="mt-2 text-sm leading-6 text-red-50/62">
+					<div className="text-xs font-semibold text-[var(--danger)]">Blacklist</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Spieler für zukünftige Turniere sperren</h2>
+					<p className="mt-2 text-sm leading-6 text-[var(--muted)]">
 						Blockiert Bewerbungen, wenn Discord-ID oder Riot-ID übereinstimmt. Die Sperre ist dauerhaft, bis sie hier aktiv entfernt wird.
 					</p>
 				</div>
-				<div className="rounded-2xl border border-red-200/18 bg-black/20 px-4 py-2 text-sm font-black text-red-50">{entries.length} Einträge</div>
+				<div className="font-mono text-[13px] tabular-nums text-[var(--muted)]">{entries.length} Einträge</div>
 			</div>
 
 			<form onSubmit={addEntry} className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr_auto] lg:items-end">
@@ -122,14 +122,14 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 				<button
 					type="submit"
 					disabled={isPending}
-					className="rounded-2xl bg-red-100 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-red-950 transition hover:-translate-y-0.5 disabled:opacity-60"
+					className="rounded-[12px] bg-[var(--danger)] px-5 py-3 text-xs font-semibold text-[var(--on-accent)] transition disabled:opacity-60"
 				>
 					Sperren
 				</button>
 			</form>
 
 			{message ? (
-				<div role="status" className="mt-4 rounded-2xl border border-red-200/20 bg-black/24 px-4 py-3 text-sm font-bold text-red-50">
+				<div role="status" className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[var(--admin-inset)] px-4 py-3 text-sm font-medium text-[var(--danger)]">
 					{message}
 				</div>
 			) : null}
@@ -138,12 +138,12 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 				<details
 					open={listOpen}
 					onToggle={(event) => setListOpen((event.currentTarget as HTMLDetailsElement).open)}
-					className="group mt-5 rounded-2xl border border-red-200/14 bg-black/16 p-4"
+					className="group mt-5 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4"
 				>
-					<summary className="cursor-pointer list-none text-sm font-black text-red-50 marker:hidden">
+					<summary className="cursor-pointer list-none text-sm font-semibold text-[var(--text)] marker:hidden">
 						<span className="inline-flex items-center gap-2">
-							<span className="grid size-6 place-items-center rounded-full border border-red-200/18 bg-red-100/8" aria-hidden="true">
-								<span className="size-2 rotate-45 border-b-2 border-r-2 border-red-100/72 transition-transform duration-200 group-open:-rotate-[135deg]" />
+							<span className="grid size-6 place-items-center rounded-full border border-[var(--line)] bg-[var(--admin-step)]" aria-hidden="true">
+								<span className="size-2 rotate-45 border-b-2 border-r-2 border-[var(--line)] transition-transform duration-200 group-open:-rotate-[135deg]" />
 							</span>
 							Aktive Sperren anzeigen ({entries.length})
 						</span>
@@ -151,7 +151,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 					<div className="mt-4 max-h-80 overflow-y-auto pr-1">
 						<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
 							{entries.map((entry) => (
-								<article key={entry.id} className="rounded-2xl border border-red-200/14 bg-black/20 p-4">
+								<article key={entry.id} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
 									<div className="grid gap-1 text-sm">
 										<Row label="Discord">{entry.discordId ?? "—"}</Row>
 										<Row label="Riot">{entry.riotId ?? "—"}</Row>
@@ -161,7 +161,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 										type="button"
 										disabled={isPending}
 										onClick={() => setPendingRemoval(entry)}
-										className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-red-100/72 underline decoration-red-200/30 underline-offset-4 hover:text-red-50"
+										className="mt-3 text-xs font-semibold text-[var(--muted)] underline decoration-[var(--line-strong)] underline-offset-4 hover:text-[var(--danger)]"
 									>
 										Entfernen
 									</button>
@@ -178,7 +178,7 @@ export function BlacklistManager({ initialEntries, initialVersion }: { initialEn
 function Field({ label, value, onChange, placeholder, required }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; required?: boolean }) {
 	return (
 		<label className="grid gap-2">
-			<span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-100/64">{label}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
 			<input
 				name={label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
 				autoComplete="off"
@@ -187,7 +187,7 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 				onChange={(event) => onChange(event.target.value)}
 				required={required}
 				placeholder={placeholder}
-				className="rounded-xl border border-red-200/12 bg-black/24 px-3 py-2.5 text-sm font-bold text-red-50 outline-none placeholder:text-red-100/26 focus:border-red-200/38"
+				className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5 text-sm font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 			/>
 		</label>
 	);
@@ -196,8 +196,8 @@ function Field({ label, value, onChange, placeholder, required }: { label: strin
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="grid grid-cols-[4.5rem_1fr] gap-2">
-			<span className="text-[10px] font-black uppercase tracking-[0.18em] text-red-100/48">{label}</span>
-			<span className="break-words font-bold text-red-50/82">{children}</span>
+			<span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
+			<span className="break-words font-medium text-[var(--text)]">{children}</span>
 		</div>
 	);
 }

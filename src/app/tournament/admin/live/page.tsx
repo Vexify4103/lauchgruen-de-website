@@ -157,7 +157,7 @@ export default async function AdminLiveDashboardPage() {
 								}
 							/>
 						) : (
-							<div className="divide-y divide-white/7 overflow-hidden rounded-2xl border border-white/8 bg-black/16">
+							<div className="divide-y divide-[var(--line)] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)]">
 								{nextMatches.map((match, index) => (
 									<QueueMatchRow
 										key={match.id}
@@ -205,15 +205,15 @@ function getNextMatches(matches: ControlMatch[]) {
 }
 
 function CockpitPanel({ eyebrow, title, count, tone, children }: { eyebrow: string; title: string; count: number; tone: "red" | "cyan"; children: ReactNode }) {
-	const accent = tone === "red" ? "text-red-200/60 bg-red-400" : "text-cyan-100/58 bg-cyan-300";
+	const accent = tone === "red" ? "text-[var(--danger)] bg-[var(--danger)]" : "text-[var(--muted)] bg-[var(--muted)]";
 	return (
-		<section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#09170f]/88 shadow-xl shadow-black/24">
-			<header className="flex items-end justify-between gap-4 border-b border-white/8 px-5 py-4">
+		<section className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#09170f]/88">
+			<header className="flex items-end justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
 				<div>
-					<div className={`text-[9px] font-black uppercase tracking-[0.25em] ${accent.split(" ")[0]}`}>{eyebrow}</div>
-					<h2 className="mt-1 text-2xl font-black text-emerald-50">{title}</h2>
+					<div className={`text-xs font-semibold ${accent.split(" ")[0]}`}>{eyebrow}</div>
+					<h2 className="mt-1 text-2xl font-semibold text-[var(--text)]">{title}</h2>
 				</div>
-				<span className="rounded-xl border border-white/9 bg-black/22 px-3 py-2 font-mono text-sm font-black text-emerald-50">{count}</span>
+				<span className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 font-mono text-sm font-semibold text-[var(--text)]">{count}</span>
 			</header>
 			<div className="p-4 sm:p-5">{children}</div>
 		</section>
@@ -225,18 +225,17 @@ function LiveMatchCard({ entry, isUltimateBravery, ultimateBraveryStatus }: { en
 	return (
 		<Link
 			href={`/tournament/admin/matches/${match.id}`}
-			className="group overflow-hidden rounded-2xl border border-red-300/18 bg-gradient-to-br from-red-500/[0.09] to-black/15 transition hover:-translate-y-0.5 hover:border-red-200/36"
+			className="group overflow-hidden rounded-[12px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)]"
 		>
-			<div className="h-1 bg-gradient-to-r from-red-400 via-orange-200 to-transparent" />
 			<div className="p-4">
 				<div className="flex items-center justify-between gap-3">
-					<span className="text-[9px] font-black uppercase tracking-[0.2em] text-red-100/68">Live · {match.round}</span>
-					<span className="font-mono text-[10px] font-bold text-emerald-100/35">{match.id}</span>
+					<span className="text-xs font-semibold text-[var(--muted)]">Live · {match.round}</span>
+					<span className="font-mono text-xs font-medium text-[var(--muted)]">{match.id}</span>
 				</div>
 				<div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-					<strong className="text-lg text-emerald-50">{match.teamALabel}</strong>
-					<span className="text-[10px] font-black text-red-200/60">VS</span>
-					<strong className="text-right text-lg text-emerald-50">{match.teamBLabel}</strong>
+					<strong className="text-lg text-[var(--text)]">{match.teamALabel}</strong>
+					<span className="text-xs font-semibold text-[var(--danger)]">VS</span>
+					<strong className="text-right text-lg text-[var(--text)]">{match.teamBLabel}</strong>
 				</div>
 				<div className="mt-4 flex flex-wrap gap-2">
 					{isUltimateBravery ? (
@@ -257,7 +256,7 @@ function LiveMatchCard({ entry, isUltimateBravery, ultimateBraveryStatus }: { en
 						</>
 					)}
 				</div>
-				<div className="mt-4 text-[10px] font-black uppercase tracking-[0.15em] text-red-100/45 transition group-hover:text-red-100">Control Room öffnen →</div>
+				<div className="mt-4 text-xs font-semibold text-[var(--muted)] transition group-hover:text-[var(--danger)]">Control Room öffnen →</div>
 			</div>
 		</Link>
 	);
@@ -277,19 +276,19 @@ function QueueMatchRow({
 	return (
 		<Link
 			href={`/tournament/admin/matches/${match.id}`}
-			className="group grid gap-3 px-4 py-3.5 transition hover:bg-white/[0.035] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:items-center"
+			className="group grid gap-3 px-4 py-3.5 transition hover:bg-[var(--admin-step)] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:items-center"
 		>
-			<span className="font-mono text-lg font-black text-cyan-100/25">{String(position).padStart(2, "0")}</span>
+			<span className="font-mono text-lg font-semibold text-[var(--muted)]">{String(position).padStart(2, "0")}</span>
 			<div className="min-w-0">
-				<div className="truncate text-sm font-black text-emerald-50">
-					{match.teamALabel} <span className="text-emerald-100/28">vs</span> {match.teamBLabel}
+				<div className="truncate text-sm font-semibold text-[var(--text)]">
+					{match.teamALabel} <span className="text-[var(--muted)]">vs</span> {match.teamBLabel}
 				</div>
-				<div className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-100/34">
+				<div className="mt-1 text-xs font-medium text-[var(--muted)]">
 					{match.round} · {match.time} · {match.status}
 				</div>
 			</div>
 			<div className="flex items-center gap-2">
-				<span className="hidden rounded-full border border-white/9 bg-white/[0.03] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100/42 md:inline-flex">
+				<span className="hidden rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)] md:inline-flex">
 					{isUltimateBravery
 						? ultimateBraveryStatus?.rerollRequestCount
 							? `${ultimateBraveryStatus.rerollRequestCount} Ausnahme offen`
@@ -298,7 +297,7 @@ function QueueMatchRow({
 							? "Pools bereit"
 							: "Vorbereiten"}
 				</span>
-				<span className="text-cyan-100/38 transition group-hover:translate-x-1 group-hover:text-cyan-100">→</span>
+				<span className="text-[var(--muted)] transition group-hover:translate-x-1 group-hover:text-[var(--text)]">→</span>
 			</div>
 		</Link>
 	);
@@ -331,32 +330,32 @@ function AttentionPanel({
 		...unresolved.slice(0, 4).map((match) => ({ match, matchId: match.id, label: "Teams noch nicht bestimmt", tone: "amber" as const })),
 	];
 	return (
-		<section className="rounded-[2rem] border border-amber-200/14 bg-gradient-to-br from-amber-200/[0.055] to-black/12 p-5 shadow-xl shadow-black/22">
+		<section className="rounded-[16px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] p-5">
 			<div className="flex items-center justify-between gap-3">
 				<div>
-					<div className="text-[9px] font-black uppercase tracking-[0.24em] text-amber-100/52">Aufmerksamkeit</div>
-					<h2 className="mt-2 text-xl font-black text-emerald-50">Orga-Aufgaben</h2>
+					<div className="text-xs font-semibold text-[var(--muted)]">Aufmerksamkeit</div>
+					<h2 className="mt-2 text-xl font-semibold text-[var(--text)]">Orga-Aufgaben</h2>
 				</div>
 				<span
-					className={`grid size-10 place-items-center rounded-full border font-mono text-sm font-black ${tasks.length ? "border-amber-200/24 bg-amber-200/12 text-amber-100" : "border-lime-200/20 bg-lime-200/10 text-lime-100"}`}
+					className={`grid size-10 place-items-center rounded-full border font-mono text-sm font-semibold ${tasks.length ? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]" : "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"}`}
 				>
 					{tasks.length}
 				</span>
 			</div>
 			<div className="mt-4 grid gap-2">
 				{tasks.length === 0 ? (
-					<div className="rounded-xl border border-lime-200/14 bg-lime-200/[0.055] p-3 text-xs font-bold text-lime-100/70">
-						✓ Aktuell ist keine direkte Orga-Aktion offen.
+					<div className="rounded-xl border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] p-3 text-xs font-medium text-[var(--accent)]">
+						Keine Orga-Aktion offen
 					</div>
 				) : (
 					tasks.slice(0, 8).map(({ match, matchId, label, tone }) => (
 						<Link
 							key={`${matchId}-${label}`}
 							href={`/tournament/admin/matches/${matchId}`}
-							className={`rounded-xl border px-3 py-2.5 transition hover:bg-white/[0.045] ${tone === "amber" ? "border-amber-200/15 bg-amber-200/[0.045]" : "border-cyan-200/14 bg-cyan-300/[0.04]"}`}
+							className={`rounded-xl border px-3 py-2.5 transition hover:bg-[var(--admin-step)] ${tone === "amber" ? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-step)]"}`}
 						>
-							<div className="truncate text-xs font-black text-emerald-50">{match ? `${match.teamALabel} vs ${match.teamBLabel}` : matchId}</div>
-							<div className="mt-1 text-[9px] font-bold uppercase tracking-[0.13em] text-emerald-100/38">{label}</div>
+							<div className="truncate text-xs font-semibold text-[var(--text)]">{match ? `${match.teamALabel} vs ${match.teamBLabel}` : matchId}</div>
+							<div className="mt-1 text-xs font-medium text-[var(--muted)]">{label}</div>
 						</Link>
 					))
 				)}
@@ -367,27 +366,25 @@ function AttentionPanel({
 
 function StateBadge({ active, label }: { active: boolean; label: string }) {
 	return (
-		<span
-			className={`rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] ${active ? "border-lime-200/20 bg-lime-200/8 text-lime-100" : "border-amber-200/18 bg-amber-200/[0.065] text-amber-100"}`}
-		>
-			{active ? "✓" : "!"} {label}
+		<span className="tally rounded-full border border-[var(--line)] px-3 py-1.5" data-tone={active ? "ok" : "warn"}>
+			{label}
 		</span>
 	);
 }
 
 function Chip({ text }: { text: string }) {
-	return <span className="rounded-full border border-white/9 bg-black/18 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100/48">{text}</span>;
+	return <span className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]">{text}</span>;
 }
 
 function DangerChip({ text }: { text: string }) {
-	return <span className="rounded-full border border-red-200/24 bg-red-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-red-100">{text}</span>;
+	return <span className="rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)]">{text}</span>;
 }
 
 function EmptyState({ title, text }: { title: string; text: string }) {
 	return (
-		<div className="rounded-2xl border border-dashed border-white/10 bg-black/14 px-5 py-8 text-center">
-			<div className="text-sm font-black text-emerald-50/72">{title}</div>
-			<p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-emerald-100/38">{text}</p>
+		<div className="rounded-[12px] border border-dashed border-[var(--line)] bg-[var(--admin-inset)] px-5 py-8 text-center">
+			<div className="text-sm font-semibold text-[var(--muted)]">{title}</div>
+			<p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-[var(--muted)]">{text}</p>
 		</div>
 	);
 }

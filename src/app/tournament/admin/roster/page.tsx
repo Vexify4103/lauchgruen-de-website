@@ -35,12 +35,8 @@ export default async function RosterPage() {
 			<section className="control-overview" aria-labelledby="roster-overview-title">
 				<header className="control-overview-header">
 					<div className="control-overview-copy">
-						<p>Turnierorganisation · Roster</p>
-						<h2 id="roster-overview-title">
-							Teams bauen.
-							<br />
-							<span>Balance sehen.</span>
-						</h2>
+						<p>Roster</p>
+						<h2 id="roster-overview-title">Teams bauen und ausgleichen</h2>
 						<small>
 							Spieler zuweisen, Wunschgruppen prüfen und Teamstärken vergleichen. „Entwurf speichern“ bleibt privat; erst „Teams veröffentlichen“ aktualisiert
 							Website, Bot-Rollen und Benachrichtigungen.

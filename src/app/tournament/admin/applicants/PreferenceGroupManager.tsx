@@ -105,26 +105,26 @@ export function PreferenceGroupManager({
 	});
 
 	return (
-		<section className="mt-8 rounded-[2rem] border border-cyan-200/16 bg-cyan-300/[0.045] p-5 shadow-xl shadow-black/20">
+		<section className="mt-8 rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-100/68">Wunschgruppen verwalten</div>
-					<h2 className="mt-2 text-2xl font-black text-emerald-50">Gemeinsam spielen – fair eingeteilt</h2>
-					<p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/58">
+					<div className="text-xs font-semibold text-[var(--muted)]">Wunschgruppen verwalten</div>
+					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Gemeinsam spielen – fair eingeteilt</h2>
+					<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
 						{maxMembers
 							? `Wunschgruppen erlauben bis zu ${maxMembers} Personen. Der Auto-Balancer berücksichtigt gültige Gruppen nach Möglichkeit, eine gemeinsame Einteilung ist jedoch nicht garantiert.`
 							: "Wunschgruppen sind deaktiviert. Bestehende Gruppen bleiben gespeichert, werden aber nicht berücksichtigt. Mitglieder können weiterhin entfernt werden."}
 					</p>
 				</div>
-				<span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-50/72">
+				<span className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)]">
 					{groups.length} Wunschgruppen
 				</span>
 			</div>
 
 			<div className="mt-5 grid gap-4 xl:grid-cols-2">
-				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
-					<div className="text-sm font-black text-emerald-50">Neue Wunschgruppe erstellen</div>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/48">
+				<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+					<div className="text-sm font-semibold text-[var(--text)]">Neue Wunschgruppe erstellen</div>
+					<p className="mt-1 text-xs leading-5 text-[var(--muted)]">
 						{maxMembers ? `Wähle bis zu ${maxMembers} Bewerber aus, die noch keiner Wunschgruppe angehören.` : "Erstellen ist deaktiviert."}
 					</p>
 					<div className="mt-4">
@@ -146,15 +146,15 @@ export function PreferenceGroupManager({
 								await createGroup();
 							})
 						}
-						className="mt-4 rounded-xl bg-gradient-to-r from-lime-200 to-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 disabled:opacity-40"
+						className="bg-[var(--accent)] mt-4 rounded-xl px-4 py-3 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-40"
 					>
 						{isPending ? "Wird gespeichert…" : `Wunschgruppe mit ${newMembers.length} Personen erstellen`}
 					</button>
 				</div>
 
-				<div className="rounded-2xl border border-white/9 bg-black/18 p-4">
-					<div className="text-sm font-black text-emerald-50">Person zuweisen oder verschieben</div>
-					<p className="mt-1 text-xs leading-5 text-emerald-100/48">„Keine Wunschgruppe“ entfernt die Person aus ihrer aktuellen Gruppe.</p>
+				<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
+					<div className="text-sm font-semibold text-[var(--text)]">Person zuweisen oder verschieben</div>
+					<p className="mt-1 text-xs leading-5 text-[var(--muted)]">„Keine Wunschgruppe“ entfernt die Person aus ihrer aktuellen Gruppe.</p>
 					<div className="mt-4 grid gap-3">
 						<ThemedSelect
 							value={selectedApplicant}
@@ -191,7 +191,7 @@ export function PreferenceGroupManager({
 								await saveAssignment();
 							})
 						}
-						className="mt-4 rounded-xl border border-cyan-200/22 bg-cyan-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-cyan-50 disabled:opacity-40"
+						className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--text)] disabled:opacity-40"
 					>
 						Zuweisung speichern
 					</button>
@@ -201,16 +201,16 @@ export function PreferenceGroupManager({
 			{groups.length > 0 ? (
 				<div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
 					{groups.map((group) => (
-						<article key={group.code} className="rounded-2xl border border-cyan-200/12 bg-black/18 p-4">
+						<article key={group.code} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
 							<div className="flex items-center justify-between gap-3">
-								<span className="font-mono text-sm font-black tracking-[0.12em] text-cyan-50">{group.code}</span>
-								<span className="text-[10px] font-black text-cyan-100/48">
+								<span className="font-mono text-sm font-semibold text-[var(--text)]">{group.code}</span>
+								<span className="text-xs font-semibold text-[var(--muted)]">
 									{group.memberDiscordIds.length}
 									{maxMembers ? `/${maxMembers}` : ""}
 								</span>
 							</div>
 							{!isAllowedPreferenceGroup(mode, group.memberDiscordIds.length) ? (
-								<p className="mt-2 text-xs text-amber-100">Inaktiv nach aktueller Einstellung</p>
+								<p className="mt-2 text-xs text-[var(--amber)]">Inaktiv nach aktueller Einstellung</p>
 							) : null}
 							<div className="mt-3 flex flex-wrap gap-1.5">
 								{group.memberDiscordIds.map((discordId) => {
@@ -219,7 +219,7 @@ export function PreferenceGroupManager({
 										<span
 											key={discordId}
 											title={applicant?.riotId ?? discordId}
-											className="rounded-lg border border-white/8 bg-white/[0.035] px-2 py-1 text-[10px] font-bold text-emerald-100/68"
+											className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-2 py-1 text-xs font-medium text-[var(--muted)]"
 										>
 											{applicant?.displayName ?? discordId}
 										</span>
@@ -232,7 +232,7 @@ export function PreferenceGroupManager({
 			) : null}
 
 			{message ? (
-				<div role="status" className="mt-4 rounded-xl border border-cyan-200/16 bg-black/20 px-4 py-3 text-xs font-bold text-cyan-50/80">
+				<div role="status" className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-4 py-3 text-xs font-medium text-[var(--text)]">
 					{message}
 				</div>
 			) : null}

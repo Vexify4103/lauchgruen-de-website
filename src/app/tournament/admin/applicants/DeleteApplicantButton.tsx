@@ -52,12 +52,12 @@ export function DeleteApplicantButton({
 				disabled={busy}
 				title="Bewerbung löschen"
 				aria-label="Bewerbung löschen"
-				className="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-white/12 bg-black/24 text-xs text-emerald-100/52 transition hover:border-rose-300/40 hover:text-rose-200 disabled:opacity-50"
+				className="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-50"
 			>
 				✕
 			</button>
 			{error ? (
-				<div role="alert" className="mt-2 rounded-lg border border-red-300/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-100">
+				<div role="alert" className="mt-2 rounded-lg border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2 py-1 text-xs text-[var(--danger)]">
 					{error}
 				</div>
 			) : null}
@@ -66,7 +66,7 @@ export function DeleteApplicantButton({
 				title="Bewerbung wirklich löschen?"
 				description={
 					<>
-						Die Bewerbung von <strong className="text-emerald-50">{label}</strong> wird entfernt. Die verifizierte Discord-Riot-Verknüpfung bleibt erhalten, damit der
+						Die Bewerbung von <strong className="text-[var(--text)]">{label}</strong> wird entfernt. Die verifizierte Discord-Riot-Verknüpfung bleibt erhalten, damit der
 						Account bei einem späteren Turnier nicht erneut verifiziert werden muss. Eine bestehende Team-Zuweisung bleibt ebenfalls bestehen und muss bei Bedarf
 						separat im Roster entfernt werden.
 					</>
