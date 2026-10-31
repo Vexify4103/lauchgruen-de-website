@@ -1,6 +1,13 @@
 import { randomInt } from "node:crypto";
 import { getDb } from "@/lib/mongo";
-import { computeSwissRecords, placementSwissCandidates, planSwissRecordRound, validateSwissRoundPlan, type SwissRuleRecord } from "@/lib/tournament-swiss-rules";
+import {
+	computeSwissRecords,
+	findExactSwissRecordMatching,
+	placementSwissCandidates,
+	planSwissRecordRound,
+	validateSwissRoundPlan,
+	type SwissRuleRecord,
+} from "@/lib/tournament-swiss-rules";
 import { seriesWinnerSide } from "@/lib/tournament-series";
 
 const COLLECTION = "tournament_swiss_stages";
@@ -67,6 +74,27 @@ export class SwissCrossRecordError extends Error {
 		);
 		this.round = round;
 		this.crossRecordPairs = crossRecordPairs;
+	}
+}
+
+export type SwissRematchPair = { teamA: string; teamB: string; record: string };
+
+/**
+ * Thrown when the last placement round can only keep both score pools by repeating an earlier match.
+ * A rematch inside the same record is the fair decider there; it still needs explicit admin approval.
+ */
+export class SwissPlacementRematchError extends Error {
+	readonly code = "rematch-required";
+	readonly round: number;
+	readonly rematchPairs: SwissRematchPair[];
+	constructor(round: number, rematchPairs: SwissRematchPair[]) {
+		super(
+			`Runde ${round} lässt sich nur mit einem Rematch innerhalb derselben Bilanz paaren: ${rematchPairs
+				.map((pair) => `${pair.teamA} gegen ${pair.teamB} (${pair.record})`)
+				.join(", ")}.`
+		);
+		this.round = round;
+		this.rematchPairs = rematchPairs;
 	}
 }
 
@@ -176,6 +204,8 @@ export async function drawNextSwissMatchup(input: {
 	syncMatchResults?: boolean;
 	/** Explicit admin approval for pairings across score pools when no clean round exists. */
 	allowCrossRecord?: boolean;
+	/** Explicit admin approval for a same-record rematch in the last placement round. */
+	allowPlacementRematch?: boolean;
 	/** Series length of Swiss matches; a result only counts once the series is decided. */
 	bestOf?: number;
 	/** Swiss with elimination: teams with this many wins or losses stop playing. */
@@ -319,6 +349,23 @@ export async function drawNextSwissMatchup(input: {
 		matching = findRandomMatching(pool, previousOpponents);
 	}
 	const placementError = "Die Platzierungs-Swiss kann diese Bilanzgruppe nicht ohne Rematch paaren. Es wurde keine bilanzübergreifende Paarung erzeugt.";
+	// Placement round 4 has two pools of two. When both 2-1 (or 1-2) teams already met, the only
+	// same-record pairing is a rematch; never fall back to pairing across records there.
+	let approvedRematches: Array<[SwissTeam, SwissTeam]> = [];
+	if (placementSwiss && nextRound === 4 && (!matching || crossRecordPairs.length)) {
+		const sameRecord = findExactSwissRecordMatching(shuffle(candidates), records, new Set());
+		if (!sameRecord) throw new Error(placementError);
+		const rematches = sameRecord.filter(([teamA, teamB]) => previousOpponents.has(opponentKey(teamA.key, teamB.key)));
+		if (!input.allowPlacementRematch) {
+			throw new SwissPlacementRematchError(
+				nextRound,
+				rematches.map(([teamA, teamB]) => ({ teamA: teamA.name, teamB: teamB.name, record: recordLabel(records.get(teamA.key)!) }))
+			);
+		}
+		matching = sameRecord;
+		crossRecordPairs = [];
+		approvedRematches = rematches;
+	}
 	if (!matching) throw new Error(placementSwiss ? placementError : "Für diese Runde existiert keine gültige Paarung mehr, ohne ein früheres Match zu wiederholen.");
 	if (crossRecordPairs.length) {
 		if (placementSwiss) throw new Error(placementError);
@@ -334,12 +381,13 @@ export async function drawNextSwissMatchup(input: {
 			);
 		}
 	}
+	const approvedRematchKeys = new Set(approvedRematches.map(([teamA, teamB]) => opponentKey(teamA.key, teamB.key)));
 	const problems = validateSwissRoundPlan({
 		teams: candidates,
 		pairs: matching,
 		byeTeam,
 		records,
-		previousOpponents,
+		previousOpponents: new Set([...previousOpponents].filter((key) => !approvedRematchKeys.has(key))),
 		allowCrossRecord: !input.pairByRecord || crossRecordPairs.length > 0,
 	});
 	if (problems.length) throw new Error(`Auslosung abgebrochen, nichts wurde gespeichert: ${problems.join(" ")}`);
@@ -395,13 +443,16 @@ export async function drawNextSwissMatchup(input: {
 		round: nextRound,
 		pairingId: pairing.id,
 		detail: input.pairByRecord
-			? crossRecordPairs.length
+			? approvedRematches.length
+				? `Runde ${nextRound} wurde innerhalb der Bilanzgruppen gepaart; ${approvedRematches.length} Rematch(es) wurden von der Turnierleitung freigegeben.`
+				: crossRecordPairs.length
 				? `Runde ${nextRound} wurde ohne Rematches gepaart; ${crossRecordPairs.length} bilanzübergreifende Paarung(en) wurden von der Turnierleitung freigegeben.`
 				: `Runde ${nextRound} wurde strikt innerhalb der Bilanzgruppen und ohne Rematches gepaart.`
 			: `Runde ${nextRound} wurde zufällig und ohne Rematches gepaart.`,
 		metadata: {
 			pairByRecord: Boolean(input.pairByRecord),
 			crossRecordApproved: crossRecordPairs.length > 0,
+			rematchesApproved: approvedRematches.map(([teamA, teamB]) => opponentKey(teamA.key, teamB.key)),
 			teamPool: pairingContext,
 			selectedPairings: pairings.map((entry) => ({ id: entry.id, teamAKey: entry.teamAKey, teamBKey: entry.teamBKey, recordA: entry.recordA, recordB: entry.recordB })),
 			revealOrder: revealOrder.map((entry) => entry.id),

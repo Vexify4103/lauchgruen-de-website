@@ -138,8 +138,10 @@ export async function PATCH(request: Request) {
 		winner: winner ?? undefined,
 		updatedAt,
 	});
-	if (swissPairing && hasFinalScore) {
-		await setSwissPairingWinner(settings.activeTournament.id, swissPairing.id, parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey!);
+	const swissWinnerKey = swissPairing && hasFinalScore ? (parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey!) : null;
+	// Re-saving an older Swiss match (duration, champions) keeps its winner; only a real change is written.
+	if (swissPairing && swissWinnerKey && swissWinnerKey !== swissPairing.winnerTeamKey) {
+		await setSwissPairingWinner(settings.activeTournament.id, swissPairing.id, swissWinnerKey);
 	}
 
 	if (nextStatus === "Finished") {

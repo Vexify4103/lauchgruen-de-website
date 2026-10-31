@@ -10,6 +10,7 @@ import {
 	resetSwissStage,
 	setSwissPairingWinner,
 	SwissCrossRecordError,
+	SwissPlacementRematchError,
 } from "@/lib/tournament-swiss";
 import { buildSwissTestTeams, SWISS_TEST_ID } from "@/lib/tournament-swiss-test";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -42,6 +43,7 @@ const actionSchema = z.object({
 	pairingId: z.string().optional(),
 	winnerTeamKey: z.string().optional(),
 	allowCrossRecord: z.boolean().optional(),
+	allowRematch: z.boolean().optional(),
 });
 export async function GET(request: Request) {
 	const searchParams = new URL(request.url).searchParams;
@@ -157,6 +159,7 @@ export async function POST(request: Request) {
 			requireCompletedRound: true,
 			syncMatchResults: !test,
 			allowCrossRecord: parsed.data.allowCrossRecord === true,
+			allowPlacementRematch: parsed.data.allowRematch === true,
 			bestOf: config.bestOf.dayOne,
 			eliminationThreshold: config.dayOneFormat === "swiss-elimination" ? config.swissWinsToAdvance : undefined,
 			roundOneOrder: participants && config.swissRoundOneSeeding === "seeded" ? participants.seededOrder : undefined,
@@ -169,12 +172,20 @@ export async function POST(request: Request) {
 				summary: `Swiss-Paarung ${result.pairing.teamAName} vs ${result.pairing.teamBName ?? "Freilos"} in Runde ${result.round.round} enthüllt.`,
 				actorDiscordId: discordId,
 				actorLabel: session.user.discordHandle ?? discordId,
-				metadata: { pairing: result.pairing, roundComplete: result.round.complete, crossRecordApproved: parsed.data.allowCrossRecord === true },
+				metadata: {
+					pairing: result.pairing,
+					roundComplete: result.round.complete,
+					crossRecordApproved: parsed.data.allowCrossRecord === true,
+					rematchApproved: parsed.data.allowRematch === true,
+				},
 			});
 		return NextResponse.json({ ok: true, ...result });
 	} catch (error) {
 		if (error instanceof SwissCrossRecordError) {
 			return NextResponse.json({ code: error.code, message: error.message, round: error.round, crossRecordPairs: error.crossRecordPairs }, { status: 409 });
+		}
+		if (error instanceof SwissPlacementRematchError) {
+			return NextResponse.json({ code: error.code, message: error.message, round: error.round, rematchPairs: error.rematchPairs }, { status: 409 });
 		}
 		return NextResponse.json({ message: error instanceof Error ? error.message : "Swiss-Runde konnte nicht ausgelost werden." }, { status: 409 });
 	}
