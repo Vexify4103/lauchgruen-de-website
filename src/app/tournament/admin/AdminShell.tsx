@@ -4,6 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { TournamentLink as Link } from "../TournamentLink";
+import { ExternalIcon } from "./AdminIcons";
 
 export type AdminNavCounts = { liveMatches: number; applications: number; attention: number };
 
@@ -36,7 +37,7 @@ export function AdminShell({
 	children: ReactNode;
 }) {
 	const path = relativePath(usePathname());
-	const head = PAGE_HEADS.find((entry) => entry.match.test(path)) ?? { eyebrow: `${tournamentName} · Control Room`, title: "Turniersteuerung" };
+	const head = PAGE_HEADS.find((entry) => entry.match.test(path)) ?? { eyebrow: "Control Room", title: "Übersicht" };
 	const matchId = path.startsWith("/admin/matches/") ? decodeURIComponent(path.split("/")[3] ?? "") : null;
 	const nav: Array<{ href: string; label: string; count?: number; exact?: boolean } | "divider"> = [
 		{ href: "/tournament/admin", label: "Übersicht", count: counts.attention, exact: true },
@@ -51,7 +52,7 @@ export function AdminShell({
 	return (
 		<div className="admin-page">
 			<aside className="admin-sidebar" aria-label="Admin-Navigation">
-				<Link className="wordmark" href="/tournament/admin" aria-label="Control Room – Übersicht">
+				<Link className="wordmark" href="/tournament/admin" aria-label={`Control Room – ${tournamentName}`}>
 					<span className="wordmark-orb">
 						<Image src="/tournament-bear-mark.png" alt="" width={42} height={42} priority unoptimized />
 					</span>
@@ -67,14 +68,18 @@ export function AdminShell({
 						return (
 							<Link key={item.href} href={item.href} aria-current={current ? "page" : undefined}>
 								<span>{item.label}</span>
-								{item.count ? <b aria-label={`${item.count} offen`}>{item.count}</b> : null}
+								{item.count ? (
+									<span className="nav-count" aria-label={`${item.count} offen`}>
+										{item.count}
+									</span>
+								) : null}
 							</Link>
 						);
 					})}
 					<hr />
 					<Link href="/tournament">
 						<span>Öffentliche Seite</span>
-						<span aria-hidden="true">↗</span>
+						<ExternalIcon />
 					</Link>
 				</nav>
 				<div>
@@ -91,10 +96,10 @@ export function AdminShell({
 					</div>
 					<nav aria-label="Schnellzugriff">
 						<Link href="/tournament" className="button ghost small">
-							Turnierseite <span aria-hidden="true">↗</span>
+							Turnierseite <ExternalIcon />
 						</Link>
 						<a href={accountUrl} className="button ghost small">
-							Mein Konto <span aria-hidden="true">↗</span>
+							Mein Konto <ExternalIcon />
 						</a>
 					</nav>
 				</header>

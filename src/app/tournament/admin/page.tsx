@@ -18,6 +18,7 @@ import { MatchAdminClient, type AdminMatch } from "./MatchAdminClient";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { WheelAdminClient } from "./WheelAdminClient";
 import { ControlOverview } from "./ControlOverview";
+import { CheckIcon } from "./AdminIcons";
 import { getDefaultRulesMarkdown } from "@/lib/tournament-rulebook";
 
 const STATUS_LABELS: Record<string, string> = { Pending: "Draft", Live: "Im Spiel", Scheduled: "Geplant", Finished: "Beendet", Locked: "Offen" };
@@ -80,11 +81,11 @@ export default async function TournamentAdminPage() {
 								<p>
 									{control.matches.length === 0
 										? "Noch keine Matches. Sobald Roster und Stage stehen, erscheinen sie hier."
-										: "Gerade läuft nichts und kein weiteres Match ist angesetzt."}
+										: "Gerade läuft nichts und kein weiteres Match ist angesetzt"}
 								</p>
 							</div>
 						) : (
-							<ul className="attention-list">
+							<ul className="attention-list match-desk">
 								{[...running, ...upcoming].map((match) => (
 									<MatchRow key={match.id} match={match} />
 								))}
@@ -109,7 +110,7 @@ export default async function TournamentAdminPage() {
 						</section>
 					) : null}
 					{legacy ? (
-						<div className="mb-[18px]">
+						<div className="mb-4">
 							<WheelAdminClient initialState={legacy.wheel} matches={legacy.matches} />
 						</div>
 					) : null}
@@ -126,8 +127,8 @@ export default async function TournamentAdminPage() {
 						</div>
 						{missingResults.length === 0 ? (
 							<div className="attention-clear">
-								<span aria-hidden="true">✓</span>
-								<p>Alle beendeten Matches haben ein Ergebnis.</p>
+								<CheckIcon />
+								<p>Alle beendeten Matches haben ein Ergebnis</p>
 							</div>
 						) : (
 							<ul className="attention-list">
@@ -154,10 +155,12 @@ function MatchRow({ match, warn = false }: { match: ControlMatch; warn?: boolean
 				<div className="min-w-0">
 					<span>{match.round}</span>
 					<strong>
-						{match.teamALabel} <i className="px-1 font-normal not-italic text-[var(--muted)]">vs</i> {match.teamBLabel}
+						{match.teamALabel} <span className="match-versus">vs</span> {match.teamBLabel}
 					</strong>
 				</div>
-				<b data-tone={tone}>{warn ? "Ergebnis fehlt" : (STATUS_LABELS[match.status] ?? match.status)}</b>
+				<span className="tally" data-tone={tone}>
+					{warn ? "Ergebnis fehlt" : (STATUS_LABELS[match.status] ?? match.status)}
+				</span>
 			</Link>
 		</li>
 	);
@@ -202,6 +205,7 @@ function ReadinessPanel({
 		},
 		{ label: "Archiv", done: Boolean(latestArchiveTitle), detail: latestArchiveTitle ? `Zuletzt: ${latestArchiveTitle}` : "Noch kein Turnier archiviert" },
 	];
+	const done = checks.filter((check) => check.done).length;
 	return (
 		<section className="admin-panel" aria-labelledby="readiness-title">
 			<div className="admin-panel-head">
@@ -209,19 +213,24 @@ function ReadinessPanel({
 					<span>Vorbereitung</span>
 					<h2 id="readiness-title">Startklar-Check</h2>
 				</div>
-				<b>
-					{checks.filter((check) => check.done).length}/{checks.length}
+				<b aria-label={`${done} von ${checks.length} erledigt`}>
+					{done}/{checks.length}
 				</b>
 			</div>
-			<ul className="attention-list">
+			<div className="admin-progress" aria-hidden="true">
+				<span style={{ width: `${(done / checks.length) * 100}%` }} />
+			</div>
+			<ul className="attention-list compact">
 				{checks.map((check) => (
 					<li key={check.label}>
 						<div>
 							<div className="min-w-0">
-								<span>{check.label}</span>
-								<strong className="!text-[13px] !font-semibold text-[var(--muted)]">{check.detail}</strong>
+								<strong>{check.label}</strong>
+								<span className="check-detail">{check.detail}</span>
 							</div>
-							<b data-tone={check.done ? undefined : "warn"}>{check.done ? "✓ Erledigt" : "Offen"}</b>
+							<span className="tally" data-tone={check.done ? "ok" : "warn"}>
+								{check.done ? "Erledigt" : "Offen"}
+							</span>
 						</div>
 					</li>
 				))}
