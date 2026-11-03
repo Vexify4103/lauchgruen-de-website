@@ -74,8 +74,8 @@ export const AZ_CHALLENGES: Record<
 		],
 	},
 	lauchgruen: {
-		// Not started before 03.11; no games that day yet when this was set.
-		startAt: "2026-11-03T00:00:00+01:00",
+		// Started 03.11 at 18:30 Berlin; first challenge game: Aatrox win at 19:10.
+		startAt: "2026-11-03T18:30:00+01:00",
 		theme: "lauch",
 		excludedMatchIds: [],
 		// /obs/lauchgruen stays his rank overlay.

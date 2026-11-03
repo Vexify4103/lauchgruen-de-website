@@ -62,7 +62,7 @@ The two lists must use the same order when PUUIDs are supplied.
 | Lauchgruen | `https://lauchgruen.de/obs/lauchgruen-az` | lauch |
 
 Lauchgruen's rank overlay stays at `/obs/lauchgruen`; his A-Z overlay uses the
-same `RIOT_API_KEY_OBS_LAUCHGRUEN` and starts `2026-11-03T00:00:00+01:00`
+same `RIOT_API_KEY_OBS_LAUCHGRUEN` and starts `2026-11-03T18:30:00+01:00`
 (Solo/Duo). Overrides use the `LAUCHGRUEN_AZ_*` prefix.
 
 Size 720 x 300 on a 1080p canvas; add `?scale=0.8` to shrink, `?test` to keep
