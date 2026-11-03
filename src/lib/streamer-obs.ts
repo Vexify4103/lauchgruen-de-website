@@ -135,6 +135,8 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		riotGameName: process.env.LAUCHGRUEN_OBS_RIOT_GAME_NAME?.trim() || "lauchgruentv",
 		riotTagLine: process.env.LAUCHGRUEN_OBS_RIOT_TAG_LINE?.trim() || "euw",
 		alternateAccounts: alternateAccounts("LAUCHGRUEN"),
+		// His A-Z overlay switches to a compact bar in game, so check often.
+		liveCheckMs: 25_000,
 	},
 	hippokrate: {
 		slug: "hippokrate",

@@ -36,13 +36,23 @@ const MASTERY_CACHE_MS = 10 * 60_000;
 const UPCOMING_COUNT = 6;
 const RECENT_COMPLETED_COUNT = 8;
 const ATTEMPT_HISTORY_COUNT = 10;
-export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi" | "spaceffs">;
+export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi" | "spaceffs" | "lauchgruen">;
 
 /**
  * Streamers running the A-Z challenge. Every value can be overridden with
  * `<SLUG>_AZ_START_AT`, `_AZ_QUEUE_IDS`, `_AZ_MANUAL_DONE` and `_AZ_EXCLUDE_MATCHES`.
  */
-export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "gold" | "ice"; excludedMatchIds: string[]; queues?: AzQueueWindow[] }> = {
+export const AZ_CHALLENGES: Record<
+	AzChallengeSlug,
+	{
+		startAt: string;
+		theme: "gold" | "ice" | "lauch";
+		excludedMatchIds: string[];
+		queues?: AzQueueWindow[];
+		/** URL segment for /obs/<path> and /api/obs/<path>. Defaults to the slug. */
+		path?: string;
+	}
+> = {
 	tlgfabi: {
 		startAt: "2026-10-15T00:00:00Z",
 		theme: "gold",
@@ -63,7 +73,19 @@ export const AZ_CHALLENGES: Record<AzChallengeSlug, { startAt: string; theme: "g
 			{ id: 440, from: "2026-10-27T00:00:00+01:00" },
 		],
 	},
+	lauchgruen: {
+		// Not started before 03.11; no games that day yet when this was set.
+		startAt: "2026-11-03T00:00:00+01:00",
+		theme: "lauch",
+		excludedMatchIds: [],
+		// /obs/lauchgruen stays his rank overlay.
+		path: "lauchgruen-az",
+	},
 };
+
+export function azChallengePath(slug: AzChallengeSlug): string {
+	return AZ_CHALLENGES[slug].path ?? slug;
+}
 
 /** A queue that counts for the challenge, optionally only inside a time window (game end time). */
 export type AzQueueWindow = { id: number; from?: string; until?: string };

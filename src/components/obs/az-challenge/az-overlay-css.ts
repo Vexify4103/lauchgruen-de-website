@@ -2,7 +2,7 @@
 export const LEAVE_MS = 460;
 
 /** Color themes. Each streamer picks one; `?theme=` can override it. */
-export const AZ_THEMES = ["gold", "ice"] as const;
+export const AZ_THEMES = ["gold", "ice", "lauch"] as const;
 export type AzTheme = (typeof AZ_THEMES)[number];
 
 const THEME_CSS = `
@@ -20,6 +20,45 @@ const THEME_CSS = `
 	--win: #6ee7a8; --win-rgb: 110,231,168; --win-soft: #d8ffe9; --win-ink: #03281a;
 	--off: #c4b5fd; --off-rgb: 196,181,253; --off-soft: #ede9fe; --off-ink: #ece6ff;
 	--panel-a: rgba(9,16,34,.94); --panel-b: rgba(5,9,22,.9); --card-a: #1b2a4a; --card-b: #0b1328;
+}
+/* Lauch: the lauchgruen.de palette. Honey accent, lime-green wins, cyan off-picks, dark leek-green panel. */
+.azf-root.theme-lauch {
+	--accent: #fcd34d; --accent-rgb: 252,211,77; --accent-soft: #fef3c7; --accent-soft-rgb: 254,243,199;
+	--accent-deep: #c9930f; --accent-ink: #1f1603; --accent-ink-rgb: 31,22,3; --accent-shine: #fffbea;
+	--win: #bef264; --win-rgb: 190,242,100; --win-soft: #ecfccb; --win-ink: #142a05;
+	--off: #7dd3c0; --off-rgb: 125,211,192; --off-soft: #ccfbf1; --off-ink: #d5fff6;
+	--panel-a: rgba(11,28,18,.94); --panel-b: rgba(5,15,10,.9); --card-a: #173a24; --card-b: #0b170f;
+	--lauch-green: #bef264; --lauch-cyan: #7dd3c0;
+}
+`;
+
+/* Lauch extras: green → honey → cyan gradients. Must come after the base rules. */
+const LAUCH_CSS = `
+.azf-root.theme-lauch .azf-panel {
+	background:
+		radial-gradient(120% 140% at 0% 0%, rgba(190,242,100,.12), transparent 52%),
+		radial-gradient(90% 120% at 100% 100%, rgba(125,211,192,.11), transparent 60%),
+		linear-gradient(140deg, var(--panel-a), var(--panel-b));
+	border-color: rgba(190,242,100,.24);
+}
+.azf-root.theme-lauch .azf-panel::before,
+.azf-root.theme-lauch .azf-compact::before {
+	background: linear-gradient(90deg, transparent, var(--lauch-green), var(--accent), var(--lauch-cyan), transparent);
+}
+.azf-root.theme-lauch .azf-compact { border-color: rgba(190,242,100,.26); }
+.azf-root.theme-lauch .azf-mark {
+	background: linear-gradient(135deg, var(--lauch-green), var(--accent) 52%, var(--lauch-cyan));
+	box-shadow: 0 0 18px rgba(190,242,100,.35), inset 0 1px 0 rgba(255,255,255,.6);
+}
+.azf-root.theme-lauch .azf-seg-track i { background: linear-gradient(90deg, var(--lauch-green), var(--accent), var(--lauch-cyan)); }
+.azf-root.theme-lauch .azf-watermark { -webkit-text-stroke-color: rgba(125,211,192,.11); }
+.azf-root.theme-lauch .azf-portrait.is-gold .azf-ring,
+.azf-root.theme-lauch .azf-compact:not(.is-off) .azf-ring {
+	background: conic-gradient(from var(--azf-angle), var(--lauch-green), rgba(252,211,77,.1) 25%, var(--accent) 45%, rgba(125,211,192,.1) 65%, var(--lauch-cyan) 85%, var(--lauch-green));
+}
+.azf-root.theme-lauch .azf-shout {
+	background: linear-gradient(100deg, var(--lauch-green) 15%, var(--accent) 40%, var(--accent-shine) 50%, var(--lauch-cyan) 70%);
+	background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
 }
 `;
 
@@ -328,4 +367,4 @@ const EXTRA_CSS = `
 @keyframes azf-pulse-red { 0%, 100% { box-shadow: 0 0 0 0 rgba(251,113,133,.6); } 50% { box-shadow: 0 0 0 6px rgba(251,113,133,0); } }
 `;
 
-export const OVERLAY_CSS = BASE_CSS + EXTRA_CSS;
+export const OVERLAY_CSS = BASE_CSS + EXTRA_CSS + LAUCH_CSS;

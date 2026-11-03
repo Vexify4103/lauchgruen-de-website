@@ -1,4 +1,4 @@
-import { AZ_CHALLENGES, getAzChallengeSnapshot, type AzChallengeSlug, type AzChallengeSnapshot } from "@/lib/az-challenge";
+import { AZ_CHALLENGES, azChallengePath, getAzChallengeSnapshot, type AzChallengeSlug, type AzChallengeSnapshot } from "@/lib/az-challenge";
 import { AzChallengeOverlay, type AzOverlayMode, type AzReactionDemo } from "./AzChallengeOverlay";
 import { AZ_THEMES, type AzTheme } from "./az-overlay-css";
 
@@ -13,7 +13,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  *
  * Query:
  * - `?scale=0.8` shrinks it
- * - `?theme=gold|ice` overrides the streamer's color theme
+ * - `?theme=gold|ice|lauch` overrides the streamer's color theme
  * - `?mode=full|compact` pins one layout (default `auto`: compact while a Solo/Duo game runs)
  * - `?test` keeps it visible while offline
  * - `?test&ingame` / `?test&ingame=Viktor` simulates a live game on the target / an off-pick
@@ -48,7 +48,7 @@ export async function AzObsPage({ slug, searchParams }: { slug: AzChallengeSlug;
 	return (
 		<AzChallengeOverlay
 			initial={initial}
-			endpoint={`/api/obs/${slug}${query ? `?${query}` : ""}`}
+			endpoint={`/api/obs/${azChallengePath(slug)}${query ? `?${query}` : ""}`}
 			forceVisible={preview}
 			scale={scale}
 			mode={mode}
