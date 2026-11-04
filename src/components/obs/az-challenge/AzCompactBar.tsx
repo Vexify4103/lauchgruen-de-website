@@ -15,7 +15,17 @@ export function AzCompactBar({ data }: { data: AzChallengeSnapshot }) {
 	let title = shown?.name ?? "A bis Z geschafft!";
 	let sub: React.ReactNode = data.current ? `${data.current.losses} ${data.current.losses === 1 ? "Niederlage" : "Niederlagen"} bisher` : null;
 
-	if (live && !offPick && data.current) {
+	const next = data.allowed && data.allowed.length > 1 ? data.allowed[1] : null;
+
+	if (data.paused) {
+		kicker = (
+			<>
+				<i className="azf-dot is-pause" /> Pause · zählt nicht
+			</>
+		);
+		title = live?.champion?.name ?? target?.name ?? title;
+		sub = "Challenge pausiert";
+	} else if (live && !offPick && data.current) {
 		kicker = (
 			<>
 				<i className="azf-dot" /> Live · Versuch #{data.current.tryNumber}
@@ -30,14 +40,23 @@ export function AzCompactBar({ data }: { data: AzChallengeSnapshot }) {
 				"Erster Versuch"
 			);
 	} else if (offPick && live?.champion) {
-		kicker = (
-			<>
-				<i className="azf-dot is-off" /> Live · Ausweich-Pick
-			</>
-		);
 		title = live.champion.name;
-		// Any win counts, so an off-pick win also ticks that champion off.
-		sub = live.tryNumber ? `Zählt mit: ${live.champion.name} Versuch #${live.tryNumber} · Sieg hakt ab` : `${live.champion.name} schon geschafft`;
+		if (live.counts) {
+			// The next champion in line (target banned or taken): counts normally.
+			kicker = (
+				<>
+					<i className="azf-dot is-off" /> Live · Ausweich-Pick
+				</>
+			);
+			sub = `Zählt: ${live.champion.name} Versuch #${live.tryNumber} · Sieg hakt ab`;
+		} else {
+			kicker = (
+				<>
+					<i className="azf-dot is-pause" /> Live · zählt nicht
+				</>
+			);
+			sub = next && target ? `Nur ${target.name} oder ${next.name} zählen` : `${live.champion.name} zählt nicht für die Challenge`;
+		}
 	}
 
 	return (

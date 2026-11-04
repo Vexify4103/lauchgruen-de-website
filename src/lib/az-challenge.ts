@@ -19,6 +19,7 @@ import {
 	RiotApiError,
 	type RiotRoute,
 } from "@/lib/riot";
+import { getAzSheetInfo, type AzSheetInfo } from "@/lib/az-sheet";
 import { compactRankLabel, getStreamerObsSnapshot, getStreamerPrimaryAccount, type StreamerSlug } from "@/lib/streamer-obs";
 
 const MATCH_COLLECTION = "az_challenge_matches";
@@ -39,8 +40,16 @@ const ATTEMPT_HISTORY_COUNT = 10;
 export type AzChallengeSlug = Extract<StreamerSlug, "tlgfabi" | "spaceffs" | "lauchgruen">;
 
 /**
+ * From 2026-11-04 (Berlin) all A-Z streamers play strictly in order: only the
+ * current target or the next champion (when the target is banned or taken)
+ * counts. Earlier games keep the old "any champion" rule.
+ */
+const TARGET_AND_NEXT = { size: 2, from: "2026-11-04T00:00:00+01:00" };
+
+/**
  * Streamers running the A-Z challenge. Every value can be overridden with
- * `<SLUG>_AZ_START_AT`, `_AZ_QUEUE_IDS`, `_AZ_MANUAL_DONE` and `_AZ_EXCLUDE_MATCHES`.
+ * `<SLUG>_AZ_START_AT`, `_AZ_QUEUE_IDS`, `_AZ_MANUAL_DONE`, `_AZ_EXCLUDE_MATCHES`
+ * and `_AZ_SHEET_ID`.
  */
 export const AZ_CHALLENGES: Record<
 	AzChallengeSlug,
@@ -51,14 +60,19 @@ export const AZ_CHALLENGES: Record<
 		queues?: AzQueueWindow[];
 		/** URL segment for /obs/<path> and /api/obs/<path>. Defaults to the slug. */
 		path?: string;
+		/** Streamer's own tracking sheet (Match Log "Counts" column, Stats "Pause"). */
+		sheetId?: string;
+		/** Only the first `size` open champions in A-Z order count, from `from` on. */
+		lookahead?: AzLookahead;
 	}
 > = {
 	tlgfabi: {
 		startAt: "2026-10-15T00:00:00Z",
 		theme: "gold",
-		// Games Fabi marked as "not challenge" in his tracking sheet:
-		// Viktor win on 2026-10-18.
+		// Fallback when his sheet is unreachable: Viktor win on 2026-10-18.
 		excludedMatchIds: ["EUW1_8017912568"],
+		sheetId: "1fwaiPJj0icOSk2v19q2dISyluVjL2G1uYcYJE1ylCFo",
+		lookahead: TARGET_AND_NEXT,
 	},
 	spaceffs: {
 		// Started on 25.10 after his last Solo/Duo game that day (two Blitzcrank
@@ -72,6 +86,8 @@ export const AZ_CHALLENGES: Record<
 			{ id: 420, until: "2026-10-27T00:00:00+01:00" },
 			{ id: 440, from: "2026-10-27T00:00:00+01:00" },
 		],
+		sheetId: "1gEPN5XK4Q17RPpyIsPWxjOngBglN1YcsuD26XPqnh_E",
+		lookahead: TARGET_AND_NEXT,
 	},
 	lauchgruen: {
 		// Started 03.11 at 18:30 Berlin; first challenge game: Aatrox win at 19:10.
@@ -80,8 +96,16 @@ export const AZ_CHALLENGES: Record<
 		excludedMatchIds: [],
 		// /obs/lauchgruen stays his rank overlay.
 		path: "lauchgruen-az",
+		sheetId: "1buZXOaKxOUW8aYqL8bo_hNjyAnUM6ik1dKSBUVIdG-Y",
+		lookahead: TARGET_AND_NEXT,
 	},
 };
+
+/** Strict-order rule: only the first `size` champions without a win count, for games ending at or after `from`. */
+export type AzLookahead = { size: number; from: string };
+
+/** A time span (game end time) in which the streamer paused the challenge. */
+export type AzPauseWindow = { from: string; until: string | null };
 
 export function azChallengePath(slug: AzChallengeSlug): string {
 	return AZ_CHALLENGES[slug].path ?? slug;
@@ -115,6 +139,8 @@ type AzChallengeConfig = {
 	manualDone: string[];
 	/** Match ids played outside the challenge (like "Counts: No" in Fabi's sheet). */
 	excludedMatchIds: string[];
+	sheetId: string | null;
+	lookahead: AzLookahead | null;
 };
 
 function envList(name: string): string[] {
@@ -143,6 +169,8 @@ function challengeConfig(slug: AzChallengeSlug): AzChallengeConfig {
 		manualDone: envList(`${prefix}_AZ_MANUAL_DONE`),
 		// The env list replaces the defaults when set.
 		excludedMatchIds: process.env[`${prefix}_AZ_EXCLUDE_MATCHES`] !== undefined ? envList(`${prefix}_AZ_EXCLUDE_MATCHES`) : defaults.excludedMatchIds,
+		sheetId: process.env[`${prefix}_AZ_SHEET_ID`]?.trim() || defaults.sheetId || null,
+		lookahead: defaults.lookahead ?? null,
 	};
 }
 
@@ -178,6 +206,10 @@ type AzStateDoc = {
 	startAt: string;
 	backfilled: boolean;
 	lastSyncAt: string;
+	/** Last good read of the streamer's sheet, used while the sheet is unreachable. */
+	sheet?: AzSheetInfo;
+	/** Pause windows recorded from the sheet's "Pause" checkbox. */
+	pauses?: AzPauseWindow[];
 };
 
 export type AzAttempt = {
@@ -233,14 +265,20 @@ export type AzChallengeSnapshot = {
 		attempts: AzAttempt[];
 		mastery: { level: number; points: number } | null;
 	} | null;
-	/** Running Solo/Duo game, from the Spectator API. */
+	/** Running game in a counted queue, from the Spectator API. */
 	live: {
 		champion: AzChampion | null;
 		/** True when he plays the current target champion. */
 		onTarget: boolean;
-		/** Try number this game counts as, for not-yet-done challenge champions. */
+		/** False for off-picks outside the allowed champions, finished champions or while paused. */
+		counts: boolean;
+		/** Try number this game counts as, when it counts. */
 		tryNumber: number | null;
 	} | null;
+	/** Streamer paused the challenge in their sheet: games do not count. */
+	paused: boolean;
+	/** Champions a game counts for right now (target first), or null when any open champion counts. */
+	allowed: AzChampion[] | null;
 	insights: {
 		pace: { perDay: number; etaDays: number | null; etaDate: string | null };
 		/** How the current champion compares with the most tries any champion needed. */
@@ -439,6 +477,39 @@ async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, ro
 	);
 }
 
+/**
+ * Reads the streamer's sheet: "No" rows in the Match Log and the Stats "Pause"
+ * checkbox. Pause on/off switches are stored as time windows, so games that
+ * ended while paused stay excluded after the pause ends. When the sheet is
+ * unreachable the last good read is used.
+ */
+async function readSheet(config: AzChallengeConfig, stored: AzStateDoc | null) {
+	const pauses = stored?.pauses ?? [];
+	if (!config.sheetId) return { excludedMatchIds: [] as string[], paused: false, pauses, message: undefined };
+
+	let info: AzSheetInfo | undefined = stored?.sheet;
+	let message: string | undefined;
+	try {
+		info = await getAzSheetInfo(config.sheetId);
+	} catch (error) {
+		console.warn(`[az-challenge:${config.slug}] Sheet nicht lesbar:`, error);
+		message = "Sheet kurzzeitig nicht lesbar. Letzter Stand bleibt sichtbar.";
+	}
+	if (!info) return { excludedMatchIds: [] as string[], paused: false, pauses, message };
+
+	const paused = info.paused === true;
+	const open = pauses.at(-1)?.until === null ? pauses.at(-1) : undefined;
+	let nextPauses = pauses;
+	const now = new Date().toISOString();
+	if (paused && !open) nextPauses = [...pauses, { from: now, until: null }];
+	if (!paused && open) nextPauses = [...pauses.slice(0, -1), { ...open, until: now }];
+	if (nextPauses !== pauses || info.fetchedAt !== stored?.sheet?.fetchedAt) {
+		const { state } = await collections();
+		await state.updateOne({ _id: config.slug }, { $set: { sheet: info, pauses: nextPauses } }, { upsert: true });
+	}
+	return { excludedMatchIds: info.excludedMatchIds, paused, pauses: nextPauses, message };
+}
+
 async function syncOnce(config: AzChallengeConfig, puuid: string, routing: RiotRoute) {
 	g.__azSyncRequests ??= new Map();
 	const pending = g.__azSyncRequests.get(config.slug);
@@ -494,34 +565,53 @@ function normalizeName(value: string) {
 export function computeAzProgress(
 	roster: AzChampion[],
 	docs: AzMatchDoc[],
-	config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt"> & Partial<Pick<AzChallengeConfig, "excludedMatchIds" | "queues">>
+	config: Pick<AzChallengeConfig, "queueIds" | "manualDone" | "startAt"> &
+		Partial<Pick<AzChallengeConfig, "excludedMatchIds" | "queues" | "lookahead">> & { pauses?: AzPauseWindow[] }
 ) {
 	const excluded = new Set(config.excludedMatchIds ?? []);
 	const queues = config.queues ?? config.queueIds.map((id) => ({ id }));
 	const manual = new Set(config.manualDone.map(normalizeName));
 	const isManual = (champion: AzChampion) => manual.has(normalizeName(champion.name)) || manual.has(String(champion.id));
 	const startMs = new Date(config.startAt).getTime();
+	const pauses = (config.pauses ?? []).map((pause) => ({
+		from: new Date(pause.from).getTime(),
+		until: pause.until ? new Date(pause.until).getTime() : Number.POSITIVE_INFINITY,
+	}));
+	const isPaused = (atMs: number) => pauses.some((pause) => atMs >= pause.from && atMs < pause.until);
 	const games = docs
 		.filter((doc) => {
 			const endedMs = new Date(doc.endedAt).getTime();
-			return !isAzRemake(doc) && !excluded.has(doc.matchId) && endedMs >= startMs && azQueueCounts(queues, doc.queueId, endedMs);
+			return !isAzRemake(doc) && !excluded.has(doc.matchId) && endedMs >= startMs && !isPaused(endedMs) && azQueueCounts(queues, doc.queueId, endedMs);
 		})
 		.sort((a, b) => new Date(a.endedAt).getTime() - new Date(b.endedAt).getTime());
 
-	// Same rule as Fabi's tracking sheet: per champion, games count in date order
-	// until its first win (the win is a try too). A win completes the champion
-	// whenever it happens, even out of alphabetical order (e.g. filled into
-	// another role). Games after the first win are ignored.
+	// Per champion, games count in date order until its first win (the win is a
+	// try too); games after the first win are ignored. Before the lookahead date
+	// a win on any champion completes it (same rule as the tracking sheets). From
+	// that date on only the first `lookahead.size` open champions in A-Z order
+	// count: the target, or the next one when the target is banned or taken.
 	const rosterById = new Map(roster.map((champion) => [champion.id, champion]));
 	const manualChampions = roster.filter(isManual);
 	const doneIds = new Set(manualChampions.map((champion) => champion.id));
 	const completed: AzCompleted[] = manualChampions.map((champion) => ({ champion, tries: 0, manual: true, winGame: null, completedAt: null }));
+	const lookahead = config.lookahead ?? null;
+	const lookaheadFromMs = lookahead ? new Date(lookahead.from).getTime() : Number.POSITIVE_INFINITY;
+	const openIds = (size: number) => {
+		const ids: number[] = [];
+		for (const champion of roster) {
+			if (doneIds.has(champion.id)) continue;
+			ids.push(champion.id);
+			if (ids.length >= size) break;
+		}
+		return ids;
+	};
 	const pending = new Map<number, AzMatchDoc[]>();
 	let offPicks = 0;
 	let challengeGames = 0;
 	let challengeWins = 0;
 	for (const game of games) {
-		if (doneIds.has(game.championId)) {
+		const strict = lookahead !== null && new Date(game.endedAt).getTime() >= lookaheadFromMs;
+		if (doneIds.has(game.championId) || (strict && !openIds(lookahead.size).includes(game.championId))) {
 			offPicks += 1;
 			continue;
 		}
@@ -543,6 +633,8 @@ export function computeAzProgress(
 	const index = firstOpen === -1 ? roster.length : firstOpen;
 	const doneCount = roster.filter((champion) => doneIds.has(champion.id)).length;
 	const attempts = roster[index] ? (pending.get(roster[index].id) ?? []) : [];
+	// Champions a game right now would count for (null: any open champion).
+	const allowedIds = lookahead && Date.now() >= lookaheadFromMs ? openIds(lookahead.size) : null;
 
 	const tracked = completed.filter((entry) => !entry.manual);
 	const hardest = tracked.reduce<AzCompleted | null>((worst, entry) => (!worst || entry.tries > worst.tries ? entry : worst), null);
@@ -574,6 +666,7 @@ export function computeAzProgress(
 		/** Counted games (queue + start date, no remakes), oldest first. */
 		games,
 		/** Tries already played on champions that are not done yet, by champion id. */
+		allowedIds,
 		pendingTries: Object.fromEntries([...pending].map(([championId, tries]) => [championId, tries.length])) as Record<number, number>,
 		letters: [...letters.values()],
 		playSeconds: games.reduce((sum, game) => sum + game.durationSeconds, 0),
@@ -639,8 +732,15 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	}
 
 	const { matches, state } = await collections();
-	const [docs, syncState] = await Promise.all([matches.find({ slug }).toArray(), state.findOne({ _id: slug })]);
-	const progress = computeAzProgress(roster, docs, config);
+	const [docs, storedState] = await Promise.all([matches.find({ slug }).toArray(), state.findOne({ _id: slug })]);
+	const sheet = await readSheet(config, storedState);
+	if (sheet.message) message ??= sheet.message;
+	const syncState = storedState;
+	const progress = computeAzProgress(roster, docs, {
+		...config,
+		excludedMatchIds: [...config.excludedMatchIds, ...sheet.excludedMatchIds],
+		pauses: sheet.pauses,
+	});
 	const currentChampion = roster[progress.index] ?? null;
 	const mastery = currentChampion ? await cachedMastery(account.puuid, currentChampion.id, account.routing) : null;
 	const tracked = progress.completed.filter((entry) => !entry.manual);
@@ -654,15 +754,19 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	const demoChampion = options.preview && options.demoLive !== undefined ? (options.demoLive ? findChampion(roster, options.demoLive) : currentChampion) : null;
 	const liveChampionId = demoChampion?.id ?? (challengeGameLive ? (stream?.liveChampionId ?? null) : null);
 	const liveChampion = liveChampionId !== null ? (roster.find((champion) => champion.id === liveChampionId) ?? null) : null;
-	const liveIsOpen = liveChampion ? !progress.doneIds.has(liveChampion.id) : false;
+	const liveCounts = Boolean(
+		liveChampion && !sheet.paused && !progress.doneIds.has(liveChampion.id) && (progress.allowedIds === null || progress.allowedIds.includes(liveChampion.id))
+	);
 	const live =
 		demoChampion || challengeGameLive
 			? {
 					champion: liveChampion,
 					onTarget: Boolean(liveChampion && currentChampion && liveChampion.id === currentChampion.id),
-					tryNumber: liveChampion && liveIsOpen ? (progress.pendingTries[liveChampion.id] ?? 0) + 1 : null,
+					counts: liveCounts,
+					tryNumber: liveChampion && liveCounts ? (progress.pendingTries[liveChampion.id] ?? 0) + 1 : null,
 				}
 			: null;
+	const allowed = progress.allowedIds?.map((id) => roster.find((champion) => champion.id === id)).filter((champion): champion is AzChampion => Boolean(champion)) ?? null;
 
 	// Pace: finished champions per day since the start, projected to Z.
 	const elapsedDays = Math.max(1, (now - startMs) / 86_400_000);
@@ -691,6 +795,8 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 		online: stream?.online ?? false,
 		leagueLive: stream?.leagueLive ?? false,
 		challengeGameLive: challengeGameLive || Boolean(demoChampion),
+		paused: sheet.paused,
+		allowed,
 		rankLabel: stream?.rank ? compactRankLabel(stream.rank) : null,
 		leaguePoints: stream?.rank?.leaguePoints ?? null,
 		lpDelta: stream?.lpDelta ?? 0,

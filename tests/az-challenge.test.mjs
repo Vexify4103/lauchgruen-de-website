@@ -149,6 +149,41 @@ test("queue windows: Solo/Duo counts until the switch, then only Flex", () => {
 	assert.equal(progress.stats.games, 2);
 });
 
+test("target + next rule: only the first two open champions count from the rule date", () => {
+	minute = 0;
+	const lookahead = { size: 2, from: "2026-10-15T13:00:00.000Z" };
+	const docs = [
+		game("Zyra", true), // 12:40, before the rule: any champion still counts
+		game("Akali", true), // 13:20: not target (Aatrox) or next (Ahri) → off-pick
+		game("Ahri", false), // next in line (target banned) → try
+		game("Ahri", true), // completes Ahri out of order
+		game("Akali", false), // now target Aatrox + next Akali → try
+	];
+	const progress = computeAzProgress(roster, docs, { ...config, lookahead });
+	assert.deepEqual(
+		progress.completed.map((entry) => [entry.champion.name, entry.tries]),
+		[
+			["Zyra", 1],
+			["Ahri", 2],
+		]
+	);
+	assert.equal(roster[progress.index].name, "Aatrox");
+	assert.equal(progress.offPicks, 1);
+	assert.equal(progress.pendingTries[idOf("Akali")], 1);
+	assert.deepEqual(progress.allowedIds, [idOf("Aatrox"), idOf("Akali")]);
+});
+
+test("games that end inside a pause window do not count", () => {
+	minute = 0;
+	const pauses = [{ from: "2026-10-15T13:00:00.000Z", until: "2026-10-15T14:00:00.000Z" }];
+	const docs = [game("Aatrox", false), game("Aatrox", true), game("Aatrox", true)]; // 12:40, 13:20 (paused), 14:00
+	const progress = computeAzProgress(roster, docs, { ...config, pauses });
+	assert.equal(progress.completed[0].tries, 2);
+	assert.equal(progress.completed[0].completedAt, "2026-10-15T14:00:00.000Z");
+	const open = computeAzProgress(roster, docs, { ...config, pauses: [{ from: "2026-10-15T13:00:00.000Z", until: null }] });
+	assert.equal(open.doneCount, 0);
+});
+
 test("games under five minutes count as remakes", () => {
 	minute = 0;
 	const progress = computeAzProgress(roster, [game("Aatrox", true, { durationSeconds: 120 }), game("Aatrox", false)], config);

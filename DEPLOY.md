@@ -76,6 +76,15 @@ rebuilt from Riot match history and cached in the MongoDB collections
 `az_challenge_matches` and `az_challenge_state`. Defaults per streamer live in
 `AZ_CHALLENGES` (`src/lib/az-challenge.ts`).
 
+From 2026-11-04 only the current target or the next champion counts (target
+banned or taken); other picks show "zählt nicht". Each streamer's tracking
+sheet (`sheetId` in `AZ_CHALLENGES`, or `<SLUG>_AZ_SHEET_ID`) must be shared as
+"anyone with the link: viewer". The overlay reads it every minute:
+
+- Match Log tab: rows whose `Counts` starts with "No" never count.
+- Stats tab: a cell `Pause` with a checkbox right next to it pauses the
+  challenge; games that end while it is checked do not count.
+
 Spaceffs uses `RIOT_API_KEY_OBS_SPACEFFS` and the same `SPACEFFS_*` overrides
 as below (default start `2026-10-25T19:00:00+01:00`). His Solo/Duo games count
 until `2026-10-27T00:00:00+01:00`; after that only Ranked Flex counts (`queues`

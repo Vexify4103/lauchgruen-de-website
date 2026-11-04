@@ -267,6 +267,8 @@ const EXTRA_CSS = `
 
 .azf-live.is-off { background: rgba(var(--off-rgb),.14); border-color: rgba(var(--off-rgb),.45); color: var(--off-ink); }
 .azf-live.is-off i { background: var(--off); box-shadow: 0 0 10px var(--off); }
+.azf-live.is-pause { background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.5); color: #ffe7a8; }
+.azf-live.is-pause i { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; animation: none; }
 .azf-chip.is-record { background: linear-gradient(135deg, #fb7185, var(--accent)); color: #210508; border-color: transparent; animation: azf-pulse-red 1.6s ease-in-out infinite; }
 .azf-chip.is-warn { background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.5); color: #ffe7a8; }
 .azf-stat-sub { margin-top: 2px; font-size: 10.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
@@ -349,6 +351,7 @@ const EXTRA_CSS = `
 .azf-compact-kicker { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
 .azf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--loss); box-shadow: 0 0 10px var(--loss); animation: azf-blink 1.4s ease-in-out infinite; }
 .azf-dot.is-off { background: var(--off); box-shadow: 0 0 10px var(--off); }
+.azf-dot.is-pause { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; animation: none; }
 .azf-compact-title { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; font-size: 26px; font-weight: 900; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .azf-compact-title em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: 0; }
 .azf-compact-sub { margin-top: 2px; font-size: 12px; font-weight: 800; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

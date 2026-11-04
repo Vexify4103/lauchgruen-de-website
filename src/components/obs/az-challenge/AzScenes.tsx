@@ -53,12 +53,26 @@ export function Header({
 }
 
 export function LiveChip({ data }: { data: AzChallengeSnapshot }) {
+	if (data.paused) {
+		return (
+			<span className="azf-live is-pause">
+				<i /> Pause
+			</span>
+		);
+	}
 	const live = data.live;
 	if (!live) return null;
 	if (live.onTarget) {
 		return (
 			<span className="azf-live">
 				<i /> Live · Versuch #{live.tryNumber ?? data.current?.tryNumber}
+			</span>
+		);
+	}
+	if (!live.counts) {
+		return (
+			<span className="azf-live is-pause">
+				<i /> Live · zählt nicht
 			</span>
 		);
 	}
@@ -123,7 +137,8 @@ export function HuntScene({ data }: { data: AzChallengeSnapshot }) {
 			</div>
 			{next ? (
 				<div className="azf-next azf-rise" style={{ "--d": 5 } as CssVars}>
-					<div className="azf-kicker">Danach</div>
+					{/* With the target+next rule the next champion is the allowed backup pick. */}
+					<div className="azf-kicker">{data.allowed && data.allowed[1]?.id === next.id ? "Auch erlaubt" : "Danach"}</div>
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={next.iconUrl} alt={next.name} />
 					<div className="azf-next-name">{next.name}</div>
