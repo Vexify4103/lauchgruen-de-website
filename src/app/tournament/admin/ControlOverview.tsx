@@ -170,9 +170,10 @@ export function ControlOverview({
 					{archive.pending ? <ArchiveTournamentPanel activeName={active.name} championTeam={archive.championTeam} /> : null}
 				</div>
 			</AdminModal>
-			<AdminModal open={modal === "riot"} kicker="Daten & Discord" title="Riot-Profile abgleichen" onClose={close} wide>
+			<AdminModal open={modal === "riot"} kicker="Daten & Discord" title="Riot-Profile abgleichen" onClose={close} wide keepMounted>
 				<p className="mb-4 text-sm leading-6 text-[var(--muted)]">
 					Aktualisiert Riot-ID, Rang und Summoner-Level sämtlicher gespeicherter Konten. Bewerbungen und Roster-Namen werden automatisch mitgezogen.
+					{" "}Du kannst dieses Fenster schließen und den Fortschritt später wieder öffnen. Bitte diesen Browser-Tab geöffnet lassen und die Seite nicht neu laden.
 				</p>
 				<RefreshRanksButton label="Alle Riot-Profile aktualisieren" confirmBulk scope="verified" />
 			</AdminModal>

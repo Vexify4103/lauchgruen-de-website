@@ -10,6 +10,7 @@ export function AdminModal({
 	onClose,
 	wide = false,
 	danger = false,
+	keepMounted = false,
 	children,
 }: {
 	open: boolean;
@@ -18,6 +19,7 @@ export function AdminModal({
 	onClose: () => void;
 	wide?: boolean;
 	danger?: boolean;
+	keepMounted?: boolean;
 	children: ReactNode;
 }) {
 	const titleId = useId();
@@ -41,9 +43,12 @@ export function AdminModal({
 		};
 	}, [open]);
 
-	if (!open) return null;
+	// Background operations must retain their component state when the panel closes.
+	if (!open && !keepMounted) return null;
 	return (
 		<div
+			hidden={!open}
+			style={!open ? { display: "none" } : undefined}
 			className="admin-modal-backdrop"
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) onClose();
