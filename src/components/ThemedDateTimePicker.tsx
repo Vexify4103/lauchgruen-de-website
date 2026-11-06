@@ -101,6 +101,7 @@ export function ThemedDateTimePicker({
 		const escape = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") {
 				event.preventDefault();
+				event.stopPropagation();
 				close(true);
 			}
 		};
@@ -179,7 +180,7 @@ export function ThemedDateTimePicker({
 							aria-modal="false"
 							aria-label={ariaLabel}
 							style={position}
-							className="themed-scrollbar fixed z-[120] overflow-y-auto rounded-[1.6rem] border border-lime-100/15 bg-gradient-to-br from-[#092519]/[0.99] via-[#061b12]/[0.99] to-[#020b07]/[0.995] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+							className="themed-scrollbar fixed z-[1100] overflow-y-auto rounded-[1.6rem] border border-lime-100/15 bg-gradient-to-br from-[#092519]/[0.99] via-[#061b12]/[0.99] to-[#020b07]/[0.995] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl"
 						>
 							<div className="flex items-center justify-between gap-3">
 								<button
