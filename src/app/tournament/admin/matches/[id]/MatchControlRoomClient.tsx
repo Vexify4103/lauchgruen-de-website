@@ -15,6 +15,7 @@ import { formatGameDuration, parseGameDuration } from "@/lib/match-duration";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
+import { ReplayReviewPanel, type ReplayPrefill } from "./ReplayReviewPanel";
 
 function opggMultiSearchUrl(riotIds: string[]) {
 	const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -87,6 +88,18 @@ export function MatchControlRoomClient({
 	const [coinTossing, setCoinTossing] = useState(false);
 	const [coinWinner, setCoinWinner] = useState<"teamA" | "teamB">(match.blueSide);
 	const [resetDraftConfirmOpen, setResetDraftConfirmOpen] = useState(false);
+	const [seriesPrefill, setSeriesPrefill] = useState<(ReplayPrefill & { nonce: number }) | null>(null);
+
+	function applyReplay(prefill: ReplayPrefill) {
+		// Bo1 fills the result form, a series fills the next game; staff still save it themselves.
+		if (match.bestOf > 1) {
+			setSeriesPrefill({ ...prefill, nonce: Date.now() });
+			return;
+		}
+		setScoreA(prefill.winner === "teamA" ? "1" : "0");
+		setScoreB(prefill.winner === "teamB" ? "1" : "0");
+		setGameDuration(formatGameDuration(prefill.durationSeconds));
+	}
 	const [isPending, startTransition] = useTransition();
 	const [savedMatchValues, setSavedMatchValues] = useState(
 		JSON.stringify({
@@ -442,8 +455,19 @@ export function MatchControlRoomClient({
 					</div>
 				) : null}
 
+				<ReplayReviewPanel match={match} onApply={applyReplay} />
+
 				{match.bestOf > 1 ? (
-					<SeriesPanel match={match} version={version} onVersion={setVersion} onMessage={setMessage} busy={isPending} onDone={() => router.refresh()} />
+					<SeriesPanel
+						key={seriesPrefill?.nonce ?? "series"}
+						match={match}
+						version={version}
+						onVersion={setVersion}
+						onMessage={setMessage}
+						busy={isPending}
+						onDone={() => router.refresh()}
+						prefill={seriesPrefill?.gameNumber === match.games.length + 1 ? seriesPrefill : null}
+					/>
 				) : null}
 
 				<form
@@ -1163,6 +1187,7 @@ function SeriesPanel({
 	onMessage,
 	busy,
 	onDone,
+	prefill,
 }: {
 	match: ControlMatch;
 	version: number;
@@ -1170,10 +1195,11 @@ function SeriesPanel({
 	onMessage: (message: string) => void;
 	busy: boolean;
 	onDone: () => void;
+	prefill?: ReplayPrefill | null;
 }) {
 	const { showConflict } = useAdminConflict();
-	const [winner, setWinner] = useState<"teamA" | "teamB" | null>(null);
-	const [duration, setDuration] = useState("");
+	const [winner, setWinner] = useState<"teamA" | "teamB" | null>(prefill?.winner ?? null);
+	const [duration, setDuration] = useState(prefill ? formatGameDuration(prefill.durationSeconds) : "");
 	const [undoOpen, setUndoOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
 	const needed = Math.floor(match.bestOf / 2) + 1;

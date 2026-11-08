@@ -13,6 +13,12 @@ export function normalizeChampionKey(value: string): string {
 		.replace(/[^a-z0-9]/g, "");
 }
 
+/** One comparable key per champion for display names ("Wukong") and Data Dragon ids ("MonkeyKing") alike. */
+export function championIdentity(nameOrId: string): string {
+	const key = normalizeChampionKey(nameOrId);
+	return normalizeChampionKey(ID_BY_NAME[key] ?? key);
+}
+
 /** Roles a champion is played in, by display name or Data Dragon id. Undefined for unknown (new) champions. */
 export function championRoles(nameOrId: string): readonly DraftRole[] | undefined {
 	const key = normalizeChampionKey(nameOrId);

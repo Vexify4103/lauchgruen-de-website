@@ -9,6 +9,7 @@ import { CopyDraftSpectatorLinkButton } from "./CopyDraftSpectatorLinkButton";
 import { RenameTeamForm } from "./RenameTeamForm";
 import { TransferCaptainCard } from "./TransferCaptainCard";
 import { CaptainMatchActions } from "./CaptainMatchActions";
+import { ReplayUpload } from "./ReplayUpload";
 import { DiscordSignInButton } from "../DiscordSignInButton";
 
 function opggMultiSearchUrl(riotIds: string[]) {
@@ -142,6 +143,9 @@ export default async function CaptainPortalPage() {
 								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
 							</div>
 							<CaptainMatchActions matchId={nextMatch.id} teamName={team.name} />
+							{nextMatch.teamAName && nextMatch.teamBName && nextMatch.status !== "Finished" ? (
+								<ReplayUpload matchId={nextMatch.id} teamAName={nextMatch.teamAName} teamBName={nextMatch.teamBName} />
+							) : null}
 						</div>
 					) : null}
 
