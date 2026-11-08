@@ -2243,6 +2243,7 @@ function ApplicantCard({
 								/>
 								<button
 									type="button"
+									aria-label={`Rang von ${applicant.displayName} speichern`}
 									onClick={() => onSaveRank(formatRankString(editingTier, undefined, editingLp ? Number(editingLp) : undefined))}
 									className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 								>
@@ -2253,6 +2254,7 @@ function ApplicantCard({
 						{!editingTier ? (
 							<button
 								type="button"
+								aria-label={`Rang von ${applicant.displayName} auf Auto (Riot) zurücksetzen`}
 								onClick={() => onSaveRank(null)}
 								className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 							>
