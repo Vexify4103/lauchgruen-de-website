@@ -7,7 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
-import type { DiscordDirectMessagePayload } from "@/lib/discord";
+import { rosterPublicationMessage, teamWelcomeMessage, type PublishedPlacement } from "@/lib/roster-messages";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
@@ -508,13 +508,6 @@ export async function applyRoster(payload: RosterSavePayload): Promise<{
 	return { applied, teamsUpdated, errors: [], warnings: [] };
 }
 
-type PublishedPlacement = {
-	teamKey: string;
-	teamName: string;
-	role: PlayerRole | null;
-	isCaptain: boolean;
-};
-
 export async function publishRoster(options: { repairDiscordRoles?: boolean } = {}): Promise<{
 	published: boolean;
 	publishedAt: string | null;
@@ -631,6 +624,31 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 	warnings.push(...captainRolePlan.warnings);
 	operations.push(...captainRolePlan.operations);
 
+	// One welcome post per team channel and tournament; the queue's receipt keeps it from repeating.
+	if (shouldPublish) {
+		for (const [teamKey, team] of Object.entries(nextTeams)) {
+			if (!team.textChannelId || !(team.players ?? []).length) continue;
+			const captainId = team.meta?.captain?.discordId ?? null;
+			operations.push({
+				kind: "channel-message",
+				channelId: team.textChannelId,
+				roleId: team.roleId,
+				userIds: captainId ? [captainId] : [],
+				payload: teamWelcomeMessage({
+					teamName: team.name,
+					roleId: team.roleId,
+					captainId,
+					voiceChannelId: team.voiceChannelId,
+					tournamentName: settings.activeTournament.name,
+					dayOneStartAt: settings.ultimateBravery.startAt,
+					dayTwoStartAt: settings.ultimateBravery.dayTwoStartAt,
+				}),
+				dedupeKey: `team-welcome:${settings.activeTournament.id}:${teamKey}`,
+				label: `${team.name}: Begrüßung im Teamchannel posten`,
+			});
+		}
+	}
+
 	const previousPlacements = rosterPlacements(publicationBaseline);
 	const nextPlacements = rosterPlacements(nextTeams);
 	const appByDiscordId = new Map(applications.map((application) => [application.discordId, application]));
@@ -651,7 +669,7 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 			operations.push({
 				kind: "direct-message",
 				discordId,
-				payload: rosterPublicationMessage(next),
+				payload: rosterPublicationMessage(next, next ? nextTeams[next.teamKey] : undefined),
 				dedupeKey: `roster-publication:${discordId}`,
 				label: `${application.displayName}: Teamveröffentlichung senden`,
 			});
@@ -734,93 +752,6 @@ function rosterPlacements(teams: Record<string, BotTeam>): Map<string, Published
 		}
 	}
 	return placements;
-}
-
-function rosterPublicationMessage(placement: PublishedPlacement | null): DiscordDirectMessagePayload {
-	const tournamentBaseUrl = "https://tournament.lauchgruen.de";
-	const commonButtons = [
-		{
-			type: 2 as const,
-			style: 5 as const,
-			label: "Mein Turnierkonto",
-			url: `${tournamentBaseUrl}/me`,
-		},
-	];
-
-	if (!placement) {
-		return {
-			content: "🐻 **Post von Lauchgruen**",
-			embeds: [
-				{
-					author: { name: "LAUCHGRUEN · TURNIERPOST" },
-					title: "Deine Teamzuteilung wurde geändert",
-					description:
-						"Du bist aktuell keinem veröffentlichten Team zugeteilt. Das kann durch eine kurzfristige Rosteränderung passieren. Wenn dir dazu noch keine Information vorliegt, melde dich bitte bei der Turnierleitung.",
-					color: 0xe7b955,
-					fields: [{ name: "DEIN STATUS", value: "Momentan ohne veröffentlichtes Team", inline: false }],
-					footer: { text: "Lauchgruen Community-Turniere · Wir halten dich auf dem Laufenden" },
-					timestamp: new Date().toISOString(),
-				},
-			],
-			components: [{ type: 1, components: commonButtons }],
-		};
-	}
-
-	const roleLabels: Partial<Record<PlayerRole, string>> = {
-		Top: "Toplane",
-		Jungle: "Jungle",
-		Mid: "Midlane",
-		Bot: "Botlane",
-		Support: "Support",
-		Fill: "Flexibel",
-		Sub: "Ersatzspieler:in",
-	};
-	const role = placement.role ? (roleLabels[placement.role] ?? placement.role) : "Noch offen";
-	const buttons = [
-		...(placement.isCaptain
-			? [
-					{
-						type: 2 as const,
-						style: 5 as const,
-						label: "Captain-Portal",
-						url: `${tournamentBaseUrl}/captain`,
-					},
-				]
-			: []),
-		{
-			type: 2 as const,
-			style: 5 as const,
-			label: "Teamübersicht",
-			url: `${tournamentBaseUrl}/teams`,
-		},
-		...commonButtons,
-	];
-
-	return {
-		content: "🐻 **Post von Lauchgruen**",
-		embeds: [
-			{
-				author: { name: "LAUCHGRUEN · TURNIERPOST" },
-				title: placement.isCaptain ? `Du führst ${placement.teamName} an!` : `Willkommen bei ${placement.teamName}!`,
-				description: placement.isCaptain
-					? "Die Teams sind veröffentlicht und du wurdest als Captain ausgewählt. Stimme dich mit deinem Team ab und bereite eure Matches im Captain-Portal vor. 💚"
-					: "Die Teams sind veröffentlicht und dein Platz steht fest. Lernt euch kennen, stimmt euch für das Turnier ab und habt vor allem eine gute Zeit miteinander. 💚",
-				color: 0xb7f36b,
-				fields: [
-					{ name: "DEIN TEAM", value: `**${placement.teamName}**`, inline: true },
-					{ name: "DEINE ROLLE", value: `**${role}**`, inline: true },
-					{
-						name: "DEIN STATUS",
-						value: placement.isCaptain ? "👑 Team-Captain" : "✓ Teammitglied",
-						inline: true,
-					},
-				],
-				footer: { text: "Lauchgruen Community-Turniere · Fair spielen, gemeinsam Spaß haben" },
-				timestamp: new Date().toISOString(),
-			},
-		],
-		components: [{ type: 1, components: buttons }],
-	};
 }
 
 function planDiscordTournamentRole(previousPlayerIds: Set<string>, nextPlayerIds: Set<string>, repairExisting: boolean): { operations: DiscordOperation[]; warnings: string[] } {

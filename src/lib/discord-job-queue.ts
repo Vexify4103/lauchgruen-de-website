@@ -42,6 +42,8 @@ export type DiscordOperation =
 			kind: "channel-message";
 			channelId: string;
 			roleId?: string;
+			/** Users the message may ping, for example the team captain. */
+			userIds?: string[];
 			message?: string;
 			payload?: DiscordMessagePayload;
 			dedupeKey: string;

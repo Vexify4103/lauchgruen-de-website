@@ -35,6 +35,17 @@ export function DiscordControlCenter() {
 	const [accessConfirm, setAccessConfirm] = useState(false);
 	const [confirmation, setConfirmation] = useState("");
 	const [isPending, startTransition] = useTransition();
+	const [previewSending, setPreviewSending] = useState(false);
+
+	async function sendPreview() {
+		setPreviewSending(true);
+		setError("");
+		const response = await fetch("/api/tournament/discord-preview", { method: "POST" }).catch(() => null);
+		const json = (await response?.json().catch(() => null)) as { message?: string; team?: string } | null;
+		if (response?.ok) setMessage(`Vorschau mit ${json?.team ?? "Beispielteam"} als DM an dich gesendet.`);
+		else setError(json?.message ?? "Vorschau konnte nicht gesendet werden.");
+		setPreviewSending(false);
+	}
 
 	async function loadControl() {
 		const controlResponse = await fetch("/api/tournament/discord-control");
@@ -120,9 +131,20 @@ export function DiscordControlCenter() {
 						Alle Massenänderungen laufen nacheinander durch eine persistente, rate-limit-schonende Queue.
 					</p>
 				</div>
-				<div className="grid grid-cols-2 gap-2 text-center">
-					<StatusPill label="Roster" value={status?.counts.rosterPlayers ?? "–"} />
-					<StatusPill label="Turnierzugang" value={status?.counts.tournamentAccess ?? "–"} />
+				<div className="grid gap-2">
+					<div className="grid grid-cols-2 gap-2 text-center">
+						<StatusPill label="Roster" value={status?.counts.rosterPlayers ?? "–"} />
+						<StatusPill label="Turnierzugang" value={status?.counts.tournamentAccess ?? "–"} />
+					</div>
+					<button
+						type="button"
+						disabled={previewSending}
+						onClick={sendPreview}
+						title="Schickt dir die Teamchannel-Begrüßung und beide Roster-DMs als Vorschau. Niemand sonst wird angeschrieben oder gepingt."
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] disabled:opacity-45"
+					>
+						{previewSending ? "Sende Vorschau…" : "Vorschau an mich senden"}
+					</button>
 				</div>
 			</header>
 

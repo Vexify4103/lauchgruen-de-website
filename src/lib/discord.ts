@@ -437,6 +437,7 @@ export async function sendDiscordDirectMessage(input: {
 export async function sendDiscordChannelMessage(input: {
 	channelId: string;
 	roleId?: string;
+	userIds?: string[];
 	message?: string;
 	payload?: DiscordMessagePayload;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -469,7 +470,7 @@ export async function sendDiscordChannelMessage(input: {
 		body: JSON.stringify({
 			...(input.payload ?? { content: input.message?.slice(0, 2000) }),
 			...(input.payload?.content ? { content: input.payload.content.slice(0, 2000) } : {}),
-			allowed_mentions: { parse: [], roles: input.roleId ? [input.roleId] : [] },
+			allowed_mentions: { parse: [], roles: input.roleId ? [input.roleId] : [], ...(input.userIds?.length ? { users: input.userIds } : {}) },
 		}),
 	});
 	if (messageResponse?.ok) return { ok: true };
