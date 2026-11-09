@@ -37,7 +37,7 @@ test("renaming preserves event identity, season, format and lifecycle", () => {
 test("default rule templates preserve mode-specific rules and current format", () => {
 	const settings = {
 		activeTournament: { id: "ub-2026", kind: "ultimate-bravery" },
-		ultimateBravery: {
+		structure: {
 			...DEFAULT_STRUCTURE_OPTIONS,
 			teamCount: 8,
 			dayOneFormat: "swiss",

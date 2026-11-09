@@ -21,7 +21,7 @@ export default async function RosterPage() {
 	if (!isOwner) redirect("/tournament/admin");
 
 	const [snapshot, version, settings] = await Promise.all([loadRosterSnapshot(), getAdminVersion("roster"), getTournamentSettings()]);
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const playIn = config.playInTeamCount > 0 ? await getPlayInOutcome(settings.activeTournament.id, config.bestOf.dayOne) : null;
 	// Play-in teams only get a Day-1 slot after winning; losers never do.
 	const withoutSlot = new Set([
@@ -76,7 +76,7 @@ export default async function RosterPage() {
 					</div>
 					<div>
 						<dt>
-							{snapshot.teams.length}/{settings.ultimateBravery.teamCount}
+							{snapshot.teams.length}/{settings.structure.teamCount}
 						</dt>
 						<dd>Teams</dd>
 					</div>

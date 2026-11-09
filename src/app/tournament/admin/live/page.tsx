@@ -34,7 +34,7 @@ export default async function AdminLiveDashboardPage() {
 
 	const [ctx, settings] = await Promise.all([getMatchControlContext(), getTournamentSettings()]);
 	const isUltimateBravery = usesUltimateBravery(settings.activeTournament);
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const swissData =
 		config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination"
 			? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissAudit(settings.activeTournament.id, 12)])

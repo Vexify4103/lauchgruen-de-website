@@ -36,7 +36,7 @@ const schema = z.object({
 			variant: z.enum(["own", "match"]).optional().default("own"),
 		})
 		.optional(),
-	ultimateBravery: z
+	structure: z
 		.object({
 			startAt: z.iso.datetime({ offset: true }).nullable(),
 			dayTwoStartAt: z.iso.datetime({ offset: true }).nullable(),
@@ -79,14 +79,14 @@ export async function PATCH(request: Request) {
 	if (!parsed.success) {
 		return NextResponse.json({ message: "Ungültige Settings." }, { status: 400 });
 	}
-	if (parsed.data.ultimateBravery) {
-		const config = deriveStructure(parsed.data.ultimateBravery);
+	if (parsed.data.structure) {
+		const config = deriveStructure(parsed.data.structure);
 		if (config.groupCount > config.teamCount || config.advanceTeamCount > config.teamCount) {
 			return NextResponse.json({ message: "Gruppen und Playoff-Teams dürfen die Gesamtzahl der Teams nicht überschreiten." }, { status: 400 });
 		}
 		const review = reviewStructure(config);
 		if (review.errors.length) return NextResponse.json({ message: review.errors.join(" ") }, { status: 400 });
-		parsed.data.ultimateBravery = config;
+		parsed.data.structure = config;
 	}
 
 	const currentSettings = await getTournamentSettings();
@@ -128,7 +128,7 @@ export async function PATCH(request: Request) {
 			tournamentLive: parsed.data.tournamentLive,
 			draftEnabled: parsed.data.draftEnabled,
 			fearless: parsed.data.fearless,
-			ultimateBravery: parsed.data.ultimateBravery,
+			structure: parsed.data.structure,
 		},
 		updatedBy: session.user.discordHandle ?? discordId,
 	});
@@ -150,7 +150,7 @@ export async function PATCH(request: Request) {
 			draftEnabled: parsed.data.draftEnabled,
 			tournamentMode: parsed.data.tournamentMode,
 			fearless: parsed.data.fearless,
-			ultimateBravery: parsed.data.ultimateBravery,
+			structure: parsed.data.structure,
 		},
 	});
 	await writeTournamentEvent({
@@ -169,7 +169,7 @@ export async function PATCH(request: Request) {
 			draftEnabled: parsed.data.draftEnabled,
 			tournamentMode: parsed.data.tournamentMode,
 			fearless: parsed.data.fearless,
-			ultimateBravery: parsed.data.ultimateBravery,
+			structure: parsed.data.structure,
 		},
 	});
 

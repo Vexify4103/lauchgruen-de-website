@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 			matchId: parsed.data.matchId,
 			discordId: targetDiscordId,
 			requestedBy: actorLabel,
-			rerollLimit: settings.ultimateBravery.rerollsPerPlayer,
+			rerollLimit: settings.structure.rerollsPerPlayer,
 		});
 		await writeAuditLog({
 			action: "ultimate-bravery.reroll-requested",
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
 			riotId: player.riotId,
 			role: player.role,
 			rolledBy: actorLabel,
-			rerollLimit: settings.ultimateBravery.rerollsPerPlayer,
+			rerollLimit: settings.structure.rerollsPerPlayer,
 			reroll: true,
 			force: true,
 		});
@@ -168,10 +168,10 @@ export async function POST(request: Request) {
 		riotId: player.riotId,
 		role: player.role,
 		rolledBy: actorLabel,
-		rerollLimit: settings.ultimateBravery.rerollsPerPlayer,
+		rerollLimit: settings.structure.rerollsPerPlayer,
 		reroll: parsed.data.action === "reroll",
 	});
-	const remaining = Math.max(0, settings.ultimateBravery.rerollsPerPlayer - roll.rerollsUsed);
+	const remaining = Math.max(0, settings.structure.rerollsPerPlayer - roll.rerollsUsed);
 	return NextResponse.json({
 		roll,
 		remaining,

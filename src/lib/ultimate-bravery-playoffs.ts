@@ -241,7 +241,7 @@ export function computeUltimateBraveryGroupSeeds(standings: GroupStandings, grou
 	return Object.fromEntries(Array.from({ length: advanceTeamCount }, (_, index) => [index + 1, ordered[index] ?? null]));
 }
 
-function playoffDefinitions(format: TournamentSettings["ultimateBravery"]["format"], teamCount: number): PlayoffDefinition[] {
+function playoffDefinitions(format: TournamentSettings["structure"]["format"], teamCount: number): PlayoffDefinition[] {
 	if (format === "double-elimination-light") {
 		if (teamCount === 6) return DOUBLE_ELIMINATION_LIGHT_SIX;
 		if (teamCount === 8) return DOUBLE_ELIMINATION_LIGHT;
@@ -264,7 +264,7 @@ function playoffDefinitions(format: TournamentSettings["ultimateBravery"]["forma
 }
 
 export function resolveUltimateBraveryPlayoffMatches(input: {
-	format: TournamentSettings["ultimateBravery"]["format"];
+	format: TournamentSettings["structure"]["format"];
 	swiss?: SwissStageState;
 	teams: TournamentTeam[];
 	requiredRounds?: number;

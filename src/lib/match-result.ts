@@ -14,7 +14,7 @@ export type SwissLink = { pairing: SwissPairing | null; locked: boolean };
 
 /** The Swiss pairing behind a match and whether later rounds were already drawn from its result. */
 export async function swissLinkFor(matchId: string, settings: TournamentSettings): Promise<SwissLink> {
-	const format = settings.ultimateBravery.dayOneFormat;
+	const format = settings.structure.dayOneFormat;
 	if (format !== "swiss" && format !== "swiss-elimination") return { pairing: null, locked: false };
 	const swiss = await getSwissStageState(settings.activeTournament.id);
 	const pairing = swiss.rounds.flatMap((round) => round.pairings).find((entry) => entry.id === matchId && !entry.bye) ?? null;

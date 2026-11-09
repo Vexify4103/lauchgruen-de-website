@@ -531,7 +531,7 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 	const previousTeams = botDoc?.teams ?? {};
 	const nextTeams = applyDraftToTeams(previousTeams, draftDoc);
 	if (!options.repairDiscordRoles) {
-		const config = settings.ultimateBravery;
+		const config = settings.structure;
 		const teams = Object.values(nextTeams);
 		if (teams.length !== config.teamCount) {
 			throw new Error(`Zum Veröffentlichen werden genau ${config.teamCount} Teams benötigt; aktuell sind ${teams.length} angelegt.`);
@@ -640,8 +640,8 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 					captainId,
 					voiceChannelId: team.voiceChannelId,
 					tournamentName: settings.activeTournament.name,
-					dayOneStartAt: settings.ultimateBravery.startAt,
-					dayTwoStartAt: settings.ultimateBravery.dayTwoStartAt,
+					dayOneStartAt: settings.structure.startAt,
+					dayTwoStartAt: settings.structure.dayTwoStartAt,
 				}),
 				dedupeKey: `team-welcome:${settings.activeTournament.id}:${teamKey}`,
 				label: `${team.name}: Begrüßung im Teamchannel posten`,

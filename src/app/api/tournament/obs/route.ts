@@ -158,7 +158,7 @@ export async function GET(request: Request) {
 	if (standing) {
 		const rank = standing.rank;
 		const allPlayed = standings[team.group].every((s) => s.played === ctx.groupMatches.filter((match) => match.teamA === s.team.name || match.teamB === s.team.name).length);
-		const advancing = usesFlexibleEngine(settings.activeTournament) ? settings.ultimateBravery.advanceTeamCount : 4;
+		const advancing = usesFlexibleEngine(settings.activeTournament) ? settings.structure.advanceTeamCount : 4;
 		if (allPlayed && !standing.tiebreakerRequired && rank <= advancing) {
 			// Map group rank → overall seed using the same logic as the resolver
 			playoffSlot = `Gruppe ${team.group} #${rank}`;

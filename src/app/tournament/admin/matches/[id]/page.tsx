@@ -40,7 +40,7 @@ export default async function MatchControlRoomPage({ params }: { params: Promise
 						viewerTeam={players[0]?.teamName ?? "Team Alpha"}
 						initialAllLocked={allLocked}
 						initialLockedCount={draftStatus.lockedCount}
-						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						rerollLimit={settings.structure.rerollsPerPlayer}
 						testMode
 						adminMode
 					/>
@@ -83,7 +83,7 @@ export default async function MatchControlRoomPage({ params }: { params: Promise
 						viewerTeam={ultimateBraveryPlayers[0]?.teamName ?? ""}
 						initialAllLocked={ultimateBraveryStatus?.allLocked ?? false}
 						initialLockedCount={ultimateBraveryStatus?.lockedCount ?? 0}
-						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						rerollLimit={settings.structure.rerollsPerPlayer}
 						adminMode
 						readOnly={match.status === "Finished"}
 					/>

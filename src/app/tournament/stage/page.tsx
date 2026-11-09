@@ -22,7 +22,7 @@ export default async function GroupsPage() {
 	const settings = await getTournamentSettings();
 	if (!usesFlexibleEngine(settings.activeTournament) && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=groups");
 	if (usesFlexibleEngine(settings.activeTournament)) {
-		const config = settings.ultimateBravery;
+		const config = settings.structure;
 		if (config.dayOneFormat === "undecided") return <UndecidedStagePage />;
 		const control = await getMatchControlContext();
 		const stages = control.stages!;
@@ -75,7 +75,7 @@ export default async function GroupsPage() {
 	}));
 	const focusedGroupMatchId = resolveGroupFocusMatchId(matchesWithScores);
 	const groups = [...new Set(ctx.teams.map((team) => team.group))].sort((a, b) => a.localeCompare(b));
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const configuredGroupStage = usesFlexibleEngine(settings.activeTournament);
 	const totalMatches = ctx.groupMatches.length;
 	const gamesPerTeam = ctx.teams.length > 0 ? Math.round((totalMatches * 2) / ctx.teams.length) : 0;
@@ -279,7 +279,7 @@ function SwissStagePage({
 	teamNames: string[];
 	swissState: Awaited<ReturnType<typeof getSwissStageState>>;
 }) {
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	return (
 		<>
 			<section className="page-section compact-top wide">
@@ -308,7 +308,7 @@ function SwissStagePage({
 }
 
 function GroupStagePlanningPage({ settings, teamNames }: { settings: Awaited<ReturnType<typeof getTournamentSettings>>; teamNames: string[] }) {
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	return (
 		<>
 			<section className="page-section compact-top">
@@ -346,7 +346,7 @@ function statusLabel(status: string) {
 	}
 }
 
-function groupPlacementLabel(rank: number, advancing: number, format: Awaited<ReturnType<typeof getTournamentSettings>>["ultimateBravery"]["format"]) {
+function groupPlacementLabel(rank: number, advancing: number, format: Awaited<ReturnType<typeof getTournamentSettings>>["structure"]["format"]) {
 	if (rank > advancing) return "Ausgeschieden";
 	if (format === "double-elimination-light" && advancing === 6) {
 		return rank <= 4 ? `Playoff-Seed #${rank} · Start im Upper Bracket` : `Playoff-Seed #${rank} · Start im Lower Bracket`;

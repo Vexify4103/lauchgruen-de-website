@@ -42,7 +42,7 @@ type SettingsPatch = Partial<
 > & {
 	tournamentMode?: TournamentMode;
 	fearless?: TournamentSettings["fearless"];
-	ultimateBravery?: TournamentSettings["ultimateBravery"];
+	structure?: TournamentSettings["structure"];
 };
 
 const modeLabels: Record<TournamentMode, { label: string; detail: string }> = {
@@ -95,13 +95,13 @@ export function TournamentModePanel({
 	const [deadlineInput, setDeadlineInput] = useState(() => toDateTimeLocalValue(initialSettings.applicationDeadline));
 	const [message, setMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const participants = mainEventTeamCount(structure);
 	const review = reviewStructure(structure);
 	const plan = { lines: describeStructurePlan(structure) };
 
-	function updateStructure(patch: Partial<TournamentSettings["ultimateBravery"]>) {
-		setSettings((current) => ({ ...current, ultimateBravery: deriveStructure({ ...current.ultimateBravery, ...patch }) }));
+	function updateStructure(patch: Partial<TournamentSettings["structure"]>) {
+		setSettings((current) => ({ ...current, structure: deriveStructure({ ...current.structure, ...patch }) }));
 	}
 
 	function updateTiebreaker(index: number, value: Tiebreaker | null) {
@@ -192,7 +192,7 @@ export function TournamentModePanel({
 	}
 
 	function saveUltimateBravery() {
-		persistSettings({ ultimateBravery: settings.ultimateBravery });
+		persistSettings({ structure: settings.structure });
 	}
 
 	return (
@@ -486,10 +486,10 @@ export function TournamentModePanel({
 								<ThemedNumberInput
 									min={1}
 									max={1000}
-									value={settings.ultimateBravery.minimumSummonerLevel}
+									value={settings.structure.minimumSummonerLevel}
 									ariaLabel="Mindestlevel"
 									onChange={(value) =>
-										setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, minimumSummonerLevel: Number(value) } }))
+										setSettings((current) => ({ ...current, structure: { ...current.structure, minimumSummonerLevel: Number(value) } }))
 									}
 								/>
 							</label>
@@ -497,9 +497,9 @@ export function TournamentModePanel({
 								<label className="text-xs font-medium text-[var(--muted)]">
 									Rerolls pro Spieler
 									<ThemedSelect
-										value={String(settings.ultimateBravery.rerollsPerPlayer)}
+										value={String(settings.structure.rerollsPerPlayer)}
 										onChange={(value) =>
-											setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, rerollsPerPlayer: Number(value) } }))
+											setSettings((current) => ({ ...current, structure: { ...current.structure, rerollsPerPlayer: Number(value) } }))
 										}
 										ariaLabel="Rerolls pro Spieler"
 										options={[
@@ -517,20 +517,20 @@ export function TournamentModePanel({
 									id="tournament-prize-pool"
 									name="prize-pool"
 									autoComplete="off"
-									value={settings.ultimateBravery.prizePool}
+									value={settings.structure.prizePool}
 									maxLength={4000}
 									rows={9}
-									onChange={(event) => setSettings((current) => ({ ...current, ultimateBravery: { ...current.ultimateBravery, prizePool: event.target.value } }))}
+									onChange={(event) => setSettings((current) => ({ ...current, structure: { ...current.structure, prizePool: event.target.value } }))}
 									placeholder={"# Preispool\n\n- 1. Platz: …\n- 2. Platz: …"}
 									className="mt-2 min-h-48 w-full resize-y rounded-[12px] border border-[var(--line)] bg-[var(--admin-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]"
 								/>
 								<div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-medium leading-5 text-[var(--muted)]">
 									<span>`#` Überschrift · `##` Untertitel · `-` Liste · `**fett**` · `_kursiv_` · `~~durchgestrichen~~` · `[Link](https://...)`</span>
-									<span>{settings.ultimateBravery.prizePool.length}/4000</span>
+									<span>{settings.structure.prizePool.length}/4000</span>
 								</div>
 								<div className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] p-4">
 									<div className="mb-3 text-xs font-semibold text-[var(--muted)]">Öffentliche Vorschau</div>
-									<TournamentMarkdown>{settings.ultimateBravery.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
+									<TournamentMarkdown>{settings.structure.prizePool || "Noch keine Preisankündigung eingetragen."}</TournamentMarkdown>
 								</div>
 							</div>
 						</div>
@@ -692,7 +692,7 @@ export function TournamentModePanel({
 }
 
 /** Worst-case champion use of the current format, so the pool never runs dry mid-event. */
-function FearlessCapacityNote({ structure, rules }: { structure: TournamentSettings["ultimateBravery"]; rules: TournamentSettings["fearless"] }) {
+function FearlessCapacityNote({ structure, rules }: { structure: TournamentSettings["structure"]; rules: TournamentSettings["fearless"] }) {
 	if (structure.dayOneFormat === "undecided" || structure.format === "undecided") return null;
 	const capacity = fearlessCapacity(structure, rules);
 	const tone = !capacity.enough

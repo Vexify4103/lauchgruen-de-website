@@ -187,7 +187,7 @@ export async function PATCH(request: Request) {
 	}
 
 	const settings = await getTournamentSettings();
-	const usesGroups = seedSlotLayout(settings.ultimateBravery) !== null;
+	const usesGroups = seedSlotLayout(settings.structure) !== null;
 	const currentGroup = existing.meta?.group;
 	const newGroup = usesGroups ? (isOwner ? (parsed.data.group ?? currentGroup) : currentGroup) : undefined;
 	if (usesGroups && !newGroup) return NextResponse.json({ message: "Für eine Gruppenphase muss eine Gruppe gewählt werden." }, { status: 400 });

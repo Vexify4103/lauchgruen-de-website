@@ -75,7 +75,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 						viewerTeam={simulatedViewer.teamName}
 						initialAllLocked={allLocked}
 						initialLockedCount={draftStatus.lockedCount}
-						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						rerollLimit={settings.structure.rerollsPerPlayer}
 						testMode
 						testOwner={isTestOwner}
 						initialPerspectiveDiscordId={simulatedViewer.discordId}
@@ -117,7 +117,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 						viewerTeam={effectiveViewerTeam}
 						initialAllLocked={allLocked}
 						initialLockedCount={draftStatus.lockedCount}
-						rerollLimit={settings.ultimateBravery.rerollsPerPlayer}
+						rerollLimit={settings.structure.rerollsPerPlayer}
 						readOnly={match.status === "Finished"}
 					/>
 				) : (

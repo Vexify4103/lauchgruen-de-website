@@ -177,7 +177,7 @@ function ReadinessPanel({
 	rosterPublished: boolean;
 	latestArchiveTitle: string | null;
 }) {
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const openAt = settings.applicationOpenAt ? new Date(settings.applicationOpenAt).getTime() : Number.NaN;
 	const deadline = new Date(settings.applicationDeadline).getTime();
 	const stage = stageLabel(config);

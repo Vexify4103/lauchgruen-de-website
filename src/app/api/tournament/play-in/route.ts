@@ -40,8 +40,8 @@ export async function POST(request: Request) {
 			});
 			return NextResponse.json({ ok: true });
 		}
-		if (parsed.data.teamKeys.length !== settings.ultimateBravery.playInTeamCount) {
-			return NextResponse.json({ message: `Für das Play-in sind ${settings.ultimateBravery.playInTeamCount} Teams eingestellt.` }, { status: 400 });
+		if (parsed.data.teamKeys.length !== settings.structure.playInTeamCount) {
+			return NextResponse.json({ message: `Für das Play-in sind ${settings.structure.playInTeamCount} Teams eingestellt.` }, { status: 400 });
 		}
 		const ctx = await getTournamentContext();
 		const byKey = new Map(ctx.teams.flatMap((team) => (team.storageKey ? [[team.storageKey, team] as const] : [])));

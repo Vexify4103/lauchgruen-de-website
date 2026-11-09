@@ -50,7 +50,7 @@ export type TournamentSettings = {
 	 * Tournament structure for every flexible-engine kind (Ultimate Bravery and Fearless).
 	 * The key keeps its original name so existing settings documents stay readable.
 	 */
-	ultimateBravery: StructureConfig & {
+	structure: StructureConfig & {
 		startAt: string | null;
 		dayTwoStartAt: string | null;
 		playersPerTeam: number;
@@ -62,7 +62,8 @@ export type TournamentSettings = {
 	updatedBy?: string;
 };
 
-type SettingsDoc = TournamentSettings & { _id: string };
+// `ultimateBravery` is the old name of `structure`; older documents still carry only that field.
+type SettingsDoc = TournamentSettings & { _id: string; ultimateBravery?: TournamentSettings["structure"] };
 
 const COLLECTION = "tournament_settings";
 const DOC_ID = "default";
@@ -92,7 +93,7 @@ function defaultSettings(): TournamentSettings {
 		tournamentLive: envFlag("TOURNAMENT_LIVE", false),
 		draftEnabled: envFlag("TOURNAMENT_DRAFT_ENABLED", true),
 		fearless: { lockOpponentChampions: false, scope: "tournament", variant: "own" },
-		ultimateBravery: {
+		structure: {
 			startAt: null,
 			dayTwoStartAt: null,
 			teamCount: 4,
@@ -115,7 +116,7 @@ function defaultSettings(): TournamentSettings {
 }
 
 function stripMongoId(doc: SettingsDoc): TournamentSettings {
-	const { _id, ...rest } = doc;
+	const { _id, ultimateBravery: legacyStructure, ...rest } = doc;
 	void _id;
 	const defaults = defaultSettings();
 	const openAt =
@@ -128,31 +129,32 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		typeof rest.applicationDeadline === "string" && rest.applicationDeadline !== LEGACY_AZ_APPLICATION_DEADLINE && !Number.isNaN(new Date(rest.applicationDeadline).getTime())
 			? rest.applicationDeadline
 			: defaults.applicationDeadline;
-	const rawUltimateBravery = rest.ultimateBravery && typeof rest.ultimateBravery === "object" ? rest.ultimateBravery : {};
-	const storedDates = rawUltimateBravery as Partial<TournamentSettings["ultimateBravery"]>;
+	const storedStructure = rest.structure ?? legacyStructure;
+	const rawUltimateBravery = storedStructure && typeof storedStructure === "object" ? storedStructure : {};
+	const storedDates = rawUltimateBravery as Partial<TournamentSettings["structure"]>;
 	const mergedUltimateBravery = {
-		...defaults.ultimateBravery,
+		...defaults.structure,
 		...rawUltimateBravery,
-		startAt: normalizeOptionalDate(storedDates.startAt, defaults.ultimateBravery.startAt),
-		dayTwoStartAt: normalizeOptionalDate(storedDates.dayTwoStartAt, defaults.ultimateBravery.dayTwoStartAt),
+		startAt: normalizeOptionalDate(storedDates.startAt, defaults.structure.startAt),
+		dayTwoStartAt: normalizeOptionalDate(storedDates.dayTwoStartAt, defaults.structure.dayTwoStartAt),
 	};
-	const teamCount = clampInteger(mergedUltimateBravery.teamCount, 2, 32, defaults.ultimateBravery.teamCount);
-	const storedBestOf: Partial<Record<keyof TournamentSettings["ultimateBravery"]["bestOf"], unknown>> =
+	const teamCount = clampInteger(mergedUltimateBravery.teamCount, 2, 32, defaults.structure.teamCount);
+	const storedBestOf: Partial<Record<keyof TournamentSettings["structure"]["bestOf"], unknown>> =
 		mergedUltimateBravery.bestOf && typeof mergedUltimateBravery.bestOf === "object" ? mergedUltimateBravery.bestOf : {};
 	const bestOf = (value: unknown, fallback: BestOf): BestOf => (isOneOf(BEST_OF_VALUES, value) ? value : fallback);
 	const tiebreakers = Array.isArray(mergedUltimateBravery.tiebreakers) ? mergedUltimateBravery.tiebreakers.filter((entry) => isOneOf(TIEBREAKERS, entry)) : [];
-	const ultimateBravery: TournamentSettings["ultimateBravery"] = deriveStructure({
+	const structure: TournamentSettings["structure"] = deriveStructure({
 		...mergedUltimateBravery,
 		teamCount,
-		playersPerTeam: clampInteger(mergedUltimateBravery.playersPerTeam, 5, 10, defaults.ultimateBravery.playersPerTeam),
+		playersPerTeam: clampInteger(mergedUltimateBravery.playersPerTeam, 5, 10, defaults.structure.playersPerTeam),
 		dayOneFormat: isOneOf(DAY_ONE_FORMATS, mergedUltimateBravery.dayOneFormat) ? mergedUltimateBravery.dayOneFormat : "undecided",
-		groupCount: clampInteger(mergedUltimateBravery.groupCount, 1, teamCount, defaults.ultimateBravery.groupCount),
+		groupCount: clampInteger(mergedUltimateBravery.groupCount, 1, teamCount, defaults.structure.groupCount),
 		groupRoundRobinLegs: mergedUltimateBravery.groupRoundRobinLegs === 2 ? 2 : 1,
-		swissRounds: clampInteger(mergedUltimateBravery.swissRounds, 1, 10, defaults.ultimateBravery.swissRounds),
+		swissRounds: clampInteger(mergedUltimateBravery.swissRounds, 1, 10, defaults.structure.swissRounds),
 		swissWinsToAdvance: mergedUltimateBravery.swissWinsToAdvance === 2 ? 2 : 3,
 		swissRoundOneSeeding: mergedUltimateBravery.swissRoundOneSeeding === "seeded" ? "seeded" : "random",
 		playInTeamCount: clampInteger(mergedUltimateBravery.playInTeamCount, 0, teamCount, 0),
-		advanceTeamCount: clampInteger(mergedUltimateBravery.advanceTeamCount, 2, teamCount, Math.min(defaults.ultimateBravery.advanceTeamCount, teamCount)),
+		advanceTeamCount: clampInteger(mergedUltimateBravery.advanceTeamCount, 2, teamCount, Math.min(defaults.structure.advanceTeamCount, teamCount)),
 		format: isOneOf(PLAYOFF_FORMATS, mergedUltimateBravery.format) ? mergedUltimateBravery.format : "undecided",
 		bestOf: {
 			dayOne: bestOf(storedBestOf.dayOne, 1),
@@ -163,10 +165,10 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 		grandFinalReset: mergedUltimateBravery.grandFinalReset === true,
 		tiebreakers: tiebreakers.length ? tiebreakers : [...DEFAULT_STRUCTURE_OPTIONS.tiebreakers],
 		sideSelection: isOneOf(SIDE_SELECTION_RULES, mergedUltimateBravery.sideSelection) ? mergedUltimateBravery.sideSelection : "higher-seed",
-		minimumSummonerLevel: clampInteger(mergedUltimateBravery.minimumSummonerLevel, 1, 1000, defaults.ultimateBravery.minimumSummonerLevel),
-		rerollsPerPlayer: clampInteger(mergedUltimateBravery.rerollsPerPlayer, 0, 5, defaults.ultimateBravery.rerollsPerPlayer),
+		minimumSummonerLevel: clampInteger(mergedUltimateBravery.minimumSummonerLevel, 1, 1000, defaults.structure.minimumSummonerLevel),
+		rerollsPerPlayer: clampInteger(mergedUltimateBravery.rerollsPerPlayer, 0, 5, defaults.structure.rerollsPerPlayer),
 		prizePool:
-			typeof mergedUltimateBravery.prizePool === "string" && mergedUltimateBravery.prizePool.trim() ? mergedUltimateBravery.prizePool : defaults.ultimateBravery.prizePool,
+			typeof mergedUltimateBravery.prizePool === "string" && mergedUltimateBravery.prizePool.trim() ? mergedUltimateBravery.prizePool : defaults.structure.prizePool,
 	});
 	return {
 		...defaults,
@@ -184,7 +186,7 @@ function stripMongoId(doc: SettingsDoc): TournamentSettings {
 			scope: rest.fearless?.scope === "series" ? "series" : "tournament",
 			variant: rest.fearless?.variant === "match" ? "match" : "own",
 		},
-		ultimateBravery,
+		structure,
 		updatedAt: typeof rest.updatedAt === "string" && !Number.isNaN(new Date(rest.updatedAt).getTime()) ? rest.updatedAt : defaults.updatedAt,
 		updatedBy: rest.updatedBy,
 	};
@@ -237,7 +239,7 @@ export async function updateTournamentSettings(input: {
 			| "tournamentLive"
 			| "draftEnabled"
 			| "fearless"
-			| "ultimateBravery"
+			| "structure"
 		>
 	>;
 	updatedBy?: string;
@@ -257,7 +259,11 @@ export async function updateTournamentSettings(input: {
 	if (input.patch.tournamentLive !== undefined) $set.tournamentLive = input.patch.tournamentLive;
 	if (input.patch.draftEnabled !== undefined) $set.draftEnabled = input.patch.draftEnabled;
 	if (input.patch.fearless !== undefined) $set.fearless = input.patch.fearless;
-	if (input.patch.ultimateBravery !== undefined) $set.ultimateBravery = input.patch.ultimateBravery;
+	if (input.patch.structure !== undefined) {
+		$set.structure = input.patch.structure;
+		// Mirrored under the old name so a rollback to an older deploy still reads the same settings.
+		$set.ultimateBravery = input.patch.structure;
+	}
 	const db = await getDb();
 	await db.collection<SettingsDoc>(COLLECTION).updateOne({ _id: DOC_ID }, { $set }, { upsert: true });
 	return getTournamentSettings();

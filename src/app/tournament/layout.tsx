@@ -23,7 +23,7 @@ import { UnsavedChangesProvider } from "@/components/UnsavedChangesProvider";
 export async function generateMetadata(): Promise<Metadata> {
 	const settings = await getTournamentSettings();
 	const { name, kind } = settings.activeTournament;
-	const day = formatTournamentDay(settings.ultimateBravery.startAt, false);
+	const day = formatTournamentDay(settings.structure.startAt, false);
 	const description = `${name}: Lauchgruen Community-Turnier (${TOURNAMENT_KIND_LABELS[kind]})${day ? ` ab ${day}` : ""}.`;
 	return {
 		title: { default: name, template: `%s · ${name}` },
@@ -86,13 +86,13 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 				isOwner,
 			}
 		: null;
-	const firstDay = formatTournamentDay(settings.ultimateBravery.startAt);
-	const secondDay = formatTournamentDay(settings.ultimateBravery.dayTwoStartAt);
+	const firstDay = formatTournamentDay(settings.structure.startAt);
+	const secondDay = formatTournamentDay(settings.structure.dayTwoStartAt);
 
 	return (
 		<AdminConflictProvider>
 			<UnsavedChangesProvider>
-				{settings.ultimateBravery.startAt ? (
+				{settings.structure.startAt ? (
 					<script
 						type="application/ld+json"
 						dangerouslySetInnerHTML={{
@@ -100,8 +100,8 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 								"@context": "https://schema.org",
 								"@type": "SportsEvent",
 								name: `Lauchgruen ${active.name}`,
-								startDate: settings.ultimateBravery.startAt,
-								...(settings.ultimateBravery.dayTwoStartAt ? { endDate: settings.ultimateBravery.dayTwoStartAt } : {}),
+								startDate: settings.structure.startAt,
+								...(settings.structure.dayTwoStartAt ? { endDate: settings.structure.dayTwoStartAt } : {}),
 								eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
 								eventStatus: active.mode === "finished" ? "https://schema.org/EventCompleted" : "https://schema.org/EventScheduled",
 								location: { "@type": "VirtualLocation", url: "https://tournament.lauchgruen.de" },

@@ -97,10 +97,10 @@ export async function POST(request: Request) {
 			);
 		}
 	}
-	if ((verified.summonerLevel ?? 0) < settings.ultimateBravery.minimumSummonerLevel && !minimumLevelOverride) {
+	if ((verified.summonerLevel ?? 0) < settings.structure.minimumSummonerLevel && !minimumLevelOverride) {
 		return NextResponse.json(
 			{
-				message: `Dein League-Account muss mindestens Level ${settings.ultimateBravery.minimumSummonerLevel} sein. Aktuell erkannt: Level ${verified.summonerLevel ?? "unbekannt"}.`,
+				message: `Dein League-Account muss mindestens Level ${settings.structure.minimumSummonerLevel} sein. Aktuell erkannt: Level ${verified.summonerLevel ?? "unbekannt"}.`,
 			},
 			{ status: 403 }
 		);

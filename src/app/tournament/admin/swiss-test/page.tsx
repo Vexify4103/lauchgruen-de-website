@@ -13,7 +13,7 @@ export default async function SwissTestPage() {
 	const discordId = session?.user?.discordId;
 	if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) redirect("/tournament/admin");
 	const [state, settings, existingTeams] = await Promise.all([getSwissStageState(SWISS_TEST_ID), getTournamentSettings(), listSwissTeams()]);
-	const teams = buildSwissTestTeams(settings.ultimateBravery.teamCount, existingTeams);
+	const teams = buildSwissTestTeams(settings.structure.teamCount, existingTeams);
 
 	return (
 		<>
@@ -58,7 +58,7 @@ export default async function SwissTestPage() {
 					</div>
 				</div>
 			) : null}
-			<SwissDrawControl initialState={state} configuredRounds={settings.ultimateBravery.swissRounds} teams={teams.map((team) => team.name)} testTeams={teams} testMode />
+			<SwissDrawControl initialState={state} configuredRounds={settings.structure.swissRounds} teams={teams.map((team) => team.name)} testTeams={teams} testMode />
 		</>
 	);
 }

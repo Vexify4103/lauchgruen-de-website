@@ -21,7 +21,7 @@ export default async function TournamentListPage() {
 	const [settings, archives] = await Promise.all([getTournamentSettings(), listTournamentArchives()]);
 	const active = settings.activeTournament;
 	const activeArchived = archives.some((archive) => archive.id === active.id);
-	const start = formatTournamentDay(settings.ultimateBravery.startAt);
+	const start = formatTournamentDay(settings.structure.startAt);
 
 	return (
 		<div className="inner-page">

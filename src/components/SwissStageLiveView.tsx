@@ -13,7 +13,7 @@ export function SwissStageLiveView({
 	live,
 }: {
 	initialState: SwissStageState;
-	config: TournamentSettings["ultimateBravery"];
+	config: TournamentSettings["structure"];
 	teamNames: string[];
 	live: boolean;
 }) {

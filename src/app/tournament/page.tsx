@@ -41,11 +41,11 @@ export default async function TournamentOverviewPage() {
 				<RulebookPanel settings={settings} applicationsOpen={applicationsOpen} />
 				<aside className="grid gap-4" aria-label="Turnierablauf">
 					<Lifecycle settings={settings} rosterPublished={roster.published} />
-					{settings.ultimateBravery.prizePool.trim() ? (
+					{settings.structure.prizePool.trim() ? (
 						<div className="content-panel tight">
 							<p className="panel-kicker">Preise</p>
 							<div className="mt-4">
-								<TournamentMarkdown>{settings.ultimateBravery.prizePool}</TournamentMarkdown>
+								<TournamentMarkdown>{settings.structure.prizePool}</TournamentMarkdown>
 							</div>
 						</div>
 					) : null}
@@ -57,7 +57,7 @@ export default async function TournamentOverviewPage() {
 }
 
 function RulebookPanel({ settings, applicationsOpen }: { settings: TournamentSettings; applicationsOpen: boolean }) {
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const rulebook = buildRulebook(settings);
 	const participants = mainEventTeamCount(structure);
 	const qualification =
@@ -174,7 +174,7 @@ function ChampionSection({ completion, roster }: { completion: TournamentComplet
 }
 
 function HubLinks({ settings, matches, teamCount, archiveCount }: { settings: TournamentSettings; matches: ControlMatch[]; teamCount: number; archiveCount: number }) {
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const playoffMatches = matches.filter((match) => match.phase === "playoffs");
 	const stageMatches = matches.filter((match) => match.phase === "groups" || match.phase === "play-in");
 	const finished = (list: ControlMatch[]) => list.filter((match) => match.status === "Finished").length;

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "Bestätigung für das Anlegen der Testdaten fehlt." }, { status: 400 });
 	}
 	const settings = await getTournamentSettings();
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const count = config.teamCount * config.playersPerTeam;
 	const [appsInserted, rosterResult] = await Promise.all([
 		seedTestApplicants(count),

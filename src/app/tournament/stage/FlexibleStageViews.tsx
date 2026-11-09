@@ -7,7 +7,7 @@ import type { TournamentSettings } from "@/lib/tournament-settings";
 import type { FlexibleStages } from "@/lib/tournament-stages";
 import { DAY_ONE_FORMAT_DETAILS, bestOfLabel, describeTiebreakers, mainEventTeamCount } from "@/lib/tournament-structure";
 
-type Config = TournamentSettings["ultimateBravery"];
+type Config = TournamentSettings["structure"];
 
 const STATUS_LABELS: Record<string, string> = { Scheduled: "Geplant", Pending: "Champ Select", Live: "Live", Finished: "Beendet", Locked: "Offen" };
 

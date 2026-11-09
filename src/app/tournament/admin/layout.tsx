@@ -45,7 +45,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 			tournamentName={settings.activeTournament.name}
 			user={{ name: session.user.name ?? session.user.discordHandle ?? "Admin", handle: session.user.discordHandle ?? discordId }}
 			counts={counts}
-			showSwissTest={usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.dayOneFormat === "swiss"}
+			showSwissTest={usesFlexibleEngine(settings.activeTournament) && settings.structure.dayOneFormat === "swiss"}
 			accountUrl={`${getSiteUrls(requestHeaders.get("host")).apex}/me?from=tournament`}
 		>
 			{children}

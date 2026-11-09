@@ -20,7 +20,7 @@ import { PLAY_IN_GROUP, getTournamentContext } from "@/lib/tournament-runtime";
 import { mainEventTeamCount } from "@/lib/tournament-structure";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 
-const isSwissFormat = (format: TournamentSettings["ultimateBravery"]["dayOneFormat"]) => format === "swiss" || format === "swiss-elimination";
+const isSwissFormat = (format: TournamentSettings["structure"]["dayOneFormat"]) => format === "swiss" || format === "swiss-elimination";
 
 /** Day-1 Swiss teams: play-in losers and teams still waiting in the play-in are left out. */
 async function swissParticipants() {
@@ -60,16 +60,16 @@ export async function GET(request: Request) {
 		const discordId = session?.user?.discordId;
 		if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
 		const settings = await getTournamentSettings();
-		const teams = buildSwissTestTeams(settings.ultimateBravery.teamCount, await listSwissTeams());
-		return NextResponse.json({ state: await getSwissStageState(SWISS_TEST_ID), teams, configuredRounds: settings.ultimateBravery.swissRounds, enabled: true, test: true });
+		const teams = buildSwissTestTeams(settings.structure.teamCount, await listSwissTeams());
+		return NextResponse.json({ state: await getSwissStageState(SWISS_TEST_ID), teams, configuredRounds: settings.structure.swissRounds, enabled: true, test: true });
 	}
 	const settings = await getTournamentSettings();
 	const [state, participants] = await Promise.all([getSwissStageState(settings.activeTournament.id), swissParticipants()]);
 	return NextResponse.json({
 		state,
 		teams: participants.teams,
-		configuredRounds: settings.ultimateBravery.swissRounds,
-		enabled: isSwissFormat(settings.ultimateBravery.dayOneFormat),
+		configuredRounds: settings.structure.swissRounds,
+		enabled: isSwissFormat(settings.structure.dayOneFormat),
 	});
 }
 
@@ -81,11 +81,11 @@ export async function POST(request: Request) {
 	if (!parsed.success) return NextResponse.json({ message: "Ungültige Swiss-Aktion." }, { status: 400 });
 	const settings = await getTournamentSettings();
 	const test = parsed.data.test === true;
-	if (!test && !isSwissFormat(settings.ultimateBravery.dayOneFormat))
+	if (!test && !isSwissFormat(settings.structure.dayOneFormat))
 		return NextResponse.json({ message: "Swiss ist aktuell nicht als Tag-1-Format ausgewählt." }, { status: 409 });
 	const tournamentId = test ? SWISS_TEST_ID : settings.activeTournament.id;
 	const matchPrefix = test ? SWISS_TEST_ID : "swiss";
-	const testTeams = test ? buildSwissTestTeams(settings.ultimateBravery.teamCount, await listSwissTeams()) : undefined;
+	const testTeams = test ? buildSwissTestTeams(settings.structure.teamCount, await listSwissTeams()) : undefined;
 
 	if (parsed.data.action === "result") {
 		if (!test || !parsed.data.pairingId || !parsed.data.winnerTeamKey) return NextResponse.json({ message: "Ungültiges Testergebnis." }, { status: 400 });
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 		}
 	}
 
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const participants = test ? null : await swissParticipants();
 	if (participants && participants.teams.length !== mainEventTeamCount(config)) {
 		return NextResponse.json(

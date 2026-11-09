@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 	}
 
 	// Coin flip and alternating sides are decided by the server when game 1 is released.
-	const releaseBlueSide = releaseFlow && match.games.length === 0 ? automaticBlueSide({ rule: settings.ultimateBravery.sideSelection, games: [] }) : null;
+	const releaseBlueSide = releaseFlow && match.games.length === 0 ? automaticBlueSide({ rule: settings.structure.sideSelection, games: [] }) : null;
 	const updated = notificationRetry
 		? { id: match.id, status: match.status }
 		: await upsertMatch(match.id, {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 	if (releaseFlow) {
 		const teamA = ctx.teams.find((team) => team.name === match.teamAName);
 		const teamB = ctx.teams.find((team) => team.name === match.teamBName);
-		const dedupeScope = `${settings.activeTournament.id}:${settings.ultimateBravery.startAt ?? "current"}`;
+		const dedupeScope = `${settings.activeTournament.id}:${settings.structure.startAt ?? "current"}`;
 		const notificationPlan =
 			teamA && teamB
 				? buildMatchReadyDiscordOperations({

@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 			});
 			await afterMatchDecided({ matchId: match.id, winner: decided, swiss, settings });
 		} else {
-			const nextBlue = automaticBlueSide({ rule: settings.ultimateBravery.sideSelection, games }) ?? match.blueSide;
+			const nextBlue = automaticBlueSide({ rule: settings.structure.sideSelection, games }) ?? match.blueSide;
 			await upsertMatch(match.id, {
 				id: match.id,
 				teamAName: match.teamAName,

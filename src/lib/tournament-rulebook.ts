@@ -216,7 +216,7 @@ const MATCH_FEARLESS_SECTION: RuleSection = {
 };
 
 export function getDefaultRuleSections(settings: TournamentSettings) {
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const kind = tournamentKind(settings.activeTournament);
 	const displayedRuleSections = ruleSections
 		.filter((section) => !section.kinds || section.kinds.includes(kind))

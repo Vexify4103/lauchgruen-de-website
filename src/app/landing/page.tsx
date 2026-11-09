@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
 	const [requestHeaders, rawSearchParams, settings] = await Promise.all([headers(), searchParams, getTournamentSettings()]);
 	const tournament = settings.activeTournament;
-	const tournamentDays = [formatTournamentDay(settings.ultimateBravery.startAt, false), formatTournamentDay(settings.ultimateBravery.dayTwoStartAt, false)].filter(Boolean);
+	const tournamentDays = [formatTournamentDay(settings.structure.startAt, false), formatTournamentDay(settings.structure.dayTwoStartAt, false)].filter(Boolean);
 	const tournamentLabel =
 		tournament.mode === "live" ? "Community-Turnier · jetzt live" : tournament.mode === "finished" ? "Letztes Community-Turnier" : "Nächstes Community-Turnier";
 	const siteUrls = getSiteUrls(requestHeaders.get("host"));

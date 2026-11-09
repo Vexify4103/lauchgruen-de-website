@@ -5,13 +5,13 @@ import { DEFAULT_STRUCTURE_OPTIONS } from "../src/lib/tournament-structure.ts";
 
 const settings = {
 	activeTournament: { name: "Community Cup", kind: "ultimate-bravery", mode: "registration" },
-	ultimateBravery: { ...DEFAULT_STRUCTURE_OPTIONS, teamCount: 8, startAt: null, dayTwoStartAt: null, minimumSummonerLevel: 100 },
+	structure: { ...DEFAULT_STRUCTURE_OPTIONS, teamCount: 8, startAt: null, dayTwoStartAt: null, minimumSummonerLevel: 100 },
 };
 
 test("unpublished teams do not announce the configured target count", () => {
 	for (const plannedCount of [4, 6, 8]) {
 		const hero = buildTournamentHero({
-			settings: { ...settings, ultimateBravery: { ...settings.ultimateBravery, teamCount: plannedCount } },
+			settings: { ...settings, structure: { ...settings.structure, teamCount: plannedCount } },
 			teamCount: 0,
 			applicationsOpen: true,
 		});

@@ -102,7 +102,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 		if (team.group === PLAY_IN_GROUP) return playInEliminated.has(team.name) ? "Play-in · raus" : "Play-in";
 		const finalSeed = Object.entries(playoffSeeds).find(([, name]) => name === team.name)?.[0];
 		if (finalSeed) return `Seed #${finalSeed}`;
-		const format = settings.ultimateBravery.dayOneFormat;
+		const format = settings.structure.dayOneFormat;
 		if (format === "groups" || format === "gsl") return `${team.group}${team.seed}`;
 		if (format === "none") return `#${team.seed}`;
 		return null;
@@ -187,7 +187,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 								<header className="roster-card-header">
 									<div className="roster-card-title">
 										{stageSeedLabel(team) ? (
-											<span title={settings.ultimateBravery.dayOneFormat === "swiss" ? "Playoff-Seed" : "Gruppe und Seed"}>{stageSeedLabel(team)}</span>
+											<span title={settings.structure.dayOneFormat === "swiss" ? "Playoff-Seed" : "Gruppe und Seed"}>{stageSeedLabel(team)}</span>
 										) : null}
 										<h3>{team.name}</h3>
 									</div>

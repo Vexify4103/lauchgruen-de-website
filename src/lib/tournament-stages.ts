@@ -61,7 +61,7 @@ function controlFields(
 		teamAName: string | null;
 		teamBName: string | null;
 		bestOf: number;
-		rule: TournamentSettings["ultimateBravery"]["sideSelection"];
+		rule: TournamentSettings["structure"]["sideSelection"];
 		teamASeed?: number;
 		teamBSeed?: number;
 	}
@@ -111,7 +111,7 @@ function bracketToControl(
 			teamAName: match.teamAName,
 			teamBName: match.teamBName,
 			bestOf: match.bestOf,
-			rule: settings.ultimateBravery.sideSelection,
+			rule: settings.structure.sideSelection,
 			teamASeed: match.teamASeed,
 			teamBSeed: match.teamBSeed,
 		}),
@@ -166,7 +166,7 @@ export async function buildFlexibleStages(input: {
 	assignment: Assignment;
 }): Promise<{ matches: ControlMatch[]; stages: FlexibleStages }> {
 	const { settings, ctx, stored, assignment } = input;
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const tournamentId = settings.activeTournament.id;
 	const [playIn, overrides, swiss] = await Promise.all([
 		config.playInTeamCount > 0 ? getPlayInOutcome(tournamentId, config.bestOf.dayOne) : Promise.resolve(null),

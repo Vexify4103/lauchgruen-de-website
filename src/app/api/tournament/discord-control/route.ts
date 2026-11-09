@@ -41,8 +41,8 @@ async function loadControlState() {
 	const teams: TeamEntry[] = Object.entries(botDoc?.teams ?? {}).map(([key, team]) => ({ ...team, key }));
 	const tournamentRoleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	const captainRoleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim() || process.env.CAPTAIN_ROLE_ID?.trim();
-	const cleanupDate = settings.ultimateBravery.dayTwoStartAt
-		? new Date(new Date(settings.ultimateBravery.dayTwoStartAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+	const cleanupDate = settings.structure.dayTwoStartAt
+		? new Date(new Date(settings.structure.dayTwoStartAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
 		: null;
 	return { teams, members: guildResult.members, tournamentRoleId, captainRoleId, cleanupDate } as const;
 }

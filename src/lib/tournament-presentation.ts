@@ -58,7 +58,7 @@ export function formatTournamentDay(value: string | null, withTime = true): stri
 	}).format(new Date(value));
 }
 
-export function stageLabel(structure: TournamentSettings["ultimateBravery"]): string | null {
+export function stageLabel(structure: TournamentSettings["structure"]): string | null {
 	switch (structure.dayOneFormat) {
 		case "swiss":
 			return "Swiss Stage";
@@ -76,7 +76,7 @@ export function stageLabel(structure: TournamentSettings["ultimateBravery"]): st
 }
 
 /** "Best of 1", or the split when stages differ ("Bo1 · Finale Bo3"). */
-export function seriesLabel(structure: TournamentSettings["ultimateBravery"]): string {
+export function seriesLabel(structure: TournamentSettings["structure"]): string {
 	const { dayOne, playoffs, finals } = structure.bestOf;
 	if (dayOne === playoffs && playoffs === finals) return `Best of ${dayOne}`;
 	if (dayOne === playoffs) return `Bo${dayOne} · Finale Bo${finals}`;
@@ -86,7 +86,7 @@ export function seriesLabel(structure: TournamentSettings["ultimateBravery"]): s
 export function buildTournamentHero(input: { settings: TournamentSettings; teamCount: number; applicationsOpen: boolean; championTeamName?: string | null }): TournamentHeroData {
 	const { settings, teamCount, applicationsOpen } = input;
 	const active = settings.activeTournament;
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const days = [formatTournamentDay(structure.startAt), formatTournamentDay(structure.dayTwoStartAt)].filter((day): day is string => Boolean(day));
 	const pills = [
 		...(days.length ? days : ["Termin folgt"]),
@@ -140,7 +140,7 @@ function registrationLabel(settings: TournamentSettings, applicationsOpen: boole
 export function buildTournamentSubnav(input: { settings: TournamentSettings; rosterPublished: boolean; isCaptain: boolean }): TournamentSubnavItem[] {
 	const { settings, rosterPublished, isCaptain } = input;
 	const active = settings.activeTournament;
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const running = active.mode === "live" || active.mode === "paused" || active.mode === "finished";
 	const items: Array<TournamentSubnavItem | null> = [
 		{ href: "/tournament", label: active.mode === "finished" ? "Champion" : "Übersicht" },
@@ -157,7 +157,7 @@ export function buildTournamentSubnav(input: { settings: TournamentSettings; ros
 }
 
 export function buildRulebook(settings: TournamentSettings): RulebookEntry[] {
-	const structure = settings.ultimateBravery;
+	const structure = settings.structure;
 	const days = [formatTournamentDay(structure.startAt, false), formatTournamentDay(structure.dayTwoStartAt, false)].filter(Boolean);
 	const common: RulebookEntry[] = [
 		structure.bestOf.dayOne === 1 && structure.bestOf.playoffs === 1 && structure.bestOf.finals === 1

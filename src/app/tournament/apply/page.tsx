@@ -24,8 +24,8 @@ export default async function ApplyPage() {
 	const participationChecklist = [
 		{ title: "Discord & Riot verbinden", text: "Tritt dem Lauchgruen Discord bei und verifiziere deinen eigenen Riot-Account direkt im Formular." },
 		{
-			title: `Account-Level ${settings.ultimateBravery.minimumSummonerLevel}+`,
-			text: `Dein League-Account muss mindestens Level ${settings.ultimateBravery.minimumSummonerLevel} haben. Falls die Orga dir eine Ausnahme bestätigt hat, wird diese bei der Bewerbung berücksichtigt.`,
+			title: `Account-Level ${settings.structure.minimumSummonerLevel}+`,
+			text: `Dein League-Account muss mindestens Level ${settings.structure.minimumSummonerLevel} haben. Falls die Orga dir eine Ausnahme bestätigt hat, wird diese bei der Bewerbung berücksichtigt.`,
 		},
 		{
 			title: "Zeit fürs Turnier einplanen",
@@ -235,9 +235,9 @@ export default async function ApplyPage() {
 								discordInviteUrl={DISCORD_INVITE_URL}
 								initialVerified={initialVerified}
 								initialApplication={existingApplication}
-								minimumSummonerLevel={settings.ultimateBravery.minimumSummonerLevel}
+								minimumSummonerLevel={settings.structure.minimumSummonerLevel}
 								minimumLevelOverrideKind={eligibilityOverride?.kind ?? null}
-								announcedDate={formatUltimateBraveryDates(settings.ultimateBravery.startAt, settings.ultimateBravery.dayTwoStartAt)}
+								announcedDate={formatUltimateBraveryDates(settings.structure.startAt, settings.structure.dayTwoStartAt)}
 								applicationDeadlineLabel={deadlineLabel}
 								preferenceGroupLimit={wishGroupLimit(settings.wishGroupMode)}
 							/>

@@ -74,8 +74,8 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					.filter((match) => match.phase === "groups" || match.phase === "play-in")
 					.map((match) => ({
 						id: match.id,
-						day: formatScheduleDay(settings.ultimateBravery.startAt, "Spieltag 1"),
-						phase: match.phase === "play-in" ? "Play-in" : (stageLabel(settings.ultimateBravery) ?? "Tag 1"),
+						day: formatScheduleDay(settings.structure.startAt, "Spieltag 1"),
+						phase: match.phase === "play-in" ? "Play-in" : (stageLabel(settings.structure) ?? "Tag 1"),
 						round: match.round,
 						time: match.time,
 						teamA: match.teamALabel,
@@ -108,7 +108,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					.filter((match) => match.phase === "playoffs" && match.teamAName && match.teamBName)
 					.map((match) => ({
 						id: match.id,
-						day: formatScheduleDay(settings.ultimateBravery.dayTwoStartAt, "Spieltag 2"),
+						day: formatScheduleDay(settings.structure.dayTwoStartAt, "Spieltag 2"),
 						phase: "Playoffs",
 						round: match.round,
 						time: match.time,
@@ -157,21 +157,21 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 			title: "Spieltag 1",
 			description: usesFlexibleEngine(settings.activeTournament)
 				? friday.length
-					? `${stageLabel(settings.ultimateBravery) ?? "Tag 1"} · ${friday.length} Matches aktuell angesetzt.`
-					: `${stageLabel(settings.ultimateBravery) ?? "Tag 1"} · Paarungen folgen durch die Turnierleitung.`
+					? `${stageLabel(settings.structure) ?? "Tag 1"} · ${friday.length} Matches aktuell angesetzt.`
+					: `${stageLabel(settings.structure) ?? "Tag 1"} · Paarungen folgen durch die Turnierleitung.`
 				: "Gruppenphase ab 18:00 Uhr CEST · 12 Matches pro Gruppe · 6 pro Team.",
 			batches: groupScheduleBatches(friday),
 			emptyText:
-				settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination"
+				settings.structure.dayOneFormat === "swiss" || settings.structure.dayOneFormat === "swiss-elimination"
 					? "Die erste Swiss-Runde wurde noch nicht ausgelost. Sobald eine Paarung gezogen wurde, erscheint sie automatisch hier."
 					: "Für den ersten Spieltag wurden noch keine konkreten Paarungen veröffentlicht.",
 		},
 		{
 			title: "Spieltag 2",
 			description: usesFlexibleEngine(settings.activeTournament)
-				? `${settings.ultimateBravery.advanceTeamCount} Teams · ${playoffFormatLabel(settings.ultimateBravery.format) ?? "Playoffs"} · ${seriesLabel(settings.ultimateBravery)}${
-						settings.ultimateBravery.format === "double-elimination" || settings.ultimateBravery.format === "double-elimination-light"
-							? settings.ultimateBravery.grandFinalReset
+				? `${settings.structure.advanceTeamCount} Teams · ${playoffFormatLabel(settings.structure.format) ?? "Playoffs"} · ${seriesLabel(settings.structure)}${
+						settings.structure.format === "double-elimination" || settings.structure.format === "double-elimination-light"
+							? settings.structure.grandFinalReset
 								? " · Grand Final mit Bracket Reset."
 								: " · Grand Final ohne Bracket Reset."
 							: "."

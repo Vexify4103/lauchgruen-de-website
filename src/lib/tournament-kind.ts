@@ -29,7 +29,7 @@ export function tournamentKind(active: ActiveTournamentLike): TournamentKind {
 	return "az";
 }
 
-/** Groups or Swiss followed by configurable playoffs (settings.ultimateBravery holds the structure). */
+/** Groups or Swiss followed by configurable playoffs (settings.structure holds the format). */
 export function usesFlexibleEngine(active: ActiveTournamentLike): boolean {
 	return tournamentKind(active) !== "az";
 }

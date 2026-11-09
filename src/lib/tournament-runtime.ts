@@ -339,7 +339,7 @@ export async function getTournamentContext(): Promise<TournamentContext> {
 		return { teams, groupMatches: buildGroupMatches(teams, 2), source: "bot", groupSetupComplete: true, playInEliminated: [] };
 	}
 
-	const config = settings.ultimateBravery;
+	const config = settings.structure;
 	const playIn = config.playInTeamCount > 0 ? await getPlayInOutcome(settings.activeTournament.id, config.bestOf.dayOne) : null;
 	const eliminated = new Set(playIn?.eliminated ?? []);
 	const waiting = new Set(playIn && !playIn.complete ? playIn.pairs.flatMap((pair) => [pair.teamAName, pair.teamBName]).filter((name) => !playIn.qualified.includes(name)) : []);

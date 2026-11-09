@@ -15,7 +15,7 @@ import type { StandingsResult } from "@/lib/tournament-standings";
 
 export default async function PlayoffsPage() {
 	const settings = await getTournamentSettings();
-	if (usesFlexibleEngine(settings.activeTournament) && settings.ultimateBravery.format === "undecided") {
+	if (usesFlexibleEngine(settings.activeTournament) && settings.structure.format === "undecided") {
 		return <UndecidedPlayoffsPage />;
 	}
 	if (!usesFlexibleEngine(settings.activeTournament) && settings.activeTournament.mode !== "live") redirect("/tournament/archive/az-2026?view=playoffs");
@@ -25,7 +25,7 @@ export default async function PlayoffsPage() {
 		return (
 			<LivePlayoffPage
 				matches={matches}
-				config={settings.ultimateBravery}
+				config={settings.structure}
 				table={control.stages?.playoffs.table ?? null}
 				pendingReason={control.stages?.dayOne.pendingReason ?? null}
 				live={settings.activeTournament.mode === "live"}
@@ -59,7 +59,7 @@ function LivePlayoffPage({
 	preview,
 }: {
 	matches: Parameters<typeof LivePlayoffs>[0]["initialMatches"];
-	config: TournamentSettings["ultimateBravery"];
+	config: TournamentSettings["structure"];
 	table: StandingsResult | null;
 	pendingReason: string | null;
 	live: boolean;

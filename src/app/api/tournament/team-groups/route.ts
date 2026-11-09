@@ -32,9 +32,9 @@ export async function POST(request: Request) {
 	if (!parsed.success) return NextResponse.json({ message: "Ungültige Gruppenzuteilung." }, { status: 400 });
 
 	const settings = await getTournamentSettings();
-	const layout = seedSlotLayout(settings.ultimateBravery);
+	const layout = seedSlotLayout(settings.structure);
 	if (!layout) return NextResponse.json({ message: "Das aktuelle Tag-1-Format braucht weder Gruppen noch eine Setzliste." }, { status: 409 });
-	const plannedTeamCount = mainEventTeamCount(settings.ultimateBravery);
+	const plannedTeamCount = mainEventTeamCount(settings.structure);
 	const validGroups = new Set(Array.from({ length: layout.groupCount }, (_, index) => String.fromCharCode(65 + index)));
 	const baseGroupSize = Math.floor(plannedTeamCount / layout.groupCount);
 	const largerGroups = plannedTeamCount % layout.groupCount;
@@ -57,9 +57,9 @@ export async function POST(request: Request) {
 	const teams = doc?.teams ?? {};
 	const unknown = Object.keys(parsed.data.assignments).filter((teamKey) => !teams[teamKey]);
 	if (unknown.length) return NextResponse.json({ message: `Unbekannte Teams: ${unknown.join(", ")}` }, { status: 404 });
-	if (settings.ultimateBravery.playInTeamCount > 0) {
+	if (settings.structure.playInTeamCount > 0) {
 		// Play-in losers never get a Day-1 slot; teams still in the play-in only after they won.
-		const playIn = await getPlayInOutcome(settings.activeTournament.id, settings.ultimateBravery.bestOf.dayOne);
+		const playIn = await getPlayInOutcome(settings.activeTournament.id, settings.structure.bestOf.dayOne);
 		const blocked = new Set([
 			...(playIn?.eliminated ?? []),
 			...(playIn?.pairs ?? []).flatMap((pair) => [pair.teamAName, pair.teamBName]).filter((name) => !playIn?.qualified.includes(name)),

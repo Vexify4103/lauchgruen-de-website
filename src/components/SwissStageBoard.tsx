@@ -5,7 +5,7 @@ import type { SwissPairing, SwissStageState } from "@/lib/tournament-swiss";
 import { playoffFormatLabel } from "@/lib/tournament-format";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
-type StageConfig = TournamentSettings["ultimateBravery"];
+type StageConfig = TournamentSettings["structure"];
 
 function combinations(total: number, selected: number) {
 	if (selected < 0 || selected > total) return 0;
