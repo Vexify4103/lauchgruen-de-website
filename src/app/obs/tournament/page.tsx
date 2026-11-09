@@ -4,6 +4,10 @@ import { getTournamentContext } from "@/lib/tournament-runtime";
 import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tournament-wheel";
 import { TournamentTeamOverlay } from "@/components/obs/TournamentTeamOverlay";
 import type { ObsTeamResponse, OverlayMatch } from "@/app/api/tournament/obs/route";
+import { getTournamentSettings } from "@/lib/tournament-settings";
+import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import { getMatchControlContext } from "@/lib/match-control";
+import { buildFlexibleObsResponse } from "@/lib/obs-team-fearless";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +30,8 @@ export default async function ObsTournamentPage({ searchParams }: { searchParams
 async function buildInitial(teamId: string, ctx: Awaited<ReturnType<typeof getTournamentContext>>): Promise<ObsTeamResponse | null> {
 	const team = ctx.teams.find((t) => t.id === teamId);
 	if (!team) return null;
+	const settings = await getTournamentSettings();
+	if (usesFlexibleEngine(settings.activeTournament)) return buildFlexibleObsResponse(team, await getMatchControlContext(), settings);
 	const [state, wheel] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState()]);
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);

@@ -14,6 +14,7 @@ import { getTournamentWheelState, type WheelMatchAssignment } from "@/lib/tourna
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getMatchControlContext } from "@/lib/match-control";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
+import { buildFlexibleObsResponse } from "@/lib/obs-team-fearless";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,10 @@ export type ObsTeamResponse = {
 	nextMatch: OverlayMatch | null;
 	playoffSlot: string | null;
 	recentResult: OverlayMatch | null;
+	/** Flexible engine only: where the team stands and what the next result means. */
+	stage?: { label: string; stakes: string | null };
+	/** Flexible engine only: Fearless locks and the champions of the latest game. */
+	fearless?: { locked: number; own: number; lastPicks: Array<{ name: string; image: string | null }>; lastOpponent: string | null };
 };
 
 export type OverlayMatch = {
@@ -52,6 +57,9 @@ export type OverlayMatch = {
 	time: string;
 	poolSelf?: string;
 	poolOpponent?: string;
+	opponentRecord?: string;
+	/** Live match only: draft running or game started. */
+	phase?: "draft" | "game" | null;
 };
 
 export async function GET(request: Request) {
@@ -68,6 +76,11 @@ export async function GET(request: Request) {
 
 	const [state, wheel, settings] = await Promise.all([readTournamentState(ctx.groupMatches), getTournamentWheelState(), getTournamentSettings()]);
 	const control = usesFlexibleEngine(settings.activeTournament) ? await getMatchControlContext() : null;
+	if (control) {
+		return NextResponse.json(await buildFlexibleObsResponse(team, control, settings), {
+			headers: { "Cache-Control": "public, max-age=5, s-maxage=5" },
+		});
+	}
 	const poolFor = (matchId: string) =>
 		wheel.currentAssignment?.matchId === matchId ? wheel.currentAssignment : (wheel.history.find((entry) => entry.matchId === matchId) ?? null);
 	const standings = computeGroupStandings(state.matches, ctx.teams, ctx.groupMatches);
@@ -102,7 +115,7 @@ export async function GET(request: Request) {
 		});
 	}
 
-	const resolvedPlayoff = control ? control.matches.filter((match) => match.phase === "playoffs") : resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
+	const resolvedPlayoff = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	for (const r of resolvedPlayoff) {
 		if (r.teamAName !== team.name && r.teamBName !== team.name) continue;
 		allRelevant.push({
