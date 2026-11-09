@@ -282,7 +282,7 @@ function Playoffs({ snapshot }: { snapshot: Snapshot }) {
 		<>
 			<PageIntro kicker="Tag 2" title="Das finale Bracket." as="h2" />
 			{matches.length ? (
-				<div className="content-panel tight !p-3 sm:!p-5">
+				<div>
 					<BracketTree matches={matches} showPools={false} />
 				</div>
 			) : (

@@ -1,8 +1,7 @@
 "use client";
 
-import { TournamentLink as Link } from "@/app/tournament/TournamentLink";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { compactPoolLabel, type WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { resolveBracketFocusMatchId } from "@/lib/tournament-stage-focus";
 import type { BracketLayout } from "@/lib/bracket-engine";
 
@@ -156,7 +155,7 @@ function buildBracketLayout(ids: Set<string>) {
 	};
 }
 
-export function BracketTree({ matches, showPools = true }: { matches: BracketMatch[]; showPools?: boolean }) {
+export function BracketTree({ matches }: { matches: BracketMatch[]; /** Kept for callers; the redesigned cards no longer show champion pools. */ showPools?: boolean }) {
 	const matchIds = matches.map((match) => match.id).join("|");
 	const layout = buildBracketLayout(new Set(matches.map((match) => match.id)));
 	const generated = matches.length > 0 && matches.every((match) => match.layout);
@@ -245,6 +244,9 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 		lastFocusedMatch.current = focusMatchId;
 	}, [focusMatchId, matches.length]);
 
+	const connections = generated ? generatedLayout.connections : layout.connections;
+	const nextLabel = (match: BracketMatch) => routeLabel(match, matches, connections);
+
 	if (generated) {
 		const lane = (name: string) => generatedLayout.lanes.get(name);
 		const upper = lane("upper");
@@ -253,111 +255,148 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 		const placement = lane("placement");
 		const leftColumns = Math.max(upper?.columns ?? 0, lower?.columns ?? 0);
 		const hasReset = matches.some((match) => match.conditional);
-		const section = (key: string, label: string, entry: LaneLayout | undefined, columnWidth = COLUMN_WIDTH) =>
+		const section = (key: string, label: string, entry: LaneLayout | undefined, tone: LaneTone = "neutral") =>
 			entry ? (
 				<BracketSection
 					key={key}
 					label={label}
-					columnLabels={key === "final" ? [] : entry.labels.map((value) => value ?? "")}
+					tone={tone}
+					columnLabels={entry.labels.map((value) => value ?? "")}
 					columns={entry.columns}
-					columnWidth={columnWidth}
 					rows={entry.rows}
-					rowHeight="2.9rem"
+					rowHeight="3.6rem"
 					positions={entry.positions}
 					matches={matches}
-					showPools={showPools}
 					registerCard={registerCard}
 					lookup={lookup}
+					nextLabel={nextLabel}
 				/>
 			) : null;
 		return (
-			<div ref={scrollRef} className="themed-scrollbar -mx-2 overflow-x-auto px-2 pb-2">
-				<div ref={containerRef} className="relative grid w-max gap-x-12" style={{ gridTemplateColumns: leftColumns ? "max-content max-content" : "max-content" }}>
-					<Connectors paths={paths} size={size} />
-					{leftColumns ? (
-						<div className="relative z-10 flex flex-col gap-10">
-							{section("upper", lower ? "Upper Bracket" : "Bracket", upper)}
-							{section("lower", "Lower Bracket", lower)}
+			<BracketFrame
+				note={lower && finals ? (hasReset ? "Gewinnt das Team aus dem Lower Bracket das Grand Final, folgt ein Bracket Reset." : "Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.") : null}
+			>
+				<div ref={scrollRef} className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
+					<div ref={containerRef} className="relative grid w-max gap-x-4" style={{ gridTemplateColumns: leftColumns ? "max-content max-content" : "max-content" }}>
+						<Connectors paths={paths} size={size} />
+						{leftColumns ? (
+							<div className="flex flex-col gap-6">
+								{section("upper", lower ? "Upper Bracket" : "Bracket", upper)}
+								{section("lower", "Lower Bracket", lower)}
+							</div>
+						) : null}
+						<div className="flex flex-col justify-center gap-6">
+							{section("final", hasReset ? "Grand Final" : "Finale", finals, "final")}
+							{section("placement", "Platzierung", placement)}
 						</div>
-					) : null}
-					<div className="relative z-10 flex flex-col justify-center gap-10">
-						{section("final", hasReset ? "Grand Final" : "Finale", finals, FINAL_WIDTH)}
-						{section("placement", "Platzierung", placement)}
 					</div>
 				</div>
-				<Legend note={lower && finals ? (hasReset ? "Bracket Reset, falls das Team aus dem Lower Bracket das Grand Final gewinnt" : "Grand Final ohne Bracket Reset") : null} />
-			</div>
+			</BracketFrame>
 		);
 	}
 
 	return (
-		<div ref={scrollRef} className="themed-scrollbar -mx-2 overflow-x-auto px-2 pb-2">
-			<div ref={containerRef} className="relative grid w-max gap-x-12" style={{ gridTemplateColumns: "max-content max-content" }}>
-				<Connectors paths={paths} size={size} />
-
-				<div className="relative z-10 flex flex-col gap-10">
-					<BracketSection
-						label="Upper Bracket"
-						columnLabels={layout.upperLabels}
-						columns={layout.upperColumns}
-						rows={layout.upperRows}
-						positions={layout.upperPositions}
-						matches={matches}
-						showPools={showPools}
-						registerCard={registerCard}
-						lookup={lookup}
-					/>
-
-					{matches.some((match) => match.bracket === "Lower") ? (
+		<BracketFrame note="Das Grand Final ist ein einzelnes Do-or-die-Match ohne Bracket Reset.">
+			<div ref={scrollRef} className="themed-scrollbar overflow-x-auto p-4 sm:p-6">
+				<div ref={containerRef} className="relative grid w-max gap-x-4" style={{ gridTemplateColumns: "max-content max-content" }}>
+					<Connectors paths={paths} size={size} />
+					<div className="flex flex-col gap-6">
 						<BracketSection
-							label="Lower Bracket"
-							columnLabels={layout.lowerLabels}
-							columns={layout.lowerColumns}
-							rows={4}
-							positions={layout.lowerPositions}
+							label="Upper Bracket"
+							columnLabels={layout.upperLabels}
+							columns={layout.upperColumns}
+							rows={layout.upperRows}
+							positions={layout.upperPositions}
 							matches={matches}
-							showPools={showPools}
 							registerCard={registerCard}
 							lookup={lookup}
+							nextLabel={nextLabel}
 						/>
-					) : null}
-				</div>
-
-				<div className="relative z-10 flex flex-col justify-center">
-					<BracketSection
-						label="Grand Final"
-						columnLabels={[]}
-						columns={1}
-						columnWidth={FINAL_WIDTH}
-						rows={1}
-						positions={GF_POSITIONS}
-						matches={matches}
-						showPools={showPools}
-						registerCard={registerCard}
-						lookup={lookup}
-					/>
+						{matches.some((match) => match.bracket === "Lower") ? (
+							<BracketSection
+								label="Lower Bracket"
+								columnLabels={layout.lowerLabels}
+								columns={layout.lowerColumns}
+								rows={4}
+								positions={layout.lowerPositions}
+								matches={matches}
+								registerCard={registerCard}
+								lookup={lookup}
+								nextLabel={nextLabel}
+							/>
+						) : null}
+					</div>
+					<div className="flex flex-col justify-center">
+						<BracketSection
+							label="Grand Final"
+							tone="final"
+							columnLabels={["Finale"]}
+							columns={1}
+							rows={1}
+							positions={GF_POSITIONS}
+							matches={matches}
+							registerCard={registerCard}
+							lookup={lookup}
+							nextLabel={nextLabel}
+						/>
+					</div>
 				</div>
 			</div>
-			<Legend note="Grand Final ohne Bracket Reset" />
+		</BracketFrame>
+	);
+}
+
+// Narrower than the Swiss Stage columns because a double-elimination bracket has up to five columns side by side.
+const COLUMN_WIDTH = "15rem";
+
+type LaneTone = "neutral" | "final";
+
+/** "Sieger → Upper HF 1 · Verlierer → Lower R1 · M1", derived from the bracket's own wiring. */
+function routeLabel(match: BracketMatch, matches: BracketMatch[], connections: Connection[]): string | null {
+	const winnerTarget = matches.find((entry) => entry.id === connections.find((connection) => connection.from === match.id)?.to);
+	const loserText = `Verlierer ${match.round}`;
+	const loserTarget = matches.find((entry) => entry.teamALabel === loserText || entry.teamBLabel === loserText);
+	const parts = [
+		winnerTarget ? `Sieger → ${compactPlaceholder(winnerTarget.round)}` : match.bracket === "Grand" || /final/i.test(match.round) ? "Sieger → Turniersieg" : null,
+		loserTarget ? `Verlierer → ${compactPlaceholder(loserTarget.round)}` : null,
+	].filter(Boolean);
+	return parts.length ? parts.join(" · ") : null;
+}
+
+function BracketFrame({ note, children }: { note: string | null; children: ReactNode }) {
+	return (
+		<div className="overflow-hidden rounded-[2.4rem] border border-cyan-200/14 bg-[#07140e]/92 shadow-2xl shadow-black/30">
+			{children}
+			<footer className="grid gap-3 border-t border-white/8 px-6 py-5 text-xs leading-5 text-emerald-100/52 sm:grid-cols-3 sm:px-8">
+				<div>
+					<strong className="text-emerald-50">Weg:</strong> Leuchtende Linien zeigen, wohin ein Sieger bereits weitergezogen ist.
+				</div>
+				<div>
+					<strong className="text-emerald-50">Zweite Chance:</strong> Wer im Upper Bracket verliert, spielt im Lower Bracket weiter.
+				</div>
+				<div>{note ? <><strong className="text-emerald-50">Finale:</strong> {note}</> : null}</div>
+			</footer>
 		</div>
 	);
 }
 
-// Every column has the same width, so upper and lower cards line up and names have room.
-const COLUMN_WIDTH = "14rem";
-const FINAL_WIDTH = "15rem";
-
 function Connectors({ paths, size }: { paths: ConnectorPath[]; size: { w: number; h: number } }) {
 	return (
-		<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
+		<svg aria-hidden className="pointer-events-none absolute inset-0 z-[1]" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
+			<defs>
+				<linearGradient id="bracket-route" x1="0" x2="1" y1="0" y2="0">
+					<stop offset="0%" stopColor="rgb(165 243 252 / 0.6)" />
+					<stop offset="100%" stopColor="rgb(190 242 100 / 0.55)" />
+				</linearGradient>
+			</defs>
 			{paths.map((p, i) => (
 				<path
 					key={i}
 					d={p.d}
 					fill="none"
 					strokeWidth={p.decided ? 2 : 1.5}
-					stroke={p.decided ? "var(--accent)" : "var(--line-strong)"}
-					strokeOpacity={p.decided ? 0.8 : 1}
+					stroke={p.decided ? "rgb(190 242 100 / 0.8)" : "url(#bracket-route)"}
+					strokeOpacity={p.decided ? 1 : 0.55}
 					strokeLinecap="round"
 					strokeLinejoin="round"
 				/>
@@ -366,80 +405,95 @@ function Connectors({ paths, size }: { paths: ConnectorPath[]; size: { w: number
 	);
 }
 
-function Legend({ note }: { note: string | null }) {
-	return (
-		<div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-xs text-[var(--muted)]">
-			<span className="inline-flex items-center gap-2">
-				<span aria-hidden className="h-0.5 w-5 rounded-full bg-[var(--accent)]" />
-				Sieger ist weitergezogen
-			</span>
-			<span className="inline-flex items-center gap-2">
-				<span aria-hidden className="h-px w-5 bg-[var(--line-strong)]" />
-				Noch offen
-			</span>
-			{note ? <span>{note}</span> : null}
-		</div>
-	);
+function columnState(ids: string[], lookup: (id: string) => BracketMatch | undefined): "active" | "done" | "waiting" {
+	const columnMatches = ids.map(lookup).filter((match): match is BracketMatch => Boolean(match));
+	if (columnMatches.some((match) => match.status === "Live" || match.status === "Pending" || match.status === "Scheduled")) return "active";
+	if (columnMatches.length && columnMatches.every((match) => match.status === "Finished")) return "done";
+	return "waiting";
 }
 
 function BracketSection({
 	label,
+	tone = "neutral",
 	columnLabels,
 	columns,
-	columnWidth = COLUMN_WIDTH,
 	rows,
-	rowHeight = "5.5rem",
+	rowHeight = "6rem",
 	positions,
 	registerCard,
 	lookup,
-	showPools,
+	nextLabel,
 }: {
 	label: string;
+	tone?: LaneTone;
 	columnLabels: string[];
 	columns: number;
-	columnWidth?: string;
 	rows: number;
 	rowHeight?: string;
 	positions: Record<string, CSSProperties>;
 	matches: BracketMatch[];
 	registerCard: (id: string) => (el: HTMLDivElement | null) => void;
 	lookup: (id: string) => BracketMatch | undefined;
-	showPools: boolean;
+	nextLabel: (match: BracketMatch) => string | null;
 }) {
-	const gridCols = `repeat(${columns}, ${columnWidth})`;
+	const idsByColumn = Array.from({ length: columns }, (_, index) =>
+		Object.entries(positions)
+			.filter(([, position]) => Number(position.gridColumn) === index + 1)
+			.map(([id]) => id)
+	);
+	// Row 1 holds the panel header, the last row is the panel's bottom padding.
+	const lastRow = rows + 3;
 
 	return (
-		<section>
-			<div className="flex items-center gap-3 pb-4">
-				<h3 className="shrink-0 text-sm font-semibold text-[var(--text)]">{label}</h3>
-				<span className="h-px flex-1 bg-[var(--line)]" />
-			</div>
-
-			<div className="grid gap-x-8" style={{ gridTemplateColumns: gridCols }}>
-				{columnLabels.map((columnLabel, i) => (
-					<div key={columnLabel + i} className="text-xs text-[var(--muted)]" style={{ gridColumn: i + 1 }}>
-						{columnLabel}
-					</div>
-				))}
-			</div>
-
-			<div
-				className="mt-2 grid gap-x-8 gap-y-2"
-				style={{
-					gridTemplateColumns: gridCols,
-					gridTemplateRows: `repeat(${rows}, minmax(${rowHeight}, auto))`,
-				}}
-			>
-				{Object.entries(positions).map(([id, position]) => {
-					const match = lookup(id);
-					if (!match) return null;
-					return (
-						<div key={id} ref={registerCard(id)} className="flex items-center" style={position}>
-							<BracketCard match={match} showPools={showPools} />
+		<section
+			className="grid gap-x-4"
+			style={{ gridTemplateColumns: `repeat(${columns}, ${COLUMN_WIDTH})`, gridTemplateRows: `auto repeat(${rows}, minmax(${rowHeight}, auto)) 0.75rem` }}
+		>
+			{idsByColumn.map((ids, index) => {
+				const state = tone === "final" ? "final" : columnState(ids, lookup);
+				return (
+					<div
+						key={`panel-${index}`}
+						className={`rounded-[1.7rem] border transition ${
+							state === "final"
+								? "border-lime-200/16 bg-gradient-to-b from-lime-200/[0.075] to-black/15"
+								: state === "active"
+									? "border-cyan-200/32 bg-cyan-300/[0.07] shadow-[0_0_2rem_rgb(34_211_238/0.08)]"
+									: state === "waiting"
+										? "border-white/7 bg-black/10"
+										: "border-white/8 bg-black/16"
+						}`}
+						style={{ gridColumn: index + 1, gridRow: `1 / ${lastRow}` }}
+					/>
+				);
+			})}
+			{idsByColumn.map((ids, index) => {
+				const state = tone === "final" ? "final" : columnState(ids, lookup);
+				return (
+					<div key={`head-${index}`} className="mx-3 flex items-center justify-between gap-2 border-b border-white/8 px-1 pb-3 pt-3" style={{ gridColumn: index + 1, gridRow: 1 }}>
+						<div className="min-w-0">
+							<div className={`text-[8px] font-black uppercase tracking-[0.2em] ${tone === "final" ? "text-lime-100/50" : "text-cyan-100/42"}`}>{label}</div>
+							<strong className="mt-1 block truncate text-sm text-emerald-50">{columnLabels[index] || label}</strong>
 						</div>
-					);
-				})}
-			</div>
+						<span className="shrink-0 rounded-full border border-white/8 px-2 py-1 text-[8px] font-black text-emerald-100/38">
+							{state === "active" ? "Läuft" : state === "done" ? "Fertig" : state === "final" ? "Finale" : "Folgt"}
+						</span>
+					</div>
+				);
+			})}
+			{Object.entries(positions).map(([id, position]) => {
+				const match = lookup(id);
+				if (!match) return null;
+				const row = String(position.gridRow ?? "1");
+				const shifted = row.replace(/^(\d+)/, (value) => String(Number(value) + 1));
+				return (
+					<div key={id} className="relative z-[2] flex items-center px-3 py-1.5" style={{ gridColumn: position.gridColumn, gridRow: shifted }}>
+						<div ref={registerCard(id)} className="w-full">
+							<BracketCard match={match} next={nextLabel(match)} />
+						</div>
+					</div>
+				);
+			})}
 		</section>
 	);
 }
@@ -452,87 +506,67 @@ const STATUS_LABELS: Record<BracketMatch["status"], string> = {
 	Finished: "Beendet",
 };
 
-function BracketCard({ match, showPools }: { match: BracketMatch; showPools: boolean }) {
+function BracketCard({ match, next }: { match: BracketMatch; next: string | null }) {
 	const winnerIsA = !!match.winner && match.winner === match.teamAName;
 	const winnerIsB = !!match.winner && match.winner === match.teamBName;
-	const decided = winnerIsA || winnerIsB;
 	const hasScore = match.scoreA !== undefined && match.scoreB !== undefined;
 	const live = match.status === "Live";
+	const finished = match.status === "Finished";
 	const isFinalTier = match.bracket === "Grand" || match.round === "Grand Final";
+	const title = (match.layout ? generatedCardLabel(match.round) : match.round).replace(/Halbfinale/g, "HF");
 
 	return (
 		<article
-			className={`flex w-full flex-col overflow-hidden rounded-xl border bg-[var(--panel-solid)] ${
-				live ? "border-[color-mix(in_srgb,var(--live)_55%,transparent)]" : isFinalTier ? "border-[var(--line-strong)]" : "border-[var(--line)]"
+			className={`rounded-2xl border p-3 shadow-lg shadow-black/15 ${
+				live
+					? "border-red-300/34 bg-red-500/[0.1]"
+					: finished
+						? "border-lime-200/20 bg-lime-200/[0.065]"
+						: isFinalTier
+							? "border-amber-200/18 bg-amber-200/[0.05]"
+							: "border-white/10 bg-white/[0.045]"
 			}`}
 		>
-			<header className="flex items-center justify-between gap-2 px-3 pb-1 pt-2 text-xs">
-				<span className="truncate text-[var(--muted)]">
-					{match.layout ? generatedCardLabel(match.round) : match.round}
-					{match.bestOf && match.bestOf > 1 ? <span className="ml-1.5 font-mono">Bo{match.bestOf}</span> : null}
+			<div className="flex items-center justify-between gap-3">
+				<span className="truncate font-mono text-sm font-black text-cyan-100" title={match.round}>
+					{title}
 				</span>
-				<span className={`inline-flex shrink-0 items-center gap-1.5 ${live ? "font-medium text-[var(--live)]" : "text-[var(--muted)]"}`}>
-					{live ? <span aria-hidden className="size-1.5 rounded-full bg-[var(--live)]" /> : null}
+				<span className={`inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.16em] ${live ? "text-red-100" : "text-emerald-100/38"}`}>
+					{live ? <span aria-hidden className="size-1.5 rounded-full bg-red-300" /> : null}
 					{STATUS_LABELS[match.status]}
+					{match.bestOf && match.bestOf > 1 ? ` · Bo${match.bestOf}` : ""}
 				</span>
-			</header>
-
-			<TeamLine label={match.teamALabel} resolved={!!match.teamAName} score={match.scoreA} isWinner={winnerIsA} isLoser={decided && !winnerIsA} hasScore={hasScore} pool={match.poolAssignment?.teamAPool ?? null} />
-			<TeamLine label={match.teamBLabel} resolved={!!match.teamBName} score={match.scoreB} isWinner={winnerIsB} isLoser={decided && !winnerIsB} hasScore={hasScore} pool={match.poolAssignment?.teamBPool ?? null} />
-
-			{showPools && match.poolAssignment ? (
-				<footer className="border-t border-[var(--line)] px-3 py-1.5 text-xs">
-					<Link href={`/tournament/champ-select/${match.id}/spectate`} className="text-[var(--muted)] underline-offset-2 transition-colors hover:text-[var(--text)] hover:underline">
-						Draft ansehen
-					</Link>
-				</footer>
-			) : null}
+			</div>
+			{/* Two stacked lines instead of "A VS B" in one row, so full team names fit the narrower bracket columns. */}
+			<div className="mt-2 divide-y divide-white/[0.06] rounded-lg border border-white/[0.07] bg-black/24 text-[11px] font-black">
+				<TeamRow label={match.teamALabel} resolved={!!match.teamAName} winner={winnerIsA} score={hasScore ? match.scoreA : undefined} />
+				<TeamRow label={match.teamBLabel} resolved={!!match.teamBName} winner={winnerIsB} score={hasScore ? match.scoreB : undefined} />
+			</div>
+			{next ? <div className="mt-2 truncate border-t border-white/8 pt-2 text-[9px] font-black leading-4 text-emerald-100/48" title={next}>{next}</div> : null}
 		</article>
 	);
 }
 
-function TeamLine({
-	label,
-	resolved,
-	score,
-	isWinner,
-	isLoser,
-	hasScore,
-	pool,
-}: {
-	label: string;
-	resolved: boolean;
-	score: number | undefined;
-	isWinner: boolean;
-	isLoser: boolean;
-	hasScore: boolean;
-	pool: string | null;
-}) {
+function TeamRow({ label, resolved, winner, score }: { label: string; resolved: boolean; winner: boolean; score: number | undefined }) {
 	return (
-		<div className="relative flex min-h-9 items-center gap-2 px-3 py-1.5">
-			{isWinner ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-[var(--accent)]" /> : null}
-			<span
-				className={`min-w-0 flex-1 truncate ${
-					resolved ? `text-sm ${isWinner ? "font-semibold text-[var(--text)]" : isLoser ? "text-[var(--muted)]" : "font-medium text-[var(--text)]"}` : "text-xs text-[var(--muted)]"
-				}`}
-				title={label}
-			>
+		<div className="flex min-h-7 items-center gap-2 px-2">
+			<span className={`min-w-0 flex-1 truncate ${winner ? "text-lime-100" : resolved ? "text-emerald-50" : "font-bold text-emerald-100/34"}`} title={label}>
 				{resolved ? label : compactPlaceholder(label)}
 			</span>
-			{pool ? <span className="shrink-0 rounded-md border border-[var(--line)] px-1.5 py-px font-mono text-xs text-[var(--muted)]">{compactPoolLabel(pool)}</span> : null}
-			{hasScore ? (
-				<span className={`w-5 shrink-0 text-right font-mono text-sm tabular-nums ${isWinner ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}>{score}</span>
-			) : null}
+			{score !== undefined ? <span className={`shrink-0 font-mono text-xs tabular-nums ${winner ? "text-lime-100" : "text-emerald-100/48"}`}>{score}</span> : null}
 		</div>
 	);
 }
 
 /** "Sieger Upper Runde 1 · Match 2" reads as "Sieger Upper R1 · M2" so it fits; the full text stays in the tooltip. */
 function compactPlaceholder(label: string): string {
-	return label
+	const short = label
 		.replace(/Runde (\d+)/g, "R$1")
 		.replace(/Match (\d+)/g, "M$1")
-		.replace(/Halbfinale/g, "HF");
+		.replace(/Halbfinale/g, "HF")
+		.replace(/^Swiss-Seed /, "Seed ");
+	// Still too long for half a card: "Sieger Upper R1 · M2" becomes "Sieger UB R1·M2".
+	return short.length <= 22 ? short : short.replace(/Upper /g, "UB ").replace(/Lower /g, "LB ").replace(/ · /g, "·");
 }
 
 /** Generated brackets name the round in the column header; the card only needs the part after it. */

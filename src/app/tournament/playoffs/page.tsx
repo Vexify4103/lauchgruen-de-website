@@ -43,7 +43,7 @@ export default async function PlayoffsPage() {
 	return (
 		<section className="page-section compact-top wide">
 			<PageIntro kicker="Playoffs und Finals" title="Acht Teams · Double Elimination." />
-			<div className="content-panel tight !p-3 sm:!p-5">
+			<div>
 				<LivePlayoffs initialMatches={matches} />
 			</div>
 		</section>
@@ -118,7 +118,7 @@ function LivePlayoffPage({
 					</div>
 				</div>
 			) : null}
-			<div className="content-panel tight !p-3 sm:!p-5">
+			<div>
 				<LivePlayoffs initialMatches={bracketMatches} autoRefresh={live && !roundRobin} showPools={false} />
 			</div>
 		</section>
