@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ControlMatch } from "@/lib/match-control";
 import { formatGameDuration } from "@/lib/match-duration";
 import type { TournamentReplay } from "@/lib/tournament-replays";
+import { ReplayUpload } from "../../../captain/ReplayUpload";
 
 type CaptainReport = {
 	id: string;
@@ -61,7 +62,6 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 		setReload((value) => value + 1);
 	}
 
-	if (!replays.length && !reports.length) return null;
 	const teamLabel = (side: "teamA" | "teamB" | null) => (side === "teamA" ? match.teamALabel : side === "teamB" ? match.teamBLabel : "?");
 
 	return (
@@ -70,6 +70,7 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 			<h3 id={`replays-${match.id}`} className="mt-1 text-lg font-semibold text-[var(--text)]">
 				Replays und Reports
 			</h3>
+			{!replays.length && !reports.length ? <p className="mt-2 text-xs text-[var(--muted)]">Noch nichts hochgeladen.</p> : null}
 			<ul className="mt-3 grid list-none gap-2 p-0">
 				{replays.map((replay) => (
 					<li key={replay.id} className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
@@ -162,6 +163,10 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 				<p role="status" className="mt-3 text-xs text-[var(--muted)]">
 					{message}
 				</p>
+			) : null}
+			{/* Staff can upload too, for testing or when a captain sends the file another way. */}
+			{match.teamAName && match.teamBName && match.status !== "Finished" ? (
+				<ReplayUpload matchId={match.id} teamAName={match.teamAName} teamBName={match.teamBName} onUploaded={() => setReload((value) => value + 1)} />
 			) : null}
 		</section>
 	);

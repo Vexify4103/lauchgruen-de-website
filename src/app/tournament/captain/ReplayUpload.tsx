@@ -18,7 +18,18 @@ async function sha256Hex(buffer: ArrayBuffer) {
  * Captain uploads the .rofl of a finished game. The file is read in the browser; only the game data
  * (players, champions, length, result) and a checksum go to the server, never the 20+ MB file.
  */
-export function ReplayUpload({ matchId, teamAName, teamBName }: { matchId: string; teamAName: string; teamBName: string }) {
+export function ReplayUpload({
+	matchId,
+	teamAName,
+	teamBName,
+	onUploaded,
+}: {
+	matchId: string;
+	teamAName: string;
+	teamBName: string;
+	/** Called after the server stored the upload, e.g. to refresh a list. */
+	onUploaded?: () => void;
+}) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [busy, setBusy] = useState(false);
 	const [summary, setSummary] = useState<ReplaySummary | null>(null);
@@ -43,6 +54,7 @@ export function ReplayUpload({ matchId, teamAName, teamBName }: { matchId: strin
 				setResult({ tone: "error", text: json?.message ?? "Replay konnte nicht hochgeladen werden.", problems: json?.evaluation?.problems.slice(1) });
 				return;
 			}
+			onUploaded?.();
 			const evaluation = json?.evaluation;
 			const winnerName = evaluation?.winner === "teamA" ? teamAName : evaluation?.winner === "teamB" ? teamBName : null;
 			setResult(
