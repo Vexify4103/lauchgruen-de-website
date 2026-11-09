@@ -19,7 +19,7 @@ type Connection = {
 	kind: ConnectorKind;
 };
 
-type ConnectorPath = { d: string; kind: ConnectorKind };
+type ConnectorPath = { d: string; kind: ConnectorKind; decided: boolean };
 export type BracketMatch = {
 	id: string;
 	bracket?: "Upper" | "Lower" | "Grand";
@@ -182,6 +182,7 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 			const from = cardRefs.current.get(conn.from);
 			const to = cardRefs.current.get(conn.to);
 			if (!from || !to) continue;
+			const decided = Boolean(matches.find((entry) => entry.id === conn.from)?.winner);
 			const fr = from.getBoundingClientRect();
 			const tr = to.getBoundingClientRect();
 
@@ -193,6 +194,7 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 				next.push({
 					d: `M ${x.toFixed(1)} ${y1.toFixed(1)} L ${x.toFixed(1)} ${y2.toFixed(1)}`,
 					kind: conn.kind,
+					decided,
 				});
 				continue;
 			}
@@ -205,10 +207,10 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 
 			const midX = (x1 + x2) / 2;
 			const d = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${midX.toFixed(1)} ${y1.toFixed(1)} L ${midX.toFixed(1)} ${y2.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-			next.push({ d, kind: conn.kind });
+			next.push({ d, kind: conn.kind, decided });
 		}
-		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.kind === next[index]?.kind) ? prev : next));
-	}, [matchIds, generated, generatedLayout]);
+		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.decided === next[index]?.decided) ? prev : next));
+	}, [matchIds, generated, generatedLayout, matches]);
 
 	useEffect(() => {
 		compute();
@@ -251,14 +253,14 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 		const placement = lane("placement");
 		const leftColumns = Math.max(upper?.columns ?? 0, lower?.columns ?? 0);
 		const hasReset = matches.some((match) => match.conditional);
-		const section = (key: string, label: string, accent: Accent, entry: LaneLayout | undefined) =>
+		const section = (key: string, label: string, entry: LaneLayout | undefined, columnWidth = COLUMN_WIDTH) =>
 			entry ? (
 				<BracketSection
 					key={key}
 					label={label}
-					accent={accent}
-					columnLabels={entry.labels.map((value) => value ?? "")}
+					columnLabels={key === "final" ? [] : entry.labels.map((value) => value ?? "")}
 					columns={entry.columns}
+					columnWidth={columnWidth}
 					rows={entry.rows}
 					rowHeight="2.9rem"
 					positions={entry.positions}
@@ -269,53 +271,33 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 				/>
 			) : null;
 		return (
-			<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
-				<div
-					ref={containerRef}
-					className="relative grid gap-x-6"
-					style={{
-						gridTemplateColumns: leftColumns ? `minmax(${Math.max(12, leftColumns * 12)}rem, 1fr) auto` : "auto",
-						minWidth: `${Math.max(20, leftColumns * 12 + 16)}rem`,
-					}}
-				>
-					<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
-						{paths.map((p, i) => (
-							<path key={i} d={p.d} fill="none" strokeWidth={2} stroke="rgb(190 242 100 / 0.55)" strokeLinecap="round" strokeLinejoin="round" />
-						))}
-					</svg>
+			<div ref={scrollRef} className="themed-scrollbar -mx-2 overflow-x-auto px-2 pb-2">
+				<div ref={containerRef} className="relative grid w-max gap-x-12" style={{ gridTemplateColumns: leftColumns ? "max-content max-content" : "max-content" }}>
+					<Connectors paths={paths} size={size} />
 					{leftColumns ? (
-						<div className="relative z-10 flex flex-col gap-8">
-							{section("upper", lower ? "Upper-Bracket" : "Bracket", "lime", upper)}
-							{section("lower", "Lower-Bracket", "sky", lower)}
+						<div className="relative z-10 flex flex-col gap-10">
+							{section("upper", lower ? "Upper Bracket" : "Bracket", upper)}
+							{section("lower", "Lower Bracket", lower)}
 						</div>
 					) : null}
-					<div className="relative z-10 flex flex-col justify-center gap-8">
-						{section("final", hasReset ? "Grand Final" : "Finale", "amber", finals)}
-						{section("placement", "Platzierung", "amber", placement)}
+					<div className="relative z-10 flex flex-col justify-center gap-10">
+						{section("final", hasReset ? "Grand Final" : "Finale", finals, FINAL_WIDTH)}
+						{section("placement", "Platzierung", placement)}
 					</div>
 				</div>
-				<div className="mt-4 flex flex-wrap gap-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100/52">
-					<LegendDot color="rgb(190 242 100 / 0.7)" label="Sieger zieht weiter" />
-					{lower && finals ? <span>{hasReset ? "Bracket Reset, falls das Lower-Bracket-Team das Grand Final gewinnt" : "Grand Final ohne Bracket Reset"}</span> : null}
-				</div>
+				<Legend note={lower && finals ? (hasReset ? "Bracket Reset, falls das Team aus dem Lower Bracket das Grand Final gewinnt" : "Grand Final ohne Bracket Reset") : null} />
 			</div>
 		);
 	}
 
 	return (
-		<div ref={scrollRef} className="overflow-x-auto pb-2 -mx-2 px-2">
-			<div ref={containerRef} className="relative grid min-w-[52rem] gap-x-6" style={{ gridTemplateColumns: "minmax(34rem, 1fr) 14rem" }}>
-				<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
-					{paths.map((p, i) => (
-						<path key={i} d={p.d} fill="none" strokeWidth={2} stroke="rgb(190 242 100 / 0.55)" strokeLinecap="round" strokeLinejoin="round" />
-					))}
-				</svg>
+		<div ref={scrollRef} className="themed-scrollbar -mx-2 overflow-x-auto px-2 pb-2">
+			<div ref={containerRef} className="relative grid w-max gap-x-12" style={{ gridTemplateColumns: "max-content max-content" }}>
+				<Connectors paths={paths} size={size} />
 
-				{/* Left column: stacked Upper + Lower bracket sub-grids */}
-				<div className="relative z-10 flex flex-col gap-8">
+				<div className="relative z-10 flex flex-col gap-10">
 					<BracketSection
-						label="Upper-Bracket"
-						accent="lime"
+						label="Upper Bracket"
 						columnLabels={layout.upperLabels}
 						columns={layout.upperColumns}
 						rows={layout.upperRows}
@@ -328,8 +310,7 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 
 					{matches.some((match) => match.bracket === "Lower") ? (
 						<BracketSection
-							label="Lower-Bracket"
-							accent="sky"
+							label="Lower Bracket"
 							columnLabels={layout.lowerLabels}
 							columns={layout.lowerColumns}
 							rows={4}
@@ -342,13 +323,12 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 					) : null}
 				</div>
 
-				{/* Right column: Grand Final stack */}
 				<div className="relative z-10 flex flex-col justify-center">
 					<BracketSection
 						label="Grand Final"
-						accent="amber"
-						columnLabels={["Finale"]}
+						columnLabels={[]}
 						columns={1}
+						columnWidth={FINAL_WIDTH}
 						rows={1}
 						positions={GF_POSITIONS}
 						matches={matches}
@@ -358,37 +338,55 @@ export function BracketTree({ matches, showPools = true }: { matches: BracketMat
 					/>
 				</div>
 			</div>
-
-			<div className="mt-4 flex flex-wrap gap-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100/52">
-				<LegendDot color="rgb(190 242 100 / 0.7)" label="Sieger zieht weiter" />
-				<span>Grand Final · ein Do-or-die-Match ohne Bracket Reset</span>
-			</div>
+			<Legend note="Grand Final ohne Bracket Reset" />
 		</div>
 	);
 }
 
-type Accent = "lime" | "sky" | "amber";
+// Every column has the same width, so upper and lower cards line up and names have room.
+const COLUMN_WIDTH = "14rem";
+const FINAL_WIDTH = "15rem";
 
-const accentClasses: Record<Accent, { label: string; chip: string }> = {
-	lime: {
-		label: "text-lime-200/76",
-		chip: "border-lime-200/30 bg-lime-200/12 text-lime-100",
-	},
-	sky: {
-		label: "text-sky-200/76",
-		chip: "border-sky-200/30 bg-sky-300/14 text-sky-100",
-	},
-	amber: {
-		label: "text-amber-200/76",
-		chip: "border-amber-200/30 bg-amber-200/12 text-amber-100",
-	},
-};
+function Connectors({ paths, size }: { paths: ConnectorPath[]; size: { w: number; h: number } }) {
+	return (
+		<svg aria-hidden className="pointer-events-none absolute inset-0 -z-0" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`}>
+			{paths.map((p, i) => (
+				<path
+					key={i}
+					d={p.d}
+					fill="none"
+					strokeWidth={p.decided ? 2 : 1.5}
+					stroke={p.decided ? "var(--accent)" : "var(--line-strong)"}
+					strokeOpacity={p.decided ? 0.8 : 1}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				/>
+			))}
+		</svg>
+	);
+}
+
+function Legend({ note }: { note: string | null }) {
+	return (
+		<div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-xs text-[var(--muted)]">
+			<span className="inline-flex items-center gap-2">
+				<span aria-hidden className="h-0.5 w-5 rounded-full bg-[var(--accent)]" />
+				Sieger ist weitergezogen
+			</span>
+			<span className="inline-flex items-center gap-2">
+				<span aria-hidden className="h-px w-5 bg-[var(--line-strong)]" />
+				Noch offen
+			</span>
+			{note ? <span>{note}</span> : null}
+		</div>
+	);
+}
 
 function BracketSection({
 	label,
-	accent,
 	columnLabels,
 	columns,
+	columnWidth = COLUMN_WIDTH,
 	rows,
 	rowHeight = "5.5rem",
 	positions,
@@ -397,9 +395,9 @@ function BracketSection({
 	showPools,
 }: {
 	label: string;
-	accent: Accent;
 	columnLabels: string[];
 	columns: number;
+	columnWidth?: string;
 	rows: number;
 	rowHeight?: string;
 	positions: Record<string, CSSProperties>;
@@ -408,26 +406,25 @@ function BracketSection({
 	lookup: (id: string) => BracketMatch | undefined;
 	showPools: boolean;
 }) {
-	const tone = accentClasses[accent];
-	const gridCols = `repeat(${columns}, minmax(9rem, 1fr))`;
+	const gridCols = `repeat(${columns}, ${columnWidth})`;
 
 	return (
 		<section>
-			<div className={`flex items-center gap-3 px-1 pb-3 ${tone.label}`}>
-				<span className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.26em] ${tone.chip}`}>{label}</span>
-				<span className="h-px flex-1 bg-current opacity-20" />
+			<div className="flex items-center gap-3 pb-4">
+				<h3 className="shrink-0 text-sm font-semibold text-[var(--text)]">{label}</h3>
+				<span className="h-px flex-1 bg-[var(--line)]" />
 			</div>
 
 			<div className="grid gap-x-8" style={{ gridTemplateColumns: gridCols }}>
 				{columnLabels.map((columnLabel, i) => (
-					<div key={columnLabel + i} className="text-xs font-black uppercase tracking-[0.28em] text-emerald-100/52" style={{ gridColumn: i + 1 }}>
+					<div key={columnLabel + i} className="text-xs text-[var(--muted)]" style={{ gridColumn: i + 1 }}>
 						{columnLabel}
 					</div>
 				))}
 			</div>
 
 			<div
-				className="mt-3 grid gap-x-8 gap-y-2"
+				className="mt-2 grid gap-x-8 gap-y-2"
 				style={{
 					gridTemplateColumns: gridCols,
 					gridTemplateRows: `repeat(${rows}, minmax(${rowHeight}, auto))`,
@@ -447,89 +444,47 @@ function BracketSection({
 	);
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-	return (
-		<span className="inline-flex items-center gap-2">
-			<span
-				aria-hidden
-				style={{
-					width: "1.4rem",
-					height: 0,
-					borderTop: `2px solid ${color}`,
-				}}
-			/>
-			{label}
-		</span>
-	);
-}
+const STATUS_LABELS: Record<BracketMatch["status"], string> = {
+	Locked: "Wartet",
+	Pending: "Bereit",
+	Scheduled: "Geplant",
+	Live: "Live",
+	Finished: "Beendet",
+};
 
 function BracketCard({ match, showPools }: { match: BracketMatch; showPools: boolean }) {
 	const winnerIsA = !!match.winner && match.winner === match.teamAName;
 	const winnerIsB = !!match.winner && match.winner === match.teamBName;
-	const scoreA = match.scoreA;
-	const scoreB = match.scoreB;
-	const hasScore = scoreA !== undefined && scoreB !== undefined;
-
+	const decided = winnerIsA || winnerIsB;
+	const hasScore = match.scoreA !== undefined && match.scoreB !== undefined;
+	const live = match.status === "Live";
 	const isFinalTier = match.bracket === "Grand" || match.round === "Grand Final";
 
 	return (
 		<article
-			className={`flex w-full flex-col overflow-hidden rounded-2xl border shadow-xl shadow-black/24 ${
-				match.status === "Live"
-					? "border-red-300/34 bg-red-500/12 shadow-red-950/25"
-					: isFinalTier
-						? "border-amber-200/30 bg-amber-200/[0.07]"
-						: match.bracket === "Lower"
-							? "border-sky-200/14 bg-sky-300/[0.05]"
-							: "border-lime-200/14 bg-lime-200/[0.05]"
+			className={`flex w-full flex-col overflow-hidden rounded-xl border bg-[var(--panel-solid)] ${
+				live ? "border-[color-mix(in_srgb,var(--live)_55%,transparent)]" : isFinalTier ? "border-[var(--line-strong)]" : "border-[var(--line)]"
 			}`}
 		>
-			<header className="flex items-center justify-between gap-2 border-b border-white/8 bg-black/24 px-3 py-1.5">
-				<span className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-lime-200/68">
-					{match.layout ? generatedCardLabel(match.round) : shortRoundLabel(match.round)}
-					{match.bestOf && match.bestOf > 1 ? <span className="ml-1.5 text-cyan-100/70">Bo{match.bestOf}</span> : null}
+			<header className="flex items-center justify-between gap-2 px-3 pb-1 pt-2 text-xs">
+				<span className="truncate text-[var(--muted)]">
+					{match.layout ? generatedCardLabel(match.round) : match.round}
+					{match.bestOf && match.bestOf > 1 ? <span className="ml-1.5 font-mono">Bo{match.bestOf}</span> : null}
 				</span>
-				<span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] ${statusToneClass(match.status)}`}>
-					{match.status}
+				<span className={`inline-flex shrink-0 items-center gap-1.5 ${live ? "font-medium text-[var(--live)]" : "text-[var(--muted)]"}`}>
+					{live ? <span aria-hidden className="size-1.5 rounded-full bg-[var(--live)]" /> : null}
+					{STATUS_LABELS[match.status]}
 				</span>
 			</header>
 
-			<TeamLine
-				label={match.teamALabel}
-				resolved={!!match.teamAName}
-				score={scoreA}
-				isWinner={winnerIsA}
-				hasScore={hasScore}
-				pool={match.poolAssignment?.teamAPool ?? null}
-			/>
-			<TeamLine
-				label={match.teamBLabel}
-				resolved={!!match.teamBName}
-				score={scoreB}
-				isWinner={winnerIsB}
-				hasScore={hasScore}
-				pool={match.poolAssignment?.teamBPool ?? null}
-				bottom
-			/>
-			{showPools || match.status === "Live" ? (
-				<footer className="flex flex-wrap items-center gap-2 border-t border-white/6 bg-black/18 px-3 py-1.5">
-					{match.status === "Live" ? (
-						<span className="rounded-full border border-red-300/30 bg-red-500/16 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-red-100">
-							Current
-						</span>
-					) : null}
-					{showPools && match.poolAssignment ? (
-						<Link
-							href={`/tournament/champ-select/${match.id}/spectate`}
-							className="rounded-full border border-sky-200/20 bg-sky-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-sky-50/82"
-						>
-							Draft bereit
-						</Link>
-					) : showPools ? (
-						<span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/34">
-							Keine Pools
-						</span>
-					) : null}
+			<TeamLine label={match.teamALabel} resolved={!!match.teamAName} score={match.scoreA} isWinner={winnerIsA} isLoser={decided && !winnerIsA} hasScore={hasScore} pool={match.poolAssignment?.teamAPool ?? null} />
+			<TeamLine label={match.teamBLabel} resolved={!!match.teamBName} score={match.scoreB} isWinner={winnerIsB} isLoser={decided && !winnerIsB} hasScore={hasScore} pool={match.poolAssignment?.teamBPool ?? null} />
+
+			{showPools && match.poolAssignment ? (
+				<footer className="border-t border-[var(--line)] px-3 py-1.5 text-xs">
+					<Link href={`/tournament/champ-select/${match.id}/spectate`} className="text-[var(--muted)] underline-offset-2 transition-colors hover:text-[var(--text)] hover:underline">
+						Draft ansehen
+					</Link>
 				</footer>
 			) : null}
 		</article>
@@ -541,82 +496,47 @@ function TeamLine({
 	resolved,
 	score,
 	isWinner,
+	isLoser,
 	hasScore,
 	pool,
-	bottom,
 }: {
 	label: string;
 	resolved: boolean;
 	score: number | undefined;
 	isWinner: boolean;
+	isLoser: boolean;
 	hasScore: boolean;
 	pool: string | null;
-	bottom?: boolean;
 }) {
 	return (
-		<div className={`relative flex items-center gap-2 px-3 py-2 ${bottom ? "" : "border-b border-white/6"} ${isWinner ? "bg-lime-200/12" : ""}`}>
+		<div className="relative flex min-h-9 items-center gap-2 px-3 py-1.5">
+			{isWinner ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-[var(--accent)]" /> : null}
 			<span
-				className={`min-w-0 max-w-[44%] truncate text-sm font-black ${isWinner ? "text-lime-50" : resolved ? "text-emerald-50" : "italic text-emerald-100/40"}`}
+				className={`min-w-0 flex-1 truncate ${
+					resolved ? `text-sm ${isWinner ? "font-semibold text-[var(--text)]" : isLoser ? "text-[var(--muted)]" : "font-medium text-[var(--text)]"}` : "text-xs text-[var(--muted)]"
+				}`}
 				title={label}
 			>
-				{label}
+				{resolved ? label : compactPlaceholder(label)}
 			</span>
-			{pool ? (
-				<span className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md border border-lime-200/16 bg-lime-200/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-lime-50/78">
-					{compactPoolLabel(pool)}
-				</span>
+			{pool ? <span className="shrink-0 rounded-md border border-[var(--line)] px-1.5 py-px font-mono text-xs text-[var(--muted)]">{compactPoolLabel(pool)}</span> : null}
+			{hasScore ? (
+				<span className={`w-5 shrink-0 text-right font-mono text-sm tabular-nums ${isWinner ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}>{score}</span>
 			) : null}
-			<span
-				className={`ml-auto shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-xs font-black ${
-					hasScore ? (isWinner ? "bg-lime-200/14 text-lime-50" : "bg-black/24 text-emerald-100/68") : "bg-black/12 text-emerald-100/24"
-				}`}
-			>
-				{score ?? "—"}
-			</span>
 		</div>
 	);
+}
+
+/** "Sieger Upper Runde 1 · Match 2" reads as "Sieger Upper R1 · M2" so it fits; the full text stays in the tooltip. */
+function compactPlaceholder(label: string): string {
+	return label
+		.replace(/Runde (\d+)/g, "R$1")
+		.replace(/Match (\d+)/g, "M$1")
+		.replace(/Halbfinale/g, "HF");
 }
 
 /** Generated brackets name the round in the column header; the card only needs the part after it. */
 function generatedCardLabel(round: string): string {
 	const parts = round.split(" · ");
 	return parts.length > 1 ? parts.at(-1)! : round;
-}
-
-function shortRoundLabel(round: string): string {
-	switch (round) {
-		case "Grand Final":
-			return "Grand Final";
-		case "Upper R1":
-			return "Upper R1";
-		case "Upper R2":
-			return "Upper R2";
-		case "Upper Final":
-			return "Upper Final";
-		case "Lower R1":
-			return "Lower R1";
-		case "Lower R2":
-			return "Lower R2";
-		case "Lower SF":
-			return "Lower SF";
-		case "Lower Final":
-			return "Lower Final";
-		default:
-			return round;
-	}
-}
-
-function statusToneClass(status: BracketMatch["status"]): string {
-	switch (status) {
-		case "Scheduled":
-			return "border-white/10 bg-black/24 text-emerald-100/80";
-		case "Live":
-			return "border-red-300/40 bg-red-500/20 text-red-100";
-		case "Finished":
-			return "border-lime-200/30 bg-lime-200/14 text-lime-50";
-		case "Pending":
-			return "border-amber-200/30 bg-amber-200/12 text-amber-100";
-		case "Locked":
-			return "border-white/10 bg-black/40 text-emerald-100/52";
-	}
 }

@@ -79,7 +79,7 @@ function LivePlayoffPage({
 				title={`${config.advanceTeamCount} Teams · ${playoffFormatLabel(config.format)}.`}
 				aside={
 					preview ? (
-						<span className="inline-flex rounded-full border border-[var(--line)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--amber)]">
+						<span className="inline-flex rounded-full border border-[var(--line)] px-3 py-1 text-xs font-medium text-[var(--amber)]">
 							Bracket-Vorschau
 						</span>
 					) : null
