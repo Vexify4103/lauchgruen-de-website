@@ -23,12 +23,9 @@ export function CopyOverlayButton({ teamId }: { teamId: string }) {
 				type="button"
 				onClick={copy}
 				title="OBS-Browser-Source-URL für dieses Team"
-				className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.16em] transition ${
-					copied ? "border-lime-200/40 bg-lime-200/14 text-lime-50" : "border-white/14 bg-black/24 text-emerald-100/76 hover:border-lime-200/30 hover:text-lime-100"
-				}`}
+				className={`button ghost small ${copied ? "!border-[var(--accent)] !text-[var(--accent)]" : ""}`}
 			>
-				<span aria-hidden>{copied ? "✓" : "⧉"}</span>
-				{copied ? "Kopiert" : "OBS-Overlay kopieren"}
+				{copied ? "Kopiert" : "OBS-Overlay"}
 			</button>
 			{fallbackUrl ? (
 				<div role="dialog" aria-modal="true" aria-labelledby="overlay-url-title" className="fixed inset-0 z-[100] grid place-items-center px-5">

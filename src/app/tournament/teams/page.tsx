@@ -127,7 +127,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				<div className="section-title compact">
 					<p>Rosters</p>
 					<h2 id="teams-title">Das Line-up.</h2>
-					<span>Die Teamaufteilung wurde von der Turnierleitung veröffentlicht. Jeder Spielername verlinkt direkt auf OP.GG und DPM.</span>
+					<span>Spielernamen führen zu OP.GG.</span>
 				</div>
 
 				{displayedLiveMatches.length > 0 ? (
@@ -182,18 +182,41 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 					{teams.map((team) => {
 						const teamStreams = liveStreams.filter((stream) => stream.teamName === team.name);
 						const lockedCount = fearlessPlayed?.get(team.name)?.length ?? 0;
+						const record = control ? teamMatchRecord(team.name, control.matches) : team.record;
+						const [wins, losses] = record.split(/[-–]/).map((value) => Number(value) || 0);
+						const liveMatch = allMatches.find((match) => match.status === "Live" && (match.teamA === team.name || match.teamB === team.name));
+						const seedLabel = stageSeedLabel(team);
 						return (
-							<article key={team.id} className="roster-card flex flex-col">
-								<header className="roster-card-header">
-									<div className="roster-card-title">
-										{stageSeedLabel(team) ? (
-											<span title={settings.structure.dayOneFormat === "swiss" ? "Playoff-Seed" : "Gruppe und Seed"}>{stageSeedLabel(team)}</span>
-										) : null}
-										<h3>{team.name}</h3>
+							<article
+								key={team.id}
+								className={`roster-card flex flex-col transition-colors hover:border-[var(--line-strong)] ${
+									liveMatch ? "!border-[color-mix(in_srgb,var(--live)_45%,var(--line))]" : ""
+								}`}
+							>
+								<header className="flex items-start justify-between gap-4">
+									<div className="min-w-0">
+										<div className="flex h-4 items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
+											{liveMatch ? (
+												<span className="inline-flex items-center gap-1.5 text-[var(--live)]">
+													<i aria-hidden className="size-1.5 animate-pulse rounded-full bg-[var(--live)] motion-reduce:animate-none" />
+													Live vs {liveMatch.teamA === team.name ? liveMatch.teamB : liveMatch.teamA}
+												</span>
+											) : seedLabel ? (
+												<span title={settings.structure.dayOneFormat === "swiss" ? "Playoff-Seed" : "Gruppe und Seed"} className="tabular-nums">
+													{seedLabel}
+												</span>
+											) : null}
+										</div>
+										<h3 className="mt-1 !text-2xl !leading-tight">{team.name}</h3>
 									</div>
-									<span title="Siege und Niederlagen" className="shrink-0 rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-bold tabular-nums">
-										{control ? teamMatchRecord(team.name, control.matches) : team.record}
-									</span>
+									<div className="shrink-0 text-right" title="Siege und Niederlagen">
+										<div className="font-display text-2xl font-semibold leading-none tabular-nums">
+											<span className={wins > 0 ? "text-[var(--accent)]" : ""}>{wins}</span>
+											<span className="px-0.5 text-[var(--muted)]">–</span>
+											<span>{losses}</span>
+										</div>
+										<div className="mt-1 text-[11px] text-[var(--muted)]">Bilanz</div>
+									</div>
 								</header>
 								{!team.captainRef ? <p className="mt-2 text-xs text-[var(--muted)]">Captain: {team.captain}</p> : null}
 								<TournamentLiveStreamLinks streams={teamStreams} />
@@ -201,8 +224,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 									{team.players.map((player) => {
 										const isCaptain = !!team.captainRef && team.captainRef.riotId === player.riotId;
 										return (
-											<li key={`${team.id}-${player.riotId}`}>
-												<div className="min-w-0">
+											<li key={`${team.id}-${player.riotId}`} className="!justify-start">
+												<small className="w-16 !text-[10px] tracking-wide">{player.role}</small>
+												<div className="min-w-0 flex-1">
 													<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 														<a href={player.opggUrl} target="_blank" rel="noreferrer" className="truncate text-sm font-bold hover:text-[var(--accent)]">
 															{player.name}
@@ -236,7 +260,6 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 													</div>
 													<TournamentLiveStreamLinks streams={teamStreams.filter((stream) => stream.riotId === player.riotId)} compact />
 												</div>
-												<small>{player.role}</small>
 											</li>
 										);
 									})}

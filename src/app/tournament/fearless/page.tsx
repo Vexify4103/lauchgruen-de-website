@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getAllChampions } from "@/lib/champion-pools";
@@ -8,6 +7,7 @@ import { getRosterPublicationStatus } from "@/lib/roster";
 import { usesFearless } from "@/lib/tournament-kind";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
+import { FearlessBoard, type FearlessGame, type FearlessTeam } from "./FearlessBoard";
 
 export const metadata: Metadata = { title: "Fearless-Sperren" };
 
@@ -17,10 +17,37 @@ export default async function FearlessPage() {
 	const [control, champions] = await Promise.all([getMatchControlContext(), getAllChampions()]);
 	const matchFearless = settings.fearless.variant === "match";
 	const played = lockedChampionsByTeam(control.matches, settings.fearless.variant);
-	const byName = new Map(champions.map((champion) => [champion.name, champion]));
-	const roundByMatch = new Map(control.matches.map((match) => [match.id, match.round]));
-	const teams = [...control.teams].sort((a, b) => (played.get(b.name)?.length ?? 0) - (played.get(a.name)?.length ?? 0) || a.name.localeCompare(b.name, "de"));
+	const matchOrder = new Map(control.matches.map((match, index) => [match.id, index]));
+	const matchById = new Map(control.matches.map((match) => [match.id, match]));
 	const lockOpponents = settings.fearless.lockOpponentChampions;
+
+	// One row per game, in match order: the team's own picks, then the picks it faced.
+	const teams: FearlessTeam[] = control.teams
+		.map((team) => {
+			const games = new Map<string, FearlessGame>();
+			let ownCount = 0;
+			let facedCount = 0;
+			for (const lock of played.get(team.name) ?? []) {
+				const key = `${lock.matchId}|${lock.round ?? ""}`;
+				const match = matchById.get(lock.matchId);
+				const opponent = match ? (match.teamAName === team.name ? match.teamBName : match.teamAName) : null;
+				const game = games.get(key) ?? { key, round: lock.round ?? match?.round ?? lock.matchId, opponent, own: [], faced: [] };
+				if (lock.source === "own") {
+					game.own.push(lock.champion);
+					ownCount += 1;
+				} else {
+					game.faced.push(lock.champion);
+					facedCount += 1;
+				}
+				games.set(key, game);
+			}
+			const ordered = [...games.values()].sort(
+				(a, b) => (matchOrder.get(a.key.split("|")[0]) ?? 0) - (matchOrder.get(b.key.split("|")[0]) ?? 0) || a.round.localeCompare(b.round, "de")
+			);
+			return { id: team.id, name: team.name, ownCount, facedCount, games: ordered };
+		})
+		.sort((a, b) => b.ownCount + b.facedCount - (a.ownCount + a.facedCount) || a.name.localeCompare(b.name, "de"));
+	const images = Object.fromEntries(champions.map((champion) => [champion.name, champion.imageUrl]));
 
 	return (
 		<>
@@ -31,54 +58,13 @@ export default async function FearlessPage() {
 					<h2 id="fearless-title">Verbrauchte Champions.</h2>
 					<span>
 						{matchFearless
-							? "Match-Fearless: Alles, was in den Spielen eines Teams gepickt wurde, ist für dieses Team gesperrt, auch die Picks seiner Gegner. Gedimmt = gegen das Team gespielt."
+							? "Alles, was in den Spielen eines Teams gepickt wurde, ist für dieses Team gesperrt, auch die Picks seiner Gegner."
 							: lockOpponents
-								? "Jedes Team kann weder seine eigenen gespielten Champions noch die seines aktuellen Gegners picken. Die Liste zeigt, was jedes Team bereits gespielt hat."
-								: "Jeder Champion, den ein Team im Turnier gespielt hat, ist für dieses Team bis zum Ende gesperrt. Andere Teams dürfen ihn weiterhin picken."}
+								? "Jedes Team kann weder seine eigenen gespielten Champions noch die seines aktuellen Gegners picken."
+								: "Jeder Champion, den ein Team gespielt hat, ist für dieses Team bis zum Turnierende gesperrt."}
 					</span>
 				</div>
-				<div className="roster-grid">
-					{teams.map((team) => {
-						// Own picks first, then the champions played against the team.
-						const locks = [...(played.get(team.name) ?? [])].sort(
-							(a, b) => Number(a.source === "faced") - Number(b.source === "faced") || a.champion.localeCompare(b.champion, "de")
-						);
-						return (
-							<article key={team.id} id={`team-${team.id}`} className="roster-card scroll-mt-40">
-								<header className="roster-card-header">
-									<div className="roster-card-title">
-										<h3>{team.name}</h3>
-									</div>
-									<span className="shrink-0 rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-bold tabular-nums">{locks.length} gesperrt</span>
-								</header>
-								{locks.length === 0 ? (
-									<p className="mt-5 text-sm text-[var(--muted)]">Noch kein Champion verbraucht.</p>
-								) : (
-									<ul className="!mt-5 grid grid-cols-5 gap-2 sm:grid-cols-6" aria-label={`Gesperrte Champions von ${team.name}`}>
-										{locks.map((lock) => {
-											const champion = byName.get(lock.champion);
-											const round = roundByMatch.get(lock.matchId);
-											return (
-												<li
-													key={lock.champion}
-													className="!block !border-0 !p-0"
-													title={`${lock.champion}${lock.source === "faced" ? " · gegen das Team gespielt" : ""}${round ? ` · ${round}` : ""}`}
-												>
-													<div
-														className={`relative aspect-square overflow-hidden rounded-lg border border-[var(--line)] bg-black/30 ${lock.source === "faced" ? "opacity-55 grayscale" : "grayscale-[35%]"}`}
-													>
-														{champion ? <Image src={champion.imageUrl} alt="" fill sizes="56px" className="object-cover" /> : null}
-													</div>
-													<span className="mt-1 block truncate text-center text-[10px] font-bold text-[var(--muted)]">{lock.champion}</span>
-												</li>
-											);
-										})}
-									</ul>
-								)}
-							</article>
-						);
-					})}
-				</div>
+				<FearlessBoard teams={teams} images={images} showFaced={matchFearless} />
 			</section>
 		</>
 	);
