@@ -150,7 +150,7 @@ export function GroupAssignmentBoard({
 	}
 
 	return (
-		<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08160f]/86">
+		<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)]">
 			<header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
 				<div>
 					<div className="text-xs font-semibold text-[var(--muted)]">{kind === "seed-list" ? "Tag 1 · Setzliste" : "Tag 1 · Gruppen"}</div>

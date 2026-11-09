@@ -12,6 +12,14 @@ import { ThemedSelect } from "@/components/ThemedSelect";
 import { ThemedNumberInput } from "@/components/ThemedNumberInput";
 import { GroupAssignmentBoard } from "./GroupAssignmentBoard";
 import type { DayOneFormat } from "@/lib/tournament-structure";
+import { ChevronDownIcon, CloseIcon, PencilIcon, SearchIcon, StarIcon } from "../AdminIcons";
+
+/** Players are always shown by their Discord username, never by the nickname they typed into the form. */
+function playerName(applicant: Pick<RosterApplicant, "discordUsername" | "discordHandle" | "displayName"> | undefined, fallback = ""): string {
+	const username = applicant?.discordUsername?.replace(/^@+/, "").trim();
+	if (username) return `@${username}`;
+	return applicant?.discordHandle?.trim() || fallback || applicant?.displayName?.trim() || "";
+}
 
 type SortMode = "rank-desc" | "rank-asc" | "role-available";
 
@@ -207,6 +215,8 @@ export function RosterBuilder({
 	const [testDataAction, setTestDataAction] = useState<"seed" | "clear" | null>(null);
 	const [pulseId, setPulseId] = useState<string | null>(null);
 	const [sortMode, setSortMode] = useState<SortMode>("rank-desc");
+	const [poolQuery, setPoolQuery] = useState("");
+	const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(() => new Set());
 	const [createOpen, setCreateOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [newTeamName, setNewTeamName] = useState("");
@@ -322,6 +332,38 @@ export function RosterBuilder({
 		}
 		return sorted;
 	}, [allApplicants, state.assignments, sortMode, openRolesAnywhere]);
+
+	const visibleUnassigned = useMemo(() => {
+		const query = poolQuery.trim().toLowerCase();
+		if (!query) return unassigned;
+		return unassigned.filter((applicant) =>
+			[applicant.discordUsername, applicant.discordHandle, applicant.displayName, applicant.riotId, applicant.preferenceGroupCode, applicant.manualRankOverride || applicant.currentRank, ...applicant.preferredRoles]
+				.filter(Boolean)
+				.some((value) => String(value).toLowerCase().includes(query))
+		);
+	}, [unassigned, poolQuery]);
+
+	// Wish groups already on the team the picker is filling, so their missing members sort first.
+	const pickerGroupCodes = useMemo(() => {
+		const codes = new Set<string>();
+		if (!picker) return codes;
+		for (const ids of (playersByTeamRole.get(picker.teamKey) ?? new Map<PlayerRole, string[]>()).values()) {
+			for (const id of ids) {
+				const code = applicantById.get(id)?.preferenceGroupCode;
+				if (code) codes.add(code);
+			}
+		}
+		return codes;
+	}, [picker, playersByTeamRole, applicantById]);
+
+	const toggleTeamCollapsed = useCallback((teamKey: string) => {
+		setCollapsedTeams((current) => {
+			const next = new Set(current);
+			if (next.has(teamKey)) next.delete(teamKey);
+			else next.add(teamKey);
+			return next;
+		});
+	}, []);
 
 	const preferenceGroups = useMemo(() => {
 		const grouped = new Map<string, RosterApplicant[]>();
@@ -441,7 +483,7 @@ export function RosterBuilder({
 		}));
 		setMessage({
 			tone: "ok",
-			text: override ? `Rang-Überschreibung für ${applicant.displayName} gesetzt: ${override}` : `Rang-Überschreibung für ${applicant.displayName} entfernt.`,
+			text: override ? `Rang-Überschreibung für ${playerName(applicant)} gesetzt: ${override}` : `Rang-Überschreibung für ${playerName(applicant)} entfernt.`,
 		});
 	}
 
@@ -536,7 +578,7 @@ export function RosterBuilder({
 		if (duplicateRiotId) {
 			setMessage({
 				tone: "error",
-				text: `Diese Riot-ID ist bereits ${duplicateRiotId.displayName} zugeordnet.`,
+				text: `Diese Riot-ID ist bereits ${playerName(duplicateRiotId)} zugeordnet.`,
 			});
 			return;
 		}
@@ -1011,53 +1053,72 @@ export function RosterBuilder({
 					</p>
 				</div>
 			) : null}
-			<aside className="flex flex-col overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08150f]/92 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
-				<div className="border-b border-[var(--line)] p-5">
-					<div className="flex items-start justify-between gap-3">
-						<div>
-							<div className="text-xs font-semibold text-[var(--muted)]">Spieler-Pool</div>
-							<h2 className="mt-1 text-xl font-semibold text-[var(--text)]">Nicht zugewiesen</h2>
-						</div>
-						<div className="grid size-10 place-items-center rounded-xl border border-[var(--line)] bg-[var(--admin-step)] font-mono text-sm font-semibold text-[var(--text)]">
-							{unassigned.length}
+			<aside className="flex flex-col overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--admin-surface)] xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start">
+				<div className="flex items-baseline justify-between gap-3 border-b border-[var(--line)] px-4 py-4">
+					<div>
+						<div className="text-xs text-[var(--muted)]">Spieler-Pool</div>
+						<h2 className="mt-0.5 text-lg font-semibold text-[var(--text)]">Nicht zugewiesen</h2>
+					</div>
+					<div className="text-right">
+						<div className="font-mono text-lg font-medium tabular-nums text-[var(--text)]">{unassigned.length}</div>
+						<div
+							className="text-xs text-[var(--muted)]"
+							title={`Interner Vergleichswert: ${applicantEloSummary.average?.toLocaleString("de-DE") ?? "keine Wertung"} · ${applicantEloSummary.rated}/${applicantEloSummary.total} gewertet`}
+						>
+							Ø {formatRankScore(applicantEloSummary.average)}
 						</div>
 					</div>
 				</div>
-				<div
-					className="mx-4 mt-4 grid grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5"
-					title={`Interner Vergleichswert: ${applicantEloSummary.average?.toLocaleString("de-DE") ?? "keine Wertung"}`}
-				>
-					<div className="row-span-2 text-lg font-semibold text-[var(--text)]">{formatRankScore(applicantEloSummary.average)}</div>
-					<div className="text-xs font-semibold text-[var(--muted)]">Bewerber Ø Rang</div>
-					<div className="text-xs font-medium text-[var(--muted)]">
-						{applicantEloSummary.rated}/{applicantEloSummary.total} gewertet
+				<div className="grid gap-2 px-4 pt-4">
+					<label className="flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 text-[var(--muted)] transition-colors focus-within:border-[var(--accent)]">
+						<SearchIcon />
+						<span className="sr-only">Spieler-Pool durchsuchen</span>
+						<input
+							type="search"
+							name="pool-search"
+							autoComplete="off"
+							spellCheck={false}
+							value={poolQuery}
+							onChange={(event) => setPoolQuery(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Escape") setPoolQuery("");
+							}}
+							placeholder="Name, Riot-ID, Rolle, Gruppe…"
+							className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+						/>
+						{poolQuery ? (
+							<span className="shrink-0 font-mono text-xs tabular-nums">
+								{visibleUnassigned.length}/{unassigned.length}
+							</span>
+						) : null}
+					</label>
+					<div className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-1" role="group" aria-label="Sortierung">
+						{SORT_OPTIONS.map((opt) => {
+							const active = sortMode === opt.value;
+							return (
+								<button
+									key={opt.value}
+									type="button"
+									onClick={() => setSortMode(opt.value)}
+									title={opt.title}
+									aria-pressed={active}
+									className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+										active ? "bg-[var(--admin-step)] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-[var(--muted)] hover:text-[var(--text)]"
+									}`}
+								>
+									{opt.label}
+								</button>
+							);
+						})}
 					</div>
 				</div>
-				<div className="mx-4 mt-3 grid grid-cols-3 gap-1 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-1">
-					{SORT_OPTIONS.map((opt) => {
-						const active = sortMode === opt.value;
-						return (
-							<button
-								key={opt.value}
-								type="button"
-								onClick={() => setSortMode(opt.value)}
-								title={opt.title}
-								className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${
-									active
-										? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
-										: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
-								}`}
-							>
-								{opt.label}
-							</button>
-						);
-					})}
-				</div>
-				<div className="themed-scrollbar mx-2 mb-2 mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto px-2 pb-2">
+				<div className="themed-scrollbar mx-2 mb-2 mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-2 pb-2">
 					{unassigned.length === 0 ? (
-						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Alle verfügbaren Spieler sind zugewiesen.</div>
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Alle verfügbaren Spieler sind zugewiesen</div>
+					) : visibleUnassigned.length === 0 ? (
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Kein Treffer für „{poolQuery.trim()}“</div>
 					) : (
-						unassigned.map((a) => (
+						visibleUnassigned.map((a) => (
 							<ApplicantCard
 								key={a.discordId}
 								applicant={a}
@@ -1329,7 +1390,7 @@ export function RosterBuilder({
 								<div className="mt-3 grid gap-2 sm:grid-cols-2">
 									{balanceResult.highEloPreferredAssignments.map((entry) => (
 										<div key={entry.discordId} className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)] px-3 py-2">
-											<div className="font-semibold text-[var(--amber)]">{entry.displayName}</div>
+											<div className="font-semibold text-[var(--amber)]">{playerName(applicantById.get(entry.discordId), entry.displayName)}</div>
 											<div className="mt-0.5 text-xs font-medium text-[var(--muted)]">
 												{teamByKey.get(entry.teamKey)?.name ?? entry.teamKey} · {entry.role} · {entry.rank}
 											</div>
@@ -1455,7 +1516,7 @@ export function RosterBuilder({
 													key={member.discordId}
 													className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-2 py-1 text-xs font-medium text-[var(--muted)]"
 												>
-													{member.displayName}
+													{playerName(member)}
 												</span>
 											))}
 										</div>
@@ -1487,7 +1548,7 @@ export function RosterBuilder({
 						}
 					/>
 				) : (dayOneFormat === "swiss" || dayOneFormat === "swiss-elimination") && snapshot.teams.length > 0 ? (
-					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08160f]/86 p-5">
+					<section id="stage-seeding" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-5">
 						<div className="text-xs font-semibold text-[var(--muted)]">Tag 1 · Swiss Stage</div>
 						<h2 className="mt-1 text-xl font-semibold text-[var(--text)]">Kein manuelles Seeding nötig</h2>
 						<p className="mt-2 max-w-3xl text-xs leading-6 text-[var(--muted)]">
@@ -1499,11 +1560,18 @@ export function RosterBuilder({
 
 				{snapshot.teams.length > 0 ? (
 					<div className="flex items-center gap-3 pt-1">
-						<div className="text-xs font-semibold text-[var(--muted)]">Team-Workbench</div>
+						<div className="text-xs font-medium text-[var(--muted)]">Team-Workbench</div>
 						<div className="h-px flex-1 bg-[var(--line)]" />
+						<button
+							type="button"
+							onClick={() => setCollapsedTeams(collapsedTeams.size === snapshot.teams.length ? new Set() : new Set(snapshot.teams.map((team) => team.key)))}
+							className="rounded-lg px-2 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+						>
+							{collapsedTeams.size === snapshot.teams.length ? "Alle ausklappen" : "Alle einklappen"}
+						</button>
 					</div>
 				) : null}
-				<div className="grid gap-4 lg:grid-cols-2">
+				<div className="grid items-start gap-4 lg:grid-cols-2">
 					{snapshot.teams.map((team) => (
 						<TeamCard
 							key={team.key}
@@ -1513,6 +1581,8 @@ export function RosterBuilder({
 							captainId={state.captains.get(team.key) ?? null}
 							pulsingId={pulseId}
 							deletingThisTeam={deletingTeam && deleteTeamTarget?.key === team.key}
+							collapsed={collapsedTeams.has(team.key)}
+							onToggleCollapsed={toggleTeamCollapsed}
 							onAssignClick={handleAssignClick}
 							onUnassign={unassignPlayer}
 							onSetRole={setRole}
@@ -1530,6 +1600,7 @@ export function RosterBuilder({
 					teamName={teamByKey.get(picker.teamKey)?.name ?? picker.teamKey}
 					role={picker.role}
 					candidates={unassigned}
+					teamGroupCodes={pickerGroupCodes}
 					onCancel={() => setPicker(null)}
 					onPick={(discordId) => {
 						assignPlayer(discordId, picker.teamKey, picker.role);
@@ -1812,7 +1883,7 @@ export function RosterBuilder({
 			{/* One-shot pulse animation when the auto-fill highlights a new assignment */}
 			<style>{`
  @keyframes roster-row-pop {
- 0% { background-color: rgba(190, 242, 100, 0.28); }
+ 0% { background-color: color-mix(in srgb, var(--accent) 22%, transparent); }
  100% { background-color: transparent; }
  }
  .roster-row-pulse {
@@ -1830,6 +1901,8 @@ const TeamCard = memo(function TeamCard({
 	captainId,
 	pulsingId,
 	deletingThisTeam,
+	collapsed,
+	onToggleCollapsed,
 	onAssignClick,
 	onUnassign,
 	onSetRole,
@@ -1844,6 +1917,8 @@ const TeamCard = memo(function TeamCard({
 	captainId: string | null;
 	pulsingId: string | null;
 	deletingThisTeam: boolean;
+	collapsed: boolean;
+	onToggleCollapsed: (teamKey: string) => void;
 	onAssignClick: (teamKey: string, role: PlayerRole) => void;
 	onUnassign: (discordId: string) => void;
 	onSetRole: (discordId: string, role: PlayerRole) => void;
@@ -1859,50 +1934,57 @@ const TeamCard = memo(function TeamCard({
 		})
 	).filter((score) => score > 0);
 	const averageElo = ratedStarterScores.length > 0 ? Math.round(ratedStarterScores.reduce((total, score) => total + score, 0) / ratedStarterScores.length) : null;
+	const filledStarters = ROLES.filter((role) => (playersByRole.get(role) ?? []).length > 0).length;
 
 	return (
-		<article className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4">
-			<header className="flex items-center justify-between gap-2">
-				<div className="min-w-0">
-					<div className="truncate text-lg font-semibold text-[var(--text)]">{team.name}</div>
-					<div className="text-xs font-semibold text-[var(--muted)]">
-						{team.group ? `Gruppe ${team.group}` : "Keine Gruppe"}
-						{team.seed ? ` · Seed ${team.seed}` : ""}
-					</div>
-				</div>
+		<article className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)]">
+			<header className="flex items-center gap-2 p-3 pl-4">
+				<button
+					type="button"
+					onClick={() => onToggleCollapsed(team.key)}
+					aria-expanded={!collapsed}
+					aria-controls={`team-body-${team.key}`}
+					className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+				>
+					<span className={`shrink-0 text-[var(--muted)] transition-transform ${collapsed ? "-rotate-90" : ""}`}>
+						<ChevronDownIcon />
+					</span>
+					<span className="min-w-0 flex-1">
+						<span className="block truncate text-base font-semibold text-[var(--text)]">{team.name}</span>
+						<span
+							className="block truncate text-xs text-[var(--muted)]"
+							title={`Interner Vergleichswert: ${averageElo?.toLocaleString("de-DE") ?? "keine Wertung"} · ${ratedStarterScores.length}/5 gewertet`}
+						>
+							<span className="tabular-nums">{filledStarters}/5</span> Spieler · Ø <span className="text-[var(--text)]">{formatRankScore(averageElo)}</span>
+							{team.group ? ` · Gruppe ${team.group}` : ""}
+							{team.seed ? ` · Seed ${team.seed}` : ""}
+						</span>
+					</span>
+				</button>
 				<div className="flex shrink-0 items-center gap-1">
 					<button
 						type="button"
 						onClick={() => onEditTeam(team.key)}
 						title="Team bearbeiten"
-						aria-label="Team bearbeiten"
-						className="inline-flex size-6 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
+						aria-label={`${team.name} bearbeiten`}
+						className="grid size-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--admin-inset)] hover:text-[var(--text)]"
 					>
-						✎
+						<PencilIcon />
 					</button>
 					<button
 						type="button"
 						onClick={() => onDeleteTeam(team.key)}
 						disabled={deletingThisTeam}
 						title="Team löschen"
-						aria-label="Team löschen"
-						className="inline-flex size-6 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-50"
+						aria-label={`${team.name} löschen`}
+						className="grid size-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--admin-inset)] hover:text-[var(--danger)] disabled:opacity-50"
 					>
-						✕
+						<CloseIcon />
 					</button>
 				</div>
 			</header>
 
-			<div
-				className="mt-3 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1"
-				title={`Interner Vergleichswert: ${averageElo?.toLocaleString("de-DE") ?? "keine Wertung"}`}
-			>
-				<span className="text-xs font-semibold text-[var(--muted)]">Ø Rang</span>
-				<span className="text-xs font-semibold text-[var(--text)]">{formatRankScore(averageElo)}</span>
-				<span className="text-xs font-medium text-[var(--muted)]">{ratedStarterScores.length}/5 gewertet</span>
-			</div>
-
-			<div className="mt-3 grid gap-2">
+			<div id={`team-body-${team.key}`} hidden={collapsed} className="grid gap-2 border-t border-[var(--line)] p-3">
 				{ROLES.map((role) => {
 					const slots = playersByRole.get(role) ?? [];
 					if (slots.length === 0) {
@@ -2002,81 +2084,60 @@ const PlayerRow = memo(function PlayerRow({
 	onSetRole: (discordId: string, role: PlayerRole) => void;
 	onToggleCaptain: (teamKey: string, discordId: string) => void;
 }) {
-	const discordUsername = applicant?.discordUsername?.replace(/^@+/, "").trim();
-	const playerLabel = discordUsername ? `@${discordUsername}` : applicant?.discordHandle?.trim() || applicant?.displayName?.trim() || discordId;
+	const playerLabel = playerName(applicant, discordId);
 	const masterPlusOnRequestedRole = Boolean(applicant && isMasterPlusOnRequestedRole(applicant, role));
+	const rank = applicant?.manualRankOverride || applicant?.currentRank;
 	const rolePreferenceIndex = applicant?.preferredRoles.findIndex((entry) => normalizeRoleName(entry) === role) ?? -1;
 
 	return (
 		<div
-			className={`grid gap-2.5 rounded-xl border px-3 py-2.5 ${
+			className={`grid gap-2 rounded-xl border px-3 py-2.5 ${
 				masterPlusOnRequestedRole
 					? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)]"
 					: isCaptain
-						? "border-[var(--line-strong)] bg-[var(--admin-step)]"
+						? "border-[var(--line-strong)] bg-[var(--admin-inset)]"
 						: "border-[var(--line)] bg-[var(--admin-inset)]"
 			} ${pulsing ? "roster-row-pulse" : ""}`}
 		>
-			<div className="min-w-0">
-				<div className="flex min-w-0 items-center gap-2">
-					<div className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text)]" title={playerLabel}>
-						{playerLabel}
+			<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+				<div className="min-w-0">
+					<div className="flex min-w-0 items-center gap-2">
+						<span className="truncate text-sm font-medium text-[var(--text)]" title={playerLabel}>
+							{playerLabel}
+						</span>
+						{isCaptain ? <span className="shrink-0 text-xs font-medium text-[var(--accent)]">Captain</span> : null}
 					</div>
-					{isCaptain ? (
-						<span className="shrink-0 rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--accent)]">
-							Captain
-						</span>
-					) : null}
-					{rolePreferenceIndex >= 0 ? (
-						<span className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-semibold text-[var(--text)]">
-							Wunsch #{rolePreferenceIndex + 1}
-						</span>
-					) : null}
+					<div className="mt-0.5 truncate text-xs text-[var(--muted)]" title={[applicant?.riotId, rank, applicant?.preferenceGroupCode].filter(Boolean).join(" · ")}>
+						{applicant?.riotId ?? "Keine Riot-ID"}
+						{rank ? ` · ${rank}` : ""}
+						{applicant?.preferenceGroupCode ? <span className="font-mono"> · {applicant.preferenceGroupCode}</span> : null}
+					</div>
+				</div>
+				<div className="grid justify-items-end gap-0.5 text-xs">
+					<span className={rolePreferenceIndex >= 0 ? "font-medium text-[var(--text)]" : "text-[var(--muted)]"}>
+						{rolePreferenceIndex >= 0 ? `Wunsch #${rolePreferenceIndex + 1}` : ROLES.includes(role) ? "Kein Wunsch" : role}
+					</span>
 					{masterPlusOnRequestedRole ? (
-						<span
-							className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]"
-							title="Master+ auf Main- oder Wunschrolle: manuell auf Teamfairness prüfen"
-						>
+						<span className="text-[var(--amber)]" title="Master+ auf Main- oder Wunschrolle: manuell auf Teamfairness prüfen">
 							Master+ Komfort
 						</span>
-					) : null}
-					{applicant?.source === "manual" ? (
-						<span className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
-							Ohne Bewerbung
-						</span>
+					) : applicant?.source === "manual" ? (
+						<span className="text-[var(--amber)]">Ohne Bewerbung</span>
 					) : applicant?.verified === false ? (
-						<span className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
-							Nicht verifiziert
-						</span>
+						<span className="text-[var(--amber)]">Nicht verifiziert</span>
 					) : null}
 				</div>
-				<div
-					className="mt-0.5 truncate text-xs text-[var(--muted)]"
-					title={[applicant?.riotId, applicant?.manualRankOverride || applicant?.currentRank].filter(Boolean).join("·")}
-				>
-					{applicant?.riotId ?? "(no riot id)"}
-					{applicant?.manualRankOverride || applicant?.currentRank ? ` · ${applicant?.manualRankOverride || applicant?.currentRank}` : ""}
-				</div>
-				{applicant?.preferenceGroupCode ? (
-					<div className="mt-1.5">
-						<PreferenceGroupBadge code={applicant.preferenceGroupCode} />
-					</div>
-				) : null}
 			</div>
 
 			<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-				<label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-					<span className="text-xs font-semibold text-[var(--muted)]">Rolle</span>
-					<ThemedSelect
-						value={role}
-						onChange={(value) => onSetRole(discordId, value as PlayerRole)}
-						ariaLabel={`Rolle von ${applicant?.displayName ?? discordId}`}
-						compact
-						className="font-semibold text-[var(--accent)]"
-						options={ALL_ROLES.map((entry) => ({ value: entry, label: entry }))}
-					/>
-				</label>
-
+				<ThemedSelect
+					value={role}
+					onChange={(value) => onSetRole(discordId, value as PlayerRole)}
+					ariaLabel={`Rolle von ${playerName(applicant, discordId)}`}
+					compact
+					className="font-medium text-[var(--text)]"
+					options={ALL_ROLES.map((entry) => ({ value: entry, label: entry }))}
+				/>
 				<div className="flex shrink-0 items-center gap-1">
 					{applicant?.riotId ? (
 						<a
@@ -2084,8 +2145,7 @@ const PlayerRow = memo(function PlayerRow({
 							target="_blank"
 							rel="noreferrer"
 							title={`${applicant.riotId} auf OP.GG öffnen`}
-							aria-label={`${applicant.riotId} auf OP.GG öffnen`}
-							className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
+							className="inline-flex h-8 items-center rounded-lg px-2 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--admin-step)] hover:text-[var(--text)]"
 						>
 							OP.GG
 						</a>
@@ -2096,23 +2156,20 @@ const PlayerRow = memo(function PlayerRow({
 							onClick={() => onToggleCaptain(teamKey, discordId)}
 							title={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
 							aria-label={isCaptain ? "Captain entfernen" : "Zum Captain machen"}
-							className={`inline-flex size-8 items-center justify-center rounded-lg border text-xs transition ${
-								isCaptain
-									? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
-									: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
-							}`}
+							aria-pressed={isCaptain}
+							className={`grid size-8 place-items-center rounded-lg transition-colors hover:bg-[var(--admin-step)] ${isCaptain ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}
 						>
-							⭐
+							<StarIcon />
 						</button>
 					) : null}
 					<button
 						type="button"
 						onClick={() => onUnassign(discordId)}
 						title="Vom Team entfernen"
-						aria-label="Vom Team entfernen"
-						className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] text-xs text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)]"
+						aria-label={`${playerLabel} vom Team entfernen`}
+						className="grid size-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--admin-step)] hover:text-[var(--danger)]"
 					>
-						✕
+						<CloseIcon />
 					</button>
 				</div>
 			</div>
@@ -2170,26 +2227,26 @@ function ApplicantCard({
 	const hasOverride = Boolean(applicant.manualRankOverride);
 
 	return (
-		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
-			<div className="truncate text-sm font-semibold text-[var(--text)]">{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}</div>
-			<div className="mt-0.5 flex items-center gap-2">
-				<div className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]">{applicant.riotId}</div>
+		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2.5">
+			<div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+				<div className="min-w-0">
+					<div className="truncate text-sm font-medium text-[var(--text)]">{playerName(applicant)}</div>
+					<div className="mt-0.5 truncate text-xs text-[var(--muted)]">
+						{applicant.riotId}
+						{applicant.preferenceGroupCode ? <span className="font-mono" title="Unverbindliche Wunschgruppe"> · {applicant.preferenceGroupCode}</span> : null}
+						{applicant.verified === false ? <span className="text-[var(--amber)]"> · Nicht verifiziert</span> : null}
+					</div>
+				</div>
 				<a
 					href={opggUrl(applicant.riotId)}
 					target="_blank"
 					rel="noreferrer"
-					className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--admin-inset)] px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"
+					className="inline-flex h-7 items-center rounded-lg px-2 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--admin-step)] hover:text-[var(--text)]"
 				>
 					OP.GG
 				</a>
 			</div>
-			<div className="mt-2 flex flex-wrap items-center gap-1">
-				{applicant.verified === false ? (
-					<span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-semibold text-[var(--amber)]">
-						Nicht verifiziert
-					</span>
-				) : null}
-				{applicant.preferenceGroupCode ? <PreferenceGroupBadge code={applicant.preferenceGroupCode} /> : null}
+			<div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
 				{isEditing ? (
 					<div className="flex items-center gap-1">
 						<ThemedSelect
@@ -2206,7 +2263,7 @@ function ApplicantCard({
 									onLpChange("");
 								}
 							}}
-							ariaLabel={`Rang-Tier von ${applicant.displayName}`}
+							ariaLabel={`Rang-Tier von ${playerName(applicant)}`}
 							compact
 							className="font-medium text-[var(--accent)]"
 							options={[{ value: "__reset__", label: "Auto (Riot)" }, { value: "", label: "Unranked" }, ...RANK_TIERS.map((tier) => ({ value: tier, label: tier }))]}
@@ -2218,7 +2275,7 @@ function ApplicantCard({
 									onDivisionChange(value);
 									onSaveRank(formatRankString(editingTier, value));
 								}}
-								ariaLabel={`Rang-Division von ${applicant.displayName}`}
+								ariaLabel={`Rang-Division von ${playerName(applicant)}`}
 								compact
 								className="font-medium text-[var(--accent)]"
 								options={RANK_DIVISIONS.map((division) => ({ value: division, label: division }))}
@@ -2237,13 +2294,13 @@ function ApplicantCard({
 										}
 									}}
 									placeholder="LP…"
-									ariaLabel={`LP von ${applicant.displayName}`}
+									ariaLabel={`LP von ${playerName(applicant)}`}
 									compact
 									className="w-28"
 								/>
 								<button
 									type="button"
-									aria-label={`Rang von ${applicant.displayName} speichern`}
+									aria-label={`Rang von ${playerName(applicant)} speichern`}
 									onClick={() => onSaveRank(formatRankString(editingTier, undefined, editingLp ? Number(editingLp) : undefined))}
 									className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 								>
@@ -2254,7 +2311,7 @@ function ApplicantCard({
 						{!editingTier ? (
 							<button
 								type="button"
-								aria-label={`Rang von ${applicant.displayName} auf Auto (Riot) zurücksetzen`}
+								aria-label={`Rang von ${playerName(applicant)} auf Auto (Riot) zurücksetzen`}
 								onClick={() => onSaveRank(null)}
 								className="rounded-lg border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent)] transition hover:border-[var(--accent)]"
 							>
@@ -2285,16 +2342,18 @@ function ApplicantCard({
 						Rang eintragen
 					</button>
 				)}
-				{applicant.mainRole ? (
-					<span className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--text)]">
-						Main {applicant.mainRole}
+				{applicant.preferredRoles.length > 0 ? (
+					<span className="min-w-0 text-xs text-[var(--muted)]">
+						{applicant.preferredRoles.map((entry, index) => (
+							<span key={entry} className={index === 0 ? "text-[var(--text)]" : undefined}>
+								{index > 0 ? " · " : ""}
+								<span className="tabular-nums">{index + 1}</span> {entry}
+							</span>
+						))}
 					</span>
+				) : applicant.mainRole ? (
+					<span className="text-xs text-[var(--muted)]">Main {applicant.mainRole}</span>
 				) : null}
-				{applicant.preferredRoles.map((r, index) => (
-					<span key={r} className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
-						#{index + 1} · {r}
-					</span>
-				))}
 			</div>
 			<ApplicationDetails applicant={applicant} />
 		</div>
@@ -2371,95 +2430,94 @@ function ApplicationDetailRow({ label, value }: { label: string; value: string }
 }
 
 function GroupSummaryTile({ label, value, tone }: { label: string; value: number | string; tone: "ok" | "warn" | "danger" | "neutral" | "info" }) {
-	const tones = {
-		ok: "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]",
-		warn: "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]",
-		danger: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]",
-		neutral: "border-[var(--line)] bg-[var(--admin-inset)] text-[var(--muted)]",
-		info: "border-[var(--line)] bg-[var(--admin-step)] text-[var(--text)]",
-	} as const;
-
+	const valueTone = { ok: "text-[var(--accent)]", warn: "text-[var(--amber)]", danger: "text-[var(--danger)]", neutral: "text-[var(--muted)]", info: "text-[var(--text)]" } as const;
 	return (
-		<div className={`rounded-xl border px-3 py-2 ${tones[tone]}`}>
-			<div className="text-lg font-semibold tabular-nums">{value}</div>
-			<div className="mt-0.5 text-xs font-semibold opacity-60">{label}</div>
+		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2">
+			<div className={`text-lg font-medium tabular-nums ${value === 0 ? "text-[var(--muted)]" : valueTone[tone]}`}>{value}</div>
+			<div className="mt-0.5 text-xs text-[var(--muted)]">{label}</div>
 		</div>
 	);
+}
+
+function rankScore(applicant: RosterApplicant) {
+	return parseRank(applicant.manualRankOverride || applicant.currentRank);
 }
 
 function Picker({
 	teamName,
 	role,
 	candidates,
+	teamGroupCodes,
 	onCancel,
 	onPick,
 }: {
 	teamName: string;
 	role: PlayerRole;
 	candidates: RosterApplicant[];
+	/** Wish-group codes of players already on this team. Their missing members are listed first. */
+	teamGroupCodes: Set<string>;
 	onCancel: () => void;
 	onPick: (discordId: string) => void;
 }) {
-	// Rank applicants by the explicit order of their role preferences.
+	// Order: wish group already on this team, then the wish rank for this role, then rank (highest first).
 	const decorated = useMemo(
 		() =>
 			candidates
-				.map((a) => ({
-					applicant: a,
-					priority: a.preferredRoles.findIndex((r) => r.toLowerCase() === role.toLowerCase()),
+				.map((applicant) => ({
+					applicant,
+					groupMate: Boolean(applicant.preferenceGroupCode && teamGroupCodes.has(applicant.preferenceGroupCode)),
+					priority: applicant.preferredRoles.findIndex((entry) => normalizeRoleName(entry) === role),
+					score: rankScore(applicant),
 				}))
 				.sort((a, b) => {
+					if (a.groupMate !== b.groupMate) return a.groupMate ? -1 : 1;
 					const aPriority = a.priority < 0 ? Number.MAX_SAFE_INTEGER : a.priority;
 					const bPriority = b.priority < 0 ? Number.MAX_SAFE_INTEGER : b.priority;
 					if (aPriority !== bPriority) return aPriority - bPriority;
-					// Fall back to alphabetical by display name
-					return (a.applicant.discordUsername ?? "").localeCompare(b.applicant.discordUsername ?? "");
+					if (a.score !== b.score) return b.score - a.score;
+					return playerName(a.applicant).localeCompare(playerName(b.applicant), "de");
 				}),
-		[candidates, role]
+		[candidates, role, teamGroupCodes]
 	);
 
 	return (
 		<div role="dialog" aria-modal="true" aria-labelledby="team-dialog-title" className="fixed inset-0 z-50 grid place-items-center px-5">
-			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-[var(--admin-inset)]" />
-			<div className="bg-[var(--admin-surface)] relative w-full max-w-md rounded-[16px] border border-[var(--line)] p-5">
-				<div className="text-xs font-semibold text-[var(--accent)]">Zuweisen · {role}</div>
-				<h2 id="team-dialog-title" className="mt-2 text-lg font-semibold text-[var(--text)]">
+			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-black/60" />
+			<div className="relative w-full max-w-md rounded-[16px] border border-[var(--line)] bg-[var(--admin-surface)] p-5">
+				<div className="text-xs font-medium text-[var(--muted)]">Zuweisen · {role}</div>
+				<h2 id="team-dialog-title" className="mt-1 text-lg font-semibold text-[var(--text)]">
 					{teamName}
 				</h2>
+				<p className="mt-1 text-xs text-[var(--muted)]">Wunschgruppe im Team zuerst, dann Wunschrang für {role}, dann Rang</p>
 
-				<div className="mt-4 max-h-[60vh] overflow-y-auto pr-1">
+				<div className="themed-scrollbar mt-4 max-h-[60vh] overflow-y-auto pr-1">
 					{decorated.length === 0 ? (
-						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-4 text-sm text-[var(--muted)]">Keine verfügbaren verifizierten Bewerber mehr.</div>
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-4 text-sm text-[var(--muted)]">Keine verfügbaren Spieler mehr</div>
 					) : (
-						<div className="grid gap-2">
-							{decorated.map(({ applicant, priority }) => {
-								const preferred = priority >= 0;
+						<div className="grid gap-1.5">
+							{decorated.map(({ applicant, priority, groupMate }) => {
+								const rank = applicant.manualRankOverride || applicant.currentRank;
 								return (
 									<button
 										key={applicant.discordId}
 										type="button"
 										onClick={() => onPick(applicant.discordId)}
-										className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
-											preferred ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:border-[var(--accent)]" : "border-[var(--line)] bg-[var(--admin-inset)] hover:border-[var(--line-strong)]"
+										className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors hover:border-[var(--line-strong)] focus-visible:border-[var(--accent)] ${
+											groupMate ? "border-[var(--line-strong)] bg-[var(--admin-step)]" : "border-[var(--line)] bg-[var(--admin-inset)]"
 										}`}
 									>
-										<div className="min-w-0">
-											<div className="truncate text-sm font-semibold text-[var(--text)]">
-												{applicant.discordUsername ? `@${applicant.discordUsername}` : applicant.discordHandle}
-												{preferred ? (
-													<span className="ml-2 text-xs font-medium text-[var(--accent)]">Wunsch #{priority + 1}</span>
-												) : null}
-											</div>
-											<div className="truncate text-xs text-[var(--muted)]">
+										<span className="min-w-0">
+											<span className="block truncate text-sm font-medium text-[var(--text)]">{playerName(applicant)}</span>
+											<span className="block truncate text-xs text-[var(--muted)]">
 												{applicant.riotId}
-												{applicant.manualRankOverride || applicant.currentRank ? ` · ${applicant.manualRankOverride || applicant.currentRank}` : ""}
-											</div>
-											{applicant.preferenceGroupCode ? (
-												<div className="mt-1">
-													<PreferenceGroupBadge code={applicant.preferenceGroupCode} />
-												</div>
-											) : null}
-										</div>
+												{rank ? ` · ${rank}` : ""}
+												{applicant.preferenceGroupCode ? <span className="font-mono"> · {applicant.preferenceGroupCode}</span> : null}
+											</span>
+										</span>
+										<span className="grid justify-items-end gap-0.5 text-xs">
+											{groupMate ? <span className="font-medium text-[var(--accent)]">Wunschgruppe</span> : null}
+											<span className={priority >= 0 ? "font-medium text-[var(--text)]" : "text-[var(--muted)]"}>{priority >= 0 ? `Wunsch #${priority + 1}` : "Kein Wunsch"}</span>
+										</span>
 									</button>
 								);
 							})}
@@ -2471,7 +2529,7 @@ function Picker({
 					<button
 						type="button"
 						onClick={onCancel}
-						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-semibold text-[var(--text)]"
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-xs font-medium text-[var(--text)] transition-colors hover:border-[var(--line-strong)]"
 					>
 						Abbrechen
 					</button>
@@ -2483,11 +2541,8 @@ function Picker({
 
 function PreferenceGroupBadge({ code }: { code: string }) {
 	return (
-		<span
-			title="Unverbindliche Wunschgruppe"
-			className="inline-flex rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--muted)]"
-		>
-			Wunsch · {code}
+		<span title="Unverbindliche Wunschgruppe" className="inline-flex items-center rounded-md border border-[var(--line)] px-1.5 py-px font-mono text-xs text-[var(--muted)]">
+			{code}
 		</span>
 	);
 }
