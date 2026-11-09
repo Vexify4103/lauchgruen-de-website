@@ -74,19 +74,18 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 
 	if (candidates.length === 0) {
 		return (
-			<section className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
-				<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Captain übertragen</div>
-				<p className="mt-2 text-sm leading-6 text-emerald-100/58">Aktuell gibt es kein weiteres Teammitglied mit verknüpftem Discord-Account.</p>
+			<section className="rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-5">
+				<h2 className="text-lg font-semibold text-[var(--text)]">Captain übertragen</h2>
+				<p className="mt-1 text-sm leading-6 text-[var(--muted)]">Kein weiteres Teammitglied hat einen verknüpften Discord-Account.</p>
 			</section>
 		);
 	}
 
 	return (
-		<form onSubmit={submit} className="rounded-[2rem] border border-amber-200/16 bg-amber-300/[0.055] p-5 shadow-xl shadow-black/20">
-			<div className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/70">Captain übertragen</div>
-			<h2 className="mt-2 text-2xl font-black text-emerald-50">Verantwortung an ein Teammitglied abgeben</h2>
-			<p className="mt-2 text-sm leading-6 text-emerald-100/58">
-				Die Captain-Rolle, das Captain-Portal und alle Draft-Rechte wechseln sofort. Während eines bereits gestarteten Drafts ist die Übergabe gesperrt.
+		<form onSubmit={submit} className="rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-5">
+			<h2 className="text-lg font-semibold text-[var(--text)]">Captain übertragen</h2>
+			<p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+				Captain-Rolle, Portal und Draft-Rechte wechseln sofort. Während eines laufenden Drafts ist die Übergabe gesperrt.
 			</p>
 
 			<div className="mt-4 grid gap-3">
@@ -103,7 +102,7 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 				/>
 				{candidate ? (
 					<label className="grid gap-2">
-						<span className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/52">Zur Bestätigung „{candidate.name}“ eingeben</span>
+						<span className="text-sm text-[var(--muted)]">Zur Bestätigung „{candidate.name}“ eingeben</span>
 						<input
 							name="captain-confirmation"
 							autoComplete="off"
@@ -111,7 +110,7 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 							value={confirmation}
 							onChange={(event) => setConfirmation(event.target.value)}
 							placeholder={`${candidate.name}…`}
-							className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-emerald-50 outline-none transition focus:border-amber-200/45"
+							className="rounded-[10px] border border-[var(--line)] bg-[var(--bg-soft)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 						/>
 					</label>
 				) : null}
@@ -120,13 +119,13 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 			<button
 				type="submit"
 				disabled={saving || !candidate || confirmation.trim() !== candidate.name}
-				className="mt-4 rounded-2xl border border-amber-100/24 bg-amber-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-amber-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+				className="mt-4 rounded-[10px] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] px-5 py-2.5 text-sm font-medium text-[var(--danger)] transition-colors hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
 			>
 				{saving ? "Wird übertragen…" : "Captain endgültig übertragen"}
 			</button>
 
 			{message ? (
-				<p role="status" className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>
+<p role="status" className={`mt-3 text-sm ${message.tone === "ok" ? "text-[var(--accent)]" : "text-[var(--amber)]"}`}>
 					{message.text}
 				</p>
 			) : null}
@@ -135,7 +134,7 @@ export function TransferCaptainCard({ teamKey, candidates }: { teamKey: string; 
 				title="Captain wirklich übertragen?"
 				description={
 					<>
-						Die Rolle wird sofort an <strong className="text-emerald-50">{candidate?.name}</strong> übertragen. Du verlierst dadurch deine Captain- und Draft-Rechte.
+						Die Rolle wird sofort an <strong className="font-semibold text-[var(--text)]">{candidate?.name}</strong> übertragen. Du verlierst dadurch deine Captain- und Draft-Rechte.
 					</>
 				}
 				confirmLabel="Captain übertragen"

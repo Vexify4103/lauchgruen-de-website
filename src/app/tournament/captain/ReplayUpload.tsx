@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { parseRoflMetadata, RoflParseError, type ReplaySummary } from "@/lib/rofl";
 
 type Evaluation = { verdict: "ok" | "review" | "reject"; problems: string[]; winner: "teamA" | "teamB" | null };
@@ -34,6 +34,14 @@ export function ReplayUpload({
 	const [busy, setBusy] = useState(false);
 	const [summary, setSummary] = useState<ReplaySummary | null>(null);
 	const [result, setResult] = useState<{ tone: "ok" | "warn" | "error"; text: string; problems?: string[] } | null>(null);
+	const [dragging, setDragging] = useState(false);
+
+	function onDrop(event: DragEvent<HTMLDivElement>) {
+		event.preventDefault();
+		setDragging(false);
+		const file = event.dataTransfer.files?.[0];
+		if (file && !busy) void upload(file);
+	}
 
 	async function upload(file: File) {
 		setBusy(true);
@@ -72,42 +80,84 @@ export function ReplayUpload({
 
 	const toneClass =
 		result?.tone === "ok"
-			? "border-lime-200/24 bg-lime-200/10 text-lime-100"
+			? "border-[var(--line-strong)] text-[var(--accent)]"
 			: result?.tone === "warn"
-				? "border-amber-200/24 bg-amber-200/10 text-amber-100"
-				: "border-red-300/24 bg-red-400/10 text-red-100";
+				? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] text-[var(--amber)]"
+				: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] text-[var(--danger)]";
 
 	return (
-		<div className="mt-4 rounded-2xl border border-white/10 bg-black/18 p-4">
-			<div className="text-sm font-bold text-emerald-50">Replay hochladen</div>
-			<p className="mt-1 text-xs leading-5 text-emerald-100/60">
-				Nach dem Spiel die .rofl-Datei wählen (im Client unter Verlauf → Replay herunterladen, gespeichert in „Dokumente/League of Legends/Replays“). Sieger,
-				Spielzeit und Champions werden daraus gelesen.
-			</p>
-			<label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/12 bg-white/[0.05] px-4 py-2.5 text-xs font-bold text-emerald-50 hover:border-lime-200/30">
+		<section className="mt-6 border-t border-[var(--line)] pt-5" aria-labelledby={`replay-${matchId}`}>
+			<h3 id={`replay-${matchId}`} className="text-base font-semibold text-[var(--text)]">
+				Replay hochladen
+			</h3>
+			<p className="mt-1 text-sm leading-6 text-[var(--muted)]">Sieger, Spielzeit und Champions werden aus der Datei gelesen. Die Orga bestätigt das Ergebnis.</p>
+			<div
+				onDragEnter={(event) => {
+					event.preventDefault();
+					setDragging(true);
+				}}
+				onDragOver={(event) => event.preventDefault()}
+				onDragLeave={(event) => {
+					if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+				}}
+				onDrop={onDrop}
+				className={`mt-4 grid place-items-center gap-3 rounded-[12px] border border-dashed px-6 py-8 text-center transition-colors ${
+					dragging ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_6%,transparent)]" : "border-[var(--line-strong)]"
+				}`}
+			>
+				<svg
+					viewBox="0 0 24 24"
+					width="32"
+					height="32"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					aria-hidden="true"
+					className={dragging ? "text-[var(--accent)]" : "text-[var(--muted)]"}
+				>
+					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+					<path d="m17 8-5-5-5 5" />
+					<path d="M12 3v12" />
+				</svg>
+				<p className="text-sm text-[var(--text)]">{busy ? "Lese Replay…" : dragging ? "Loslassen zum Hochladen" : ".rofl-Datei hierher ziehen"}</p>
+				<p className="text-xs text-[var(--muted)]">oder</p>
+				<button
+					type="button"
+					disabled={busy}
+					onClick={() => inputRef.current?.click()}
+					className="rounded-[10px] border border-[var(--line-strong)] px-5 py-2.5 text-sm font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-wait disabled:opacity-60"
+				>
+					Datei wählen
+				</button>
 				<input
 					ref={inputRef}
 					type="file"
 					accept=".rofl"
 					className="sr-only"
+					tabIndex={-1}
+					aria-label="Replay-Datei wählen"
 					disabled={busy}
 					onChange={(event) => {
 						const file = event.target.files?.[0];
 						if (file) void upload(file);
 					}}
 				/>
-				{busy ? "Lese Replay…" : "Datei wählen"}
-			</label>
+				<p className="text-xs text-[var(--muted)]">
+					Zu finden unter <span className="font-mono">Dokumente/League of Legends/Replays</span>
+				</p>
+			</div>
 			{summary ? (
-				<div className="mt-3 text-xs text-emerald-100/70">
+				<p className="mt-3 font-mono text-xs tabular-nums text-[var(--muted)]">
 					Spielzeit {formatDuration(summary.durationSeconds)} · Patch {summary.gameVersion?.split(".").slice(0, 2).join(".") ?? "?"} · {summary.players.length} Spieler
-				</div>
+				</p>
 			) : null}
 			{result ? (
-				<div role="status" className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-5 ${toneClass}`}>
+				<div role="status" className={`mt-3 rounded-[10px] border px-3 py-2 text-sm leading-6 ${toneClass}`}>
 					{result.text}
 					{result.problems?.length ? (
-						<ul className="mt-1 list-disc pl-4">
+						<ul className="mt-1 list-disc pl-4 text-[var(--muted)]">
 							{result.problems.map((problem) => (
 								<li key={problem}>{problem}</li>
 							))}
@@ -115,6 +165,6 @@ export function ReplayUpload({
 					) : null}
 				</div>
 			) : null}
-		</div>
+		</section>
 	);
 }

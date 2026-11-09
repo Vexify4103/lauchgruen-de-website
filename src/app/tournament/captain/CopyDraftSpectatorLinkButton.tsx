@@ -20,9 +20,9 @@ export function CopyDraftSpectatorLinkButton({ matchId, perspective, disabled }:
 			type="button"
 			disabled={disabled}
 			onClick={copy}
-			className="rounded-2xl border border-sky-200/16 bg-sky-300/8 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-sky-100 hover:border-sky-200/34 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-emerald-100/30"
+			className="rounded-[10px] border border-[var(--line-strong)] px-5 py-3 text-sm font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:border-[var(--line)] disabled:text-[var(--muted)]"
 		>
-			{disabled ? "Draft pausiert" : copied ? "Team-Link kopiert" : "Team-Draft-Link kopieren"}
+			{disabled ? "Draft pausiert" : copied ? "Link kopiert" : "Draft-Link fürs Team kopieren"}
 		</button>
 	);
 }

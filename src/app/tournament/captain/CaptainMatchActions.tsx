@@ -46,79 +46,74 @@ export function CaptainMatchActions({ matchId, teamName }: { matchId: string; te
 	}
 
 	return (
-		<div className="mt-4 rounded-2xl border border-cyan-200/14 bg-cyan-300/[0.055] p-4">
-			<div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/68">Captain-Check-in · {teamName}</div>
-			<div className="mt-3 flex flex-wrap gap-2">
+		<div className="mt-6 border-t border-[var(--line)] pt-5">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<h3 className="text-base font-semibold text-[var(--text)]">Vor und nach dem Match</h3>
+				{/* The check-in state is not loaded from the server, so only a fresh check-in is shown. */}
+				{checkedIn ? (
+					<span className="tally" data-tone="ok">
+						Eingecheckt
+					</span>
+				) : null}
+			</div>
+			<div className="mt-3 flex flex-wrap gap-3">
 				<button
 					type="button"
 					onClick={checkIn}
 					disabled={pending || checkedIn}
-					className="rounded-xl border border-lime-200/24 bg-lime-200/10 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-lime-100 disabled:opacity-50"
+					className="rounded-[10px] border border-[var(--line-strong)] px-4 py-2.5 text-sm font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-default disabled:opacity-50"
 				>
-					{checkedIn ? "Eingecheckt" : "Team bereit bestätigen"}
+					{checkedIn ? "Team ist bereit" : "Team bereit bestätigen"}
 				</button>
 				<button
 					type="button"
 					onClick={() => setReportOpen((open) => !open)}
 					disabled={pending}
-					className="rounded-xl border border-white/12 bg-black/18 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-emerald-100"
+					aria-expanded={reportOpen}
+					className="rounded-[10px] border border-[var(--line)] px-4 py-2.5 text-sm text-[var(--muted)] transition-colors hover:border-[var(--line-strong)] hover:text-[var(--text)]"
 				>
-					Match-Report
+					Ergebnis ohne Replay melden
 				</button>
 			</div>
 			{reportOpen ? (
-				<form action={submitReport} className="mt-4 grid gap-3">
-					<label className="text-xs font-bold text-emerald-100/70">
+				<form action={submitReport} className="mt-4 grid gap-3 sm:grid-cols-2">
+					<label className="grid gap-1 text-sm text-[var(--muted)]">
 						Hat {teamName} gewonnen?
-						<div className="mt-1">
-							<ThemedSelect
-								name="winner"
-								value={declaredWinner}
-								onChange={setDeclaredWinner}
-								ariaLabel={`Hat ${teamName} gewonnen?`}
-								options={[
-									{ value: "yes", label: "Ja" },
-									{ value: "no", label: "Nein" },
-								]}
-							/>
-						</div>
+						<ThemedSelect
+							name="winner"
+							value={declaredWinner}
+							onChange={setDeclaredWinner}
+							ariaLabel={`Hat ${teamName} gewonnen?`}
+							options={[
+								{ value: "yes", label: "Ja" },
+								{ value: "no", label: "Nein" },
+							]}
+						/>
 					</label>
-					<input
-						name="duration"
-						aria-label="Spielzeit (mm:ss)"
-						autoComplete="off"
-						inputMode="numeric"
-						placeholder="Spielzeit, z. B. 31:42…"
-						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-					/>
-					<input
-						name="screenshot"
-						inputMode="url"
-						aria-label="Screenshot-Link (optional)"
-						autoComplete="off"
-						spellCheck={false}
-						placeholder="Screenshot-Link, z. B. https://imgur.com/…"
-						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-					/>
-					<textarea
-						name="note"
-						rows={2}
-						aria-label="Hinweis für die Orga (optional)"
-						autoComplete="off"
-						placeholder="Hinweis für die Orga (optional)…"
-						className="rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-emerald-50"
-					/>
-					<button disabled={pending} className="rounded-xl bg-cyan-200 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-950">
-						Report senden
-					</button>
+					<label className="grid gap-1 text-sm text-[var(--muted)]">
+						Spielzeit
+						<input name="duration" autoComplete="off" inputMode="numeric" placeholder="31:42" className="rounded-[10px] border border-[var(--line)] bg-[var(--bg-soft)] px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none" />
+					</label>
+					<label className="grid gap-1 text-sm text-[var(--muted)] sm:col-span-2">
+						Screenshot-Link (optional)
+						<input name="screenshot" inputMode="url" autoComplete="off" spellCheck={false} placeholder="https://imgur.com/…" className="rounded-[10px] border border-[var(--line)] bg-[var(--bg-soft)] px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none" />
+					</label>
+					<label className="grid gap-1 text-sm text-[var(--muted)] sm:col-span-2">
+						Hinweis für die Orga (optional)
+						<textarea name="note" rows={2} autoComplete="off" className="rounded-[10px] border border-[var(--line)] bg-[var(--bg-soft)] px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none" />
+					</label>
+					<div className="sm:col-span-2">
+						<button disabled={pending} className="rounded-[10px] bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-strong)] disabled:opacity-60">
+							Report senden
+						</button>
+					</div>
 				</form>
 			) : null}
 			{message ? (
-				<p role="status" className="mt-3 text-sm font-bold text-cyan-50/80">
+				<p role="status" className="mt-3 text-sm text-[var(--text)]">
 					{message}
 				</p>
 			) : null}
-			<p className="mt-3 text-xs leading-5 text-emerald-100/46">Der Report unterstützt die Orga, ersetzt aber nicht die offizielle Ergebnisprüfung.</p>
 		</div>
 	);
 }

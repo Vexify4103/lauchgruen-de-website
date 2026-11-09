@@ -65,9 +65,9 @@ export function RenameTeamForm({ teamKey, initialName }: { teamKey: string; init
 	}
 
 	return (
-		<form onSubmit={submit} className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
-			<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Teamname</div>
-			<p className="mt-2 text-sm leading-6 text-emerald-100/58">Die Änderung wird auch auf die Discord-Rolle sowie den Sprach- und Textkanal übertragen.</p>
+		<form onSubmit={submit} className="rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-5">
+			<h2 className="text-lg font-semibold text-[var(--text)]">Teamname</h2>
+			<p className="mt-1 text-sm leading-6 text-[var(--muted)]">Gilt auch für eure Discord-Rolle und beide Teamchannels.</p>
 			<div className="mt-4 flex flex-col gap-3 sm:flex-row">
 				<input
 					name="team-name"
@@ -78,18 +78,18 @@ export function RenameTeamForm({ teamKey, initialName }: { teamKey: string; init
 					minLength={2}
 					maxLength={60}
 					required
-					className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-emerald-50 outline-none transition focus:border-lime-200/45"
+					className="min-w-0 flex-1 rounded-[10px] border border-[var(--line)] bg-[var(--bg-soft)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 				/>
 				<button
 					type="submit"
 					disabled={saving || name.trim() === savedName || name.trim().length < 2}
-					className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950 transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-40"
+					className="rounded-[10px] bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-40"
 				>
 					{saving ? "Wird geändert…" : "Namen ändern"}
 				</button>
 			</div>
 			{message ? (
-				<p role="status" className={`mt-3 text-sm font-bold ${message.tone === "ok" ? "text-lime-100" : "text-amber-100"}`}>
+<p role="status" className={`mt-3 text-sm ${message.tone === "ok" ? "text-[var(--accent)]" : "text-[var(--amber)]"}`}>
 					{message.text}
 				</p>
 			) : null}

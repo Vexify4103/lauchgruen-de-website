@@ -28,14 +28,14 @@ export default async function CaptainPortalPage() {
 	if (!discordId) {
 		return (
 			<div className="px-5 py-10 sm:py-14">
-				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-6">
-					<h1 className="text-3xl font-black text-emerald-50">Captain Portal</h1>
-					<p className="mt-3 text-sm leading-7 text-emerald-100/64">Melde dich mit Discord an, damit wir dein Captain-Team erkennen können.</p>
+				<section className="mx-auto w-full max-w-3xl rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-6">
+					<h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Captain-Portal</h1>
+					<p className="mt-3 text-sm leading-6 text-[var(--muted)]">Melde dich mit Discord an, damit wir dein Captain-Team erkennen.</p>
 					<div className="mt-5">
 						<DiscordSignInButton
 							redirectTo="/tournament/captain"
 							pendingLabel="Weiter zu Discord…"
-							className="rounded-2xl bg-lime-200 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-950 disabled:cursor-wait disabled:opacity-65"
+							className="rounded-[10px] bg-[var(--accent)] px-5 py-3 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-strong)] disabled:cursor-wait disabled:opacity-65"
 						>
 							Mit Discord anmelden
 						</DiscordSignInButton>
@@ -50,9 +50,12 @@ export default async function CaptainPortalPage() {
 	if (!team) {
 		return (
 			<div className="px-5 py-10 sm:py-14">
-				<section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-amber-200/18 bg-amber-200/8 p-6">
-					<h1 className="text-3xl font-black text-amber-50">Noch kein Captain-Team</h1>
-					<p className="mt-3 text-sm leading-7 text-amber-50/72">
+				<section className="mx-auto w-full max-w-3xl rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-6">
+					<span className="tally" data-tone="warn">
+						Kein Captain-Team
+					</span>
+					<h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text)]">Du bist noch kein Captain</h1>
+					<p className="mt-3 text-sm leading-6 text-[var(--muted)]">
 						Dein Discord-Account ist aktuell keinem Team als Captain zugeordnet. Wenn das falsch ist, bitte im Orga-Team melden.
 					</p>
 				</section>
@@ -70,126 +73,132 @@ export default async function CaptainPortalPage() {
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
-			<section className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-				<div className="grid gap-6">
-					<div className={`rounded-[2rem] border border-white/10 bg-gradient-to-br ${team.accent} p-6 shadow-xl shadow-black/24`}>
-						<div className="text-xs font-black uppercase tracking-[0.3em] text-lime-200/64">Captain Portal</div>
-						<h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-50">{team.name}</h1>
-						<p className="mt-3 text-sm leading-7 text-emerald-100/68">Dein schneller Überblick für Match, Pool, Roster und nützliche Links.</p>
-					</div>
-
-					<RenameTeamForm teamKey={team.storageKey ?? team.name.trim().toLowerCase()} initialName={team.name} />
-
-					<TransferCaptainCard
-						teamKey={team.storageKey ?? team.name.trim().toLowerCase()}
-						candidates={team.players
-							.filter((player) => Boolean(player.discordId) && player.discordId !== discordId)
-							.map((player) => ({
-								discordId: player.discordId!,
-								name: player.name,
-								riotId: player.riotId,
-								role: player.role,
-							}))}
-					/>
+			<section className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+				<div className="grid content-start gap-6">
+					<header>
+						<p className="text-sm text-[var(--muted)]">Captain-Portal</p>
+						<h1 className="mt-1 text-4xl font-semibold tracking-tight text-[var(--text)]">{team.name}</h1>
+					</header>
 
 					{nextMatch ? (
-						<div className="rounded-[2rem] border border-lime-200/12 bg-white/[0.045] p-5 shadow-xl shadow-black/24">
-							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Nächstes Match · {nextMatch.id}</div>
-							<h2 className="mt-2 text-3xl font-black text-emerald-50">
-								{team.name} vs {opponent?.name ?? (isTeamA ? nextMatch.teamBLabel : nextMatch.teamALabel)}
-							</h2>
-							<div className="mt-4 grid gap-3 sm:grid-cols-3">
-								<InfoTile label="Status" value={nextMatch.status ?? "Scheduled"} />
-								<InfoTile
-									label="Score"
-									value={nextMatch.scoreA !== undefined && nextMatch.scoreB !== undefined ? `${nextMatch.scoreA}:${nextMatch.scoreB}` : "TBA"}
-								/>
-								<InfoTile label="Dein Pool" value={assignedPool ? compactPoolLabel(assignedPool) : "Noch offen"} />
+						<section aria-labelledby="next-match-title" className="rounded-[16px] border border-[var(--line-strong)] bg-[var(--panel-solid)] p-6">
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<p className="text-sm text-[var(--muted)]">
+									{nextMatch.status === "Finished" ? "Letztes Match" : "Nächstes Match"} · <span className="font-mono">{nextMatch.id}</span>
+								</p>
+								<span className="tally" data-tone={nextMatch.status === "Live" || nextMatch.status === "Pending" ? "live" : nextMatch.status === "Finished" ? "ok" : undefined}>
+									{STATUS_LABELS[nextMatch.status ?? "Scheduled"] ?? nextMatch.status}
+								</span>
 							</div>
-							<div className="mt-5 flex flex-wrap gap-2">
-								<a
-									href={opggMultiSearchUrl(team.players.map((player) => player.riotId))}
-									target="_blank"
-									rel="noreferrer"
-									className="rounded-2xl border border-white/12 bg-white/[0.045] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 hover:text-lime-100"
-								>
-									Team OP.GG
-								</a>
-								{opponent ? (
-									<a
-										href={opggMultiSearchUrl(opponent.players.map((player) => player.riotId))}
-										target="_blank"
-										rel="noreferrer"
-										className="rounded-2xl border border-white/12 bg-white/[0.045] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/72 hover:text-lime-100"
-									>
-										Gegner OP.GG
-									</a>
-								) : null}
+							<h2 id="next-match-title" className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text)]">
+								{team.name} <span className="font-normal text-[var(--muted)]">vs</span> {opponent?.name ?? (isTeamA ? nextMatch.teamBLabel : nextMatch.teamALabel)}
+							</h2>
+							<dl className="mt-5 grid grid-cols-3 gap-3">
+								<InfoTile label="Score" value={nextMatch.scoreA !== undefined && nextMatch.scoreB !== undefined ? `${nextMatch.scoreA}:${nextMatch.scoreB}` : "–"} />
+								<InfoTile label="Eure Seite" value={draftPerspective === "blue" ? "Blau" : "Rot"} />
+								<InfoTile label="Euer Pool" value={assignedPool ? compactPoolLabel(assignedPool) : "–"} />
+							</dl>
+							<div className="mt-5 flex flex-wrap items-center gap-3">
 								{settings.draftEnabled ? (
-									<Link
-										href={`/tournament/champ-select/${nextMatch.id}`}
-										className="rounded-2xl bg-lime-200 px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-950"
-									>
-										Champ Select
+									<Link href={`/tournament/champ-select/${nextMatch.id}`} className="rounded-[10px] bg-[var(--accent)] px-5 py-3 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-strong)]">
+										Zum Champ Select
 									</Link>
 								) : (
-									<span
-										aria-disabled="true"
-										className="cursor-not-allowed rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/30"
-									>
+									<span aria-disabled="true" className="cursor-not-allowed rounded-[10px] border border-[var(--line)] px-5 py-3 text-sm text-[var(--muted)]">
 										Champ Select pausiert
 									</span>
 								)}
 								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
+								<span className="flex gap-4 text-sm">
+									<a href={opggMultiSearchUrl(team.players.map((player) => player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+										Team auf OP.GG
+									</a>
+									{opponent ? (
+										<a href={opggMultiSearchUrl(opponent.players.map((player) => player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+											Gegner auf OP.GG
+										</a>
+									) : null}
+								</span>
 							</div>
 							<CaptainMatchActions matchId={nextMatch.id} teamName={team.name} />
 							{nextMatch.teamAName && nextMatch.teamBName && nextMatch.status !== "Finished" ? (
 								<ReplayUpload matchId={nextMatch.id} teamAName={nextMatch.teamAName} teamBName={nextMatch.teamBName} />
 							) : null}
-						</div>
-					) : null}
+						</section>
+					) : (
+						<p className="rounded-[16px] border border-[var(--line)] p-6 text-sm text-[var(--muted)]">Für dein Team ist noch kein Match angesetzt.</p>
+					)}
 
 					{allowedPool ? (
-						<div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/20">
-							<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Erlaubte Champions · Pool {allowedPool.label}</div>
-							<div className="mt-4 flex flex-wrap gap-2">
+						<section aria-labelledby="pool-title" className="rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-5">
+							<h2 id="pool-title" className="text-lg font-semibold text-[var(--text)]">
+								Erlaubte Champions · Pool {allowedPool.label}
+							</h2>
+							<ul className="mt-4 flex list-none flex-wrap gap-2 p-0">
 								{allowedPool.champions.map((champion) => (
-									<span key={champion.id} className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-bold text-emerald-100/72">
+									<li key={champion.id} className="rounded-[8px] border border-[var(--line)] px-3 py-1 text-sm text-[var(--text)]">
 										{champion.name}
-									</span>
+									</li>
 								))}
-							</div>
-						</div>
+							</ul>
+						</section>
 					) : null}
+
+					<div className="grid gap-6 xl:grid-cols-2">
+						<RenameTeamForm teamKey={team.storageKey ?? team.name.trim().toLowerCase()} initialName={team.name} />
+						<TransferCaptainCard
+							teamKey={team.storageKey ?? team.name.trim().toLowerCase()}
+							candidates={team.players
+								.filter((player) => Boolean(player.discordId) && player.discordId !== discordId)
+								.map((player) => ({
+									discordId: player.discordId!,
+									name: player.name,
+									riotId: player.riotId,
+									role: player.role,
+								}))}
+						/>
+					</div>
 				</div>
 
-				<aside className="rounded-[2rem] border border-white/10 bg-black/18 p-5 shadow-xl shadow-black/24">
-					<div className="text-xs font-black uppercase tracking-[0.28em] text-lime-200/64">Roster</div>
-					<div className="mt-4 grid gap-2">
+				<aside aria-labelledby="roster-title" className="content-start self-start rounded-[16px] border border-[var(--line)] bg-[var(--panel-solid)] p-5">
+					<h2 id="roster-title" className="text-lg font-semibold text-[var(--text)]">
+						Roster
+					</h2>
+					<ul className="mt-4 grid list-none gap-1 p-0">
 						{team.players.map((player) => (
-							<div key={player.riotId} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
-								<div className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-200/58">{player.role}</div>
-								<div className="mt-1 truncate text-sm font-black text-emerald-50">{player.name}</div>
-								<div className="truncate text-xs text-emerald-100/46">{player.riotId}</div>
-								{player.verified === false ? (
-									<div className="mt-2 inline-flex rounded-full border border-amber-200/24 bg-amber-200/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-										Nicht verifiziert
-									</div>
-								) : null}
-							</div>
+							<li key={player.riotId} className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-3 border-t border-[var(--line)] py-2.5 first:border-t-0">
+								<span className="text-xs text-[var(--muted)]">{player.role}</span>
+								<span className="min-w-0">
+									<span className="block truncate text-sm font-medium text-[var(--text)]">{player.name}</span>
+									<span className="block truncate font-mono text-xs text-[var(--muted)]">{player.riotId}</span>
+									{player.verified === false ? (
+										<span className="tally mt-1" data-tone="warn">
+											Nicht verifiziert
+										</span>
+									) : null}
+								</span>
+							</li>
 						))}
-					</div>
+					</ul>
 				</aside>
 			</section>
 		</div>
 	);
 }
 
+const STATUS_LABELS: Record<string, string> = {
+	Scheduled: "Geplant",
+	Locked: "Gesperrt",
+	Pending: "Draft läuft",
+	Live: "Live",
+	Finished: "Beendet",
+};
+
 function InfoTile({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="rounded-2xl border border-white/10 bg-black/18 p-4">
-			<div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/42">{label}</div>
-			<div className="mt-1 text-xl font-black text-lime-100">{value}</div>
+		<div className="min-w-0 rounded-[12px] border border-[var(--line)] p-3 sm:p-4">
+			<dt className="text-xs text-[var(--muted)]">{label}</dt>
+			<dd className="mt-1 truncate text-base font-semibold text-[var(--text)] sm:text-xl">{value}</dd>
 		</div>
 	);
 }
