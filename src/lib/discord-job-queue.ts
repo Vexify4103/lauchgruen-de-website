@@ -7,7 +7,7 @@ import {
 	type DiscordDirectMessagePayload,
 	type DiscordMessagePayload,
 } from "@/lib/discord";
-import { deleteDiscordTeamResources, provisionDiscordTeamResources, renameDiscordTeamResources } from "@/lib/discord-team-resources";
+import { deleteDiscordTeamResources, provisionDiscordTeamResources, renameDiscordTeamResources, repairDiscordTeamChannels } from "@/lib/discord-team-resources";
 import { getDb } from "@/lib/mongo";
 
 export type DiscordOperation =
@@ -62,6 +62,13 @@ export type DiscordOperation =
 			roleId?: string;
 			voiceChannelId?: string;
 			textChannelId?: string;
+			label?: string;
+	  }
+	| {
+			kind: "team-channels-repair";
+			teamKey: string;
+			textChannelId?: string;
+			voiceChannelId?: string;
 			label?: string;
 	  }
 	| {
@@ -193,6 +200,7 @@ function operationKey(operation: DiscordOperation) {
 	if (operation.kind === "nickname-set" || operation.kind === "nickname-clear") return `nickname:${operation.discordId}`;
 	if (operation.kind === "direct-message") return `dm:${operation.dedupeKey}`;
 	if (operation.kind === "channel-message") return `channel-message:${operation.dedupeKey}`;
+	if (operation.kind === "team-channels-repair") return `team-channels:${operation.teamKey}`;
 	return `team:${operation.teamKey}`;
 }
 
@@ -409,5 +417,6 @@ async function runDiscordOperation(operation: DiscordOperation): Promise<{ ok: t
 	}
 	if (operation.kind === "team-provision") return provisionDiscordTeamResources(operation.teamKey, operation.name);
 	if (operation.kind === "team-rename") return renameDiscordTeamResources(operation);
+	if (operation.kind === "team-channels-repair") return repairDiscordTeamChannels(operation);
 	return deleteDiscordTeamResources(operation);
 }

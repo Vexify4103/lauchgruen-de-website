@@ -14,11 +14,14 @@ export const dynamic = "force-dynamic";
 type StoredTeam = {
 	name: string;
 	roleId?: string;
+	textChannelId?: string;
+	voiceChannelId?: string;
 	players?: Array<{ discordId?: string }>;
 	meta?: { captain?: { discordId?: string } };
 };
 
 type BotStateDoc = { _id: string; teams?: Record<string, StoredTeam> };
+type TeamEntry = StoredTeam & { key: string };
 type Action = "sync" | "repair" | "end-phase" | "remove-access";
 const bodySchema = z.object({ action: z.enum(["sync", "repair", "end-phase", "remove-access"]), confirmation: z.string().optional() });
 
@@ -35,7 +38,7 @@ async function loadControlState() {
 		listDiscordGuildMembers(),
 	]);
 	if (!guildResult.ok) return { error: guildResult.message } as const;
-	const teams = Object.values(botDoc?.teams ?? {});
+	const teams: TeamEntry[] = Object.entries(botDoc?.teams ?? {}).map(([key, team]) => ({ ...team, key }));
 	const tournamentRoleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	const captainRoleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim() || process.env.CAPTAIN_ROLE_ID?.trim();
 	const cleanupDate = settings.ultimateBravery.dayTwoStartAt
@@ -77,6 +80,19 @@ function buildOperations(state: Exclude<Awaited<ReturnType<typeof loadControlSta
 			for (const discordId of holders)
 				if (!expected.has(discordId))
 					operations.push({ kind: "role", discordId, roleId: team.roleId, enabled: false, label: `${discordId}: veraltete Teamrolle ${team.name} entfernen` });
+		}
+		// Repair also sets staff access and the text category on every team channel.
+		if (force && (process.env.DISCORD_STAFF_ROLE_ID?.trim() || process.env.TEAM_TEXT_CATEGORY_ID)) {
+			for (const team of state.teams) {
+				if (!team.textChannelId && !team.voiceChannelId) continue;
+				operations.push({
+					kind: "team-channels-repair",
+					teamKey: team.key,
+					textChannelId: team.textChannelId,
+					voiceChannelId: team.voiceChannelId,
+					label: `${team.name}: Channel-Zugriff für Staff prüfen`,
+				});
+			}
 		}
 		if (state.captainRoleId) {
 			const holders = roleHolders(state.members, state.captainRoleId);

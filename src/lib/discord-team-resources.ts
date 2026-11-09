@@ -34,7 +34,15 @@ function voiceCategoryId() {
 }
 
 function textCategoryId() {
-	return process.env.TEAM_TEXT_CATEGORY_ID ?? voiceCategoryId();
+	return process.env.TEAM_TEXT_CATEGORY_ID || voiceCategoryId();
+}
+
+function staffRoleId() {
+	return process.env.DISCORD_STAFF_ROLE_ID?.trim() ?? "";
+}
+
+function channelAllow(kind: "voice" | "text") {
+	return kind === "voice" ? VIEW_CHANNEL | CONNECT | SPEAK : VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY;
 }
 
 function textChannelName(name: string) {
@@ -120,7 +128,7 @@ async function createRole(name: string) {
 async function createChannel(name: string, roleId: string, kind: "voice" | "text") {
 	const parentId = kind === "voice" ? voiceCategoryId() : textCategoryId();
 	if (!parentId) return null;
-	const allow = kind === "voice" ? VIEW_CHANNEL | CONNECT | SPEAK : VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY;
+	const allow = channelAllow(kind);
 	const channel = await request<{ id: string }>(`/guilds/${guildId()}/channels`, {
 		method: "POST",
 		body: JSON.stringify({
@@ -130,6 +138,8 @@ async function createChannel(name: string, roleId: string, kind: "voice" | "text
 			permission_overwrites: [
 				{ id: guildId(), type: DISCORD_ROLE_TYPE, deny: String(VIEW_CHANNEL) },
 				{ id: roleId, type: DISCORD_ROLE_TYPE, allow: String(allow) },
+				// Staff see every team channel so they can help without admin rights.
+				...(staffRoleId() ? [{ id: staffRoleId(), type: DISCORD_ROLE_TYPE, allow: String(allow) }] : []),
 			],
 		}),
 	});
@@ -183,6 +193,33 @@ export async function renameDiscordTeamResources(input: {
 		return { ok: true };
 	} catch (error) {
 		return { ok: false, message: error instanceof Error ? error.message : "Discord-Teamressourcen konnten nicht umbenannt werden." };
+	}
+}
+
+/**
+ * Brings existing team channels up to date: staff access on both channels and the text channel in
+ * the text category. Safe to repeat; Discord treats both calls as "set to this value".
+ */
+export async function repairDiscordTeamChannels(input: { textChannelId?: string; voiceChannelId?: string }): Promise<OperationResult> {
+	try {
+		const staff = staffRoleId();
+		for (const [channelId, kind] of [
+			[input.textChannelId, "text"],
+			[input.voiceChannelId, "voice"],
+		] as const) {
+			if (!channelId || !staff) continue;
+			await request(`/channels/${channelId}/permissions/${staff}`, {
+				method: "PUT",
+				body: JSON.stringify({ type: DISCORD_ROLE_TYPE, allow: String(channelAllow(kind)), deny: "0" }),
+			});
+		}
+		const textCategory = process.env.TEAM_TEXT_CATEGORY_ID;
+		if (input.textChannelId && textCategory) {
+			await request(`/channels/${input.textChannelId}`, { method: "PATCH", body: JSON.stringify({ parent_id: textCategory, lock_permissions: false }) });
+		}
+		return { ok: true };
+	} catch (error) {
+		return { ok: false, message: error instanceof Error ? error.message : "Discord-Teamchannels konnten nicht angepasst werden." };
 	}
 }
 
