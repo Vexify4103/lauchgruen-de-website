@@ -148,7 +148,7 @@ export function buildTournamentSubnav(input: { settings: TournamentSettings; ros
 		rosterPublished ? { href: "/tournament/teams", label: "Teams" } : null,
 		structure.dayOneFormat !== "undecided" ? { href: "/tournament/stage", label: stageLabel(structure) ?? "Stage" } : null,
 		structure.format !== "undecided" ? { href: "/tournament/playoffs", label: "Bracket" } : null,
-		running ? { href: "/tournament/schedule", label: active.mode === "finished" ? "Ergebnisse" : "Zeitplan" } : null,
+		running || rosterPublished ? { href: "/tournament/schedule", label: active.mode === "finished" ? "Ergebnisse" : "Zeitplan" } : null,
 		active.kind === "fearless" && rosterPublished ? { href: "/tournament/fearless", label: "Fearless" } : null,
 		active.kind === "az" && running ? { href: "/tournament/pools", label: "Pools" } : null,
 		active.mode === "live" && isCaptain ? { href: "/tournament/captain", label: "Captain" } : null,

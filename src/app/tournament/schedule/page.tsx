@@ -55,8 +55,10 @@ const PLAYOFF_ORDER = [
 export default async function TournamentSchedulePage({ searchParams }: { searchParams: Promise<{ twitchPreview?: string }> }) {
 	const settings = await getTournamentSettings();
 	const live = settings.activeTournament.mode === "live";
-	if (!live && settings.activeTournament.mode !== "finished") {
-		redirect(usesFlexibleEngine(settings.activeTournament) ? "/tournament" : "/tournament/archive/az-2026");
+	const finished = settings.activeTournament.mode === "finished";
+	// The flexible engine shows the planned schedule before the start, like /stage and /playoffs.
+	if (!live && settings.activeTournament.mode !== "finished" && !usesFlexibleEngine(settings.activeTournament)) {
+		redirect("/tournament/archive/az-2026");
 	}
 	const previewRequested = (await searchParams).twitchPreview === "1";
 	const session = previewRequested ? await auth() : null;
@@ -200,7 +202,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 						</div>
 					</div>
 				) : null}
-				<PageIntro kicker={live ? "Zeitplan" : "Ergebnisse"} title={live ? "Wann wird was gespielt?" : "Alle Ergebnisse."}>
+				<PageIntro kicker={finished ? "Ergebnisse" : "Zeitplan"} title={finished ? "Alle Ergebnisse." : "Wann wird was gespielt?"}>
 					Alle Uhrzeiten sind Richtzeiten eines rollierenden Spielplans: Eine Runde bildet einen gemeinsamen Matchblock, Paarungen darin können parallel laufen und
 					Verzögerungen verschieben die folgenden Blöcke gemeinsam.
 				</PageIntro>
