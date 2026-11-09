@@ -96,6 +96,7 @@ function useDismiss(
 		const onKeyDown = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") {
 				event.preventDefault();
+				event.stopPropagation();
 				close(true);
 			}
 		};
@@ -130,7 +131,7 @@ function MenuShell({
 			aria-labelledby={labelledBy}
 			aria-multiselectable={multi || undefined}
 			style={style}
-			className="themed-scrollbar fixed z-[120] overflow-y-auto overscroll-contain rounded-2xl border border-lime-100/15 bg-gradient-to-br from-[#092519]/[0.985] via-[#061b12]/[0.985] to-[#020b07]/[0.99] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.62),0_0_0_1px_rgba(190,242,100,0.04)] backdrop-blur-xl"
+			className="themed-scrollbar fixed z-[1100] overflow-y-auto overscroll-contain rounded-2xl border border-lime-100/15 bg-gradient-to-br from-[#092519]/[0.985] via-[#061b12]/[0.985] to-[#020b07]/[0.99] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.62),0_0_0_1px_rgba(190,242,100,0.04)] backdrop-blur-xl"
 		>
 			{children}
 		</div>

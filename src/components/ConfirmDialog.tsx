@@ -52,7 +52,7 @@ export function ConfirmDialog({
 			: "bg-gradient-to-r from-lime-200 via-emerald-300 to-cyan-200 text-emerald-950 shadow-lime-300/20";
 
 	return (
-		<div role={tone === "danger" ? "alertdialog" : "dialog"} aria-modal="true" aria-labelledby={titleId} className="fixed inset-0 z-50 grid place-items-center px-5">
+		<div role={tone === "danger" ? "alertdialog" : "dialog"} aria-modal="true" aria-labelledby={titleId} className="fixed inset-0 z-[1050] grid place-items-center px-5">
 			<button type="button" aria-label="Dialog schließen" tabIndex={-1} onClick={onCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 			<div className="relative w-full max-w-md rounded-[1.7rem] border border-white/12 bg-gradient-to-br from-emerald-950/95 via-emerald-950/95 to-black/95 p-6 shadow-2xl shadow-black/40">
 				<h2 id={titleId} className="text-xl font-black tracking-tight text-emerald-50">

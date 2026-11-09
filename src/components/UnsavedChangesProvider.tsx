@@ -192,7 +192,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 		<UnsavedChangesContext.Provider value={contextValue}>
 			{children}
 			{pendingNavigation ? (
-				<div role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title" className="fixed inset-0 z-[100] grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title" className="fixed inset-0 z-[1050] grid place-items-center px-5">
 					<button
 						type="button"
 						aria-label="Dialog schließen"

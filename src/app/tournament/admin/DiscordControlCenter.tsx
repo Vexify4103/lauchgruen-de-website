@@ -371,7 +371,7 @@ function TypedConfirmation({
 	busy: boolean;
 }) {
 	return (
-		<div role="dialog" aria-modal="true" aria-labelledby="remove-access-title" className="fixed inset-0 z-[90] grid place-items-center px-5">
+		<div role="dialog" aria-modal="true" aria-labelledby="remove-access-title" className="fixed inset-0 z-[1050] grid place-items-center px-5">
 			<button type="button" aria-label="Schließen" onClick={onCancel} className="absolute inset-0 bg-[var(--admin-inset)]" />
 			<div className="relative w-full max-w-lg rounded-[16px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[var(--admin-surface)] p-6">
 				<div className="text-xs font-semibold text-[var(--danger)]">Destruktive Discord-Aktion</div>

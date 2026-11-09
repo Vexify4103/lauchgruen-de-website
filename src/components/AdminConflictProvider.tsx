@@ -33,7 +33,7 @@ export function AdminConflictProvider({ children }: { children: ReactNode }) {
 		<AdminConflictContext.Provider value={value}>
 			{children}
 			{conflict ? (
-				<div role="dialog" aria-modal="true" aria-labelledby="admin-conflict-title" className="fixed inset-0 z-[110] grid place-items-center px-5">
+				<div role="dialog" aria-modal="true" aria-labelledby="admin-conflict-title" className="fixed inset-0 z-[1050] grid place-items-center px-5">
 					<button type="button" aria-label="Dialog schließen" onClick={() => setConflict(null)} className="absolute inset-0 bg-[var(--admin-inset)]" />
 					<div className="relative w-full max-w-lg overflow-hidden rounded-[16px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] from-[#1e2b1b] via-[#0b1b13] to-[#04100b] p-6">
 						<div className="absolute -right-14 -top-16 size-48 rounded-full bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] blur-3xl" />
