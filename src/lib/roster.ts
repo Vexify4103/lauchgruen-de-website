@@ -7,7 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
-import { rosterPublicationMessage, teamWelcomeMessage, type PublishedPlacement } from "@/lib/roster-messages";
+import { rosterPublicationMessage, teamCaptainChangeMessage, teamWelcomeMessage, type PublishedPlacement } from "@/lib/roster-messages";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
 import { isTestRosterModeActive } from "@/lib/test-data";
@@ -645,6 +645,26 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 				}),
 				dedupeKey: `team-welcome:${settings.activeTournament.id}:${teamKey}`,
 				label: `${team.name}: Begrüßung im Teamchannel posten`,
+			});
+		}
+	}
+
+	// Teams that already got their welcome post hear about a new captain separately.
+	if (shouldPublish && !firstPublication) {
+		const stamp = Date.now();
+		for (const [teamKey, team] of Object.entries(nextTeams)) {
+			const previous = previousTeams[teamKey];
+			const captainId = team.meta?.captain?.discordId ?? null;
+			const previousCaptainId = previous?.meta?.captain?.discordId ?? null;
+			if (!team.textChannelId || !captainId || captainId === previousCaptainId || !(previous?.players ?? []).length) continue;
+			operations.push({
+				kind: "channel-message",
+				channelId: team.textChannelId,
+				roleId: team.roleId,
+				userIds: [captainId],
+				payload: teamCaptainChangeMessage({ teamName: team.name, roleId: team.roleId, captainId, previousCaptainId }),
+				dedupeKey: `team-captain:${settings.activeTournament.id}:${teamKey}:${captainId}:${stamp}`,
+				label: `${team.name}: Captain-Wechsel im Teamchannel posten`,
 			});
 		}
 	}

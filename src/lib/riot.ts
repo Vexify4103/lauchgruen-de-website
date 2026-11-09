@@ -593,7 +593,8 @@ const riotCache = globalThis as unknown as {
 };
 
 export function parseRiotId(raw: string): { gameName: string; tagLine: string } {
-	const trimmed = raw.trim();
+	// Riot IDs copied from Discord or the client can carry invisible direction marks (U+2066/U+2069); Riot rejects those.
+	const trimmed = raw.replace(/\p{Cf}/gu, "").trim();
 	const hashIndex = trimmed.lastIndexOf("#");
 
 	if (hashIndex <= 0 || hashIndex === trimmed.length - 1) {
