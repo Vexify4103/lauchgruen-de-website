@@ -10,7 +10,6 @@ import { getMatchControlContext } from "@/lib/match-control";
 import { EmptyState, PageIntro } from "@/components/site/PageIntro";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { StandingsTable } from "@/components/StandingsTable";
-import { PLAYOFF_FORMAT_DETAILS, SIDE_SELECTION_LABELS, bestOfLabel } from "@/lib/tournament-structure";
 import type { StandingsResult } from "@/lib/tournament-standings";
 
 export default async function PlayoffsPage() {
@@ -66,10 +65,6 @@ function LivePlayoffPage({
 	preview: boolean;
 }) {
 	const roundRobin = config.format === "round-robin";
-	const series =
-		config.bestOf.playoffs === config.bestOf.finals
-			? `Alle Playoff-Matches ${bestOfLabel(config.bestOf.playoffs)}.`
-			: `Playoffs ${bestOfLabel(config.bestOf.playoffs)}, Finale ${bestOfLabel(config.bestOf.finals)}.`;
 	const bracketMatches = roundRobin ? matches.filter((match) => match.id === "gf") : matches;
 	const tableMatches = roundRobin ? matches.filter((match) => match.id !== "gf") : [];
 	return (
@@ -85,7 +80,7 @@ function LivePlayoffPage({
 					) : null
 				}
 			>
-				{PLAYOFF_FORMAT_DETAILS[config.format]} {series} Seitenwahl: {SIDE_SELECTION_LABELS[config.sideSelection]}.{preview && pendingReason ? ` ${pendingReason}` : ""}
+				{preview && pendingReason ? pendingReason : null}
 			</PageIntro>
 			{roundRobin ? (
 				<div className="mb-6 grid gap-4">
