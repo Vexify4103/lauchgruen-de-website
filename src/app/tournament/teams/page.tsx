@@ -266,7 +266,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 								</ul>
 								<div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--line)] pt-4">
 									<a
-										href={opggMultiSearchUrl(team.players.map((player) => player.riotId))}
+										href={opggMultiSearchUrl(team.players.map((player) => player.scoutRiotId ?? player.riotId))}
 										target="_blank"
 										rel="noreferrer"
 										className="button ghost small"

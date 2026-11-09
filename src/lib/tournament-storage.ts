@@ -15,6 +15,8 @@ export type TournamentApplication = {
 	currentRankAuto: string | null;
 	summonerLevel?: number;
 	manualRankOverride?: string | null;
+	/** Account used for OP.GG/DPM links when the player plays on a different account than their main. */
+	scoutRiotId?: string | null;
 	discordId: string;
 	discordHandle: string;
 	discordUsername?: string;
@@ -291,6 +293,13 @@ export async function upsertApplication(app: TournamentApplication): Promise<voi
 	const col = await applicationsCollection();
 	const normalized = normalizeApplication(app);
 	await col.replaceOne({ _id: normalized.id }, { ...normalized }, { upsert: true });
+}
+
+/** Scouting accounts by Discord ID, for players whose OP.GG should show a different account than the one they play on. */
+export async function readScoutAccounts(): Promise<Map<string, string>> {
+	const col = await applicationsCollection();
+	const docs = await col.find({ scoutRiotId: { $type: "string", $ne: "" } }, { projection: { discordId: 1, scoutRiotId: 1 } }).toArray();
+	return new Map(docs.flatMap((doc) => (doc.scoutRiotId ? [[doc.discordId, doc.scoutRiotId] as [string, string]] : [])));
 }
 
 export async function findApplication(id: string): Promise<TournamentApplication | null> {

@@ -2,6 +2,8 @@ export type TournamentPlayer = {
 	name: string;
 	role: "Top" | "Jungle" | "Mid" | "Bot" | "Support" | "Fill" | "Sub";
 	riotId: string;
+	/** Account behind the OP.GG/DPM links; differs from riotId only when a scouting account is set. */
+	scoutRiotId?: string;
 	discordId?: string;
 	discordUsername?: string;
 	verified?: boolean;

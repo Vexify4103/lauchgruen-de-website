@@ -39,6 +39,8 @@ const applicationPatchSchema = z.object({
 	preferredRoles: z.array(z.string().trim().min(1).max(20)).min(1).max(6).optional(),
 	notes: z.string().trim().max(1500).optional(),
 	manualRankOverride: z.string().trim().max(40).nullable().optional(),
+	// Empty string clears the scouting account.
+	scoutRiotId: z.union([z.literal(""), z.string().trim().regex(/^[^#]{3,16}#[^#]{2,5}$/)]).optional(),
 });
 
 function applicationId(puuid: string, discordId: string) {
@@ -217,6 +219,7 @@ export async function PATCH(request: Request) {
 		...(parsed.data.preferredRoles !== undefined ? { preferredRoles: normalizePreferredRoles(parsed.data.preferredRoles) } : {}),
 		...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
 		...(parsed.data.manualRankOverride !== undefined ? { manualRankOverride: parsed.data.manualRankOverride } : {}),
+		...(parsed.data.scoutRiotId !== undefined ? { scoutRiotId: parsed.data.scoutRiotId || null } : {}),
 		updatedAt: new Date().toISOString(),
 	};
 
@@ -233,6 +236,7 @@ export async function PATCH(request: Request) {
 			mainRole: nextApplication.mainRole,
 			preferredRoles: nextApplication.preferredRoles,
 			...(parsed.data.manualRankOverride !== undefined ? { manualRankOverride: parsed.data.manualRankOverride } : {}),
+			...(parsed.data.scoutRiotId !== undefined ? { scoutRiotId: parsed.data.scoutRiotId || null } : {}),
 		},
 	});
 

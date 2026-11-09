@@ -17,6 +17,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	const [mainRole, setMainRole] = useState(app.mainRole);
 	const [preferredRoles, setPreferredRoles] = useState(app.preferredRoles);
 	const [notes, setNotes] = useState(app.notes);
+	const [scoutRiotId, setScoutRiotId] = useState(app.scoutRiotId ?? "");
 	const [message, setMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
 	const [savedValues, setSavedValues] = useState(
@@ -25,6 +26,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 			mainRole: app.mainRole,
 			preferredRoles: app.preferredRoles,
 			notes: app.notes,
+			scoutRiotId: app.scoutRiotId ?? "",
 		})
 	);
 	const currentValues = JSON.stringify({
@@ -32,6 +34,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 		mainRole,
 		preferredRoles,
 		notes,
+		scoutRiotId,
 	});
 
 	useUnsavedChanges({
@@ -52,6 +55,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 				mainRole,
 				preferredRoles,
 				notes,
+				scoutRiotId: scoutRiotId.trim(),
 			}),
 		});
 		const json = (await response.json().catch(() => null)) as { message?: string; version?: number } | null;
@@ -100,6 +104,20 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						ordered
 						exclusiveValues={["Fill"]}
 					/>
+				</label>
+
+				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
+					OP.GG-Account (Main)
+					<input
+						name="scout-riot-id"
+						autoComplete="off"
+						spellCheck={false}
+						value={scoutRiotId}
+						onChange={(event) => setScoutRiotId(event.target.value)}
+						placeholder={`Leer = ${app.riotId}`}
+						className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus:border-[var(--accent)]"
+					/>
+					<span className="font-normal">Nur für OP.GG- und DPM-Links. Gespielt, angezeigt und geprüft wird weiter {app.riotId}.</span>
 				</label>
 
 				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">

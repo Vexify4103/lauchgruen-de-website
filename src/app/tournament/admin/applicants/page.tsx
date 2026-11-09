@@ -195,9 +195,9 @@ function ApplicantCard({
 				<div className="min-w-0">
 					<div className="truncate text-lg font-semibold text-[var(--text)]">{app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}</div>
 					<div className="mt-1 flex flex-wrap items-center gap-2">
-						<div className="min-w-0 truncate text-xs text-[var(--accent)]">{app.riotId}</div>
+						<div className="min-w-0 truncate text-xs text-[var(--accent)]">{app.riotId}{app.scoutRiotId ? <span className="text-[var(--muted)]"> · OP.GG: {app.scoutRiotId}</span> : null}</div>
 						<a
-							href={opggUrl(app.riotId)}
+							href={opggUrl(app.scoutRiotId || app.riotId)}
 							target="_blank"
 							rel="noreferrer"
 							className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent)]"

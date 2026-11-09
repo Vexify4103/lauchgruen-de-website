@@ -13,6 +13,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { mainEventTeamCount, seedSlotLayout } from "@/lib/tournament-structure";
 import { getPlayInOutcome } from "@/lib/tournament-play-in";
+import { readScoutAccounts } from "@/lib/tournament-storage";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -24,6 +25,7 @@ type StoredPlayer = {
 	role?: TournamentPlayer["role"];
 	verificationStatus?: "verified" | "manual";
 	rosterSource?: "application" | "manual";
+	scoutRiotId?: string;
 };
 
 type TeamCaptainRef = {
@@ -93,7 +95,15 @@ async function readBotTeams(): Promise<StoredTeam[] | null> {
 		const doc = await db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" });
 		const teamsObj = doc?.teams;
 		if (!teamsObj) return null;
-		const values = Object.entries(teamsObj).map(([storageKey, team]) => ({ ...team, storageKey }));
+		const scouts = await readScoutAccounts().catch(() => new Map<string, string>());
+		const values = Object.entries(teamsObj).map(([storageKey, team]) => ({
+			...team,
+			storageKey,
+			players: (team.players ?? []).map((player) => {
+				const scoutRiotId = player.discordId ? scouts.get(player.discordId) : undefined;
+				return scoutRiotId ? { ...player, scoutRiotId } : player;
+			}),
+		}));
 		return values.length > 0 ? values : null;
 	} catch (error) {
 		console.warn("[tournament-runtime] could not read bot teams:", error);
@@ -114,13 +124,15 @@ function slugify(name: string): string {
 }
 
 function buildPlayer(p: StoredPlayer): TournamentPlayer {
-	const encoded = encodeURIComponent(p.riotId.replace("#", "-"));
+	const scoutRiotId = p.scoutRiotId ?? p.riotId;
+	const encoded = encodeURIComponent(scoutRiotId.replace("#", "-"));
 	return {
 		name: p.riotId.split("#")[0] || p.riotId,
 		// Role comes from the player's web application (preferredRoles[0]); we
 		// only fall back to "Fill" when no role was supplied.
 		role: p.role ?? "Fill",
 		riotId: p.riotId,
+		scoutRiotId,
 		discordId: p.discordId,
 		discordUsername: p.discordUsername,
 		verified: p.verificationStatus !== "manual",

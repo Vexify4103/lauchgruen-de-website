@@ -26,7 +26,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 function teamRiotIds(team: TournamentTeam | null) {
-	return team?.players.map((player) => player.riotId) ?? [];
+	return team?.players.map((player) => player.scoutRiotId ?? player.riotId) ?? [];
 }
 
 function draftedPicksForMatchTeams(draft: TournamentDraftState, blueSide: "teamA" | "teamB", sequence: ReturnType<typeof createDraftSequence>) {

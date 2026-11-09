@@ -110,11 +110,11 @@ export default async function CaptainPortalPage() {
 								)}
 								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
 								<span className="flex gap-4 text-sm">
-									<a href={opggMultiSearchUrl(team.players.map((player) => player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+									<a href={opggMultiSearchUrl(team.players.map((player) => player.scoutRiotId ?? player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
 										Team auf OP.GG
 									</a>
 									{opponent ? (
-										<a href={opggMultiSearchUrl(opponent.players.map((player) => player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+										<a href={opggMultiSearchUrl(opponent.players.map((player) => player.scoutRiotId ?? player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
 											Gegner auf OP.GG
 										</a>
 									) : null}
