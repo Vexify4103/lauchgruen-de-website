@@ -1,5 +1,6 @@
 import {
 	clearDiscordNickname,
+	editDiscordChannelMessage,
 	sendDiscordChannelMessage,
 	sendDiscordDirectMessage,
 	setDiscordMemberRole,
@@ -48,6 +49,8 @@ export type DiscordOperation =
 			payload?: DiscordMessagePayload;
 			dedupeKey: string;
 			label?: string;
+			/** If the message was already sent, replace its content (needs payload and its first embed title prefix). */
+			editIfSent?: { titlePrefix: string };
 	  }
 	| {
 			kind: "team-provision";
@@ -402,14 +405,28 @@ async function runDiscordOperation(operation: DiscordOperation): Promise<{ ok: t
 	if (operation.kind === "channel-message") {
 		const db = await getDb();
 		const receiptId = `channel-message:${operation.dedupeKey}`;
-		const receipts = db.collection<{ _id: string; sentAt: string; expiresAt: Date }>(RECEIPT_COLLECTION);
-		if (await receipts.findOne({ _id: receiptId })) return { ok: true };
+		const receipts = db.collection<{ _id: string; sentAt: string; expiresAt: Date; messageId?: string }>(RECEIPT_COLLECTION);
+		const receipt = await receipts.findOne({ _id: receiptId });
+		if (receipt) {
+			if (!operation.editIfSent || !operation.payload) return { ok: true };
+			const edited = await editDiscordChannelMessage({
+				channelId: operation.channelId,
+				messageId: receipt.messageId,
+				titlePrefix: operation.editIfSent.titlePrefix,
+				roleId: operation.roleId,
+				userIds: operation.userIds,
+				payload: operation.payload,
+			});
+			if (!edited.ok) return edited;
+			if (!receipt.messageId) await receipts.updateOne({ _id: receiptId }, { $set: { messageId: edited.messageId } });
+			return { ok: true };
+		}
 		const result = await sendDiscordChannelMessage(operation);
 		if (result.ok) {
 			const sentAt = new Date();
 			await receipts.updateOne(
 				{ _id: receiptId },
-				{ $set: { sentAt: sentAt.toISOString(), expiresAt: new Date(sentAt.getTime() + MESSAGE_RECEIPT_RETENTION_MS) } },
+				{ $set: { sentAt: sentAt.toISOString(), expiresAt: new Date(sentAt.getTime() + MESSAGE_RECEIPT_RETENTION_MS), ...(result.messageId ? { messageId: result.messageId } : {}) } },
 				{ upsert: true }
 			);
 		}

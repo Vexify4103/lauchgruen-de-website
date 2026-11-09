@@ -440,7 +440,7 @@ export async function sendDiscordChannelMessage(input: {
 	userIds?: string[];
 	message?: string;
 	payload?: DiscordMessagePayload;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<{ ok: true; messageId?: string } | { ok: false; message: string }> {
 	const token = discordBotToken();
 	if (!token) return { ok: false, message: "Discord-Teamnachricht übersprungen: Bot-Token fehlt." };
 	if (!input.channelId.trim()) return { ok: false, message: "Discord-Teamnachricht übersprungen: Channel-ID fehlt." };
@@ -473,7 +473,10 @@ export async function sendDiscordChannelMessage(input: {
 			allowed_mentions: { parse: [], roles: input.roleId ? [input.roleId] : [], ...(input.userIds?.length ? { users: input.userIds } : {}) },
 		}),
 	});
-	if (messageResponse?.ok) return { ok: true };
+	if (messageResponse?.ok) {
+		const sent = (await messageResponse.json().catch(() => null)) as { id?: string } | null;
+		return { ok: true, messageId: sent?.id };
+	}
 	return {
 		ok: false,
 		message:
@@ -481,6 +484,50 @@ export async function sendDiscordChannelMessage(input: {
 				? "Discord-Teamnachricht wurde abgelehnt. Dem Bot fehlen wahrscheinlich Rechte für diesen Kanal."
 				: `Discord-Teamnachricht konnte nicht gesendet werden (HTTP ${messageResponse?.status ?? "Netzwerkfehler"}).`,
 	};
+}
+
+/**
+ * Replaces the content of a message the bot posted earlier. Without a stored message id it looks
+ * through the last 100 messages for the bot's own post whose first embed title starts with `titlePrefix`.
+ * Editing never pings anyone again.
+ */
+export async function editDiscordChannelMessage(input: {
+	channelId: string;
+	messageId?: string;
+	titlePrefix: string;
+	roleId?: string;
+	userIds?: string[];
+	payload: DiscordMessagePayload;
+}): Promise<{ ok: true; messageId: string } | { ok: false; message: string }> {
+	const token = discordBotToken();
+	if (!token) return { ok: false, message: "Discord-Nachricht nicht bearbeitet: Bot-Token fehlt." };
+	const headers = { authorization: `Bot ${token}`, "content-type": "application/json" };
+	let messageId = input.messageId;
+	if (!messageId) {
+		const [meResponse, listResponse] = await Promise.all([
+			discordRequestWithRetry(`${DISCORD_API}/users/@me`, { headers }),
+			discordRequestWithRetry(`${DISCORD_API}/channels/${input.channelId}/messages?limit=100`, { headers }),
+		]);
+		if (!meResponse?.ok || !listResponse?.ok) {
+			return { ok: false, message: `Alte Discord-Nachricht konnte nicht gesucht werden (HTTP ${listResponse?.status ?? meResponse?.status ?? "Netzwerkfehler"}).` };
+		}
+		const me = (await meResponse.json()) as { id: string };
+		const messages = (await listResponse.json()) as { id: string; author?: { id: string }; embeds?: { title?: string }[] }[];
+		// Newest first; the oldest match is the original post.
+		messageId = messages.filter((message) => message.author?.id === me.id && message.embeds?.[0]?.title?.startsWith(input.titlePrefix)).at(-1)?.id;
+		if (!messageId) return { ok: false, message: "Alte Discord-Nachricht nicht gefunden; nichts bearbeitet." };
+	}
+	const response = await discordRequestWithRetry(`${DISCORD_API}/channels/${input.channelId}/messages/${messageId}`, {
+		method: "PATCH",
+		headers,
+		body: JSON.stringify({
+			...input.payload,
+			...(input.payload.content ? { content: input.payload.content.slice(0, 2000) } : {}),
+			allowed_mentions: { parse: [], roles: input.roleId ? [input.roleId] : [], ...(input.userIds?.length ? { users: input.userIds } : {}) },
+		}),
+	});
+	if (response?.ok) return { ok: true, messageId };
+	return { ok: false, message: `Discord-Nachricht konnte nicht bearbeitet werden (HTTP ${response?.status ?? "Netzwerkfehler"}).` };
 }
 
 async function discordRequestWithRetry(url: string, init: RequestInit): Promise<Response | null> {

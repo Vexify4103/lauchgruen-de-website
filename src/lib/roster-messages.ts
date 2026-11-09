@@ -165,22 +165,3 @@ export function teamWelcomeMessage(input: TeamWelcomeInput): DiscordMessagePaylo
 		],
 	};
 }
-
-/** Short post in the team channel when an already published team gets a new captain; pings the team role and the new captain. */
-export function teamCaptainChangeMessage(input: { teamName: string; roleId?: string; captainId: string; previousCaptainId: string | null }): DiscordMessagePayload {
-	const mentions = [input.roleId ? `<@&${input.roleId}>` : null, `<@${input.captainId}>`].filter(Boolean).join(" ");
-	return {
-		content: `${mentions} Neuer Captain für ${input.teamName}: <@${input.captainId}>`,
-		embeds: [
-			{
-				title: "👑 Captain-Wechsel",
-				description: [
-					input.previousCaptainId ? `<@${input.previousCaptainId}> ist nicht mehr Captain. Neuer Captain ist <@${input.captainId}>.` : `<@${input.captainId}> ist euer Captain.`,
-					"Der Captain checkt vor jedem Match ein, führt den Champ Select und gibt nach dem Match das Ergebnis im Captain-Portal ab.",
-				].join("\n\n"),
-				color: 0xb7f36b,
-			},
-		],
-		components: [{ type: 1, components: [linkButton("Captain-Portal", "/captain")] }],
-	};
-}
