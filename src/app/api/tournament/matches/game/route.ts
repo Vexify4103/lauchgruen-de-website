@@ -11,7 +11,7 @@ import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { automaticBlueSide, canRecordAnotherGame, seriesScore, seriesWinnerSide, type SeriesGame } from "@/lib/tournament-series";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS, upsertMatch } from "@/lib/tournament-storage";
-import { clearSwissPairingWinner, getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
+import { afterMatchDecided, afterMatchReopened, resultChangeBlocked, swissLinkFor } from "@/lib/match-result";
 import { archiveUltimateBraveryGameRolls } from "@/lib/ultimate-bravery";
 
 export const runtime = "nodejs";
@@ -46,10 +46,7 @@ export async function POST(request: Request) {
 	if (!match.teamAName || !match.teamBName) return NextResponse.json({ message: "Dieses Match hat noch keine zwei Teams." }, { status: 409 });
 	if (match.bestOf < 2) return NextResponse.json({ message: "Einzelspiele werden direkt über das Ergebnis gespeichert." }, { status: 409 });
 
-	const swissFormat = settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination";
-	const swiss = swissFormat ? await getSwissStageState(settings.activeTournament.id) : null;
-	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === match.id && !pairing.bye);
-	const swissLocked = Boolean(swissPairing && swissPairing.round < (swiss?.rounds.at(-1)?.round ?? 0));
+	const swiss = await swissLinkFor(match.id, settings);
 	const now = new Date().toISOString();
 
 	if (parsed.data.action === "record") {
@@ -71,8 +68,9 @@ export async function POST(request: Request) {
 		const games = [...match.games, game];
 		const { scoreA, scoreB } = seriesScore(games);
 		const decided = seriesWinnerSide(scoreA, scoreB, match.bestOf);
-		if (decided && swissLocked && swissPairing?.winnerTeamKey && swissPairing.winnerTeamKey !== (decided === "teamA" ? swissPairing.teamAKey : swissPairing.teamBKey)) {
-			return NextResponse.json({ message: "Die nächste Swiss-Runde wurde bereits ausgelost; dieses Ergebnis würde sie ungültig machen." }, { status: 409 });
+		if (decided) {
+			const blocked = resultChangeBlocked({ match, control, swiss, nextWinner: decided });
+			if (blocked) return NextResponse.json({ message: blocked }, { status: 409 });
 		}
 
 		const versionClaim = await claimAdminVersion({ resource: `match:${match.id}`, expectedVersion: parsed.data.expectedVersion, updatedBy: actor });
@@ -92,7 +90,7 @@ export async function POST(request: Request) {
 				winner: decided === "teamA" ? match.teamAName : match.teamBName,
 				updatedAt: now,
 			});
-			if (swissPairing) await setSwissPairingWinner(settings.activeTournament.id, swissPairing.id, decided === "teamA" ? swissPairing.teamAKey : swissPairing.teamBKey!);
+			await afterMatchDecided({ matchId: match.id, winner: decided, swiss, settings });
 		} else {
 			const nextBlue = automaticBlueSide({ rule: settings.ultimateBravery.sideSelection, games }) ?? match.blueSide;
 			await upsertMatch(match.id, {
@@ -135,20 +133,10 @@ export async function POST(request: Request) {
 	// Undo the last recorded game.
 	const last = match.games.at(-1);
 	if (!last) return NextResponse.json({ message: "Es wurde noch kein Spiel erfasst." }, { status: 409 });
-	if (match.winner && swissLocked) {
-		return NextResponse.json({ message: "Die nächste Swiss-Runde wurde bereits ausgelost; dieses Ergebnis kann nicht mehr zurückgenommen werden." }, { status: 409 });
+	if (match.winner) {
+		const blocked = resultChangeBlocked({ match, control, swiss, nextWinner: null });
+		if (blocked) return NextResponse.json({ message: blocked }, { status: 409 });
 	}
-	const dependent = match.winner
-		? control.matches.find(
-				(entry) =>
-					entry.id !== match.id &&
-					(entry.teamAName === match.winner || entry.teamBName === match.winner) &&
-					(entry.sources?.teamA === match.id || entry.sources?.teamB === match.id) &&
-					entry.status !== "Scheduled" &&
-					entry.status !== "Locked"
-			)
-		: undefined;
-	if (dependent) return NextResponse.json({ message: `${dependent.round} läuft bereits mit dem Sieger dieser Serie.` }, { status: 409 });
 
 	const versionClaim = await claimAdminVersion({ resource: `match:${match.id}`, expectedVersion: parsed.data.expectedVersion, updatedBy: actor });
 	if (!versionClaim.ok) return NextResponse.json(versionClaim.conflict, { status: 409 });
@@ -167,7 +155,7 @@ export async function POST(request: Request) {
 		winner: undefined,
 		updatedAt: now,
 	});
-	if (swissPairing && match.winner) await clearSwissPairingWinner(settings.activeTournament.id, swissPairing.id);
+	if (match.winner) await afterMatchReopened({ swiss, settings });
 	await writeAuditLog({
 		action: "match.game_undone",
 		targetType: "match",

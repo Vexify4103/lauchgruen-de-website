@@ -8,9 +8,8 @@ import { writeAuditLog } from "@/lib/tournament-audit";
 import { writeTournamentEvent } from "@/lib/tournament-events";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { TOURNAMENT_OWNER_DISCORD_IDS, readTournamentState, upsertMatch } from "@/lib/tournament-storage";
-import { commitWheelAssignmentForMatch } from "@/lib/tournament-wheel";
 import { getTournamentSettings } from "@/lib/tournament-settings";
-import { getSwissStageState, setSwissPairingWinner } from "@/lib/tournament-swiss";
+import { afterMatchDecided, resultChangeBlocked, swissLinkFor, type MatchSide } from "@/lib/match-result";
 import { getMatchControlContext } from "@/lib/match-control";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { seriesScore, seriesWinnerSide, validateSeriesScore } from "@/lib/tournament-series";
@@ -61,12 +60,12 @@ export async function PATCH(request: Request) {
 	const updatedAt = new Date().toISOString();
 	const [ctx, settings] = await Promise.all([getTournamentContext(), getTournamentSettings()]);
 	const state = await readTournamentState(ctx.groupMatches);
-	const swissFormat = settings.ultimateBravery.dayOneFormat === "swiss" || settings.ultimateBravery.dayOneFormat === "swiss-elimination";
-	const swiss = swissFormat ? await getSwissStageState(settings.activeTournament.id) : null;
-	const swissPairing = swiss?.rounds.flatMap((round) => round.pairings).find((pairing) => pairing.id === parsed.data.id && !pairing.bye);
+	const [swiss, control] = await Promise.all([swissLinkFor(parsed.data.id, settings), getMatchControlContext()]);
+	const swissPairing = swiss.pairing;
 	const groupMatch = ctx.groupMatches.find((match) => match.id === parsed.data.id);
 	const isGroupMatch = Boolean(groupMatch);
-	const controlMatch = usesFlexibleEngine(settings.activeTournament) ? (await getMatchControlContext()).matches.find((match) => match.id === parsed.data.id) : null;
+	const controlEntry = control.matches.find((match) => match.id === parsed.data.id) ?? null;
+	const controlMatch = usesFlexibleEngine(settings.activeTournament) ? controlEntry : null;
 	const teamAName = swissPairing?.teamAName ?? groupMatch?.teamA ?? controlMatch?.teamAName ?? undefined;
 	const teamBName = swissPairing?.teamBName ?? groupMatch?.teamB ?? controlMatch?.teamBName ?? undefined;
 	const currentStatus = state.matches[parsed.data.id]?.status ?? "Scheduled";
@@ -96,15 +95,10 @@ export async function PATCH(request: Request) {
 	if (isGroupMatch && hasFinalScore && bestOf === 1 && gameDurationSeconds === undefined) {
 		return NextResponse.json({ message: "Für ein abgeschlossenes Gruppenspiel wird die Spielzeit benötigt." }, { status: 400 });
 	}
-	// Later Swiss rounds were paired from this winner; flipping it now would corrupt every record after it.
-	if (swissPairing && hasFinalScore && swissPairing.winnerTeamKey && swissPairing.round < (swiss?.rounds.at(-1)?.round ?? 0)) {
-		const nextWinnerKey = parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey;
-		if (nextWinnerKey !== swissPairing.winnerTeamKey) {
-			return NextResponse.json(
-				{ message: "Der Sieger kann nicht mehr geändert werden, weil die nächste Swiss-Runde bereits ausgelost wurde. Setze zuerst die neueste Runde zurück." },
-				{ status: 409 }
-			);
-		}
+	const nextWinnerSide: MatchSide | null = hasFinalScore ? (parsed.data.scoreA! > parsed.data.scoreB! ? "teamA" : "teamB") : null;
+	if (controlEntry && nextWinnerSide) {
+		const blocked = resultChangeBlocked({ match: controlEntry, control, swiss, nextWinner: nextWinnerSide });
+		if (blocked) return NextResponse.json({ message: blocked }, { status: 409 });
 	}
 
 	const versionClaim = await claimAdminVersion({
@@ -138,15 +132,7 @@ export async function PATCH(request: Request) {
 		winner: winner ?? undefined,
 		updatedAt,
 	});
-	const swissWinnerKey = swissPairing && hasFinalScore ? (parsed.data.scoreA! > parsed.data.scoreB! ? swissPairing.teamAKey : swissPairing.teamBKey!) : null;
-	// Re-saving an older Swiss match (duration, champions) keeps its winner; only a real change is written.
-	if (swissPairing && swissWinnerKey && swissWinnerKey !== swissPairing.winnerTeamKey) {
-		await setSwissPairingWinner(settings.activeTournament.id, swissPairing.id, swissWinnerKey);
-	}
-
-	if (nextStatus === "Finished") {
-		await commitWheelAssignmentForMatch(parsed.data.id);
-	}
+	if (nextWinnerSide) await afterMatchDecided({ matchId: parsed.data.id, winner: nextWinnerSide, swiss, settings });
 	await writeAuditLog({
 		action: "match.update",
 		targetType: "match",
