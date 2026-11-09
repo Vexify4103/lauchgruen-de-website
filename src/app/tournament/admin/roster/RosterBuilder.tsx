@@ -2159,7 +2159,7 @@ const PlayerRow = memo(function PlayerRow({
 							aria-pressed={isCaptain}
 							className={`grid size-8 place-items-center rounded-lg transition-colors hover:bg-[var(--admin-step)] ${isCaptain ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}
 						>
-							<StarIcon />
+							<StarIcon filled={isCaptain} />
 						</button>
 					) : null}
 					<button
