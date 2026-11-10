@@ -71,10 +71,9 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 	const teamLabel = (side: "teamA" | "teamB" | null) => (side === "teamA" ? match.teamALabel : side === "teamB" ? match.teamBLabel : "?");
 
 	return (
-		<section className="rounded-[16px] border border-[var(--line)] bg-[var(--admin-step)] p-4" aria-labelledby={`replays-${match.id}`}>
-			<div className="text-xs font-semibold text-[var(--muted)]">Von den Captains</div>
-			<h3 id={`replays-${match.id}`} className="mt-1 text-lg font-semibold text-[var(--text)]">
-				Replays und Reports
+		<section className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] p-4" aria-labelledby={`replays-${match.id}`}>
+			<h3 id={`replays-${match.id}`} className="m-0 text-sm font-semibold text-[var(--text)]">
+				Replays und Reports der Captains
 			</h3>
 			{!replays.length && !reports.length ? <p className="mt-2 text-xs text-[var(--muted)]">Noch nichts hochgeladen.</p> : null}
 			<ul className="mt-3 grid list-none gap-2 p-0">
@@ -93,7 +92,7 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 							{replay.uploaderLabel} · {new Date(replay.createdAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" })}
 							{replay.gameId ? ` · Game ${replay.gameId}` : ""}
 						</div>
-						<dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+						<dl className="mt-2 grid w-fit grid-cols-[auto_auto] gap-x-6 gap-y-1 text-xs">
 							<dt className="text-[var(--muted)]">Sieger</dt>
 							<dd className="font-medium text-[var(--text)]">{teamLabel(replay.evaluation.winner)}</dd>
 							<dt className="text-[var(--muted)]">Spielzeit</dt>

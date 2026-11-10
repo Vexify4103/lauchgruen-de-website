@@ -90,10 +90,16 @@ export function AdminShell({
 			</aside>
 			<div className="admin-content">
 				<header className="admin-page-head">
-					<div className="min-w-0">
-						<p>{matchId ? `${head.eyebrow} · ${matchId}` : head.eyebrow}</p>
-						<h1>{head.title}</h1>
-					</div>
+					{matchId ? (
+						<Link href="/tournament/admin/live" className="text-sm font-medium text-[var(--muted)] hover:text-[var(--text)]">
+							← Live-Cockpit
+						</Link>
+					) : (
+						<div className="min-w-0">
+							<p>{head.eyebrow}</p>
+							<h1>{head.title}</h1>
+						</div>
+					)}
 					<nav aria-label="Schnellzugriff">
 						<Link href="/tournament" className="button ghost small">
 							Turnierseite <ExternalIcon />
