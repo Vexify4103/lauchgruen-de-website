@@ -35,7 +35,7 @@ export function ReplayScoreboard({
 	const patch = summary.gameVersion?.split(".").slice(0, 2).join(".");
 
 	return (
-		<div className="grid gap-4">
+		<div className="@container grid gap-4">
 			<p className="m-0 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--muted)]">
 				<span>
 					Spielzeit <strong className="font-mono text-[var(--text)]">{formatGameDuration(summary.durationSeconds)}</strong>
@@ -56,7 +56,7 @@ export function ReplayScoreboard({
 					</span>
 				) : null}
 			</p>
-			<div className="grid gap-4 xl:grid-cols-2">
+			<div className="grid gap-4 @min-[78rem]:grid-cols-2">
 				{sides.map((side) => (
 					<SidePanel key={side.team} side={side} won={summary.winningTeam === side.team} minutes={minutes} assets={assets} />
 				))}

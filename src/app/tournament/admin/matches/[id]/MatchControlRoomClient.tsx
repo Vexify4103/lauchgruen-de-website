@@ -370,7 +370,6 @@ export function MatchControlRoomClient({
 						<TeamPanel tag={match.teamATag ?? null} team={teamA} pool={poolA} fallback={match.teamALabel} blue={blueSide === "teamA"} />
 						<TeamPanel tag={match.teamBTag ?? null} team={teamB} pool={poolB} fallback={match.teamBLabel} blue={blueSide === "teamB"} />
 					</div>
-					<ReplayReviewPanel match={match} onApply={applyReplay} />
 					{(poolFlow && match.poolAssignment) || flow === "fearless" ? (
 						<details className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] p-4">
 							<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">
@@ -606,6 +605,7 @@ export function MatchControlRoomClient({
 					) : null}
 				</aside>
 			</div>
+			<ReplayReviewPanel match={match} onApply={applyReplay} />
 			<ConfirmDialog
 				open={resetDraftConfirmOpen}
 				title="Draft vollständig zurücksetzen?"

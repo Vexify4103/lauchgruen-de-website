@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { ControlMatch } from "@/lib/match-control";
-import { formatGameDuration } from "@/lib/match-duration";
 import type { TournamentReplay } from "@/lib/tournament-replays";
 import { ReplayUpload } from "../../../captain/ReplayUpload";
 import type { ReplayAssets } from "@/lib/replay-assets";
-import { AdminModal } from "../../AdminModal";
 import { ReplayScoreboard } from "@/components/ReplayScoreboard";
 
 type CaptainReport = {
@@ -35,7 +33,6 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 	const [busyId, setBusyId] = useState<string | null>(null);
 	const [reload, setReload] = useState(0);
 	const [assets, setAssets] = useState<ReplayAssets | null>(null);
-	const [opened, setOpened] = useState<TournamentReplay | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -92,19 +89,9 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 							{replay.uploaderLabel} · {new Date(replay.createdAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" })}
 							{replay.gameId ? ` · Game ${replay.gameId}` : ""}
 						</div>
-						<dl className="mt-2 grid w-fit grid-cols-[auto_auto] gap-x-6 gap-y-1 text-xs">
-							<dt className="text-[var(--muted)]">Sieger</dt>
-							<dd className="font-medium text-[var(--text)]">{teamLabel(replay.evaluation.winner)}</dd>
-							<dt className="text-[var(--muted)]">Spielzeit</dt>
-							<dd className="font-mono tabular-nums text-[var(--text)]">{formatGameDuration(replay.summary.durationSeconds)}</dd>
-							<dt className="text-[var(--muted)]">Spieler erkannt</dt>
-							<dd className="font-mono tabular-nums text-[var(--text)]">{replay.evaluation.matchedPlayers}/10</dd>
-							<dt className="text-[var(--muted)]">Blau</dt>
-							<dd className="text-[var(--text)]">{teamLabel(replay.evaluation.blueTeam)}</dd>
-						</dl>
-						<button type="button" onClick={() => setOpened(replay)} className="button ghost small mt-2">
-							Scoreboard ansehen
-						</button>
+						<div className="mt-1 text-xs text-[var(--muted)]">
+							Sieger <strong className="text-[var(--text)]">{teamLabel(replay.evaluation.winner)}</strong> · {replay.evaluation.matchedPlayers}/10 Spieler erkannt
+						</div>
 						{replay.evaluation.problems.length ? (
 							<ul className="mt-2 list-disc pl-4 text-xs leading-5 text-[var(--amber)]">
 								{replay.evaluation.problems.map((problem) => (
@@ -127,6 +114,30 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 								</button>
 							</div>
 						) : null}
+						{replay.status === "rejected" ? (
+							<details className="mt-3 text-xs">
+								<summary className="cursor-pointer text-[var(--muted)]">Scoreboard der abgelehnten Replay</summary>
+								<div className="mt-3">
+								<ReplayScoreboard
+							summary={replay.summary}
+							assets={assets}
+							blueTeamName={teamLabel(replay.evaluation.blueTeam)}
+							redTeamName={teamLabel(replay.evaluation.blueTeam === "teamA" ? "teamB" : replay.evaluation.blueTeam === "teamB" ? "teamA" : null)}
+							fileName={replay.fileName}
+						/>
+								</div>
+							</details>
+						) : (
+							<div className="mt-4">
+							<ReplayScoreboard
+							summary={replay.summary}
+							assets={assets}
+							blueTeamName={teamLabel(replay.evaluation.blueTeam)}
+							redTeamName={teamLabel(replay.evaluation.blueTeam === "teamA" ? "teamB" : replay.evaluation.blueTeam === "teamB" ? "teamA" : null)}
+							fileName={replay.fileName}
+						/>
+							</div>
+						)}
 					</li>
 				))}
 				{reports.map((report) => (
@@ -150,24 +161,6 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 					</li>
 				))}
 			</ul>
-			<AdminModal
-				open={Boolean(opened)}
-				kicker={opened ? `Replay · Spiel ${opened.gameNumber}` : "Replay"}
-				title={`${match.teamALabel} vs ${match.teamBLabel}`}
-				onClose={() => setOpened(null)}
-				full
-			>
-				{opened ? (
-					<ReplayScoreboard
-						summary={opened.summary}
-						assets={assets}
-						blueTeamName={teamLabel(opened.evaluation.blueTeam)}
-						redTeamName={teamLabel(opened.evaluation.blueTeam === "teamA" ? "teamB" : opened.evaluation.blueTeam === "teamB" ? "teamA" : null)}
-						fileName={opened.fileName}
-						uploader={opened.uploaderLabel}
-					/>
-				) : null}
-			</AdminModal>
 			{message ? (
 				<p role="status" className="mt-3 text-xs text-[var(--muted)]">
 					{message}
