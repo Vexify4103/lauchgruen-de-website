@@ -2,8 +2,10 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { parseRoflMetadata, RoflParseError, type ReplaySummary } from "@/lib/rofl";
+import type { ReplayAssets } from "@/lib/replay-assets";
+import { ReplayScoreboard } from "@/components/ReplayScoreboard";
 
-type Evaluation = { verdict: "ok" | "review" | "reject"; problems: string[]; winner: "teamA" | "teamB" | null };
+type Evaluation = { verdict: "ok" | "review" | "reject"; problems: string[]; winner: "teamA" | "teamB" | null; blueTeam?: "teamA" | "teamB" | null };
 
 function formatDuration(seconds: number) {
 	return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -23,18 +25,22 @@ export function ReplayUpload({
 	teamAName,
 	teamBName,
 	onUploaded,
+	showScoreboard = true,
 }: {
 	matchId: string;
 	teamAName: string;
 	teamBName: string;
 	/** Called after the server stored the upload, e.g. to refresh a list. */
 	onUploaded?: () => void;
+	/** Show the full scoreboard after a stored upload (off in the narrow admin column, which has its own popup). */
+	showScoreboard?: boolean;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [busy, setBusy] = useState(false);
 	const [summary, setSummary] = useState<ReplaySummary | null>(null);
 	const [result, setResult] = useState<{ tone: "ok" | "warn" | "error"; text: string; problems?: string[] } | null>(null);
 	const [dragging, setDragging] = useState(false);
+	const [stored, setStored] = useState<{ assets: ReplayAssets | null; blueTeam: "teamA" | "teamB" | null } | null>(null);
 
 	function onDrop(event: DragEvent<HTMLDivElement>) {
 		event.preventDefault();
@@ -47,6 +53,7 @@ export function ReplayUpload({
 		setBusy(true);
 		setResult(null);
 		setSummary(null);
+		setStored(null);
 		try {
 			if (!file.name.toLowerCase().endsWith(".rofl")) throw new RoflParseError("Bitte eine .rofl-Datei aus dem Ordner „Dokumente/League of Legends/Replays“ wählen.");
 			const buffer = await file.arrayBuffer();
@@ -57,13 +64,14 @@ export function ReplayUpload({
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ matchId, fileName: file.name, sha256: await sha256Hex(buffer), summary: parsed }),
 			});
-			const json = (await response.json().catch(() => null)) as { message?: string; evaluation?: Evaluation } | null;
+			const json = (await response.json().catch(() => null)) as { message?: string; evaluation?: Evaluation; assets?: ReplayAssets | null } | null;
 			if (!response.ok) {
 				setResult({ tone: "error", text: json?.message ?? "Replay konnte nicht hochgeladen werden.", problems: json?.evaluation?.problems.slice(1) });
 				return;
 			}
 			onUploaded?.();
 			const evaluation = json?.evaluation;
+			setStored({ assets: json?.assets ?? null, blueTeam: evaluation?.blueTeam ?? null });
 			const winnerName = evaluation?.winner === "teamA" ? teamAName : evaluation?.winner === "teamB" ? teamBName : null;
 			setResult(
 				evaluation?.verdict === "ok"
@@ -163,6 +171,16 @@ export function ReplayUpload({
 							))}
 						</ul>
 					) : null}
+				</div>
+			) : null}
+			{showScoreboard && summary && stored ? (
+				<div className="mt-5">
+					<ReplayScoreboard
+						summary={summary}
+						assets={stored.assets}
+						blueTeamName={stored.blueTeam === "teamB" ? teamBName : stored.blueTeam === "teamA" ? teamAName : "Blaue Seite"}
+						redTeamName={stored.blueTeam === "teamB" ? teamAName : stored.blueTeam === "teamA" ? teamBName : "Rote Seite"}
+					/>
 				</div>
 			) : null}
 		</section>

@@ -142,7 +142,9 @@ export async function POST(request: Request) {
 			actorLabel: user.label,
 			metadata: { replayId: replay.id, verdict: evaluation.verdict, problems: evaluation.problems, gameId: replay.gameId },
 		});
-		return NextResponse.json({ replay: { id: replay.id, gameNumber: replay.gameNumber, status: replay.status }, evaluation });
+		// Icons for the scoreboard the captain sees right after the upload.
+		const assets = await getReplayAssets();
+		return NextResponse.json({ replay: { id: replay.id, gameNumber: replay.gameNumber, status: replay.status }, evaluation, assets });
 	} catch (error) {
 		if (error instanceof DuplicateReplayError) return NextResponse.json({ message: error.message }, { status: 409 });
 		throw error;

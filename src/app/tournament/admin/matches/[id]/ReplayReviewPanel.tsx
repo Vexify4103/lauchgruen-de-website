@@ -7,7 +7,7 @@ import type { TournamentReplay } from "@/lib/tournament-replays";
 import { ReplayUpload } from "../../../captain/ReplayUpload";
 import type { ReplayAssets } from "@/lib/replay-assets";
 import { AdminModal } from "../../AdminModal";
-import { ReplayScoreboard } from "./ReplayScoreboard";
+import { ReplayScoreboard } from "@/components/ReplayScoreboard";
 
 type CaptainReport = {
 	id: string;
@@ -176,7 +176,7 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 			) : null}
 			{/* Staff can upload too, for testing or when a captain sends the file another way. */}
 			{match.teamAName && match.teamBName && match.status !== "Finished" ? (
-				<ReplayUpload matchId={match.id} teamAName={match.teamAName} teamBName={match.teamBName} onUploaded={() => setReload((value) => value + 1)} />
+				<ReplayUpload matchId={match.id} teamAName={match.teamAName} teamBName={match.teamBName} onUploaded={() => setReload((value) => value + 1)} showScoreboard={false} />
 			) : null}
 		</section>
 	);
