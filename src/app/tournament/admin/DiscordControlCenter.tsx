@@ -2,7 +2,7 @@
 
 import { LoadingOrb } from "@/components/LoadingIndicator";
 
-import { useEffect, useEffectEvent, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useState, useTransition, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { NicknameSyncButton } from "./NicknameSyncButton";
 
@@ -121,123 +121,130 @@ export function DiscordControlCenter() {
 		? new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(status.cleanupRecommendedAt))
 		: "Kein Turnierende hinterlegt";
 
+	const welcomeRefresh = () => {
+		setMessage("");
+		setError("");
+		startTransition(async () => {
+			const response = await fetch("/api/tournament/roster/publish", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ refreshWelcomePosts: true }),
+			});
+			const json = (await response.json().catch(() => null)) as { discordJobId?: string | null; message?: string } | null;
+			if (!response.ok) setError(json?.message ?? "Begrüßungen konnten nicht aktualisiert werden.");
+			else setMessage(json?.discordJobId ? "Die Begrüßungen in den Teamchannels werden aktualisiert." : "Keine Teamchannels zum Aktualisieren gefunden.");
+			await loadJobs();
+		});
+	};
+
 	return (
-		<section className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#08150f]/88">
-			<header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] p-5">
-				<div>
-					<div className="text-xs font-semibold text-[var(--muted)]">Discord Control Center</div>
-					<h2 className="mt-2 text-2xl font-semibold text-[var(--text)]">Rollen, Nicknames und Queue</h2>
-					<p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-						Alle Massenänderungen laufen nacheinander durch eine persistente, rate-limit-schonende Queue.
-					</p>
-				</div>
-				<div className="grid gap-2">
-					<div className="grid grid-cols-2 gap-2 text-center">
-						<StatusPill label="Roster" value={status?.counts.rosterPlayers ?? "–"} />
-						<StatusPill label="Turnierzugang" value={status?.counts.tournamentAccess ?? "–"} />
-					</div>
-					<button
-						type="button"
-						disabled={previewSending}
-						onClick={sendPreview}
-						title="Schickt dir die Teamchannel-Begrüßung und beide Roster-DMs als Vorschau. Niemand sonst wird angeschrieben oder gepingt."
-						className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--line-strong)] disabled:opacity-45"
-					>
-						{previewSending ? "Sende Vorschau…" : "Vorschau an mich senden"}
-					</button>
-				</div>
-			</header>
-
-			<div className="grid gap-5 p-5 xl:grid-cols-[1.1fr_0.9fr]">
-				<div className="grid content-start gap-4">
-					<div className="grid gap-3 md:grid-cols-2">
-						<ActionCard
-							title="Team- & Captainrollen prüfen"
-							text="Prüft Turnierrolle, jede Teamrolle und die Captainrolle gegen das gespeicherte Roster. Nur fehlende oder veraltete Rollen werden geändert."
-							count={status?.counts.sync}
-							button="Rollen prüfen & synchronisieren"
-							disabled={isPending}
-							onClick={() => run("sync")}
-							tone="cyan"
+		<div className="grid gap-6 text-[var(--text)]">
+			<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+				<span>
+					<strong className="tabular-nums">{status?.counts.rosterPlayers ?? "–"}</strong> <span className="text-[var(--muted)]">Spieler im Roster</span>
+				</span>
+				<span>
+					<strong className="tabular-nums">{status?.counts.tournamentAccess ?? "–"}</strong> <span className="text-[var(--muted)]">mit Turnierrolle</span>
+				</span>
+				{status ? (
+					<span className="flex flex-wrap gap-1.5 text-xs">
+						<ConfigBadge ok={status.configured.tournamentRole} label="Turnierrolle" />
+						<ConfigBadge ok={status.configured.captainRole} label="Captainrolle" />
+						<ConfigBadge
+							ok={status.configured.teamRoles === status.configured.teams && status.configured.teams > 0}
+							label={`${status.configured.teamRoles}/${status.configured.teams} Teamrollen`}
 						/>
-						<ActionCard
-							title="Vollständige Rollenreparatur"
-							text="Prüft jeden aktuellen Spieler noch einmal einzeln. Sinnvoll nach Bot-Ausfällen, manuellen Discord-Änderungen oder Rollenfehlern."
-							count={status?.counts.repair}
-							button="Alle Rollen reparieren"
-							disabled={isPending}
-							onClick={() => run("repair")}
-							tone="lime"
-						/>
-					</div>
-					<div className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
-						<div className="text-xs font-semibold text-[var(--muted)]">Nickname-Prüfung</div>
-						<p className="mt-2 text-xs leading-5 text-[var(--muted)]">
-							Vergleicht alle Roster-Spieler mit dem Format „Anzeigename | Riot-ID“ und repariert ausschließlich Abweichungen.
-						</p>
-						<div className="mt-3">
-							<NicknameSyncButton />
-						</div>
-					</div>
-					<div className="grid gap-3 md:grid-cols-2">
-						<ActionCard
-							title="Aktive Turnierphase beenden"
-							text="Entfernt Team- und Captainrollen. Die Turnierrolle für Feedback bleibt erhalten."
-							count={status?.counts.endPhase}
-							button="Turnierphase beenden"
-							disabled={isPending}
-							onClick={() => setEndConfirm(true)}
-							tone="amber"
-						/>
-						<ActionCard
-							title="Turnierzugang entfernen"
-							text={`Entfernt die persistente Turnierrolle von allen. Empfohlen ab: ${cleanupLabel}.`}
-							count={status?.counts.removeAccess}
-							button="Turnierzugang entfernen"
-							disabled={isPending}
-							onClick={() => setAccessConfirm(true)}
-							tone="red"
-						/>
-					</div>
-					{status ? (
-						<div className="flex flex-wrap gap-2 text-xs font-medium">
-							<ConfigBadge ok={status.configured.tournamentRole} label="Turnierrolle" />
-							<ConfigBadge ok={status.configured.captainRole} label="Captainrolle" />
-							<ConfigBadge
-								ok={status.configured.teamRoles === status.configured.teams && status.configured.teams > 0}
-								label={`${status.configured.teamRoles}/${status.configured.teams} Teamrollen`}
-							/>
-						</div>
-					) : null}
-					{message ? (
-						<div role="status" className="rounded-xl border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--accent)]">
-							{message}
-						</div>
-					) : null}
-					{error ? (
-						<div role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--danger)]">
-							{error}
-						</div>
-					) : null}
-				</div>
-
-				<div className="min-w-0 rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4">
-					<div className="flex items-center justify-between">
-						<div>
-							<div className="text-xs font-semibold text-[var(--muted)]">Queue-Historie</div>
-							<div className="mt-1 text-sm font-semibold text-[var(--text)]">Letzte Discord-Jobs</div>
-						</div>
-						<span className="size-2 rounded-full bg-[var(--muted)]" />
-					</div>
-					<div className="themed-scrollbar mt-3 grid max-h-[28rem] gap-2 overflow-y-auto pr-1">
-						{jobs.length === 0 ? (
-							<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] p-3 text-xs text-[var(--muted)]">Noch keine Discord-Jobs vorhanden.</div>
-						) : (
-							jobs.map((job) => <JobRow key={job.id} job={job} busy={isPending} onRetry={() => retry(job.id)} />)
-						)}
-					</div>
-				</div>
+					</span>
+				) : null}
+				<button
+					type="button"
+					disabled={previewSending}
+					onClick={sendPreview}
+					title="Schickt dir die Teamchannel-Begrüßung und beide Roster-DMs als Vorschau. Niemand sonst wird angeschrieben oder gepingt."
+					className={`ml-auto text-[var(--text)] ${BUTTON}`}
+				>
+					{previewSending ? "Sende Vorschau…" : "Vorschau an mich"}
+				</button>
 			</div>
+
+			{message ? (
+				<p role="status" className="m-0 rounded-lg bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--accent)]">
+					{message}
+				</p>
+			) : null}
+			{error ? (
+				<p role="alert" className="m-0 rounded-lg bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs font-medium text-[var(--danger)]">
+					{error}
+				</p>
+			) : null}
+
+			<Group title="Abgleichen">
+				<ActionRow
+					title="Rollen prüfen"
+					text="Turnier-, Team- und Captainrollen gegen das Roster. Ändert nur, was fehlt oder falsch ist."
+					count={status?.counts.sync}
+					action={
+						<button type="button" disabled={isPending} onClick={() => run("sync")} className={`text-[var(--text)] ${BUTTON}`}>
+							Prüfen
+						</button>
+					}
+				/>
+				<ActionRow
+					title="Alle Rollen reparieren"
+					text="Prüft jeden Spieler einzeln. Nach Bot-Ausfällen oder Handänderungen in Discord."
+					count={status?.counts.repair}
+					action={
+						<button type="button" disabled={isPending} onClick={() => run("repair")} className={`text-[var(--text)] ${BUTTON}`}>
+							Reparieren
+						</button>
+					}
+				/>
+				<ActionRow title="Nicknames" text="Format „Anzeigename | Riot-ID“ für alle Roster-Spieler." action={<NicknameSyncButton />} />
+				<ActionRow
+					title="Team-Begrüßungen"
+					text="Bearbeitet die Begrüßung in jedem Teamchannel (Captain, Teamtag, Termine). Postet nichts Neues, pingt niemanden."
+					action={
+						<button type="button" disabled={isPending} onClick={welcomeRefresh} className={`text-[var(--text)] ${BUTTON}`}>
+							Aktualisieren
+						</button>
+					}
+				/>
+			</Group>
+
+			<Group title="Nach dem Turnier" tone="danger">
+				<ActionRow
+					title="Turnierphase beenden"
+					text="Entfernt Team- und Captainrollen. Die Turnierrolle für Feedback bleibt."
+					count={status?.counts.endPhase}
+					action={
+						<button type="button" disabled={isPending} onClick={() => setEndConfirm(true)} className={`text-[var(--amber)] ${BUTTON}`}>
+							Beenden
+						</button>
+					}
+				/>
+				<ActionRow
+					title="Turnierzugang entfernen"
+					text={`Entfernt die Turnierrolle von allen. Empfohlen ab ${cleanupLabel}.`}
+					count={status?.counts.removeAccess}
+					action={
+						<button type="button" disabled={isPending} onClick={() => setAccessConfirm(true)} className={`text-[var(--danger)] ${BUTTON}`}>
+							Entfernen
+						</button>
+					}
+				/>
+			</Group>
+
+			<Group title="Letzte Discord-Jobs">
+				{jobs.length === 0 ? (
+					<p className="m-0 px-4 py-3 text-xs text-[var(--muted)]">Noch keine Discord-Jobs.</p>
+				) : (
+					<div className="themed-scrollbar max-h-72 overflow-y-auto">
+						{jobs.map((job) => (
+							<JobRow key={job.id} job={job} busy={isPending} onRetry={() => retry(job.id)} />
+						))}
+					</div>
+				)}
+			</Group>
 
 			<ConfirmDialog
 				open={endConfirm}
@@ -261,93 +268,83 @@ export function DiscordControlCenter() {
 					busy={isPending}
 				/>
 			) : null}
-		</section>
+		</div>
 	);
 }
 
-function StatusPill({ label, value }: { label: string; value: string | number }) {
+const BUTTON = "rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-3 py-1.5 text-xs font-semibold transition hover:border-[var(--line-strong)] disabled:opacity-45";
+
+function Group({ title, tone, children }: { title: string; tone?: "danger"; children: ReactNode }) {
 	return (
-		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2">
-			<div className="text-base font-semibold text-[var(--text)]">{value}</div>
-			<div className="text-xs font-semibold text-[var(--muted)]">{label}</div>
-		</div>
+		<section aria-label={title}>
+			<h3 className={`mb-2 text-xs font-semibold ${tone === "danger" ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>{title}</h3>
+			<div
+				className={`divide-y divide-[var(--line)] overflow-hidden rounded-xl border bg-[var(--admin-inset)] ${
+					tone === "danger" ? "border-[color-mix(in_srgb,var(--danger)_30%,var(--line))]" : "border-[var(--line)]"
+				}`}
+			>
+				{children}
+			</div>
+		</section>
 	);
 }
 
 function ConfigBadge({ ok, label }: { ok: boolean; label: string }) {
 	return (
-		<span className="tally rounded-full border border-[var(--line)] px-2.5 py-1" data-tone={ok ? "ok" : "warn"}>
+		<span className="tally rounded-full border border-[var(--line)] px-2.5 py-0.5" data-tone={ok ? "ok" : "warn"}>
 			{label}
 		</span>
 	);
 }
 
-function ActionCard({
-	title,
-	text,
-	count,
-	button,
-	disabled,
-	onClick,
-	tone,
-}: {
-	title: string;
-	text: string;
-	count?: number;
-	button: string;
-	disabled: boolean;
-	onClick: () => void;
-	tone: "cyan" | "lime" | "amber" | "red";
-}) {
-	const buttonTone = {
-		cyan: "text-[var(--text)]",
-		lime: "text-[var(--accent)]",
-		amber: "text-[var(--amber)]",
-		red: "text-[var(--danger)]",
-	};
+function ActionRow({ title, text, count, action }: { title: string; text: string; count?: number; action: ReactNode }) {
 	return (
-		<div className="flex min-h-44 flex-col rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-4 text-[var(--text)]">
-			<div className="flex items-start justify-between gap-3">
-				<h3 className="font-semibold">{title}</h3>
-				<span className="rounded-lg border border-[var(--line)] px-2 py-1 font-mono text-xs font-semibold text-[var(--muted)]">{count ?? "–"}</span>
+		<div className="grid items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+			<div className="min-w-0">
+				<div className="flex items-center gap-2 text-sm font-medium">
+					{title}
+					{count !== undefined ? (
+						<span className="rounded-md bg-[var(--admin-step)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--muted)]" title="Betroffene Aktionen">
+							{count}
+						</span>
+					) : null}
+				</div>
+				<p className="m-0 mt-0.5 text-xs leading-5 text-[var(--muted)]">{text}</p>
 			</div>
-			<p className="mt-2 flex-1 text-xs leading-5 text-[var(--muted)]">{text}</p>
-			<button
-				type="button"
-				disabled={disabled}
-				onClick={onClick}
-				className={`mt-4 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold transition hover:border-[var(--line-strong)] disabled:opacity-45 ${buttonTone[tone]}`}
-			>
-				{button}
-			</button>
+			<div className="sm:justify-self-end">{action}</div>
 		</div>
 	);
 }
 
+const JOB_STATUS: Record<Job["status"], string> = { queued: "Wartet", running: "Läuft", completed: "Fertig", failed: "Fehler" };
+
 function JobRow({ job, busy, onRetry }: { job: Job; busy: boolean; onRetry: () => void }) {
 	const running = job.status === "queued" || job.status === "running";
+	const progress = job.total ? Math.round((job.completed / job.total) * 100) : running ? 0 : 100;
 	return (
-		<div
-			className={`rounded-xl border p-3 ${job.status === "failed" ? "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]" : job.status === "completed" ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-step)]"}`}
-		>
-			<div className="flex items-start justify-between gap-2">
-				<div className="min-w-0">
-					<div className="truncate text-xs font-semibold text-[var(--text)]">{job.title}</div>
-					<div className="mt-1 text-xs font-medium text-[var(--muted)]">
-						{job.status} · {job.completed}/{job.total}
-						{job.failed ? ` · ${job.failed} Fehler` : ""}
-					</div>
-				</div>
-				{running ? <LoadingOrb state="searching" /> : null}
+		<div className="grid gap-1.5 border-b border-[var(--line)] px-4 py-2.5 last:border-b-0">
+			<div className="flex items-center justify-between gap-3">
+				<span className="min-w-0 truncate text-xs font-medium">{job.title}</span>
+				<span className="flex shrink-0 items-center gap-2 text-xs text-[var(--muted)]">
+					{running ? <LoadingOrb state="searching" /> : null}
+					<span className="tabular-nums">
+						{job.completed}/{job.total}
+					</span>
+					<span className={job.status === "failed" ? "text-[var(--danger)]" : job.status === "completed" ? "text-[var(--accent)]" : ""}>
+						{JOB_STATUS[job.status]}
+						{job.failed ? ` · ${job.failed}` : ""}
+					</span>
+				</span>
 			</div>
-			{job.current ? <div className="mt-2 truncate text-xs text-[var(--muted)]">{job.current}</div> : null}
+			<div className="h-1 overflow-hidden rounded-full bg-[var(--admin-step)]">
+				<div
+					className={`h-full rounded-full ${job.status === "failed" ? "bg-[var(--danger)]" : "bg-[var(--accent)]"}`}
+					style={{ width: `${progress}%` }}
+				/>
+			</div>
+			{job.current && running ? <div className="truncate text-xs text-[var(--muted)]">{job.current}</div> : null}
 			{job.status === "failed" ? (
-				<button
-					type="button"
-					disabled={busy}
-					onClick={onRetry}
-					className="mt-2 rounded-lg border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--danger)] disabled:opacity-45"
-				>
+				<button type="button" disabled={busy} onClick={onRetry} className={`justify-self-start text-[var(--danger)] ${BUTTON}`}>
 					Nur Fehler wiederholen
 				</button>
 			) : null}

@@ -157,22 +157,22 @@ export function NicknameSyncButton() {
 				}}
 				onCancel={() => setPendingReset(null)}
 			/>
-			<div className="flex flex-wrap gap-2">
+			<div className="flex flex-wrap gap-2 sm:justify-end">
 				<button
 					type="button"
 					onClick={syncNicknames}
 					disabled={busy}
-					className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] hover:text-[var(--amber)] disabled:opacity-60"
+					className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-3 py-1.5 text-xs font-semibold transition hover:border-[var(--line-strong)] disabled:opacity-45 text-[var(--text)]"
 				>
-					{busy ? "Prüfung läuft…" : "Nicknames prüfen & reparieren"}
+					{busy ? "Prüfung läuft…" : "Prüfen"}
 				</button>
 				<button
 					type="button"
 					onClick={() => setPendingReset(true)}
 					disabled={busy}
-					className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-step)] px-4 py-3 text-xs font-semibold text-[var(--text)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)] hover:text-[var(--danger)] disabled:opacity-60"
+					className="rounded-lg border border-[var(--line)] bg-[var(--admin-step)] px-3 py-1.5 text-xs font-semibold transition hover:border-[var(--line-strong)] disabled:opacity-45 text-[var(--muted)] hover:text-[var(--danger)]"
 				>
-					Nicknames entfernen
+					Entfernen
 				</button>
 			</div>
 			{state.message ? (
