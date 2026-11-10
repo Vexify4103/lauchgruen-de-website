@@ -25,8 +25,21 @@ export async function POST(request: Request) {
 	if (!parsed.success) return NextResponse.json({ message: "Ungültige Daten." }, { status: 400 });
 
 	if (parsed.data.refreshWelcomePosts) {
-		const job = await refreshTeamWelcomePosts({ actorLabel: session.user.discordHandle ?? discordId });
-		return NextResponse.json({ ok: true, discordJobId: job?.id ?? null });
+		try {
+			const job = await refreshTeamWelcomePosts({ actorLabel: session.user.discordHandle ?? discordId });
+			await writeAuditLog({
+				action: "roster.welcome-refresh",
+				targetType: "roster",
+				targetId: "active",
+				summary: "Team-Begrüßungen in den Teamchannels zur Aktualisierung eingeplant.",
+				actorDiscordId: discordId,
+				actorLabel: session.user.discordHandle ?? discordId,
+				metadata: { discordJobId: job?.id ?? null },
+			});
+			return NextResponse.json({ ok: true, discordJobId: job?.id ?? null });
+		} catch (error) {
+			return NextResponse.json({ message: error instanceof Error ? error.message : "Begrüßungen konnten nicht aktualisiert werden." }, { status: 500 });
+		}
 	}
 
 	try {

@@ -215,7 +215,7 @@ export function BracketTree({ matches }: { matches: BracketMatch[]; /** Kept for
 			const d = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${midX.toFixed(1)} ${y1.toFixed(1)}, ${midX.toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 			next.push({ d, kind: conn.kind, decided, from: conn.from, to: conn.to });
 		}
-		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.decided === next[index]?.decided && path.from === next[index]?.from) ? prev : next));
+		setPaths((prev) => (prev.length === next.length && prev.every((path, index) => path.d === next[index]?.d && path.decided === next[index]?.decided && path.from === next[index]?.from && path.to === next[index]?.to) ? prev : next));
 	}, [matchIds, generated, generatedLayout, matches]);
 
 	useEffect(() => {

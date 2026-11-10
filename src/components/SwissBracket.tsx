@@ -11,6 +11,8 @@ type Bucket =
 	| { kind: "matches"; key: string; record: Record2 | null; pairings: SwissPairing[]; open: number }
 	| { kind: "result"; key: string; record: Record2; teams: string[]; tone: "advance" | "out" };
 
+const NO_ENTRIES: Record<string, string> = {};
+
 const recordLabel = (record: Record2) => `${record.wins}–${record.losses}`;
 
 function choose(total: number, selected: number) {
@@ -42,8 +44,8 @@ export function SwissBracket({
 	teamNames,
 	state,
 	activeRound = 1,
-	tags = {},
-	statuses = {},
+	tags = NO_ENTRIES,
+	statuses = NO_ENTRIES,
 }: {
 	config: StageConfig;
 	teamNames: string[];

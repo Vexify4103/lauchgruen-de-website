@@ -39,7 +39,12 @@ export function RenameTeamForm({ teamKey, initialName, initialTag }: { teamKey: 
 			method: "PATCH",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ key: teamKey, name: nextName, tag: nextTag }),
-		});
+		}).catch(() => null);
+		if (!response) {
+			setSaving(false);
+			setMessage({ tone: "error", text: "Keine Verbindung. Bitte erneut versuchen." });
+			return false;
+		}
 		const result = (await response.json().catch(() => null)) as { message?: string; warnings?: string[]; tag?: string } | null;
 		setSaving(false);
 

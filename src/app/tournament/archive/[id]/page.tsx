@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { BracketTree } from "@/components/BracketTree";
 import { SwissStageBoard } from "@/components/SwissStageBoard";
+import { withTeamTags } from "@/lib/team-tag";
 import { EmptyState, PageIntro } from "@/components/site/PageIntro";
 import { playedChampionsByTeam } from "@/lib/fearless";
 import { formatGameDuration } from "@/lib/match-duration";
@@ -185,6 +186,13 @@ function Teams({ snapshot, kind }: { snapshot: Snapshot; kind: TournamentKind })
 	);
 }
 
+/** Stored tags win; older archives get generated ones in the same order as the live site. */
+function archiveTags(teams: Snapshot["teams"]): Record<string, string> {
+	const entries = teams.map((team) => ({ name: team.name, storageKey: (team as { storageKey?: string }).storageKey ?? team.name.toLowerCase(), meta: { tag: (team as { tag?: string }).tag } }));
+	const tags = withTeamTags(entries);
+	return Object.fromEntries(entries.map((entry) => [entry.name, tags.get(entry) ?? ""]));
+}
+
 function Stage({ snapshot }: { snapshot: Snapshot }) {
 	if (snapshot.swiss?.rounds.length && snapshot.structure) {
 		return (
@@ -195,6 +203,7 @@ function Stage({ snapshot }: { snapshot: Snapshot }) {
 					teamNames={snapshot.teams.map((team) => team.name)}
 					state={snapshot.swiss}
 					activeRound={snapshot.swiss.rounds.length}
+					tags={archiveTags(snapshot.teams)}
 				/>
 			</>
 		);

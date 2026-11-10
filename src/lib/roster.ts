@@ -634,8 +634,12 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 			if (!(team.players ?? []).length) continue;
 			const captainId = team.meta?.captain?.discordId ?? null;
 			// A new captain updates the existing welcome post in place.
-			const captainChanged = !firstPublication && captainId !== (previousTeams[teamKey]?.meta?.captain?.discordId ?? null);
-			const operation = teamWelcomeOperation(teamKey, team, tags.get(teamKey), settings, captainChanged ? "edit-if-sent" : "post");
+			const previous = previousTeams[teamKey];
+			// Captain, name or tag changed since the welcome post: update it in place.
+			const changed =
+				!firstPublication &&
+				(captainId !== (previous?.meta?.captain?.discordId ?? null) || team.name !== previous?.name || (team.meta?.tag ?? "") !== (previous?.meta?.tag ?? ""));
+			const operation = teamWelcomeOperation(teamKey, team, tags.get(teamKey), settings, changed ? "edit-if-sent" : "post");
 			if (operation) operations.push(operation);
 		}
 	}
