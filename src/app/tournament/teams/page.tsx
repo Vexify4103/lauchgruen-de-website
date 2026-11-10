@@ -16,6 +16,9 @@ import { getMatchControlContext } from "@/lib/match-control";
 import { teamMatchRecord } from "@/lib/tournament-team-records";
 import { usesFearless, usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
 import { lockedChampionsByTeam } from "@/lib/fearless";
+import { RoleIcon } from "@/components/RoleIcon";
+import { teamColor } from "@/lib/team-tag";
+import type { CSSProperties } from "react";
 
 function CrownIcon() {
 	return (
@@ -179,7 +182,8 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				) : null}
 
 				<div className="roster-grid">
-					{teams.map((team) => {
+					{teams.map((team, teamIndex) => {
+						const color = teamColor(teamIndex);
 						const teamStreams = liveStreams.filter((stream) => stream.teamName === team.name);
 						const lockedCount = fearlessPlayed?.get(team.name)?.length ?? 0;
 						const record = control ? teamMatchRecord(team.name, control.matches) : team.record;
@@ -189,15 +193,28 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 						return (
 							<article
 								key={team.id}
-								className={`roster-card flex flex-col transition-colors hover:border-[var(--line-strong)] ${
+								id={`team-${team.id}`}
+								style={{ "--team": color } as CSSProperties}
+								className={`roster-card relative flex flex-col overflow-hidden transition-colors hover:border-[var(--line-strong)] ${
 									liveMatch ? "!border-[color-mix(in_srgb,var(--live)_45%,var(--line))]" : ""
 								}`}
 							>
-								<header className="flex items-start justify-between gap-4">
-									<div className="min-w-0">
-										<div className="flex h-4 items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
+								<span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-[var(--team)]" />
+								<header className="flex items-start gap-3">
+									<span
+										className="grid h-11 min-w-14 shrink-0 place-items-center rounded-lg px-2 font-mono text-sm font-bold tracking-wide text-[var(--team)]"
+										style={{ background: "color-mix(in srgb, var(--team) 16%, transparent)", border: "1px solid color-mix(in srgb, var(--team) 40%, transparent)" }}
+										title="Teamtag"
+									>
+										{team.tag ?? "—"}
+									</span>
+									<div className="min-w-0 flex-1">
+										<h3 className="!m-0 truncate !text-xl !leading-tight" title={team.name}>
+											{team.name}
+										</h3>
+										<div className="mt-1 flex h-4 items-center gap-2 text-xs text-[var(--muted)]">
 											{liveMatch ? (
-												<span className="inline-flex items-center gap-1.5 text-[var(--live)]">
+												<span className="inline-flex items-center gap-1.5 font-medium text-[var(--live)]">
 													<i aria-hidden className="size-1.5 animate-pulse rounded-full bg-[var(--live)] motion-reduce:animate-none" />
 													Live vs {liveMatch.teamA === team.name ? liveMatch.teamB : liveMatch.teamA}
 												</span>
@@ -207,7 +224,6 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 												</span>
 											) : null}
 										</div>
-										<h3 className="mt-1 !text-2xl !leading-tight">{team.name}</h3>
 									</div>
 									<div className="shrink-0 text-right" title="Siege und Niederlagen">
 										<div className="font-display text-2xl font-semibold leading-none tabular-nums">
@@ -225,7 +241,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 										const isCaptain = !!team.captainRef && team.captainRef.riotId === player.riotId;
 										return (
 											<li key={`${team.id}-${player.riotId}`} className="!justify-start">
-												<small className="w-16 !text-[10px] tracking-wide">{player.role}</small>
+												<span className="grid w-6 shrink-0 place-items-center text-[var(--muted)]">
+													<RoleIcon role={player.role} className="size-5" />
+												</span>
 												<div className="min-w-0 flex-1">
 													<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 														<a href={player.opggUrl} target="_blank" rel="noreferrer" className="truncate text-sm font-bold hover:text-[var(--accent)]">

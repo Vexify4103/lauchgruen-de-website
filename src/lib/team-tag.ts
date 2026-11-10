@@ -97,3 +97,10 @@ export function withTeamTags<T extends { name: string; storageKey?: string; meta
 	}
 	return result;
 }
+
+/** Distinct, readable team colors on the dark theme; pick by a stable team index. */
+export const TEAM_COLORS = ["#a3e635", "#fbbf24", "#38bdf8", "#fb7185", "#c084fc", "#fb923c", "#2dd4bf", "#f472b6", "#facc15", "#60a5fa", "#4ade80", "#e879f9", "#f87171", "#22d3ee", "#fdba74", "#a78bfa"];
+
+export function teamColor(index: number): string {
+	return TEAM_COLORS[((index % TEAM_COLORS.length) + TEAM_COLORS.length) % TEAM_COLORS.length];
+}
