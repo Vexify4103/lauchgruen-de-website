@@ -164,29 +164,25 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	}
 
 	return (
-		<section className="mt-6 overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#07160f]/92">
-			<header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] p-5">
+		<section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--admin-step)]">
+			<header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] px-4 py-3">
 				<div>
-					<div className="text-xs font-semibold text-[var(--muted)]">{testMode ? "Swiss-Simulation" : "Swiss-Auslosung"}</div>
-					<h2 className="mt-1 text-2xl font-semibold text-[var(--text)]">Paarung für Paarung</h2>
-					<p className="mt-2 max-w-2xl text-xs leading-5 text-[var(--muted)]">
+					<h2 className="m-0 text-sm font-semibold text-[var(--text)]">{testMode ? "Swiss-Simulation" : "Swiss-Auslosung"}</h2>
+					<p className="m-0 mt-0.5 max-w-2xl text-xs leading-5 text-[var(--muted)]">
 						{testMode
 							? "Sieger verändern die Bilanz-Brackets der nächsten Runde. Gepaart wird zufällig innerhalb derselben Bilanz, Rematches sind ausgeschlossen."
 							: "Die gültige Runde wird verdeckt vorbereitet. Jeder Klick enthüllt mit Animation genau ein Match; frühere Gegner bleiben serverseitig gesperrt."}
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2">
-					<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-4 py-2 text-right">
-						<div className="text-xs font-semibold text-[var(--muted)]">Aktuelle Ziehung</div>
-						<div className="mt-0.5 font-mono text-sm font-semibold text-[var(--text)]">
-							R{targetRound} · {targetBracket}
-						</div>
-					</div>
+					<span className="self-center font-mono text-xs text-[var(--muted)]">
+						Nächste: R{targetRound} · {targetBracket}
+					</span>
 					<button
 						type="button"
 						disabled={drawing || finished || teams.length < 2 || unresolvedCurrentRound}
 						onClick={() => draw()}
-						className="bg-[var(--accent)] rounded-xl px-4 py-3 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-40"
+						className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-40"
 					>
 						{drawing
 							? "Lostrommel läuft…"
@@ -201,7 +197,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 							type="button"
 							disabled={drawing}
 							onClick={() => setRedrawOpen(true)}
-							className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-3 text-xs font-semibold text-[var(--amber)] disabled:opacity-40"
+							className="rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-xs font-semibold text-[var(--amber)] disabled:opacity-40"
 						>
 							Aktuelle Runde neu
 						</button>
@@ -211,7 +207,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 							type="button"
 							disabled={drawing}
 							onClick={() => setResetOpen(true)}
-							className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-3 text-xs font-semibold text-[var(--danger)] disabled:opacity-40"
+							className="rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-xs font-semibold text-[var(--danger)] disabled:opacity-40"
 						>
 							Zurücksetzen
 						</button>

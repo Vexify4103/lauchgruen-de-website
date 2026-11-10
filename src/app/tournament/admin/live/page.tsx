@@ -27,6 +27,8 @@ type LiveMatch = {
 	total: number;
 };
 
+const STATUS_LABEL: Record<string, string> = { Scheduled: "Geplant", Pending: "Wartet auf Start", Live: "Live", Finished: "Beendet", Locked: "Gesperrt" };
+
 export default async function AdminLiveDashboardPage() {
 	const session = await auth();
 	const discordId = session?.user?.discordId;
@@ -64,6 +66,7 @@ export default async function AdminLiveDashboardPage() {
 	const live = playable.filter((match) => match.status === "Live");
 	const waiting = playable.filter((match) => match.status === "Pending");
 	const scheduled = playable.filter((match) => match.status === "Scheduled");
+	const finished = playable.filter((match) => match.status === "Finished");
 	const open = playable.filter((match) => match.status !== "Finished");
 	const nextMatches = getNextMatches(open.filter((match) => match.status !== "Live"));
 	const missingScores = playable.filter((match) => match.status === "Finished" && (match.scoreA === undefined || match.scoreB === undefined));
@@ -79,104 +82,93 @@ export default async function AdminLiveDashboardPage() {
 			: []
 	);
 	const activeDrafts = isUltimateBravery ? live.map(emptyDraftState) : await Promise.all(live.map((match) => loadDraftState(match, settings.activeTournament)));
-	const openRerollRequests = [...ultimateBraveryStatuses.values()].reduce((total, status) => total + status.rerollRequestCount, 0);
-	const attentionCount = waiting.length + missingScores.length + unresolved.length + openRerollRequests;
+	const tasks = buildTasks({ waiting, missingScores, matches: playable, ultimateBraveryStatuses });
+	const ties = stages ? openStageTies(stages, config.advanceTeamCount) : [];
+	const decisions = stages ? Object.entries(stages.overrides).map(([key, order]) => ({ key, title: standingOverrideTitle(key), order })) : [];
 
 	return (
-		<>
-			<div className="admin-stat-grid">
-				<article>
-					<span>Aktiv</span>
-					<strong>{live.length}</strong>
-					<small>im Draft oder Spiel</small>
-				</article>
-				<article>
-					<span>Wartet</span>
-					<strong>{waiting.length}</strong>
-					<small>bereit zur Freigabe</small>
-				</article>
-				<article>
-					<span>Geplant</span>
-					<strong>{scheduled.length}</strong>
-					<small>im Rolling Schedule</small>
-				</article>
-				<article>
-					<span>Aufgaben</span>
-					<strong>{attentionCount}</strong>
-					<small>{attentionCount ? "brauchen Aufmerksamkeit" : "alles erledigt"}</small>
-				</article>
-			</div>
-			<div className="mb-[18px] flex flex-wrap items-center gap-2">
-				<StateBadge active={settings.tournamentLive} label={settings.tournamentLive ? "Turnier öffentlich live" : "Turnier in Vorbereitung"} />
-				<StateBadge active={settings.draftEnabled} label={settings.draftEnabled ? "Matchzugriff aktiv" : "Matchzugriff pausiert"} />
-			</div>
-			{stages ? (
-				<StageControlPanel
-					pendingReason={stages.dayOne.pendingReason}
-					playIn={playInPanel}
-					ties={openStageTies(stages, config.advanceTeamCount)}
-					decisions={Object.entries(stages.overrides).map(([key, order]) => ({ key, title: standingOverrideTitle(key), order }))}
-				/>
-			) : null}
-			{swissData ? <SwissDrawControl initialState={swissData[0]} configuredRounds={config.swissRounds} teams={swissTeamNames} initialAudit={swissData[1]} /> : null}
+		<div className="grid gap-5">
+			<section aria-label="Lage" className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-5 py-4">
+				<Figure value={live.length} label="live" tone={live.length ? "live" : undefined} />
+				<Figure value={waiting.length} label="warten auf Start" />
+				<Figure value={scheduled.length} label="geplant" />
+				<Figure value={finished.length} label="beendet" />
+				<Figure value={tasks.length} label={tasks.length === 1 ? "Aufgabe" : "Aufgaben"} tone={tasks.length ? "amber" : undefined} />
+				<div className="ml-auto flex flex-wrap gap-2">
+					<StateBadge active={settings.tournamentLive} label={settings.tournamentLive ? "Turnier öffentlich live" : "Turnier in Vorbereitung"} />
+					<StateBadge active={settings.draftEnabled} label={settings.draftEnabled ? "Matchzugriff aktiv" : "Matchzugriff pausiert"} />
+				</div>
+				{stages?.dayOne.pendingReason ? <p className="m-0 w-full border-t border-[var(--line)] pt-3 text-sm text-[var(--muted)]">{stages.dayOne.pendingReason}</p> : null}
+			</section>
+
+			{stages ? <StageControlPanel pendingReason={null} playIn={playInPanel} ties={ties} decisions={decisions} /> : null}
 
 			<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-				<div className="grid gap-5">
-					<CockpitPanel eyebrow="Im Spiel" title="Aktive Matches" count={activeDrafts.length} tone="red">
-						{activeDrafts.length === 0 ? (
-							<EmptyState
-								title="Derzeit läuft kein Match."
-								text={
-									playable.length === 0
-										? "Sobald Teams und Matches erstellt sind, wird dieses Cockpit automatisch gefüllt."
-										: "Die nächsten vorbereiteten Matches stehen direkt darunter bereit."
-								}
-							/>
-						) : (
-							<div className="grid gap-3 lg:grid-cols-2">
-								{activeDrafts.map((entry) => (
-									<LiveMatchCard
-										key={entry.match.id}
-										entry={entry}
-										isUltimateBravery={isUltimateBravery}
-										ultimateBraveryStatus={ultimateBraveryStatuses.get(entry.match.id)}
-									/>
-								))}
-							</div>
-						)}
-					</CockpitPanel>
+				<Panel title="Matches" aria="Live und als Nächstes">
+					{activeDrafts.length === 0 && nextMatches.length === 0 ? (
+						<p className="m-0 px-4 py-4 text-sm text-[var(--muted)]">
+							{playable.length === 0 ? "Sobald Teams und Matches erstellt sind, erscheinen sie hier." : "Alle spielbaren Matches sind abgeschlossen."}
+						</p>
+					) : (
+						<ul className="m-0 list-none divide-y divide-[var(--line)] p-0">
+							{activeDrafts.map((entry) => (
+								<MatchRow
+									key={entry.match.id}
+									match={entry.match}
+									detail={
+										isUltimateBravery
+											? ultimateBraveryDetail(ultimateBraveryStatuses.get(entry.match.id))
+											: entry.draftComplete
+												? "Draft fertig, im Spiel"
+												: entry.draftReady
+													? `Draft ${entry.actions}/${entry.total}`
+													: "Wartet auf Captains"
+									}
+								/>
+							))}
+							{activeDrafts.length === 0 ? <li className="px-4 py-2.5 text-xs text-[var(--muted)]">Gerade läuft kein Match.</li> : null}
+							{nextMatches.map((match) => (
+								<MatchRow
+									key={match.id}
+									match={match}
+									detail={
+										isUltimateBravery
+											? ultimateBraveryDetail(ultimateBraveryStatuses.get(match.id))
+											: match.poolAssignment
+												? `Pools ${compactPoolLabel(match.poolAssignment.teamAPool)} · ${compactPoolLabel(match.poolAssignment.teamBPool)}`
+												: null
+									}
+								/>
+							))}
+						</ul>
+					)}
+				</Panel>
 
-					<CockpitPanel eyebrow="Rolling Schedule" title="Als Nächstes" count={nextMatches.length} tone="cyan">
-						{nextMatches.length === 0 ? (
-							<EmptyState
-								title="Noch keine nächsten Matches."
-								text={
-									isUltimateBravery
-										? "Format, Teams und Bracket müssen zuerst finalisiert werden."
-										: "Alle spielbaren Matches sind abgeschlossen oder bereits live."
-								}
-							/>
-						) : (
-							<div className="divide-y divide-[var(--line)] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)]">
-								{nextMatches.map((match, index) => (
-									<QueueMatchRow
-										key={match.id}
-										match={match}
-										position={index + 1}
-										isUltimateBravery={isUltimateBravery}
-										ultimateBraveryStatus={ultimateBraveryStatuses.get(match.id)}
-									/>
-								))}
-							</div>
-						)}
-					</CockpitPanel>
-				</div>
-
-				<aside className="grid content-start gap-5">
-					<AttentionPanel waiting={waiting} missingScores={missingScores} unresolved={unresolved} matches={playable} ultimateBraveryStatuses={ultimateBraveryStatuses} />
-				</aside>
+				<Panel title="Orga-Aufgaben" aria="Orga-Aufgaben" count={tasks.length}>
+					{tasks.length === 0 ? (
+						<p className="m-0 px-4 py-4 text-sm text-[var(--accent)]">Nichts offen.</p>
+					) : (
+						<ul className="m-0 list-none divide-y divide-[var(--line)] p-0">
+							{tasks.slice(0, 10).map((task) => (
+								<li key={`${task.matchId}-${task.label}`}>
+									<Link href={`/tournament/admin/matches/${task.matchId}`} className="block px-4 py-2.5 transition hover:bg-[var(--admin-inset)]">
+										<div className="truncate text-sm font-medium text-[var(--text)]">{task.title}</div>
+										<div className={`mt-0.5 text-xs ${task.tone === "amber" ? "text-[var(--amber)]" : "text-[var(--muted)]"}`}>{task.label}</div>
+									</Link>
+								</li>
+							))}
+						</ul>
+					)}
+					{unresolved.length ? (
+						<p className="m-0 border-t border-[var(--line)] px-4 py-2.5 text-xs text-[var(--muted)]">
+							{unresolved.length} {unresolved.length === 1 ? "Match wartet" : "Matches warten"} noch auf Teams aus früheren Runden.
+						</p>
+					) : null}
+				</Panel>
 			</div>
-		</>
+
+			{swissData ? <SwissDrawControl initialState={swissData[0]} configuredRounds={config.swissRounds} teams={swissTeamNames} initialAudit={swissData[1]} /> : null}
+		</div>
 	);
 }
 
@@ -201,166 +193,95 @@ function getNextMatches(matches: ControlMatch[]) {
 	}
 	const lanes = [...byGroup.values()];
 	const interleaved = Array.from({ length: Math.max(0, ...lanes.map((lane) => lane.length)) }, (_, index) => lanes.flatMap((lane) => (lane[index] ? [lane[index]] : []))).flat();
-	return [...playIn, ...interleaved, ...matches.filter((match) => match.phase === "playoffs")].slice(0, 4);
+	return [...playIn, ...interleaved, ...matches.filter((match) => match.phase === "playoffs")].slice(0, 6);
 }
 
-function CockpitPanel({ eyebrow, title, count, tone, children }: { eyebrow: string; title: string; count: number; tone: "red" | "cyan"; children: ReactNode }) {
-	const accent = tone === "red" ? "text-[var(--danger)] bg-[var(--danger)]" : "text-[var(--muted)] bg-[var(--muted)]";
-	return (
-		<section className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[#09170f]/88">
-			<header className="flex items-end justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
-				<div>
-					<div className={`text-xs font-semibold ${accent.split(" ")[0]}`}>{eyebrow}</div>
-					<h2 className="mt-1 text-2xl font-semibold text-[var(--text)]">{title}</h2>
-				</div>
-				<span className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 font-mono text-sm font-semibold text-[var(--text)]">{count}</span>
-			</header>
-			<div className="p-4 sm:p-5">{children}</div>
-		</section>
-	);
-}
-
-function LiveMatchCard({ entry, isUltimateBravery, ultimateBraveryStatus }: { entry: LiveMatch; isUltimateBravery: boolean; ultimateBraveryStatus?: UltimateBraveryDraftStatus }) {
-	const { match } = entry;
-	return (
-		<Link
-			href={`/tournament/admin/matches/${match.id}`}
-			className="group overflow-hidden rounded-[12px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] transition hover:border-[color-mix(in_srgb,var(--danger)_40%,transparent)]"
-		>
-			<div className="p-4">
-				<div className="flex items-center justify-between gap-3">
-					<span className="text-xs font-semibold text-[var(--muted)]">Live · {match.round}</span>
-					<span className="font-mono text-xs font-medium text-[var(--muted)]">{match.id}</span>
-				</div>
-				<div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-					<strong className="text-lg text-[var(--text)]">{match.teamALabel}</strong>
-					<span className="text-xs font-semibold text-[var(--danger)]">VS</span>
-					<strong className="text-right text-lg text-[var(--text)]">{match.teamBLabel}</strong>
-				</div>
-				<div className="mt-4 flex flex-wrap gap-2">
-					{isUltimateBravery ? (
-						<>
-							<Chip text={`${ultimateBraveryStatus?.lockedCount ?? 0}/${ultimateBraveryStatus?.totalPlayers ?? 10} bestätigt`} />
-							{ultimateBraveryStatus?.rerollRequestCount ? <DangerChip text={`${ultimateBraveryStatus.rerollRequestCount} Ausnahme offen`} /> : null}
-						</>
-					) : (
-						<>
-							<Chip text={entry.draftComplete ? "Draft fertig" : entry.draftReady ? `Draft ${entry.actions}/${entry.total}` : "Wartet auf Captains"} />
-							<Chip
-								text={
-									match.poolAssignment
-										? `${compactPoolLabel(match.poolAssignment.teamAPool)} vs ${compactPoolLabel(match.poolAssignment.teamBPool)}`
-										: "Pools offen"
-								}
-							/>
-						</>
-					)}
-				</div>
-				<div className="mt-4 text-xs font-semibold text-[var(--muted)] transition group-hover:text-[var(--danger)]">Control Room öffnen →</div>
-			</div>
-		</Link>
-	);
-}
-
-function QueueMatchRow({
-	match,
-	position,
-	isUltimateBravery,
-	ultimateBraveryStatus,
-}: {
-	match: ControlMatch;
-	position: number;
-	isUltimateBravery: boolean;
-	ultimateBraveryStatus?: UltimateBraveryDraftStatus;
-}) {
-	return (
-		<Link
-			href={`/tournament/admin/matches/${match.id}`}
-			className="group grid gap-3 px-4 py-3.5 transition hover:bg-[var(--admin-step)] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:items-center"
-		>
-			<span className="font-mono text-lg font-semibold text-[var(--muted)]">{String(position).padStart(2, "0")}</span>
-			<div className="min-w-0">
-				<div className="truncate text-sm font-semibold text-[var(--text)]">
-					{match.teamALabel} <span className="text-[var(--muted)]">vs</span> {match.teamBLabel}
-				</div>
-				<div className="mt-1 text-xs font-medium text-[var(--muted)]">
-					{match.round} · {match.time} · {match.status}
-				</div>
-			</div>
-			<div className="flex items-center gap-2">
-				<span className="hidden rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)] md:inline-flex">
-					{isUltimateBravery
-						? ultimateBraveryStatus?.rerollRequestCount
-							? `${ultimateBraveryStatus.rerollRequestCount} Ausnahme offen`
-							: `${ultimateBraveryStatus?.lockedCount ?? 0}/${ultimateBraveryStatus?.totalPlayers ?? 10} bestätigt`
-						: match.poolAssignment
-							? "Pools bereit"
-							: "Vorbereiten"}
-				</span>
-				<span className="text-[var(--muted)] transition group-hover:translate-x-1 group-hover:text-[var(--text)]">→</span>
-			</div>
-		</Link>
-	);
-}
-
-function AttentionPanel({
+function buildTasks({
 	waiting,
 	missingScores,
-	unresolved,
 	matches,
 	ultimateBraveryStatuses,
 }: {
 	waiting: ControlMatch[];
 	missingScores: ControlMatch[];
-	unresolved: ControlMatch[];
 	matches: ControlMatch[];
 	ultimateBraveryStatuses: Map<string, UltimateBraveryDraftStatus>;
 }) {
-	const tasks = [
+	const title = (match: ControlMatch | undefined, matchId: string) => (match ? `${match.teamALabel} vs ${match.teamBLabel}` : matchId);
+	return [
 		...[...ultimateBraveryStatuses.entries()]
 			.filter(([, status]) => status.rerollRequestCount > 0)
 			.map(([matchId, status]) => ({
-				match: matches.find((match) => match.id === matchId),
 				matchId,
+				title: title(
+					matches.find((match) => match.id === matchId),
+					matchId
+				),
 				label: `${status.rerollRequestCount} Reroll-Ausnahme${status.rerollRequestCount === 1 ? "" : "n"} offen`,
 				tone: "amber" as const,
 			})),
-		...waiting.map((match) => ({ match, matchId: match.id, label: "Match wartet auf Start", tone: "cyan" as const })),
-		...missingScores.map((match) => ({ match, matchId: match.id, label: "Ergebnis fehlt", tone: "amber" as const })),
-		...unresolved.slice(0, 4).map((match) => ({ match, matchId: match.id, label: "Teams noch nicht bestimmt", tone: "amber" as const })),
+		...missingScores.map((match) => ({ matchId: match.id, title: title(match, match.id), label: "Ergebnis fehlt", tone: "amber" as const })),
+		...waiting.map((match) => ({ matchId: match.id, title: title(match, match.id), label: "Wartet auf Start", tone: "neutral" as const })),
 	];
+}
+
+function ultimateBraveryDetail(status: UltimateBraveryDraftStatus | undefined) {
+	if (!status) return null;
+	return status.rerollRequestCount ? `${status.rerollRequestCount} Ausnahme offen` : `${status.lockedCount}/${status.totalPlayers} bestätigt`;
+}
+
+function Figure({ value, label, tone }: { value: number; label: string; tone?: "live" | "amber" }) {
+	const color = tone === "live" ? "text-[var(--live)]" : tone === "amber" ? "text-[var(--amber)]" : value ? "text-[var(--text)]" : "text-[var(--muted)]";
 	return (
-		<section className="rounded-[16px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] p-5">
-			<div className="flex items-center justify-between gap-3">
-				<div>
-					<div className="text-xs font-semibold text-[var(--muted)]">Aufmerksamkeit</div>
-					<h2 className="mt-2 text-xl font-semibold text-[var(--text)]">Orga-Aufgaben</h2>
-				</div>
-				<span
-					className={`grid size-10 place-items-center rounded-full border font-mono text-sm font-semibold ${tasks.length ? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] text-[var(--amber)]" : "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"}`}
-				>
-					{tasks.length}
-				</span>
-			</div>
-			<div className="mt-4 grid gap-2">
-				{tasks.length === 0 ? (
-					<div className="rounded-xl border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] p-3 text-xs font-medium text-[var(--accent)]">
-						Keine Orga-Aktion offen
-					</div>
-				) : (
-					tasks.slice(0, 8).map(({ match, matchId, label, tone }) => (
-						<Link
-							key={`${matchId}-${label}`}
-							href={`/tournament/admin/matches/${matchId}`}
-							className={`rounded-xl border px-3 py-2.5 transition hover:bg-[var(--admin-step)] ${tone === "amber" ? "border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)]" : "border-[var(--line)] bg-[var(--admin-step)]"}`}
-						>
-							<div className="truncate text-xs font-semibold text-[var(--text)]">{match ? `${match.teamALabel} vs ${match.teamBLabel}` : matchId}</div>
-							<div className="mt-1 text-xs font-medium text-[var(--muted)]">{label}</div>
-						</Link>
-					))
-				)}
-			</div>
+		<div className="flex items-baseline gap-2">
+			<strong className={`font-display text-2xl font-semibold tabular-nums ${color}`}>{value}</strong>
+			<span className="text-sm text-[var(--muted)]">{label}</span>
+		</div>
+	);
+}
+
+function Panel({ title, aria, count, children }: { title: string; aria: string; count?: number; children: ReactNode }) {
+	return (
+		<section aria-label={aria} className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--admin-step)]">
+			<header className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
+				<h2 className="m-0 text-sm font-semibold text-[var(--text)]">{title}</h2>
+				{count !== undefined ? <span className="font-mono text-xs text-[var(--muted)]">{count}</span> : null}
+			</header>
+			{children}
 		</section>
+	);
+}
+
+function MatchRow({ match, detail }: { match: ControlMatch; detail: string | null }) {
+	const live = match.status === "Live";
+	return (
+		<li>
+			<Link
+				href={`/tournament/admin/matches/${match.id}`}
+				className={`group grid items-center gap-x-4 gap-y-1 px-4 py-3 transition hover:bg-[var(--admin-inset)] sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] ${
+					live ? "bg-[color-mix(in_srgb,var(--live)_6%,transparent)]" : ""
+				}`}
+			>
+				<span className={`inline-flex items-center gap-2 text-xs font-medium ${live ? "text-[var(--live)]" : match.status === "Pending" ? "text-[var(--text)]" : "text-[var(--muted)]"}`}>
+					{live ? <i aria-hidden className="size-1.5 rounded-full bg-[var(--live)]" /> : null}
+					{STATUS_LABEL[match.status] ?? match.status}
+				</span>
+				<span className="min-w-0">
+					<span className="flex min-w-0 items-baseline gap-2 text-sm">
+						{match.teamATag ? <span className="font-mono text-xs font-semibold text-[var(--muted)]">{match.teamATag}</span> : null}
+						<span className="truncate font-medium text-[var(--text)]">{match.teamALabel}</span>
+						<span className="text-xs text-[var(--muted)]">vs</span>
+						<span className="truncate font-medium text-[var(--text)]">{match.teamBLabel}</span>
+						{match.teamBTag ? <span className="font-mono text-xs font-semibold text-[var(--muted)]">{match.teamBTag}</span> : null}
+					</span>
+					<span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
+						{match.round}
+						{detail ? ` · ${detail}` : ""}
+					</span>
+				</span>
+				<span className="text-xs font-medium text-[var(--muted)] transition group-hover:text-[var(--text)]">Öffnen →</span>
+			</Link>
+		</li>
 	);
 }
 
@@ -369,22 +290,5 @@ function StateBadge({ active, label }: { active: boolean; label: string }) {
 		<span className="tally rounded-full border border-[var(--line)] px-3 py-1.5" data-tone={active ? "ok" : "warn"}>
 			{label}
 		</span>
-	);
-}
-
-function Chip({ text }: { text: string }) {
-	return <span className="rounded-full border border-[var(--line)] bg-[var(--admin-inset)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]">{text}</span>;
-}
-
-function DangerChip({ text }: { text: string }) {
-	return <span className="rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)]">{text}</span>;
-}
-
-function EmptyState({ title, text }: { title: string; text: string }) {
-	return (
-		<div className="rounded-[12px] border border-dashed border-[var(--line)] bg-[var(--admin-inset)] px-5 py-8 text-center">
-			<div className="text-sm font-semibold text-[var(--muted)]">{title}</div>
-			<p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-[var(--muted)]">{text}</p>
-		</div>
 	);
 }

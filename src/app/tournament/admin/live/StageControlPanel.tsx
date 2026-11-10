@@ -78,10 +78,9 @@ export function StageControlPanel({
 	if (!pendingReason && !playIn && ties.length === 0 && decisions.length === 0) return null;
 
 	return (
-		<section className="mb-5 overflow-hidden rounded-[16px] border border-[var(--line-strong)] bg-[#08160f]/90">
-			<header className="border-b border-[var(--line)] px-5 py-4">
-				<div className="text-xs font-semibold text-[var(--muted)]">Turnierablauf</div>
-				<h2 className="mt-1 text-2xl font-semibold text-[var(--text)]">Stages & Entscheidungen</h2>
+		<section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--admin-step)]">
+			<header className="border-b border-[var(--line)] px-4 py-3">
+				<h2 className="m-0 text-sm font-semibold text-[var(--text)]">Stages und Entscheidungen</h2>
 				{pendingReason ? <p className="mt-2 text-sm font-medium text-[var(--text)]">{pendingReason}</p> : null}
 			</header>
 			<div className="grid gap-4 p-5 lg:grid-cols-2">
