@@ -1026,6 +1026,26 @@ export function RosterBuilder({
 		[rosterDirty, router]
 	);
 
+	const refreshWelcomePosts = useCallback(async () => {
+		setPublishing(true);
+		setMessage(null);
+		const response = await fetch("/api/tournament/roster/publish", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ refreshWelcomePosts: true }),
+		});
+		const json = await response.json().catch(() => null);
+		setPublishing(false);
+		if (!response.ok) {
+			setMessage({ tone: "error", text: json?.message ?? "Begrüßungen konnten nicht aktualisiert werden." });
+			return;
+		}
+		if (typeof json?.discordJobId === "string") {
+			setDiscordJob({ id: json.discordJobId, title: "Team-Begrüßungen aktualisieren", status: "queued", total: 0, completed: 0, failed: 0, warnings: [] });
+		}
+		setMessage({ tone: "ok", text: json?.discordJobId ? "Die Begrüßungen in den Teamchannels werden aktualisiert." : "Keine Teamchannels zum Aktualisieren gefunden." });
+	}, []);
+
 	useUnsavedChanges({
 		dirty: rosterDirty,
 		label: "Roster-Zuweisungen",
@@ -1317,6 +1337,15 @@ export function RosterBuilder({
 								className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--amber)] transition hover:border-[color-mix(in_srgb,var(--amber)_35%,transparent)] hover:text-[var(--amber)] disabled:opacity-45"
 							>
 								Discord-Rollen reparieren
+							</button>
+							<button
+								type="button"
+								onClick={() => void refreshWelcomePosts()}
+								disabled={publishing || !snapshot.publication.publishedAt}
+								title="Bearbeitet die Begrüßung in jedem Teamchannel: aktueller Captain, Teamtag und Termine. Postet nichts Neues und pingt niemanden."
+								className="rounded-xl border border-[var(--line)] bg-[var(--admin-step)] px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:opacity-45"
+							>
+								Team-Begrüßungen aktualisieren
 							</button>
 							<button
 								type="button"

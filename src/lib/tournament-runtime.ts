@@ -7,6 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
+import { withTeamTags } from "@/lib/team-tag";
 import { groupMatches as fallbackGroupMatches, teams as fallbackTeams, type GroupMatch, type TournamentPlayer, type TournamentTeam } from "@/lib/tournament-data";
 import { groupRollingTime } from "@/lib/tournament-schedule";
 import { getTournamentSettings } from "@/lib/tournament-settings";
@@ -43,6 +44,8 @@ type TeamMeta = {
 	/** Stable public identifier for URLs such as the OBS browser source. */
 	overlayId?: string;
 	captain?: TeamCaptainRef;
+	/** Short team tag; generated when missing. */
+	tag?: string;
 };
 
 type StoredTeam = {
@@ -104,6 +107,8 @@ async function readBotTeams(): Promise<StoredTeam[] | null> {
 				return scoutRiotId ? { ...player, scoutRiotId } : player;
 			}),
 		}));
+		const tags = withTeamTags(values);
+		for (const team of values) team.meta = { ...team.meta, tag: tags.get(team) };
 		return values.length > 0 ? values : null;
 	} catch (error) {
 		console.warn("[tournament-runtime] could not read bot teams:", error);
@@ -261,6 +266,7 @@ function makeTeam(stored: StoredTeam, group: string, seed: number): TournamentTe
 		id: stored.meta?.overlayId ?? slugify(stored.name),
 		storageKey: stored.storageKey,
 		name: stored.name,
+		tag: stored.meta?.tag,
 		// Within-group seed (1–4). The overall cross-bracket seed (#1..#6) is a
 		// separate concept computed by the resolver from group standings.
 		seed,

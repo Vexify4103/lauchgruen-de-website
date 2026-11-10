@@ -145,7 +145,7 @@ export default async function CaptainPortalPage() {
 					) : null}
 
 					<div className="grid gap-6 xl:grid-cols-2">
-						<RenameTeamForm teamKey={team.storageKey ?? team.name.trim().toLowerCase()} initialName={team.name} />
+						<RenameTeamForm teamKey={team.storageKey ?? team.name.trim().toLowerCase()} initialName={team.name} initialTag={team.tag ?? ""} />
 						<TransferCaptainCard
 							teamKey={team.storageKey ?? team.name.trim().toLowerCase()}
 							candidates={team.players

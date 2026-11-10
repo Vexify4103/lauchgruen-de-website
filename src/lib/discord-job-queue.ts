@@ -50,7 +50,7 @@ export type DiscordOperation =
 			dedupeKey: string;
 			label?: string;
 			/** If the message was already sent, replace its content (needs payload and its first embed title prefix). */
-			editIfSent?: { titlePrefix: string };
+			editIfSent?: { titlePrefix: string; onlyEdit?: boolean };
 	  }
 	| {
 			kind: "team-provision";
@@ -407,6 +407,23 @@ async function runDiscordOperation(operation: DiscordOperation): Promise<{ ok: t
 		const receiptId = `channel-message:${operation.dedupeKey}`;
 		const receipts = db.collection<{ _id: string; sentAt: string; expiresAt: Date; messageId?: string }>(RECEIPT_COLLECTION);
 		const receipt = await receipts.findOne({ _id: receiptId });
+		if (!receipt && operation.editIfSent?.onlyEdit && operation.payload) {
+			const edited = await editDiscordChannelMessage({
+				channelId: operation.channelId,
+				titlePrefix: operation.editIfSent.titlePrefix,
+				roleId: operation.roleId,
+				userIds: operation.userIds,
+				payload: operation.payload,
+			});
+			if (!edited.ok) return edited;
+			const editedAt = new Date();
+			await receipts.updateOne(
+				{ _id: receiptId },
+				{ $set: { sentAt: editedAt.toISOString(), expiresAt: new Date(editedAt.getTime() + MESSAGE_RECEIPT_RETENTION_MS), messageId: edited.messageId } },
+				{ upsert: true }
+			);
+			return { ok: true };
+		}
 		if (receipt) {
 			if (!operation.editIfSent || !operation.payload) return { ok: true };
 			const edited = await editDiscordChannelMessage({

@@ -21,6 +21,9 @@ export type ControlMatch = {
 	teamBName: string | null;
 	teamALabel: string;
 	teamBLabel: string;
+	/** Short team tags; null while the slot is not decided. */
+	teamATag?: string | null;
+	teamBTag?: string | null;
 	status: NonNullable<StoredTournamentMatch["status"]>;
 	scoreA?: number;
 	scoreB?: number;
@@ -114,18 +117,35 @@ export async function getMatchControlContext(): Promise<MatchControlContext> {
 	const assignment = (matchId: string) => poolForMatch(wheel.history, wheel.currentAssignment, matchId);
 	if (usesFlexibleEngine(settings.activeTournament)) {
 		const { matches, stages } = await buildFlexibleStages({ settings, ctx, stored: state.matches, assignment });
-		return { teams: ctx.teams, stored: state.matches, matches, stages };
+		return { teams: ctx.teams, stored: state.matches, matches: withMatchTags(matches, ctx.teams), stages };
 	}
 	const playoffs = resolvePlayoffMatches(state.matches, ctx.teams, ctx.groupMatches);
 	return {
 		teams: ctx.teams,
 		stored: state.matches,
 		stages: null,
-		matches: [
-			...ctx.groupMatches.map((match) => groupToControlMatch(match, state.matches[match.id], assignment(match.id))),
-			...playoffs.map((match) => playoffToControlMatch(match, state.matches[match.id], assignment(match.id))),
-		],
+		matches: withMatchTags(
+			[
+				...ctx.groupMatches.map((match) => groupToControlMatch(match, state.matches[match.id], assignment(match.id))),
+				...playoffs.map((match) => playoffToControlMatch(match, state.matches[match.id], assignment(match.id))),
+			],
+			ctx.teams
+		),
 	};
+}
+
+/** Name -> tag lookup for client components. */
+export function teamTagsByName(teams: TournamentTeam[]): Record<string, string> {
+	return Object.fromEntries(teams.flatMap((team) => (team.tag ? [[team.name, team.tag]] : [])));
+}
+
+function withMatchTags(matches: ControlMatch[], teams: TournamentTeam[]): ControlMatch[] {
+	const tags = teamTagsByName(teams);
+	return matches.map((match) => ({
+		...match,
+		teamATag: match.teamAName ? (tags[match.teamAName] ?? null) : null,
+		teamBTag: match.teamBName ? (tags[match.teamBName] ?? null) : null,
+	}));
 }
 
 export function findTeamByName(teams: TournamentTeam[], name: string | null | undefined) {

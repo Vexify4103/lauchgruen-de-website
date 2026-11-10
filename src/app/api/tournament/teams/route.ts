@@ -14,6 +14,8 @@ import { getDb } from "@/lib/mongo";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { seedSlotLayout } from "@/lib/tournament-structure";
+import { generateTeamTag, isValidTeamTag, normalizeTeamTag, withTeamTags } from "@/lib/team-tag";
+import { refreshTeamWelcomePosts } from "@/lib/roster";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +33,8 @@ const bodySchema = z.object({
 const patchSchema = z.object({
 	key: z.string().trim().min(1),
 	name: z.string().trim().min(2).max(60),
+	/** Short team tag; normalized to 2–5 characters A–Z/0–9. */
+	tag: z.string().trim().max(12).optional(),
 	group: z
 		.string()
 		.regex(/^[A-P]$/)
@@ -71,6 +75,7 @@ type StoredTeam = {
 			discordId?: string;
 		};
 		lastCaptainRenameAt?: string;
+		tag?: string;
 	};
 };
 
@@ -134,9 +139,15 @@ export async function POST(request: Request) {
 	const meta: Record<string, unknown> = {};
 	if (parsed.data.accent) meta.accent = parsed.data.accent;
 	meta.overlayId = randomUUID();
+	// Freeze the generated tags of existing teams so the new team never shifts them.
+	const tagSet: Record<string, string> = {};
+	const existingEntries = Object.entries(teamsObj).map(([storageKey, team]) => ({ ...team, storageKey }));
+	const existingTags = withTeamTags(existingEntries);
+	for (const entry of existingEntries) if (!entry.meta?.tag) tagSet[`teams.${entry.storageKey}.meta.tag`] = existingTags.get(entry) ?? "";
+	meta.tag = generateTeamTag(parsed.data.name, existingTags.values());
 	if (Object.keys(meta).length > 0) teamDoc.meta = meta;
 
-	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { [`teams.${key}`]: teamDoc } }, { upsert: true });
+	await db.collection<{ _id: string }>("bot_state").updateOne({ _id: "default" }, { $set: { ...tagSet, [`teams.${key}`]: teamDoc } }, { upsert: true });
 	const discordJob = await enqueueDiscordJob({
 		type: "team-provision",
 		title: `Discord-Team erstellen: ${parsed.data.name.trim()}`,
@@ -215,6 +226,19 @@ export async function PATCH(request: Request) {
 		return NextResponse.json({ message: `Team "${newName}" existiert bereits.` }, { status: 409 });
 	}
 
+	// Tag: an explicit one must be valid and unused; otherwise keep the stored one or suggest one for the new name.
+	const currentTags = withTeamTags(Object.entries(teamsObj).map(([storageKey, team]) => ({ ...team, storageKey })));
+	const otherTags = new Set([...currentTags.entries()].filter(([team]) => team.storageKey !== oldKey).map(([, tag]) => tag));
+	let newTag: string;
+	if (parsed.data.tag !== undefined) {
+		newTag = normalizeTeamTag(parsed.data.tag);
+		if (!isValidTeamTag(newTag)) return NextResponse.json({ message: "Der Teamtag braucht 2 bis 5 Zeichen (A–Z, 0–9)." }, { status: 400 });
+		if (otherTags.has(newTag)) return NextResponse.json({ message: `Der Teamtag ${newTag} ist schon vergeben.` }, { status: 409 });
+	} else {
+		newTag = existing.meta?.tag ? existing.meta.tag : generateTeamTag(newName, otherTags);
+	}
+	const tagChanged = newTag !== (existing.meta?.tag ?? "");
+
 	const conflictingTeam = findGroupSeedConflict(teamsObj, newGroup, newSeed, oldKey);
 	if (conflictingTeam && !isOwner) {
 		return NextResponse.json(
@@ -234,6 +258,7 @@ export async function PATCH(request: Request) {
 			...existing.meta,
 			// Preserve old browser-source links when a legacy team is renamed.
 			overlayId: existing.meta?.overlayId ?? legacyOverlayId(existing.name),
+			tag: newTag,
 			...(newGroup ? { group: newGroup } : {}),
 			...(newSeed ? { seed: newSeed } : {}),
 			...(nameChanged && isCaptain && !isOwner ? { lastCaptainRenameAt: new Date().toISOString() } : {}),
@@ -277,10 +302,14 @@ export async function PATCH(request: Request) {
 			})
 		: null;
 
+	// The welcome post in the team channel names the team and its tag.
+	if (nameChanged || tagChanged) await refreshTeamWelcomePosts({ teamKey: oldKey, actorLabel: session.user.discordHandle ?? discordId }).catch(() => null);
+
 	return NextResponse.json({
 		ok: true,
 		key: oldKey,
 		name: newName,
+		tag: newTag,
 		group: newGroup,
 		seed: newSeed ?? null,
 		discordJob,

@@ -24,6 +24,8 @@ export type TournamentTeam = {
 	/** Stable MongoDB map key. Display-name changes must never change this identity. */
 	storageKey?: string;
 	name: string;
+	/** Short tag (2–5 characters), stored or generated from the name. */
+	tag?: string;
 	seed: number;
 	record: string;
 	group: string;

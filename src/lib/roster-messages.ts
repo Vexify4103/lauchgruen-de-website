@@ -97,6 +97,8 @@ export function rosterPublicationMessage(placement: PublishedPlacement | null, c
 
 export type TeamWelcomeInput = {
 	teamName: string;
+	/** Current short tag, shown so the team knows it and can change it. */
+	teamTag?: string;
 	roleId?: string;
 	captainId?: string | null;
 	voiceChannelId?: string;
@@ -127,7 +129,8 @@ export function teamWelcomeMessage(input: TeamWelcomeInput): DiscordMessagePaylo
 					"Das ist euer privater Teamchannel. Nur ihr und die Turnierleitung sehen ihn. Lernt euch kennen, sprecht Rollen und Strategie ab und stellt hier eure Fragen.",
 				color: 0xb7f36b,
 				fields: [
-					{ name: "👑 Captain", value: captain, inline: false },
+					{ name: "👑 Captain", value: captain, inline: true },
+					...(input.teamTag ? [{ name: "🏷️ Teamtag", value: `**${input.teamTag}**`, inline: true }] : []),
 					{
 						name: "📅 Turniertage",
 						value: [
@@ -140,7 +143,7 @@ export function teamWelcomeMessage(input: TeamWelcomeInput): DiscordMessagePaylo
 					{
 						name: "🧭 Aufgaben für den Captain",
 						value: [
-							"1. **Teamnamen festlegen**: im Captain-Portal unter „Teamname“.",
+							"1. **Teamname und Teamtag festlegen**: im Captain-Portal unter „Teamname“. Der Tag (2–5 Zeichen, z. B. MKOI) steht überall dort, wo der volle Name zu lang ist. Einen Vorschlag haben wir schon eingetragen.",
 							"2. **Vor jedem Match einchecken**: „Team bereit bestätigen“ im Captain-Portal.",
 							"3. **Champ Select führen**: Ready klicken, Bans und Picks locken, am Ende die Rollen verteilen.",
 							"4. **Nach dem Match**: Ergebnis-Report im Captain-Portal abgeben.",

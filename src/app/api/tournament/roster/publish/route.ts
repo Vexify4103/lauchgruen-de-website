@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { publishRoster } from "@/lib/roster";
+import { publishRoster, refreshTeamWelcomePosts } from "@/lib/roster";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { writeAuditLog } from "@/lib/tournament-audit";
 
@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
 	repairDiscordRoles: z.boolean().optional().default(false),
+	/** Only re-render the welcome posts in the team channels (no publication). */
+	refreshWelcomePosts: z.boolean().optional().default(false),
 });
 
 export async function POST(request: Request) {
@@ -21,6 +23,11 @@ export async function POST(request: Request) {
 
 	const parsed = schema.safeParse(await request.json().catch(() => ({})));
 	if (!parsed.success) return NextResponse.json({ message: "Ungültige Daten." }, { status: 400 });
+
+	if (parsed.data.refreshWelcomePosts) {
+		const job = await refreshTeamWelcomePosts({ actorLabel: session.user.discordHandle ?? discordId });
+		return NextResponse.json({ ok: true, discordJobId: job?.id ?? null });
+	}
 
 	try {
 		const result = await publishRoster(parsed.data);

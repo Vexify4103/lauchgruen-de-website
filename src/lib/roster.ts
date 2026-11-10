@@ -7,6 +7,7 @@
  */
 
 import { getDb } from "@/lib/mongo";
+import { withTeamTags } from "@/lib/team-tag";
 import { rosterPublicationMessage, teamWelcomeMessage, type PublishedPlacement } from "@/lib/roster-messages";
 import { enqueueDiscordJob, type DiscordOperation } from "@/lib/discord-job-queue";
 import { listApplications, listPreferenceGroups, type TournamentApplication } from "@/lib/tournament-storage";
@@ -38,6 +39,8 @@ export type BotTeamMeta = {
 	group?: string;
 	seed?: number;
 	accent?: string;
+	/** Short team tag (2–5 characters); generated when missing. */
+	tag?: string;
 	captain?: {
 		discordId: string;
 		discordUsername?: string;
@@ -626,29 +629,14 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 
 	// One welcome post per team channel and tournament; the queue's receipt keeps it from repeating.
 	if (shouldPublish) {
+		const tags = teamTagsByKey(nextTeams);
 		for (const [teamKey, team] of Object.entries(nextTeams)) {
-			if (!team.textChannelId || !(team.players ?? []).length) continue;
+			if (!(team.players ?? []).length) continue;
 			const captainId = team.meta?.captain?.discordId ?? null;
 			// A new captain updates the existing welcome post in place.
 			const captainChanged = !firstPublication && captainId !== (previousTeams[teamKey]?.meta?.captain?.discordId ?? null);
-			operations.push({
-				kind: "channel-message",
-				channelId: team.textChannelId,
-				roleId: team.roleId,
-				userIds: captainId ? [captainId] : [],
-				payload: teamWelcomeMessage({
-					teamName: team.name,
-					roleId: team.roleId,
-					captainId,
-					voiceChannelId: team.voiceChannelId,
-					tournamentName: settings.activeTournament.name,
-					dayOneStartAt: settings.structure.startAt,
-					dayTwoStartAt: settings.structure.dayTwoStartAt,
-				}),
-				dedupeKey: `team-welcome:${settings.activeTournament.id}:${teamKey}`,
-				label: captainChanged ? `${team.name}: Captain in der Begrüßung aktualisieren` : `${team.name}: Begrüßung im Teamchannel posten`,
-				...(captainChanged ? { editIfSent: { titlePrefix: "Willkommen," } } : {}),
-			});
+			const operation = teamWelcomeOperation(teamKey, team, tags.get(teamKey), settings, captainChanged ? "edit-if-sent" : "post");
+			if (operation) operations.push(operation);
 		}
 	}
 
@@ -718,6 +706,67 @@ export async function publishRoster(options: { repairDiscordRoles?: boolean } = 
 		warnings,
 		discordJobId: discordJob?.id,
 	};
+}
+
+/** Tags for every team, stored or generated, keyed by storage key. */
+export function teamTagsByKey(teams: Record<string, BotTeam>): Map<string, string> {
+	const entries = Object.entries(teams).map(([storageKey, team]) => ({ ...team, storageKey }));
+	const tags = withTeamTags(entries);
+	return new Map(entries.map((entry) => [entry.storageKey, tags.get(entry) ?? ""]));
+}
+
+/**
+ * The welcome post for a team channel. "post" sends it once, "edit-if-sent" sends it or updates the
+ * sent one, "edit-only" only updates an existing post and never posts a new one.
+ */
+export function teamWelcomeOperation(
+	teamKey: string,
+	team: BotTeam,
+	tag: string | undefined,
+	settings: Awaited<ReturnType<typeof getTournamentSettings>>,
+	mode: "post" | "edit-if-sent" | "edit-only"
+): DiscordOperation | null {
+	if (!team.textChannelId) return null;
+	const captainId = team.meta?.captain?.discordId ?? null;
+	return {
+		kind: "channel-message",
+		channelId: team.textChannelId,
+		roleId: team.roleId,
+		userIds: captainId ? [captainId] : [],
+		payload: teamWelcomeMessage({
+			teamName: team.name,
+			teamTag: tag || undefined,
+			roleId: team.roleId,
+			captainId,
+			voiceChannelId: team.voiceChannelId,
+			tournamentName: settings.activeTournament.name,
+			dayOneStartAt: settings.structure.startAt,
+			dayTwoStartAt: settings.structure.dayTwoStartAt,
+		}),
+		dedupeKey: `team-welcome:${settings.activeTournament.id}:${teamKey}`,
+		label: mode === "post" ? `${team.name}: Begrüßung im Teamchannel posten` : `${team.name}: Begrüßung im Teamchannel aktualisieren`,
+		...(mode === "post" ? {} : { editIfSent: { titlePrefix: "Willkommen,", onlyEdit: mode === "edit-only" } }),
+	};
+}
+
+/** Updates the welcome post of one team, or of every published team. Never posts new ones. */
+export async function refreshTeamWelcomePosts(options: { teamKey?: string; actorLabel?: string } = {}) {
+	const db = await getDb();
+	const [botDoc, settings] = await Promise.all([db.collection<BotStateDoc>("bot_state").findOne({ _id: "default" }), getTournamentSettings()]);
+	if (!botDoc?.rosterPublishedAt) return null;
+	const teams = botDoc.teams ?? {};
+	const tags = teamTagsByKey(teams);
+	// Save generated tags, so the posted tag stays the same even when teams are added later.
+	const missing = Object.fromEntries(Object.entries(teams).flatMap(([teamKey, team]) => (team.meta?.tag ? [] : [[`teams.${teamKey}.meta.tag`, tags.get(teamKey) ?? ""]])));
+	if (Object.keys(missing).length) await db.collection<BotStateDoc>("bot_state").updateOne({ _id: "default" }, { $set: missing });
+	const operations = Object.entries(teams)
+		.filter(([teamKey, team]) => (!options.teamKey || teamKey === options.teamKey) && (team.players ?? []).length > 0)
+		.flatMap(([teamKey, team]) => {
+			const operation = teamWelcomeOperation(teamKey, team, tags.get(teamKey), settings, "edit-only");
+			return operation ? [operation] : [];
+		});
+	if (!operations.length) return null;
+	return enqueueDiscordJob({ type: "roster-welcome-refresh", title: "Team-Begrüßungen aktualisieren", operations, actorLabel: options.actorLabel });
 }
 
 function rosterPlayerIds(teams: Record<string, BotTeam>): Set<string> {
