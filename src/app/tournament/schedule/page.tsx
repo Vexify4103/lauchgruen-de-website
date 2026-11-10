@@ -9,7 +9,6 @@ import type { WheelMatchAssignment } from "@/lib/tournament-wheel-shared";
 import { playoffRollingTime } from "@/lib/tournament-schedule";
 import { getTournamentLiveStreams } from "@/lib/tournament-live-streams";
 import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
-import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLinks";
 import { auth } from "@/lib/auth";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 import { getMatchControlContext } from "@/lib/match-control";
@@ -17,6 +16,7 @@ import { playoffFormatLabel } from "@/lib/tournament-format";
 import { seriesLabel, stageLabel } from "@/lib/tournament-presentation";
 import { usesFearless, usesFlexibleEngine, usesPoolWheel } from "@/lib/tournament-kind";
 import { PageIntro } from "@/components/site/PageIntro";
+import { ScheduleBoard, type ScheduleDay } from "./ScheduleBoard";
 
 type ScheduleMatch = {
 	id: string;
@@ -26,6 +26,10 @@ type ScheduleMatch = {
 	time: string;
 	teamA: string;
 	teamB: string;
+	tagA?: string | null;
+	tagB?: string | null;
+	resolvedA: boolean;
+	resolvedB: boolean;
 	scoreA?: number;
 	scoreB?: number;
 	status: string;
@@ -82,6 +86,10 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 						time: match.time,
 						teamA: match.teamALabel,
 						teamB: match.teamBLabel,
+						tagA: match.teamATag,
+						tagB: match.teamBTag,
+						resolvedA: Boolean(match.teamAName),
+						resolvedB: Boolean(match.teamBName),
 						scoreA: match.scoreA,
 						scoreB: match.scoreB,
 						status: match.status,
@@ -96,6 +104,8 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					time: match.time,
 					teamA: match.teamA,
 					teamB: match.teamB,
+					resolvedA: true,
+					resolvedB: true,
 					scoreA: state.matches[match.id]?.scoreA,
 					scoreB: state.matches[match.id]?.scoreB,
 					status: state.matches[match.id]?.status ?? match.status,
@@ -116,6 +126,10 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 						time: match.time,
 						teamA: match.teamALabel,
 						teamB: match.teamBLabel,
+						tagA: match.teamATag,
+						tagB: match.teamBTag,
+						resolvedA: Boolean(match.teamAName),
+						resolvedB: Boolean(match.teamBName),
 						scoreA: match.scoreA,
 						scoreB: match.scoreB,
 						status: match.status,
@@ -130,6 +144,8 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					time: match.time,
 					teamA: match.teamALabel,
 					teamB: match.teamBLabel,
+					resolvedA: Boolean(match.teamAName),
+					resolvedB: Boolean(match.teamBName),
 					scoreA: match.scoreA,
 					scoreB: match.scoreB,
 					status: match.status,
@@ -156,7 +172,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 	const fearlessDraft = usesFearless(settings.activeTournament);
 	const sections = [
 		{
-			title: "Spieltag 1",
+			title: `Spieltag 1 · ${formatScheduleDay(settings.structure.startAt, "Termin folgt")}`,
 			description: usesFlexibleEngine(settings.activeTournament)
 				? friday.length
 					? `${stageLabel(settings.structure) ?? "Tag 1"} · ${friday.length} Matches aktuell angesetzt.`
@@ -169,7 +185,7 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					: "Für den ersten Spieltag wurden noch keine konkreten Paarungen veröffentlicht.",
 		},
 		{
-			title: "Spieltag 2",
+			title: `Spieltag 2 · ${formatScheduleDay(settings.structure.dayTwoStartAt, "Termin folgt")}`,
 			description: usesFlexibleEngine(settings.activeTournament)
 				? `${settings.structure.advanceTeamCount} Teams · ${playoffFormatLabel(settings.structure.format) ?? "Playoffs"} · ${seriesLabel(settings.structure)}${
 						settings.structure.format === "double-elimination" || settings.structure.format === "double-elimination-light"
@@ -184,6 +200,41 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 				"Die Playoff-Paarungen werden erst nach den finalen Seeds aus Spieltag 1 in den Zeitplan übernommen. Den vollständigen TBD-Weg siehst du bereits im Bracket.",
 		},
 	];
+
+	const toRow = (match: ScheduleMatch) => {
+		const isPreview = match.id === previewMatch?.id;
+		const hasTeams = match.resolvedA && match.resolvedB;
+		const poolWheel = usesPoolWheel(settings.activeTournament);
+		return {
+			id: match.id,
+			round: match.round,
+			time: match.time,
+			teamA: match.teamA,
+			teamB: match.teamB,
+			tagA: match.tagA,
+			tagB: match.tagB,
+			resolvedA: match.resolvedA,
+			resolvedB: match.resolvedB,
+			scoreA: match.scoreA,
+			scoreB: match.scoreB,
+			status: match.status,
+			isCasted: match.isCasted,
+			preview: isPreview,
+			note: match.pool ? `Pools ${compactPoolLabel(match.pool.teamAPool)} · ${compactPoolLabel(match.pool.teamBPool)}` : poolWheel && hasTeams ? "Pools noch offen" : null,
+			draftHref:
+				(poolWheel && match.pool) || (fearlessDraft && ["Pending", "Live", "Finished"].includes(match.status)) ? `/tournament/champ-select/${match.id}/spectate` : null,
+			streams: match.status === "Live" || isPreview ? liveStreams.filter((stream) => stream.teamName === match.teamA || stream.teamName === match.teamB) : [],
+		};
+	};
+	const days: ScheduleDay[] = sections.map((section) => ({
+		title: section.title,
+		description: section.description,
+		emptyText: section.emptyText,
+		batches: section.batches.map((batch) => ({ label: batch.label, time: batch.matches[0]?.time, matches: batch.matches.map(toRow) })),
+	}));
+	const teamChips = [...ctx.teams]
+		.map((team) => ({ name: team.name, tag: team.tag ?? team.name.slice(0, 4).toUpperCase() }))
+		.sort((a, b) => a.tag.localeCompare(b.tag));
 
 	return (
 		<>
@@ -203,114 +254,11 @@ export default async function TournamentSchedulePage({ searchParams }: { searchP
 					</div>
 				) : null}
 				<PageIntro kicker={finished ? "Ergebnisse" : "Zeitplan"} title={finished ? "Alle Ergebnisse." : "Wann wird was gespielt?"}>
-					Alle Uhrzeiten sind Richtzeiten eines rollierenden Spielplans: Eine Runde bildet einen gemeinsamen Matchblock, Paarungen darin können parallel laufen und
-					Verzögerungen verschieben die folgenden Blöcke gemeinsam.
+					Richtzeiten: Matches einer Runde laufen parallel, Verzögerungen verschieben die folgenden Runden.
 				</PageIntro>
 
-				<div className="mt-8 grid gap-6">
-					{sections.map((section) => (
-						<article key={section.title} className="content-panel tight">
-							<div className="flex flex-wrap items-end justify-between gap-3">
-								<div>
-									<p className="panel-kicker">{section.title}</p>
-									<h2 className="!mb-0 !text-2xl">{section.description}</h2>
-								</div>
-								<span className="rounded-2xl border border-white/10 bg-black/18 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100/60">
-									{section.batches.reduce((sum, batch) => sum + batch.matches.length, 0)} Matches
-								</span>
-							</div>
-
-							<div className="mt-5 grid gap-6">
-								{section.batches.length ? (
-									section.batches.map((batch) => (
-										<section key={batch.label}>
-											<div className="mb-3 flex items-center gap-3">
-												<h3 className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/68">{batch.label}</h3>
-												<span className="h-px flex-1 bg-white/10" />
-												{batch.matches.length > 1 ? (
-													<span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/42">parallel</span>
-												) : null}
-											</div>
-											<div className="grid gap-3 xl:grid-cols-2">
-												{batch.matches.map((match) => {
-													const isPreview = match.id === previewMatch?.id;
-													const isLive = match.status === "Live" || isPreview;
-													const hasTeams = !/seed|winner|loser|sieger|verlierer|tbd/i.test(`${match.teamA} ${match.teamB}`);
-													const matchStreams = isLive
-														? liveStreams.filter((stream) => stream.teamName === match.teamA || stream.teamName === match.teamB)
-														: [];
-													return (
-														<div
-															key={match.id}
-															className={`rounded-2xl border p-4 ${
-																isLive ? "border-red-300/34 bg-red-500/12 shadow-lg shadow-red-950/20" : "border-white/10 bg-black/18"
-															}`}
-														>
-															<div className="flex flex-wrap items-center justify-between gap-3">
-																<div className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/58">
-																	{match.day} · {match.phase} · {match.round}
-																</div>
-																<div className="flex flex-wrap items-center gap-2">
-																	<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
-																		{match.time}
-																	</span>
-																	<span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
-																		{statusLabel(match.status)}
-																	</span>
-																</div>
-															</div>
-
-															<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-																<TeamLine team={match.teamA} pool={match.pool?.teamAPool ?? null} />
-																<div className="text-center text-2xl font-black text-lime-100">
-																	{match.scoreA !== undefined && match.scoreB !== undefined ? `${match.scoreA}:${match.scoreB}` : "vs."}
-																</div>
-																<TeamLine team={match.teamB} pool={match.pool?.teamBPool ?? null} right />
-															</div>
-
-															<div className="mt-3 flex flex-wrap gap-2">
-																{isLive ? (
-																	<span className="rounded-full border border-red-300/30 bg-red-500/16 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
-																		{isPreview ? "Live-Vorschau" : "Aktuelles Match"}
-																	</span>
-																) : null}
-																{match.isCasted ? (
-																	<span className="rounded-full border border-fuchsia-200/26 bg-fuchsia-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-50">
-																		Live gecastet
-																	</span>
-																) : null}
-																{usesPoolWheel(settings.activeTournament) && match.pool ? (
-																	<Link
-																		href={`/tournament/champ-select/${match.id}/spectate`}
-																		className="rounded-full border border-sky-200/20 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-50/82"
-																	>
-																		Spectator Draft
-																	</Link>
-																) : fearlessDraft && ["Pending", "Live", "Finished"].includes(match.status) ? (
-																	<Link href={`/tournament/champ-select/${match.id}/spectate`} className="button ghost small !min-h-0 !py-1.5">
-																		Draft ansehen
-																	</Link>
-																) : usesPoolWheel(settings.activeTournament) && hasTeams ? (
-																	<span className="rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100/38">
-																		Pools noch offen
-																	</span>
-																) : null}
-															</div>
-															<TournamentLiveStreamLinks streams={matchStreams} />
-														</div>
-													);
-												})}
-											</div>
-										</section>
-									))
-								) : (
-									<div className="rounded-2xl border border-dashed border-white/12 bg-black/14 px-5 py-6 text-sm font-bold leading-6 text-emerald-100/52">
-										{section.emptyText}
-									</div>
-								)}
-							</div>
-						</article>
-					))}
+				<div className="mt-8">
+					<ScheduleBoard days={days} teams={teamChips} />
 				</div>
 			</section>
 		</>
@@ -388,32 +336,3 @@ function formatScheduleDay(value: string | null, fallback: string) {
 	return new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
-function statusLabel(status: string) {
-	switch (status) {
-		case "Scheduled":
-			return "Geplant";
-		case "Pending":
-			return "Ausstehend";
-		case "Locked":
-			return "Gesperrt";
-		case "Live":
-			return "Live";
-		case "Finished":
-			return "Beendet";
-		default:
-			return status;
-	}
-}
-
-function TeamLine({ team, pool, right }: { team: string; pool: string | null; right?: boolean }) {
-	return (
-		<div className={right ? "text-left md:text-right" : "text-left"}>
-			<div className="truncate text-xl font-black text-emerald-50">{team}</div>
-			{pool ? (
-				<span className="mt-1 inline-flex rounded-full border border-lime-200/18 bg-lime-200/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-lime-50/80">
-					Pool {compactPoolLabel(pool)}
-				</span>
-			) : null}
-		</div>
-	);
-}
