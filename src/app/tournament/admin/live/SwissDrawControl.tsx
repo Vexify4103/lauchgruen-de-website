@@ -30,7 +30,9 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 	const targetRound = lastRound && !lastRound.complete ? lastRound.round : state.rounds.length + 1;
 	const revealedInTargetRound = lastRound?.round === targetRound ? lastRound.pairings.length : 0;
 	const unresolvedCurrentRound = Boolean(lastRound?.complete && lastRound.pairings.some((pairing) => !pairing.bye && !pairing.winnerTeamKey));
-	const targetBracket = state.nextBracket ?? (state.rounds.length === 0 ? "0-0" : unresolvedCurrentRound ? "Ergebnisse offen" : nextRecordBracket(state, testTeams));
+	const targetBracket = state.nextBracket ?? (state.rounds.length === 0 ? "0-0" : unresolvedCurrentRound ? "Ergebnisse offen" : nextRecordBracket(state, testTeams, targetRound));
+	// Every team of the round is paired; the next draw needs the results first.
+	const roundFullyDrawn = !state.nextBracket && targetBracket === "alle gezogen";
 
 	function draw(approval: { allowCrossRecord?: boolean; allowRematch?: boolean } = {}) {
 		setCrossRecord(null);
@@ -180,7 +182,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 					</span>
 					<button
 						type="button"
-						disabled={drawing || finished || teams.length < 2 || unresolvedCurrentRound}
+						disabled={drawing || finished || teams.length < 2 || unresolvedCurrentRound || roundFullyDrawn}
 						onClick={() => draw()}
 						className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:opacity-40"
 					>
@@ -188,7 +190,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 							? "Lostrommel läuft…"
 							: finished
 								? "Alle Runden ausgelost"
-								: unresolvedCurrentRound
+								: unresolvedCurrentRound || roundFullyDrawn
 									? "Ergebnisse eintragen"
 									: `R${targetRound} · Paarung ${revealedInTargetRound + 1} ziehen`}
 					</button>
@@ -422,9 +424,13 @@ function groupByBracket(pairings: SwissPairing[]) {
 	return [...groups.entries()];
 }
 
-function nextRecordBracket(state: SwissStageState, teams: SwissTeam[]) {
-	const records = new Map(teams.map((team) => [team.key, { wins: 0, losses: 0 }]));
-	for (const round of state.rounds)
+/** Record group drawn next: the best record among teams not yet paired in the target round. */
+function nextRecordBracket(state: SwissStageState, teams: SwissTeam[], targetRound: number) {
+	// The live draw passes no team list; every team then appears in round 1.
+	const keys = teams.length ? teams.map((team) => team.key) : (state.rounds[0]?.pairings.flatMap((pairing) => [pairing.teamAKey, pairing.teamBKey ?? ""]).filter(Boolean) ?? []);
+	const records = new Map(keys.map((key) => [key, { wins: 0, losses: 0 }]));
+	const drawn = new Set(state.rounds.find((round) => round.round === targetRound)?.pairings.flatMap((pairing) => [pairing.teamAKey, pairing.teamBKey ?? ""]) ?? []);
+	for (const round of state.rounds.filter((entry) => entry.round < targetRound))
 		for (const pairing of round.pairings) {
 			if (pairing.bye) {
 				const record = records.get(pairing.teamAKey);
@@ -437,8 +443,10 @@ function nextRecordBracket(state: SwissStageState, teams: SwissTeam[]) {
 				if (loserRecord) loserRecord.losses += 1;
 			}
 		}
-	const labels = [...records.values()].map((record) => `${record.wins}-${record.losses}`).sort((a, b) => b.localeCompare(a));
-	return labels[0] ?? "Nächste Bilanzgruppe";
+	const open = [...records.entries()].filter(([key]) => !drawn.has(key)).map(([, record]) => record);
+	if (!open.length) return "alle gezogen";
+	const best = open.sort((a, b) => b.wins - a.wins || a.losses - b.losses)[0];
+	return `${best.wins}–${best.losses}`;
 }
 
 function RoundSummary({ state, teamCount }: { state: SwissStageState; teamCount: number }) {
