@@ -521,6 +521,9 @@
 	.admin-modal.wide {
 		width: min(100%, 860px);
 	}
+	.admin-modal.full {
+		width: min(100%, 1480px);
+	}
 	.admin-modal.danger {
 		border-color: color-mix(in srgb, var(--danger) 32%, transparent);
 	}

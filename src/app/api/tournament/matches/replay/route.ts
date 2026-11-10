@@ -5,6 +5,7 @@ import { getMatchControlContext } from "@/lib/match-control";
 import { getDb } from "@/lib/mongo";
 import { evaluateReplay, replayFingerprint, type ReplayRoster } from "@/lib/replay-match";
 import { gameIdFromReplayFileName, type ReplaySummary } from "@/lib/rofl";
+import { getReplayAssets } from "@/lib/replay-assets";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { listMatchReports } from "@/lib/tournament-next";
 import { createReplay, DuplicateReplayError, listReplays, setReplayStatus } from "@/lib/tournament-replays";
@@ -31,6 +32,15 @@ const playerSchema = z.object({
 	damageToChampions: stat,
 	visionScore: stat,
 	level: stat,
+	items: z.array(stat).max(7).optional(),
+	summonerSpells: z.array(stat).max(2).optional(),
+	perks: z.array(stat).max(6).optional(),
+	primaryStyle: stat.optional(),
+	subStyle: stat.optional(),
+	controlWardsPlaced: stat.optional(),
+	wardsPlaced: stat.optional(),
+	wardsKilled: stat.optional(),
+	damageTaken: stat.optional(),
 });
 const summarySchema = z.object({
 	gameVersion: shortText.nullable(),
@@ -75,8 +85,8 @@ export async function GET(request: Request) {
 	if (!user?.owner) return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
 	const matchId = new URL(request.url).searchParams.get("matchId");
 	if (!matchId) return NextResponse.json({ message: "matchId fehlt." }, { status: 400 });
-	const [replays, reports] = await Promise.all([listReplays(matchId), listMatchReports(matchId)]);
-	return NextResponse.json({ replays, reports });
+	const [replays, reports, assets] = await Promise.all([listReplays(matchId), listMatchReports(matchId), getReplayAssets()]);
+	return NextResponse.json({ replays, reports, assets });
 }
 
 /** A captain of the match (or staff) uploads the metadata the browser read from a .rofl file. */

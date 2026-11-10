@@ -27,6 +27,18 @@ export type ReplayPlayer = {
 	damageToChampions: number;
 	visionScore: number;
 	level: number;
+	/** Item ids ITEM0–ITEM6 (slot 6 is the trinket, 0 = empty). Missing on replays stored before this field existed. */
+	items?: number[];
+	/** Summoner spell ids, e.g. 4 = Flash. */
+	summonerSpells?: number[];
+	/** Rune ids PERK0–PERK5; PERK0 is the keystone. */
+	perks?: number[];
+	primaryStyle?: number;
+	subStyle?: number;
+	controlWardsPlaced?: number;
+	wardsPlaced?: number;
+	wardsKilled?: number;
+	damageTaken?: number;
 };
 
 export type ReplaySummary = {
@@ -118,6 +130,15 @@ export function normalizeReplayPlayer(raw: Record<string, unknown>): ReplayPlaye
 		damageToChampions: number(raw.TOTAL_DAMAGE_DEALT_TO_CHAMPIONS),
 		visionScore: number(raw.VISION_SCORE),
 		level: number(raw.LEVEL),
+		items: [0, 1, 2, 3, 4, 5, 6].map((slot) => number(raw[`ITEM${slot}`])),
+		summonerSpells: [number(raw.SUMMONER_SPELL_1), number(raw.SUMMONER_SPELL_2)],
+		perks: [0, 1, 2, 3, 4, 5].map((slot) => number(raw[`PERK${slot}`])),
+		primaryStyle: number(raw.PERK_PRIMARY_STYLE),
+		subStyle: number(raw.PERK_SUB_STYLE),
+		controlWardsPlaced: number(raw.WARD_PLACED_DETECTOR),
+		wardsPlaced: number(raw.WARD_PLACED),
+		wardsKilled: number(raw.WARD_KILLED),
+		damageTaken: number(raw.TOTAL_DAMAGE_TAKEN_FROM_CHAMPIONS),
 	};
 }
 

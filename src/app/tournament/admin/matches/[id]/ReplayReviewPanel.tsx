@@ -5,6 +5,9 @@ import type { ControlMatch } from "@/lib/match-control";
 import { formatGameDuration } from "@/lib/match-duration";
 import type { TournamentReplay } from "@/lib/tournament-replays";
 import { ReplayUpload } from "../../../captain/ReplayUpload";
+import type { ReplayAssets } from "@/lib/replay-assets";
+import { AdminModal } from "../../AdminModal";
+import { ReplayScoreboard } from "./ReplayScoreboard";
 
 type CaptainReport = {
 	id: string;
@@ -31,15 +34,18 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 	const [message, setMessage] = useState("");
 	const [busyId, setBusyId] = useState<string | null>(null);
 	const [reload, setReload] = useState(0);
+	const [assets, setAssets] = useState<ReplayAssets | null>(null);
+	const [opened, setOpened] = useState<TournamentReplay | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			const response = await fetch(`/api/tournament/matches/replay?matchId=${encodeURIComponent(match.id)}`, { cache: "no-store" }).catch(() => null);
-			const json = (await response?.json().catch(() => null)) as { replays?: TournamentReplay[]; reports?: CaptainReport[] } | null;
+			const json = (await response?.json().catch(() => null)) as { replays?: TournamentReplay[]; reports?: CaptainReport[]; assets?: ReplayAssets | null } | null;
 			if (cancelled || !json) return;
 			setReplays(json.replays ?? []);
 			setReports(json.reports ?? []);
+			setAssets(json.assets ?? null);
 		})();
 		return () => {
 			cancelled = true;
@@ -97,23 +103,9 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 							<dt className="text-[var(--muted)]">Blau</dt>
 							<dd className="text-[var(--text)]">{teamLabel(replay.evaluation.blueTeam)}</dd>
 						</dl>
-						<details className="mt-2 text-xs">
-							<summary className="cursor-pointer text-[var(--muted)]">Champions und KDA</summary>
-							<table className="mt-2 w-full text-left">
-								<tbody>
-									{replay.summary.players.map((player) => (
-										<tr key={`${player.team}-${player.puuid || player.riotIdName}`} className="border-t border-[var(--line)]">
-											<td className="py-1 pr-2 text-[var(--muted)]">{player.team === 100 ? "Blau" : "Rot"}</td>
-											<td className="py-1 pr-2 text-[var(--text)]">{player.champion}</td>
-											<td className="truncate py-1 pr-2 text-[var(--muted)]">{player.riotIdName}</td>
-											<td className="py-1 text-right font-mono tabular-nums text-[var(--text)]">
-												{player.kills}/{player.deaths}/{player.assists}
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</details>
+						<button type="button" onClick={() => setOpened(replay)} className="button ghost small mt-2">
+							Scoreboard ansehen
+						</button>
 						{replay.evaluation.problems.length ? (
 							<ul className="mt-2 list-disc pl-4 text-xs leading-5 text-[var(--amber)]">
 								{replay.evaluation.problems.map((problem) => (
@@ -159,6 +151,24 @@ export function ReplayReviewPanel({ match, onApply }: { match: ControlMatch; onA
 					</li>
 				))}
 			</ul>
+			<AdminModal
+				open={Boolean(opened)}
+				kicker={opened ? `Replay · Spiel ${opened.gameNumber}` : "Replay"}
+				title={`${match.teamALabel} vs ${match.teamBLabel}`}
+				onClose={() => setOpened(null)}
+				full
+			>
+				{opened ? (
+					<ReplayScoreboard
+						summary={opened.summary}
+						assets={assets}
+						blueTeamName={teamLabel(opened.evaluation.blueTeam)}
+						redTeamName={teamLabel(opened.evaluation.blueTeam === "teamA" ? "teamB" : opened.evaluation.blueTeam === "teamB" ? "teamA" : null)}
+						fileName={opened.fileName}
+						uploader={opened.uploaderLabel}
+					/>
+				) : null}
+			</AdminModal>
 			{message ? (
 				<p role="status" className="mt-3 text-xs text-[var(--muted)]">
 					{message}

@@ -9,6 +9,7 @@ export function AdminModal({
 	title,
 	onClose,
 	wide = false,
+	full = false,
 	danger = false,
 	keepMounted = false,
 	children,
@@ -18,6 +19,8 @@ export function AdminModal({
 	title: string;
 	onClose: () => void;
 	wide?: boolean;
+	/** Almost the whole screen, for wide tables like the replay scoreboard. */
+	full?: boolean;
 	danger?: boolean;
 	keepMounted?: boolean;
 	children: ReactNode;
@@ -60,7 +63,7 @@ export function AdminModal({
 				aria-modal="true"
 				aria-labelledby={titleId}
 				tabIndex={-1}
-				className={`admin-modal outline-none ${wide ? "wide" : ""} ${danger ? "danger" : ""}`}
+				className={`admin-modal outline-none ${wide ? "wide" : ""} ${full ? "full" : ""} ${danger ? "danger" : ""}`}
 			>
 				<header>
 					<div className="min-w-0">
