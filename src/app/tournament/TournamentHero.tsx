@@ -9,9 +9,10 @@ function relativePath(path: string) {
 	return path.replace(/^\/tournament(?=\/|$)/, "") || "/";
 }
 
-export function TournamentHero({ hero, compact = false }: { hero: TournamentHeroData; compact?: boolean }) {
+/** Same size on every hub tab, so the tab bar below never jumps. */
+export function TournamentHero({ hero }: { hero: TournamentHeroData }) {
 	return (
-		<section className={`tournament-hero ${compact ? "is-compact" : ""}`} aria-labelledby="tournament-hero-title">
+		<section className="tournament-hero is-compact" aria-labelledby="tournament-hero-title">
 			<div className="tournament-hero-mark">
 				<Image src="/tournament-bear-mark.png" alt="" width={170} height={170} priority unoptimized />
 			</div>
@@ -20,21 +21,13 @@ export function TournamentHero({ hero, compact = false }: { hero: TournamentHero
 					<i />
 					{hero.eyebrow.label}
 				</p>
-				{compact ? (
-					<p id="tournament-hero-title" className="m-0 font-display text-[clamp(30px,4vw,48px)] font-bold leading-[0.95] tracking-[-0.06em] text-[var(--text)]">
-						{hero.name}
-					</p>
-				) : (
-					<h1 id="tournament-hero-title">{hero.name}</h1>
-				)}
-				{compact ? null : <p>{hero.tagline}</p>}
-				{compact ? null : (
-					<ul className="tournament-pills" aria-label="Eckdaten">
-						{hero.pills.map((pill) => (
-							<li key={pill}>{pill}</li>
-						))}
-					</ul>
-				)}
+				<h1 id="tournament-hero-title">{hero.name}</h1>
+				<p className="line-clamp-2">{hero.tagline}</p>
+				<ul className="tournament-pills" aria-label="Eckdaten">
+					{hero.pills.map((pill) => (
+						<li key={pill}>{pill}</li>
+					))}
+				</ul>
 			</div>
 			<div className="hero-side-action">
 				<strong>

@@ -11,11 +11,15 @@ export function SwissStageLiveView({
 	config,
 	teamNames,
 	live,
+	tags,
+	statuses,
 }: {
 	initialState: SwissStageState;
 	config: TournamentSettings["structure"];
 	teamNames: string[];
 	live: boolean;
+	tags?: Record<string, string>;
+	statuses?: Record<string, string>;
 }) {
 	const [state, setState] = useState(initialState);
 	const complete = state.rounds.length >= config.swissRounds;
@@ -36,7 +40,7 @@ export function SwissStageLiveView({
 
 	return (
 		<div className="mt-9">
-			<SwissStageBoard config={config} teamNames={teamNames} state={state} activeRound={activeRound} />
+			<SwissStageBoard config={config} teamNames={teamNames} state={state} activeRound={activeRound} tags={tags} statuses={statuses} />
 		</div>
 	);
 }

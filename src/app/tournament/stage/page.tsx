@@ -13,7 +13,7 @@ import { StageMatchAutoFocus } from "@/components/StageMatchAutoFocus";
 import { resolveGroupFocusMatchId } from "@/lib/tournament-stage-focus";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { EmptyState, PageIntro } from "@/components/site/PageIntro";
-import { getMatchControlContext } from "@/lib/match-control";
+import { getMatchControlContext, teamTagsByName } from "@/lib/match-control";
 import { PLAY_IN_GROUP } from "@/lib/tournament-runtime";
 import { mainEventTeamCount } from "@/lib/tournament-structure";
 import { DirectPlayoffsStage, FlexibleGroupsStage, GslStage, PlayInSection } from "./FlexibleStageViews";
@@ -35,7 +35,13 @@ export default async function GroupsPage() {
 				return (
 					<>
 						{playIn}
-						<SwissStagePage settings={settings} teamNames={dayOneTeams} swissState={stages.dayOne.swiss ?? (await getSwissStageState(settings.activeTournament.id))} />
+						<SwissStagePage
+							settings={settings}
+							teamNames={dayOneTeams}
+							swissState={stages.dayOne.swiss ?? (await getSwissStageState(settings.activeTournament.id))}
+							tags={teamTagsByName(control.teams)}
+							statuses={Object.fromEntries(control.matches.map((match) => [match.id, match.status]))}
+						/>
 					</>
 				);
 			case "none":
@@ -274,10 +280,14 @@ function SwissStagePage({
 	settings,
 	teamNames,
 	swissState,
+	tags,
+	statuses,
 }: {
 	settings: Awaited<ReturnType<typeof getTournamentSettings>>;
 	teamNames: string[];
 	swissState: Awaited<ReturnType<typeof getSwissStageState>>;
+	tags: Record<string, string>;
+	statuses: Record<string, string>;
 }) {
 	const config = settings.structure;
 	return (
@@ -289,7 +299,7 @@ function SwissStagePage({
 						? `${config.swissWinsToAdvance} Siege bringen ein Team in die Playoffs, ${config.swissWinsToAdvance} Niederlagen bedeuten das Aus; so erreichen ${config.advanceTeamCount} von ${mainEventTeamCount(config)} Teams Tag 2.`
 						: `Nach ${config.swissRounds} Runden ziehen ${config.advanceTeamCount >= mainEventTeamCount(config) ? "alle" : `die besten ${config.advanceTeamCount} von`} ${mainEventTeamCount(config)} Teams in die Playoffs ein.`}
 				</PageIntro>
-				<SwissStageLiveView initialState={swissState} config={{ ...config, teamCount: mainEventTeamCount(config) }} teamNames={teamNames} live={settings.tournamentLive} />
+				<SwissStageLiveView initialState={swissState} config={{ ...config, teamCount: mainEventTeamCount(config) }} teamNames={teamNames} live={settings.tournamentLive} tags={tags} statuses={statuses} />
 				{swissState.seedingMethod === "results-and-average-win-duration" ? (
 					<div className="mx-auto mt-5 max-w-4xl rounded-2xl border border-amber-200/18 bg-amber-200/[0.055] px-5 py-4 text-center text-xs font-bold leading-6 text-amber-50/72">
 						Hinweis der Turnierleitung: Bei der Swiss-Auslosung ist uns ein Fehler unterlaufen. Für ein möglichst faires Seeding wurden alle tatsächlich gespielten

@@ -352,6 +352,24 @@
 	.tournament-hero.is-compact h1 {
 		font-size: clamp(34px, 4vw, 52px);
 	}
+	.tournament-hero.is-compact {
+		gap: 32px;
+		margin-top: 24px;
+		padding: 28px 36px;
+	}
+	.tournament-hero.is-compact .tournament-hero-copy > p:not(.eyebrow) {
+		margin-top: 8px;
+		font-size: 14px;
+	}
+	.tournament-hero.is-compact .tournament-pills {
+		margin-top: 12px;
+	}
+	.tournament-hero.is-compact .hero-side-action {
+		gap: 12px;
+	}
+	.tournament-hero.is-compact .hero-side-action > strong {
+		font-size: 40px;
+	}
 	.tournament-hero-mark {
 		position: relative;
 		height: 170px;

@@ -84,7 +84,7 @@ export function TournamentChrome({
 				<main id="main-content" tabIndex={-1} className={`relative z-10 outline-none ${focusedDraft ? "pt-9" : ""}`}>
 					{hubRoute ? (
 						<>
-							<TournamentHero hero={hero} compact={path !== "/"} />
+							<TournamentHero hero={hero} />
 							{subnavItems.length > 1 ? <TournamentSubnav items={subnavItems} /> : null}
 						</>
 					) : null}
