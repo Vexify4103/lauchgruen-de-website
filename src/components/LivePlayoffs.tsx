@@ -69,7 +69,7 @@ export function LivePlayoffs({ initialMatches, autoRefresh = true, showPools = t
 		<div>
 			<BracketTree matches={matches} showPools={showPools} />
 			{autoRefresh ? (
-				<div className="mt-2 px-1 text-xs text-[var(--muted)]">
+				<div className="mt-2 px-1 text-center text-xs text-[var(--muted)]">
 					Live-Aktualisierung{lastUpdated ? ` · zuletzt ${lastUpdated}` : ""}
 				</div>
 			) : null}
