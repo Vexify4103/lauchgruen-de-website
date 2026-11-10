@@ -143,7 +143,8 @@ function MatchRow({ row, highlight, batchLabel }: { row: ScheduleRow; highlight:
 				</span>
 				<Side name={row.teamB} tag={row.tagB} resolved={row.resolvedB} winner={winnerB} loser={winnerA} highlight={highlight} align="left" />
 			</div>
-			<div className="flex min-w-0 items-center gap-2 text-xs text-[var(--muted)] max-sm:justify-center">
+			<div className="flex items-center justify-center gap-3 sm:contents">
+			<div className="flex min-w-0 items-center gap-2 text-xs text-[var(--muted)]">
 				<span className={live ? "inline-flex items-center gap-1.5 font-medium text-[var(--live)]" : ""}>
 					{live ? <i aria-hidden className="size-1.5 rounded-full bg-[var(--live)]" /> : null}
 					{row.preview ? "Live-Vorschau" : (STATUS[row.status] ?? row.status)}
@@ -151,12 +152,13 @@ function MatchRow({ row, highlight, batchLabel }: { row: ScheduleRow; highlight:
 				{row.isCasted ? <span className="text-[var(--text)]">· Cast</span> : null}
 				{round ? <span className="truncate">· {round}</span> : null}
 			</div>
-			<div className="text-xs max-sm:text-center sm:text-right">
+			<div className="text-xs sm:text-right">
 				{row.draftHref ? (
 					<Link href={row.draftHref} className="font-medium text-[var(--muted)] hover:text-[var(--accent)]">
 						Draft ↗
 					</Link>
 				) : null}
+			</div>
 			</div>
 			{row.note ? <div className="text-xs text-[var(--muted)] sm:col-span-3">{row.note}</div> : null}
 			{row.streams.length ? (
