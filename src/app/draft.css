@@ -220,6 +220,66 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 	}
+	.draft-role-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+	.draft-role-chip-icon {
+		width: 12px;
+		height: 12px;
+		flex: none;
+	}
+	.draft-swap-chip {
+		position: absolute;
+		z-index: 2;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: 8px;
+		background: rgba(4, 12, 8, 0.82);
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text);
+		pointer-events: none;
+		transition:
+			background 0.15s ease,
+			border-color 0.15s ease;
+	}
+	.draft-lane[data-side="teamA"] .draft-swap-chip[data-mode="idle"],
+	.draft-lane[data-side="teamA"] .draft-swap-chip[data-mode="selected"] {
+		top: 8px;
+		right: 10px;
+	}
+	.draft-lane[data-side="teamB"] .draft-swap-chip[data-mode="idle"],
+	.draft-lane[data-side="teamB"] .draft-swap-chip[data-mode="selected"] {
+		top: 8px;
+		left: 10px;
+	}
+	.draft-swap-chip[data-mode="selected"] {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+	.draft-swap-chip[data-mode="target"] {
+		top: 50%;
+		left: 50%;
+		padding: 6px 12px;
+		font-size: 11px;
+		transform: translate(-50%, -50%);
+	}
+	button.draft-pick:hover .draft-swap-chip,
+	button.draft-pick:focus-visible .draft-swap-chip {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 22%, rgba(4, 12, 8, 0.86));
+	}
+	/* The chip replaces the auto-pick badge corner while roles can be swapped. */
+	button.draft-pick[data-swappable="true"] .draft-auto-chip {
+		display: none;
+	}
 	.draft-lane[data-side="teamA"] .draft-role-chip {
 		left: 10px;
 	}
@@ -246,7 +306,7 @@
 		left: 10px;
 	}
 	button.draft-pick[data-swappable="true"] {
-		cursor: grab;
+		cursor: pointer;
 	}
 	button.draft-pick[data-swappable="true"]:hover {
 		border-color: var(--line-strong);
@@ -288,6 +348,11 @@
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--muted);
+	}
+	.draft-role-icon {
+		width: 18px;
+		height: 18px;
+		flex: none;
 	}
 	.draft-role-filter:hover {
 		color: var(--text);
@@ -343,8 +408,12 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(var(--draft-tile), 1fr));
 		gap: 8px;
-		max-height: min(56vh, 620px);
+		/* Fixed height: a short filter must not change the page height (and with it the page scrollbar). */
+		height: min(56vh, 620px);
+		align-content: start;
 		overflow-y: auto;
+		/* Keep the scrollbar space when a short filter (e.g. Bot) needs no scrollbar, so tiles keep their size. */
+		scrollbar-gutter: stable;
 		padding: 2px 4px 2px 2px;
 		scrollbar-width: thin;
 		scrollbar-color: var(--line-strong) transparent;
@@ -639,6 +708,10 @@
 			padding: 1px 5px;
 			font-size: 8px;
 		}
+		.draft-swap-chip {
+			padding: 2px 6px;
+			font-size: 8px;
+		}
 		.draft-bans {
 			gap: 6px;
 		}
@@ -652,7 +725,8 @@
 			animation: none;
 		}
 		.draft-tile-art,
-		.draft-action-button {
+		.draft-action-button,
+		.draft-swap-chip {
 			transition: none;
 		}
 	}

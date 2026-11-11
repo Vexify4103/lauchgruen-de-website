@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useDeferredValue, useEffect, useId, useRef, useState, useTransition, type DragEvent } from "react";
 import { championFitsRole } from "@/lib/champion-roles";
+import { RoleIcon } from "@/components/RoleIcon";
 import type { ChampionPool, ChampionPoolEntry } from "@/lib/champion-pools";
 import { fearlessLockBadge, fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
 import type { ControlMatch } from "@/lib/match-control";
@@ -293,9 +294,14 @@ export function ChampSelectClient({
 								className="draft-role-filter"
 								aria-pressed={roleFilter === role}
 								onClick={() => setRoleFilter(roleFilter === role ? null : role)}
-								title={roleCounts && countSide ? `${roleCounts[role]} freie ${DRAFT_ROLE_LABELS[role]}-Champions für ${SIDE_LABEL[countSide]}` : undefined}
+								title={
+									roleCounts && countSide
+										? `${roleCounts[role]} freie ${DRAFT_ROLE_LABELS[role]}-Champions für ${SIDE_LABEL[countSide]}`
+										: DRAFT_ROLE_LABELS[role]
+								}
 							>
-								{DRAFT_ROLE_LABELS[role]}
+								<RoleIcon role={role} className="draft-role-icon" />
+								<span className="sr-only">{DRAFT_ROLE_LABELS[role]}</span>
 								{roleCounts ? (
 									<small className="draft-role-count" data-low={roleCounts[role] <= 8}>
 										{roleCounts[role]}
@@ -391,7 +397,7 @@ export function ChampSelectClient({
 						onConfirmRoles={confirmRoles}
 					/>
 					{rolePhase && roleSide && !state.roles?.[roleSide]?.confirmedAt ? (
-						<small>Ziehe deine Picks auf die richtige Lane oder tippe zwei Karten an, um sie zu tauschen.</small>
+						<small>Klicke bei einem Champion auf „Tauschen“ und danach auf den Champion, mit dem er die Lane tauschen soll.</small>
 					) : null}
 				</div>
 				<BanRow side="teamB" state={state} byName={byName} extra={extraBanSide === "teamB"} currentTurn={ready ? currentTurn : null} preview={preview} />
@@ -535,7 +541,12 @@ function PickLane({
 				const content = (
 					<>
 						{shown ? <Image src={splashUrl(shown)} alt="" fill sizes="16rem" /> : <span className="draft-pick-empty">{index === activeIndex ? "Pickt…" : ""}</span>}
-						{withRoles ? <span className="draft-role-chip">{DRAFT_ROLE_LABELS[role]}</span> : null}
+						{withRoles ? (
+							<span className="draft-role-chip">
+								<RoleIcon role={role} className="draft-role-chip-icon" />
+								{DRAFT_ROLE_LABELS[role]}
+							</span>
+						) : null}
 						{auto === "random" ? <span className="draft-auto-chip">Zufall</span> : null}
 						{shown ? <span className="draft-pick-name">{shown.name}</span> : null}
 					</>
@@ -565,6 +576,11 @@ function PickLane({
 							onClick={() => (swapFrom?.side === side ? onMove(side, swapFrom.index, index) : onSwapStart({ side, index }))}
 						>
 							{content}
+							{/* drafter.lol style: corner chip to start, big centered chip on every other card while one is selected */}
+							<span className="draft-swap-chip" data-mode={pressed ? "selected" : swapFrom?.side === side ? "target" : "idle"} aria-hidden="true">
+								<SwapIcon />
+								{pressed ? "Ausgewählt" : "Tauschen"}
+							</span>
 						</button>
 					);
 				}
@@ -580,6 +596,14 @@ function PickLane({
 				);
 			})}
 		</div>
+	);
+}
+
+function SwapIcon() {
+	return (
+		<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<path d="M3 5h10m0 0-3-3m3 3-3 3M13 11H3m0 0 3-3m-3 3 3 3" />
+		</svg>
 	);
 }
 
