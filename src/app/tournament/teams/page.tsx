@@ -6,7 +6,8 @@ import { resolvePlayoffMatches } from "@/lib/bracket-resolver";
 import { readTournamentState } from "@/lib/tournament-storage";
 import { PLAY_IN_GROUP, getTournamentContext } from "@/lib/tournament-runtime";
 import { compactPoolLabel, getTournamentWheelState, remainingPoolsForTeam } from "@/lib/tournament-wheel";
-import { getTournamentLiveStreams } from "@/lib/tournament-live-streams";
+import { getTeamTwitchPresence, getTournamentLiveStreams, type TwitchPresence } from "@/lib/tournament-live-streams";
+import { TwitchMark } from "@/components/BrandMarks";
 import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
 import { TournamentLiveStreamLinks } from "@/components/TournamentLiveStreamLinks";
 import { auth } from "@/lib/auth";
@@ -25,6 +26,42 @@ function CrownIcon() {
 		<svg aria-hidden viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
 			<path d="M3 17h18l-1.5-9-4.5 4-3-6-3 6-4.5-4L3 17zm0 2h18v2H3v-2z" />
 		</svg>
+	);
+}
+
+function twitchUrl(login: string) {
+	return `https://twitch.tv/${encodeURIComponent(login)}`;
+}
+
+/** Twitch mark for players who show their channel; a red LIVE pill with viewers while they stream. */
+function TwitchBadge({ name, presence }: { name: string; presence: TwitchPresence }) {
+	if (presence.live) {
+		return (
+			<a
+				href={twitchUrl(presence.login)}
+				target="_blank"
+				rel="noreferrer"
+				title={presence.live.title}
+				aria-label={`${name} ist live auf Twitch: ${presence.live.title}`}
+				className="inline-flex items-center gap-1 rounded-full bg-[var(--live)]/15 px-1.5 py-0.5 text-[10px] font-bold text-[var(--live)] hover:bg-[var(--live)]/25"
+			>
+				<i aria-hidden className="size-1.5 animate-pulse rounded-full bg-[var(--live)] motion-reduce:animate-none" />
+				LIVE
+				<span className="font-medium tabular-nums">{presence.live.viewerCount}</span>
+			</a>
+		);
+	}
+	return (
+		<a
+			href={twitchUrl(presence.login)}
+			target="_blank"
+			rel="noreferrer"
+			title={`twitch.tv/${presence.login}`}
+			aria-label={`${name} auf Twitch (offline)`}
+			className="inline-flex text-[var(--muted)] hover:text-[#a970ff]"
+		>
+			<TwitchMark className="size-3.5" />
+		</a>
 	);
 }
 
@@ -99,6 +136,13 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 				{ previewOffline: previewEnabled }
 			)
 		: [];
+	const twitch = await getTeamTwitchPresence(teams);
+	const liveNow = teams.flatMap((team) =>
+		team.players.flatMap((player) => {
+			const presence = player.discordId ? twitch.get(player.discordId) : undefined;
+			return presence?.live ? [{ team, player, presence, live: presence.live }] : [];
+		})
+	);
 	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? lockedChampionsByTeam(control.matches, settings.fearless.variant) : null;
 	const stageSeedLabel = (team: (typeof teams)[number]) => {
 		if (isAzTournament) return `${team.group}${team.seed}`;
@@ -132,6 +176,34 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 					<h2 id="teams-title">Das Line-up.</h2>
 					<span>Spielernamen führen zu OP.GG.</span>
 				</div>
+				{liveNow.length ? (
+					<div className="mb-6 flex flex-wrap items-center gap-2" aria-label="Spieler, die gerade auf Twitch live sind">
+						<span className="mr-1 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--live)]">
+							<i aria-hidden className="size-1.5 animate-pulse rounded-full bg-[var(--live)] motion-reduce:animate-none" />
+							Gerade live
+						</span>
+						{liveNow.map(({ team, player, presence, live: stream }) => (
+							<a
+								key={player.riotId}
+								href={twitchUrl(presence.login)}
+								target="_blank"
+								rel="noreferrer"
+								title={stream.title}
+								className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--panel)] py-1 pr-3 pl-1 text-xs hover:border-[var(--live)]"
+							>
+								{presence.profileImageUrl ? (
+									// eslint-disable-next-line @next/next/no-img-element
+									<img src={presence.profileImageUrl} alt="" width={22} height={22} className="size-[22px] rounded-full ring-2 ring-[var(--live)]" />
+								) : (
+									<TwitchMark className="size-4 text-[#a970ff]" />
+								)}
+								<span className="font-semibold text-[var(--text)]">{player.name}</span>
+								{team.tag ? <span className="font-mono text-[10px] text-[var(--muted)]">{team.tag}</span> : null}
+								<span className="text-[var(--muted)] tabular-nums">{stream.viewerCount} Zuschauer</span>
+							</a>
+						))}
+					</div>
+				) : null}
 
 				{displayedLiveMatches.length > 0 ? (
 					<div className="content-panel tight mb-6 border-[color-mix(in_srgb,var(--live)_35%,var(--line))]">
@@ -203,7 +275,10 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 								<header className="flex items-start gap-3">
 									<span
 										className="grid h-11 min-w-14 shrink-0 place-items-center rounded-lg px-2 font-mono text-sm font-bold tracking-wide text-[var(--team)]"
-										style={{ background: "color-mix(in srgb, var(--team) 16%, transparent)", border: "1px solid color-mix(in srgb, var(--team) 40%, transparent)" }}
+										style={{
+											background: "color-mix(in srgb, var(--team) 16%, transparent)",
+											border: "1px solid color-mix(in srgb, var(--team) 40%, transparent)",
+										}}
 										title="Teamtag"
 									>
 										{team.tag ?? "—"}
@@ -258,6 +333,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 																<span className="sr-only">Captain</span>
 															</span>
 														) : null}
+														{player.discordId && twitch.get(player.discordId) ? (
+															<TwitchBadge name={player.name} presence={twitch.get(player.discordId)!} />
+														) : null}
 														{player.verified === false ? (
 															<span className="rounded-full border border-amber-200/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-100">
 																Nicht verifiziert
@@ -276,7 +354,6 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 															DPM
 														</a>
 													</div>
-													<TournamentLiveStreamLinks streams={teamStreams.filter((stream) => stream.riotId === player.riotId)} compact />
 												</div>
 											</li>
 										);

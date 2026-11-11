@@ -50,3 +50,40 @@ export async function getTournamentLiveStreams(teams: TournamentTeam[], liveTeam
 		];
 	});
 }
+
+export type TwitchPresence = {
+	login: string;
+	displayName: string;
+	profileImageUrl: string;
+	/** Set while the channel is live, at any time (not only during matches). */
+	live: { viewerCount: number; title: string; gameName: string } | null;
+};
+
+/**
+ * Twitch channel and live state for every rostered player who opted in on /me
+ * ("Auf der Turnierseite zeigen"). Keyed by Discord ID. Twitch errors give an empty map.
+ */
+export async function getTeamTwitchPresence(teams: TournamentTeam[]): Promise<Map<string, TwitchPresence>> {
+	const discordIds = teams.flatMap((team) => team.players.map((player) => player.discordId)).filter((id): id is string => Boolean(id));
+	try {
+		const links = (await listTwitchLinksForDiscordIds(discordIds)).filter((link) => link.showWhenLive);
+		const liveByLogin = await getStreams(links.map((link) => link.login)).catch(() => new Map());
+		return new Map(
+			links.map((link) => {
+				const stream = liveByLogin.get(link.login.toLowerCase());
+				return [
+					link.discordId,
+					{
+						login: link.login,
+						displayName: link.displayName,
+						profileImageUrl: link.profileImageUrl,
+						live: stream ? { viewerCount: stream.viewerCount, title: stream.title, gameName: stream.gameName } : null,
+					},
+				];
+			})
+		);
+	} catch (error) {
+		console.error("[teams] Twitch-Status konnte nicht geladen werden.", error);
+		return new Map();
+	}
+}

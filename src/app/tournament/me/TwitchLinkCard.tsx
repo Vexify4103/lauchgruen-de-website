@@ -106,8 +106,8 @@ export function TwitchLinkCard({
 						<SettingToggle
 							checked={link.showWhenLive}
 							disabled={busy}
-							title="Während meiner Turniermatches anzeigen"
-							description="Ein Stream-Link erscheint nur, wenn dein Turniermatch live ist und dein Kanal tatsächlich sendet."
+							title="Auf der Turnierseite zeigen"
+							description="Dein Twitch-Symbol erscheint auf der Teamseite neben deinem Namen. Sobald du live bist, zeigen wir das dort mit Zuschauerzahl und während deiner Matches als Stream-Link."
 							onChange={(value) => void updateSetting("showWhenLive", value)}
 						/>
 						<SettingToggle
