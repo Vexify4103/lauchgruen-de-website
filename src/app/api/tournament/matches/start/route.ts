@@ -12,6 +12,7 @@ import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { buildMatchReadyDiscordOperations } from "@/lib/tournament-match-ready";
 import { usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
 import { automaticBlueSide } from "@/lib/tournament-series";
+import { currentGameNumber, ensureTournamentCode, riotTournamentApi } from "@/lib/riot-tournament";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +91,18 @@ export async function POST(request: Request) {
 				updatedAt: new Date().toISOString(),
 			});
 	const discordWarnings: string[] = [];
+	// Riot tournament code for the current game. Never blocks the release; a failure becomes a warning.
+	let tournamentCode = false;
+	if (releaseFlow && !ultimateBravery && riotTournamentApi()) {
+		try {
+			tournamentCode = Boolean(
+				await ensureTournamentCode({ settings, matchId: match.id, gameNumber: currentGameNumber(match), actor: session.user.discordHandle ?? discordId })
+			);
+		} catch (error) {
+			console.error("[match-ready] Turniercode konnte nicht erzeugt werden.", error);
+			discordWarnings.push(`Turniercode konnte nicht erzeugt werden (${error instanceof Error ? error.message : "unbekannter Fehler"}). Im Match-Control erneut versuchen.`);
+		}
+	}
 	let discordJob = null;
 	if (releaseFlow) {
 		const teamA = ctx.teams.find((team) => team.name === match.teamAName);
@@ -105,6 +118,7 @@ export async function POST(request: Request) {
 						time: match.time,
 						dedupeScope,
 						flow: ultimateBravery ? "rolls" : "draft",
+						tournamentCode,
 					})
 				: null;
 		const operations = notificationPlan?.operations ?? [];

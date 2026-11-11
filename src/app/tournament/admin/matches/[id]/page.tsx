@@ -9,6 +9,8 @@ import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { usesFearless, usesUltimateBravery } from "@/lib/tournament-kind";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { MatchControlRoomClient } from "./MatchControlRoomClient";
+import { TournamentCodeBox } from "@/components/TournamentCodeBox";
+import { codeVisibleFor, currentGameNumber, getTournamentCode, tournamentCodeMode } from "@/lib/riot-tournament";
 import { getAdminVersions } from "@/lib/admin-version";
 import { resolveUltimateBraveryMatchPlayers } from "@/lib/ultimate-bravery-match";
 import { listUltimateBraveryRolls } from "@/lib/ultimate-bravery";
@@ -86,6 +88,17 @@ export default async function MatchControlRoomPage({ params }: { params: Promise
 						rerollLimit={settings.structure.rerollsPerPlayer}
 						adminMode
 						readOnly={match.status === "Finished"}
+					/>
+				</div>
+			) : null}
+			{tournamentCodeMode().enabled && codeVisibleFor(match) && !ultimateBravery ? (
+				<div className="mx-auto mb-4 w-full max-w-7xl px-5">
+					<TournamentCodeBox
+						code={(await getTournamentCode(settings, match.id, currentGameNumber(match)))?.code ?? null}
+						gameNumber={currentGameNumber(match)}
+						stub={tournamentCodeMode().stub}
+						matchId={match.id}
+						retry
 					/>
 				</div>
 			) : null}

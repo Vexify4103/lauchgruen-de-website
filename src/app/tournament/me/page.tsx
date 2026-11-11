@@ -21,6 +21,8 @@ import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { DiscordMark } from "@/components/BrandMarks";
+import { TournamentCodeBox } from "@/components/TournamentCodeBox";
+import { codeVisibleFor, currentGameNumber, getTournamentCode, tournamentCodeMode } from "@/lib/riot-tournament";
 import { RoleIcon } from "@/components/RoleIcon";
 import { captainPortalOpen } from "@/lib/tournament-mode";
 
@@ -117,6 +119,9 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	const matches = team ? ctx.matches.filter((match) => match.teamAName === team.name || match.teamBName === team.name) : [];
 	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? null;
 	const matchAccessReady = nextMatch?.status === "Live" || nextMatch?.status === "Pending";
+	const codeMode = tournamentCodeMode();
+	const tournamentCode =
+		codeMode.enabled && isCaptain && nextMatch && codeVisibleFor(nextMatch) ? await getTournamentCode(settings, nextMatch.id, currentGameNumber(nextMatch)) : null;
 	const isTeamA = nextMatch?.teamAName === team?.name;
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
 	const pool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
@@ -350,6 +355,16 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 												: "Der Champ Select ist geöffnet. Dein Captain draftet, du kannst live zuschauen und dich im Voice abstimmen."
 										: "Die Paarung steht. Sobald die Turnierleitung das Match freigibt, wird dieser Bereich grün und der Startknopf erscheint."}
 								</p>
+								{codeMode.enabled && isCaptain && nextMatch && codeVisibleFor(nextMatch) ? (
+									<div className="mt-4">
+										<TournamentCodeBox
+											code={tournamentCode?.code ?? null}
+											gameNumber={currentGameNumber(nextMatch)}
+											stub={codeMode.stub}
+											matchId={nextMatch.id}
+										/>
+									</div>
+								) : null}
 							</div>
 							<div className="match-call-actions">
 								{isUltimateBravery ? (

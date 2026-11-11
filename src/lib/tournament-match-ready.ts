@@ -10,6 +10,7 @@ function matchReadyOperation(input: {
 	dedupeScope: string;
 	tournamentUrl: string;
 	flow: MatchReadyFlow;
+	tournamentCode?: boolean;
 }): DiscordOperation | null {
 	const channelId = input.team.discordTextChannelId?.trim();
 	const roleId = input.team.discordRoleId?.trim();
@@ -37,6 +38,7 @@ function matchReadyOperation(input: {
 						{ name: "EUER TEAM", value: `**${input.team.name}**`, inline: true },
 						{ name: "GEGNER", value: `**${input.opponent.name}**`, inline: true },
 						{ name: "RUNDE", value: `${input.round} · ${input.time}`, inline: false },
+						...(input.tournamentCode ? [{ name: "LOBBY", value: "Den Turniercode für das Custom Game findet euer Captain im Captain-Portal.", inline: false }] : []),
 					],
 					footer: {
 						text:
@@ -69,6 +71,8 @@ export function buildMatchReadyDiscordOperations(input: {
 	dedupeScope: string;
 	tournamentUrl?: string;
 	flow?: MatchReadyFlow;
+	/** Adds a hint that the captain portal shows the Riot tournament code. The code itself never goes to Discord. */
+	tournamentCode?: boolean;
 }): { operations: DiscordOperation[]; missingTeamCount: number } {
 	const tournamentUrl = input.tournamentUrl ?? "https://tournament.lauchgruen.de";
 	const flow = input.flow ?? "rolls";

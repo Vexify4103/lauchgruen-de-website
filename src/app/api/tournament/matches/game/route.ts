@@ -1,3 +1,4 @@
+import { ensureTournamentCode, riotTournamentApi } from "@/lib/riot-tournament";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { claimAdminVersion } from "@/lib/admin-version";
@@ -108,6 +109,12 @@ export async function POST(request: Request) {
 				updatedAt: now,
 			});
 			await resetDraftState({ matchId: match.id, resetBy: actor, reason: `Spiel ${game.number + 1} der Serie` });
+			// Code for the next game of the series; failures are retried from the match control.
+			if (riotTournamentApi() && !usesUltimateBravery(settings.activeTournament)) {
+				await ensureTournamentCode({ settings, matchId: match.id, gameNumber: games.length + 1, actor }).catch((error) =>
+					console.error("[match-game] Turniercode für das nächste Spiel fehlgeschlagen.", error)
+				);
+			}
 			if (usesUltimateBravery(settings.activeTournament)) await archiveUltimateBraveryGameRolls(match.id, game.number);
 		}
 		const winnerName = parsed.data.winner === "teamA" ? match.teamAName : match.teamBName;

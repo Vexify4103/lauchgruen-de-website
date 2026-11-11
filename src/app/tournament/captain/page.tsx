@@ -1,5 +1,7 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { redirect } from "next/navigation";
+import { TournamentCodeBox } from "@/components/TournamentCodeBox";
+import { codeVisibleFor, currentGameNumber, getTournamentCode, tournamentCodeMode } from "@/lib/riot-tournament";
 import { captainPortalOpen } from "@/lib/tournament-mode";
 import { auth } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
@@ -71,6 +73,8 @@ export default async function CaptainPortalPage() {
 	const assignedPool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
 	const allowedPool = assignedPool ? pools.find((pool) => pool.pool === assignedPool) : null;
 	const opponent = nextMatch ? findTeamByName(ctx.teams, isTeamA ? nextMatch.teamBName : nextMatch.teamAName) : null;
+	const codeMode = tournamentCodeMode();
+	const tournamentCode = codeMode.enabled && nextMatch && codeVisibleFor(nextMatch) ? await getTournamentCode(settings, nextMatch.id, currentGameNumber(nextMatch)) : null;
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
@@ -140,6 +144,11 @@ export default async function CaptainPortalPage() {
 									) : null}
 								</span>
 							</div>
+							{codeMode.enabled && codeVisibleFor(nextMatch) ? (
+								<div className="mt-5">
+									<TournamentCodeBox code={tournamentCode?.code ?? null} gameNumber={currentGameNumber(nextMatch)} stub={codeMode.stub} matchId={nextMatch.id} />
+								</div>
+							) : null}
 							<CaptainMatchActions matchId={nextMatch.id} teamName={team.name} />
 							{nextMatch.teamAName && nextMatch.teamBName && nextMatch.status !== "Finished" ? (
 								<ReplayUpload matchId={nextMatch.id} teamAName={nextMatch.teamAName} teamBName={nextMatch.teamBName} />
