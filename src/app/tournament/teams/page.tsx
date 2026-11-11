@@ -137,12 +137,6 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 			)
 		: [];
 	const twitch = await getTeamTwitchPresence(teams);
-	const liveNow = teams.flatMap((team) =>
-		team.players.flatMap((player) => {
-			const presence = player.discordId ? twitch.get(player.discordId) : undefined;
-			return presence?.live ? [{ team, player, presence, live: presence.live }] : [];
-		})
-	);
 	const fearlessPlayed = usesFearless(settings.activeTournament) && control ? lockedChampionsByTeam(control.matches, settings.fearless.variant) : null;
 	const stageSeedLabel = (team: (typeof teams)[number]) => {
 		if (isAzTournament) return `${team.group}${team.seed}`;
@@ -176,34 +170,6 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 					<h2 id="teams-title">Das Line-up.</h2>
 					<span>Spielernamen führen zu OP.GG.</span>
 				</div>
-				{liveNow.length ? (
-					<div className="mb-6 flex flex-wrap items-center gap-2" aria-label="Spieler, die gerade auf Twitch live sind">
-						<span className="mr-1 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--live)]">
-							<i aria-hidden className="size-1.5 animate-pulse rounded-full bg-[var(--live)] motion-reduce:animate-none" />
-							Gerade live
-						</span>
-						{liveNow.map(({ team, player, presence, live: stream }) => (
-							<a
-								key={player.riotId}
-								href={twitchUrl(presence.login)}
-								target="_blank"
-								rel="noreferrer"
-								title={stream.title}
-								className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--panel)] py-1 pr-3 pl-1 text-xs hover:border-[var(--live)]"
-							>
-								{presence.profileImageUrl ? (
-									// eslint-disable-next-line @next/next/no-img-element
-									<img src={presence.profileImageUrl} alt="" width={22} height={22} className="size-[22px] rounded-full ring-2 ring-[var(--live)]" />
-								) : (
-									<TwitchMark className="size-4 text-[#a970ff]" />
-								)}
-								<span className="font-semibold text-[var(--text)]">{player.name}</span>
-								{team.tag ? <span className="font-mono text-[10px] text-[var(--muted)]">{team.tag}</span> : null}
-								<span className="text-[var(--muted)] tabular-nums">{stream.viewerCount} Zuschauer</span>
-							</a>
-						))}
-					</div>
-				) : null}
 
 				{displayedLiveMatches.length > 0 ? (
 					<div className="content-panel tight mb-6 border-[color-mix(in_srgb,var(--live)_35%,var(--line))]">
