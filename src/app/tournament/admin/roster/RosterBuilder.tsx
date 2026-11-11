@@ -69,6 +69,7 @@ type State = {
 type TeamMutationResponse = {
 	key: string;
 	name: string;
+	tag?: string;
 	group?: string;
 	seed?: number | null;
 	version?: number;
@@ -127,6 +128,7 @@ function teamFromMutationResponse(response: TeamMutationResponse): RosterTeam {
 	return {
 		key: response.key,
 		name: response.name,
+		tag: response.tag ?? "",
 		group: response.group,
 		seed: response.seed ?? undefined,
 		captainDiscordId: null,
@@ -223,6 +225,7 @@ export function RosterBuilder({
 	const [editTeamTarget, setEditTeamTarget] = useState<RosterTeam | null>(null);
 	const [editingTeam, setEditingTeam] = useState(false);
 	const [editTeamName, setEditTeamName] = useState("");
+	const [editTeamTag, setEditTeamTag] = useState("");
 	const [deleteTeamTarget, setDeleteTeamTarget] = useState<RosterTeam | null>(null);
 	const [deletingTeam, setDeletingTeam] = useState(false);
 	const [manualSubOpen, setManualSubOpen] = useState(false);
@@ -247,7 +250,7 @@ export function RosterBuilder({
 	const currentRosterState = useMemo(() => serializeRosterState(state), [state]);
 	const rosterDirty = currentRosterState !== savedRosterState;
 	const createTeamDirty = Boolean(createOpen && newTeamName.trim());
-	const editTeamDirty = Boolean(editTeamTarget && editTeamName !== editTeamTarget.name);
+	const editTeamDirty = Boolean(editTeamTarget && (editTeamName !== editTeamTarget.name || editTeamTag !== editTeamTarget.tag));
 
 	// Auto-dismiss "ok" toasts so they don't sit stuck after the next router
 	// refresh. Errors stay until manually replaced.
@@ -337,7 +340,15 @@ export function RosterBuilder({
 		const query = poolQuery.trim().toLowerCase();
 		if (!query) return unassigned;
 		return unassigned.filter((applicant) =>
-			[applicant.discordUsername, applicant.discordHandle, applicant.displayName, applicant.riotId, applicant.preferenceGroupCode, applicant.manualRankOverride || applicant.currentRank, ...applicant.preferredRoles]
+			[
+				applicant.discordUsername,
+				applicant.discordHandle,
+				applicant.displayName,
+				applicant.riotId,
+				applicant.preferenceGroupCode,
+				applicant.manualRankOverride || applicant.currentRank,
+				...applicant.preferredRoles,
+			]
 				.filter(Boolean)
 				.some((value) => String(value).toLowerCase().includes(query))
 		);
@@ -722,6 +733,7 @@ export function RosterBuilder({
 	const openEditTeam = useCallback((team: RosterTeam) => {
 		setEditTeamTarget(team);
 		setEditTeamName(team.name);
+		setEditTeamTag(team.tag);
 	}, []);
 
 	const handleEditTeam = useCallback(
@@ -750,6 +762,7 @@ export function RosterBuilder({
 			body: JSON.stringify({
 				key: editTeamTarget.key,
 				name,
+				...(editTeamTag.trim() && editTeamTag.trim().toUpperCase() !== editTeamTarget.tag ? { tag: editTeamTag.trim() } : {}),
 			}),
 		});
 		setEditingTeam(false);
@@ -776,6 +789,7 @@ export function RosterBuilder({
 								...team,
 								key: nextKey,
 								name: String(json.name),
+								tag: json.tag ? String(json.tag) : team.tag,
 							}
 						: team
 				),
@@ -805,7 +819,7 @@ export function RosterBuilder({
 		});
 		router.refresh();
 		return true;
-	}, [editTeamTarget, editTeamName, router, showConflict]);
+	}, [editTeamTarget, editTeamName, editTeamTag, router, showConflict]);
 
 	async function performDeleteTeam() {
 		if (!deleteTeamTarget) return;
@@ -1018,7 +1032,7 @@ export function RosterBuilder({
 						? "Die Reparatur der veröffentlichten Discord-Rollen wurde eingeplant."
 						: "Alle veröffentlichten Discord-Rollen waren bereits korrekt."
 					: json?.published
-						? `Roster veröffentlicht · ${json.players} Spieler · ${json.dmQueued} Discord-DMs eingeplant${json.dmOptedOut ? ` · ${json.dmOptedOut} abgewählt`: ""}.`
+						? `Roster veröffentlicht · ${json.players} Spieler · ${json.dmQueued} Discord-DMs eingeplant${json.dmOptedOut ? ` · ${json.dmOptedOut} abgewählt` : ""}.`
 						: "Seit der letzten Veröffentlichung gibt es keine Änderungen.",
 			});
 			router.refresh();
@@ -1123,7 +1137,9 @@ export function RosterBuilder({
 									title={opt.title}
 									aria-pressed={active}
 									className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-										active ? "bg-[var(--admin-step)] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-[var(--muted)] hover:text-[var(--text)]"
+										active
+											? "bg-[var(--admin-step)] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--line-strong)]"
+											: "text-[var(--muted)] hover:text-[var(--text)]"
 									}`}
 								>
 									{opt.label}
@@ -1134,7 +1150,9 @@ export function RosterBuilder({
 				</div>
 				<div className="themed-scrollbar mx-2 mb-2 mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-2 pb-2">
 					{unassigned.length === 0 ? (
-						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Alle verfügbaren Spieler sind zugewiesen</div>
+						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">
+							Alle verfügbaren Spieler sind zugewiesen
+						</div>
 					) : visibleUnassigned.length === 0 ? (
 						<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3 text-xs text-[var(--muted)]">Kein Treffer für „{poolQuery.trim()}“</div>
 					) : (
@@ -1207,7 +1225,9 @@ export function RosterBuilder({
 								<div
 									role="status"
 									className={`rounded-xl border px-3 py-1.5 text-xs ${
-										message.tone === "ok" ? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]" : "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
+										message.tone === "ok"
+											? "border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]"
+											: "border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
 									}`}
 								>
 									{message.text}
@@ -1418,7 +1438,10 @@ export function RosterBuilder({
 								</div>
 								<div className="mt-3 grid gap-2 sm:grid-cols-2">
 									{balanceResult.highEloPreferredAssignments.map((entry) => (
-										<div key={entry.discordId} className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)] px-3 py-2">
+										<div
+											key={entry.discordId}
+											className="rounded-xl border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[var(--admin-inset)] px-3 py-2"
+										>
 											<div className="font-semibold text-[var(--amber)]">{playerName(applicantById.get(entry.discordId), entry.displayName)}</div>
 											<div className="mt-0.5 text-xs font-medium text-[var(--muted)]">
 												{teamByKey.get(entry.teamKey)?.name ?? entry.teamKey} · {entry.role} · {entry.rank}
@@ -1735,11 +1758,7 @@ export function RosterBuilder({
 							>
 								Abbrechen
 							</button>
-							<button
-								type="button"
-								onClick={addManualSubstitute}
-								className="bg-[var(--accent)] rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--on-accent)]"
-							>
+							<button type="button" onClick={addManualSubstitute} className="bg-[var(--accent)] rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--on-accent)]">
 								Manuell hinzufügen
 							</button>
 						</div>
@@ -1872,7 +1891,7 @@ export function RosterBuilder({
 							{editTeamTarget.name}
 						</h2>
 						<p className="mt-1 text-xs text-[var(--muted)]">
-							Ändert den Teamnamen sowie die zugehörigen Discord-Ressourcen. Gruppe und Seed werden zentral im Gruppenplaner verwaltet.
+							Ändert Teamnamen, Teamtag und die zugehörigen Discord-Ressourcen. Gruppe und Seed werden zentral im Gruppenplaner verwaltet.
 						</p>
 
 						<div className="mt-4 grid gap-3">
@@ -1885,6 +1904,19 @@ export function RosterBuilder({
 									onChange={(e) => setEditTeamName(e.target.value)}
 									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
 								/>
+							</label>
+							<label className="grid gap-1">
+								<span className="text-xs font-semibold text-[var(--muted)]">Teamtag</span>
+								<input
+									name="team-tag"
+									autoComplete="off"
+									spellCheck={false}
+									maxLength={5}
+									value={editTeamTag}
+									onChange={(e) => setEditTeamTag(e.target.value.toUpperCase())}
+									className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 font-mono text-sm text-[var(--text)] uppercase outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+								/>
+								<span className="text-xs text-[var(--muted)]">2 bis 5 Zeichen, A–Z und 0–9. Muss sich von allen anderen Teams unterscheiden.</span>
 							</label>
 						</div>
 
@@ -2262,7 +2294,12 @@ function ApplicantCard({
 					<div className="truncate text-sm font-medium text-[var(--text)]">{playerName(applicant)}</div>
 					<div className="mt-0.5 truncate text-xs text-[var(--muted)]">
 						{applicant.riotId}
-						{applicant.preferenceGroupCode ? <span className="font-mono" title="Unverbindliche Wunschgruppe"> · {applicant.preferenceGroupCode}</span> : null}
+						{applicant.preferenceGroupCode ? (
+							<span className="font-mono" title="Unverbindliche Wunschgruppe">
+								{" "}
+								· {applicant.preferenceGroupCode}
+							</span>
+						) : null}
 						{applicant.verified === false ? <span className="text-[var(--amber)]"> · Nicht verifiziert</span> : null}
 					</div>
 				</div>
@@ -2410,9 +2447,7 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 
 	return (
 		<details className={`${compact ? "mt-0" : "mt-3"} rounded-xl border border-[var(--line)] bg-[var(--admin-step)]`}>
-			<summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)]">
-				Bewerbung ansehen
-			</summary>
+			<summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)]">Bewerbung ansehen</summary>
 			<div className="grid gap-2 border-t border-[var(--line)] px-3 py-3 text-xs">
 				<ApplicationDetailRow label="Anzeigename" value={applicant.displayName} />
 				<ApplicationDetailRow
@@ -2430,7 +2465,9 @@ function ApplicationDetails({ applicant, compact = false }: { applicant: RosterA
 				{applicant.hasCompetitiveExperience ? (
 					<div>
 						<div className="font-semibold text-[var(--muted)]">Competitive-Erfahrung</div>
-						<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] p-2 leading-5 text-[var(--muted)]">{applicant.competitiveExperience || "Keine Beschreibung hinterlegt."}</p>
+						<p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--line)] bg-[var(--admin-inset)] p-2 leading-5 text-[var(--muted)]">
+							{applicant.competitiveExperience || "Keine Beschreibung hinterlegt."}
+						</p>
 					</div>
 				) : null}
 				<ApplicationDetailRow label="Eingegangen" value={`${submittedAt} Uhr`} />
@@ -2459,7 +2496,13 @@ function ApplicationDetailRow({ label, value }: { label: string; value: string }
 }
 
 function GroupSummaryTile({ label, value, tone }: { label: string; value: number | string; tone: "ok" | "warn" | "danger" | "neutral" | "info" }) {
-	const valueTone = { ok: "text-[var(--accent)]", warn: "text-[var(--amber)]", danger: "text-[var(--danger)]", neutral: "text-[var(--muted)]", info: "text-[var(--text)]" } as const;
+	const valueTone = {
+		ok: "text-[var(--accent)]",
+		warn: "text-[var(--amber)]",
+		danger: "text-[var(--danger)]",
+		neutral: "text-[var(--muted)]",
+		info: "text-[var(--text)]",
+	} as const;
 	return (
 		<div className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2">
 			<div className={`text-lg font-medium tabular-nums ${value === 0 ? "text-[var(--muted)]" : valueTone[tone]}`}>{value}</div>
@@ -2545,7 +2588,9 @@ function Picker({
 										</span>
 										<span className="grid justify-items-end gap-0.5 text-xs">
 											{groupMate ? <span className="font-medium text-[var(--accent)]">Wunschgruppe</span> : null}
-											<span className={priority >= 0 ? "font-medium text-[var(--text)]" : "text-[var(--muted)]"}>{priority >= 0 ? `Wunsch #${priority + 1}` : "Kein Wunsch"}</span>
+											<span className={priority >= 0 ? "font-medium text-[var(--text)]" : "text-[var(--muted)]"}>
+												{priority >= 0 ? `Wunsch #${priority + 1}` : "Kein Wunsch"}
+											</span>
 										</span>
 									</button>
 								);

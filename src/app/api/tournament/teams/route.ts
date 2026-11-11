@@ -159,6 +159,7 @@ export async function POST(request: Request) {
 		ok: true,
 		key,
 		name: parsed.data.name.trim(),
+		tag: meta.tag,
 		group: undefined,
 		seed: null,
 		discordJob,

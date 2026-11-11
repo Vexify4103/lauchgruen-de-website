@@ -109,6 +109,8 @@ export type RosterTeam = {
 	/** lowercased team-name key (Mongo map key in bot_state.teams) */
 	key: string;
 	name: string;
+	/** Stored or generated team tag (2–5 characters). */
+	tag: string;
 	group?: string;
 	seed?: number;
 	/** Captain discordId, if assigned via /setteammeta. */
@@ -163,9 +165,11 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	const visibleApplications = testModeActive ? appsRaw.filter((application) => application.discordId.startsWith("test-")) : appsRaw;
 	const publishedTeamsObj = botDoc?.teams ?? {};
 	const teamsObj = testModeActive ? publishedTeamsObj : applyDraftToTeams(publishedTeamsObj, draftDoc);
+	const tagsByKey = teamTagsByKey(teamsObj);
 	const teams: RosterTeam[] = Object.entries(teamsObj).map(([key, t]) => ({
 		key,
 		name: t.name,
+		tag: tagsByKey.get(key) ?? "",
 		group: t.meta?.group,
 		seed: t.meta?.seed,
 		captainDiscordId: t.meta?.captain?.discordId ?? null,
