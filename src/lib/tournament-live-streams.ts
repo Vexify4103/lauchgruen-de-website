@@ -60,13 +60,13 @@ export type TwitchPresence = {
 };
 
 /**
- * Twitch channel and live state for every rostered player who opted in on /me
- * ("Auf der Turnierseite zeigen"). Keyed by Discord ID. Twitch errors give an empty map.
+ * Twitch channel and live state for every rostered player with a linked Twitch account.
+ * The /me toggle only controls stream links on /live during matches. Keyed by Discord ID. Twitch errors give an empty map.
  */
 export async function getTeamTwitchPresence(teams: TournamentTeam[]): Promise<Map<string, TwitchPresence>> {
 	const discordIds = teams.flatMap((team) => team.players.map((player) => player.discordId)).filter((id): id is string => Boolean(id));
 	try {
-		const links = (await listTwitchLinksForDiscordIds(discordIds)).filter((link) => link.showWhenLive);
+		const links = await listTwitchLinksForDiscordIds(discordIds);
 		const liveByLogin = await getStreams(links.map((link) => link.login)).catch(() => new Map());
 		return new Map(
 			links.map((link) => {
