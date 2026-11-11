@@ -1,5 +1,6 @@
 import { describeStructurePlan, describeTiebreakers, playoffRuleBullets } from "@/lib/tournament-structure";
 import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
+import { fearlessCapacity } from "@/lib/fearless-capacity";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 
 type RuleSection = { title: string; text: string; list?: string[]; footer?: string; kinds?: TournamentKind[] };
@@ -201,26 +202,37 @@ const ruleSections: RuleSection[] = [
 	},
 ];
 
-const MATCH_FEARLESS_SECTION: RuleSection = {
-	title: "Match-Fearless: alles aus euren Spielen ist gesperrt",
-	kinds: ["fearless"],
-	text: "Ein Champion gilt als gespielt, sobald er im abgeschlossenen Draft eines Spiels gepickt wurde. Gesperrt sind für dein Team alle Champions aus deinen Spielen: die Picks deines Teams und die Picks jedes Gegners, gegen den ihr gespielt habt.",
-	list: [
-		"Nach A gegen B sind alle zehn gepickten Champions für A und für B bis zum Ende des Turniers gesperrt",
-		"Champions aus Spielen anderer Teams bleiben für euch frei",
-		"In einer Bo3/Bo5 zählt jedes Spiel einzeln",
-		"Bans verbrauchen keine Champions",
-		"Die aktuelle Liste jedes Teams steht jederzeit öffentlich auf der Fearless-Seite",
-	],
-	footer: "Plant euren Pool breit: Pro Spiel kommen bis zu zehn Sperren dazu, besonders auf der Bot-Lane wird es in späten Runden eng.",
-};
+/** Match variant: every pick of a team's games locks for that team. Series scope resets per match. */
+function matchFearlessSection(settings: TournamentSettings): RuleSection {
+	const series = settings.fearless.scope === "series";
+	const capacity = fearlessCapacity(settings.structure, settings.fearless);
+	return {
+		title: series ? "Match-Fearless: alles aus eurer Serie ist gesperrt" : "Match-Fearless: alles aus euren Spielen ist gesperrt",
+		kinds: ["fearless"],
+		text: series
+			? "Ein Champion gilt als gespielt, sobald er im abgeschlossenen Draft eines Spiels gepickt wurde. Innerhalb einer Serie sind für beide Teams alle Champions gesperrt, die in einem früheren Spiel dieser Serie gepickt wurden, egal von welchem Team. Im nächsten Match beginnt es neu."
+			: "Ein Champion gilt als gespielt, sobald er im abgeschlossenen Draft eines Spiels gepickt wurde. Gesperrt sind für dein Team alle Champions aus deinen Spielen: die Picks deines Teams und die Picks jedes Gegners, gegen den ihr gespielt habt. Die Sperren gelten für das ganze Turnier, nicht nur für eine Serie.",
+		list: series
+			? ["Bans verbrauchen keine Champions", "Die aktuelle Liste jedes Teams steht jederzeit öffentlich auf der Fearless-Seite"]
+			: [
+					"Nach A gegen B sind alle zehn gepickten Champions für A und für B bis zum Ende des Turniers gesperrt",
+					"Die Sperren bleiben über alle Runden, beide Turniertage und die Playoffs bestehen und werden nie zurückgesetzt",
+					"Champions aus Spielen anderer Teams bleiben für euch frei",
+					"Bans verbrauchen keine Champions",
+					"Die aktuelle Liste jedes Teams steht jederzeit öffentlich auf der Fearless-Seite",
+				],
+		footer: series
+			? undefined
+			: `Die Champions reichen: Selbst im längsten Fall (${capacity.games} Spiele) sind vor dem letzten Spiel höchstens ${capacity.lockedBeforeLastGame} von etwa ${capacity.championPool} Champions gesperrt. Nach allen Bans und Picks bleiben für den letzten Pick noch mindestens ${capacity.leftForLastPick} Champions. Eng wird es vor allem auf der Bot-Lane, also plant euren Pool breit.`,
+	};
+}
 
 export function getDefaultRuleSections(settings: TournamentSettings) {
 	const config = settings.structure;
 	const kind = tournamentKind(settings.activeTournament);
 	const displayedRuleSections = ruleSections
 		.filter((section) => !section.kinds || section.kinds.includes(kind))
-		.map((section) => (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match" ? MATCH_FEARLESS_SECTION : section))
+		.map((section) => (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match" ? matchFearlessSection(settings) : section))
 		.map((section) =>
 			section.title === "Turnierformat"
 				? {

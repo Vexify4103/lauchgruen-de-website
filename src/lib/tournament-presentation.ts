@@ -47,6 +47,15 @@ const TAGLINES: Record<TournamentKind, string> = {
 	az: "Das Glücksrad lost jedem Team pro Match einen eigenen A-Z-Pool zu. Nur diese Champions dürfen gepickt werden.",
 };
 
+/** Hero line for Fearless that matches the active lock rules, so nobody reads the wrong variant. */
+function fearlessTagline(rules: TournamentSettings["fearless"]): string {
+	if (rules.variant === "match")
+		return rules.scope === "series"
+			? "Jeder Champion zählt nur einmal pro Serie. Alles, was in einem Spiel eurer Serie gepickt wurde, ist für beide Teams bis zum Serienende gesperrt."
+			: "Jeder Champion zählt nur einmal. Alles, was in euren Spielen gepickt wurde, auch vom Gegner, ist für euer Team für das ganze Turnier gesperrt.";
+	return rules.scope === "series" ? "Jeder Champion zählt nur einmal pro Serie. Was euer Team in einer Serie gespielt hat, ist bis zum Serienende gesperrt." : TAGLINES.fearless;
+}
+
 export function formatTournamentDay(value: string | null, withTime = true): string | null {
 	if (!value) return null;
 	return new Intl.DateTimeFormat("de-DE", {
@@ -119,7 +128,12 @@ export function buildTournamentHero(input: { settings: TournamentSettings; teamC
 		name: active.name,
 		kind: active.kind,
 		eyebrow: { label: registrationLabel(settings, applicationsOpen) ?? mode.label, tone: mode.tone },
-		tagline: active.mode === "finished" && input.championTeamName ? `${input.championTeamName} gewinnt ${active.name}.` : TAGLINES[active.kind],
+		tagline:
+			active.mode === "finished" && input.championTeamName
+				? `${input.championTeamName} gewinnt ${active.name}.`
+				: active.kind === "fearless"
+					? fearlessTagline(settings.fearless)
+					: TAGLINES[active.kind],
 		pills,
 		side: {
 			value: teamCount > 0 ? String(teamCount) : "Teams",
