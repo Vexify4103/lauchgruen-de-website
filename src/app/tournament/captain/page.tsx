@@ -1,5 +1,6 @@
 import { TournamentLink as Link } from "../TournamentLink";
 import { redirect } from "next/navigation";
+import { captainPortalOpen } from "@/lib/tournament-mode";
 import { auth } from "@/lib/auth";
 import { getChampionPools } from "@/lib/champion-pools";
 import { findTeamByName, getMatchControlContext } from "@/lib/match-control";
@@ -21,7 +22,7 @@ function opggMultiSearchUrl(riotIds: string[]) {
 }
 
 export default async function CaptainPortalPage() {
-	if ((await getTournamentSettings()).activeTournament.mode !== "live") redirect("/tournament");
+	if (!captainPortalOpen((await getTournamentSettings()).activeTournament.mode)) redirect("/tournament");
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 
@@ -86,7 +87,10 @@ export default async function CaptainPortalPage() {
 								<p className="text-sm text-[var(--muted)]">
 									{nextMatch.status === "Finished" ? "Letztes Match" : "Nächstes Match"} · <span className="font-mono">{nextMatch.id}</span>
 								</p>
-								<span className="tally" data-tone={nextMatch.status === "Live" || nextMatch.status === "Pending" ? "live" : nextMatch.status === "Finished" ? "ok" : undefined}>
+								<span
+									className="tally"
+									data-tone={nextMatch.status === "Live" || nextMatch.status === "Pending" ? "live" : nextMatch.status === "Finished" ? "ok" : undefined}
+								>
 									{STATUS_LABELS[nextMatch.status ?? "Scheduled"] ?? nextMatch.status}
 								</span>
 							</div>
@@ -94,13 +98,19 @@ export default async function CaptainPortalPage() {
 								{team.name} <span className="font-normal text-[var(--muted)]">vs</span> {opponent?.name ?? (isTeamA ? nextMatch.teamBLabel : nextMatch.teamALabel)}
 							</h2>
 							<dl className="mt-5 grid grid-cols-3 gap-3">
-								<InfoTile label="Score" value={nextMatch.scoreA !== undefined && nextMatch.scoreB !== undefined ? `${nextMatch.scoreA}:${nextMatch.scoreB}` : "–"} />
+								<InfoTile
+									label="Score"
+									value={nextMatch.scoreA !== undefined && nextMatch.scoreB !== undefined ? `${nextMatch.scoreA}:${nextMatch.scoreB}` : "–"}
+								/>
 								<InfoTile label="Eure Seite" value={draftPerspective === "blue" ? "Blau" : "Rot"} />
 								<InfoTile label="Euer Pool" value={assignedPool ? compactPoolLabel(assignedPool) : "–"} />
 							</dl>
 							<div className="mt-5 flex flex-wrap items-center gap-3">
 								{settings.draftEnabled ? (
-									<Link href={`/tournament/champ-select/${nextMatch.id}`} className="rounded-[10px] bg-[var(--accent)] px-5 py-3 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-strong)]">
+									<Link
+										href={`/tournament/champ-select/${nextMatch.id}`}
+										className="rounded-[10px] bg-[var(--accent)] px-5 py-3 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-strong)]"
+									>
 										Zum Champ Select
 									</Link>
 								) : (
@@ -110,11 +120,21 @@ export default async function CaptainPortalPage() {
 								)}
 								<CopyDraftSpectatorLinkButton matchId={nextMatch.id} perspective={draftPerspective} disabled={!settings.draftEnabled} />
 								<span className="flex gap-4 text-sm">
-									<a href={opggMultiSearchUrl(team.players.map((player) => player.scoutRiotId ?? player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+									<a
+										href={opggMultiSearchUrl(team.players.map((player) => player.scoutRiotId ?? player.riotId))}
+										target="_blank"
+										rel="noreferrer"
+										className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
+									>
 										Team auf OP.GG
 									</a>
 									{opponent ? (
-										<a href={opggMultiSearchUrl(opponent.players.map((player) => player.scoutRiotId ?? player.riotId))} target="_blank" rel="noreferrer" className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline">
+										<a
+											href={opggMultiSearchUrl(opponent.players.map((player) => player.scoutRiotId ?? player.riotId))}
+											target="_blank"
+											rel="noreferrer"
+											className="text-[var(--muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
+										>
 											Gegner auf OP.GG
 										</a>
 									) : null}

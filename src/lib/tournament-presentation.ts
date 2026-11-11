@@ -1,6 +1,6 @@
 import { playoffFormatLabel } from "@/lib/tournament-format";
 import { TOURNAMENT_KIND_LABELS, type TournamentKind } from "@/lib/tournament-kind";
-import type { TournamentMode } from "@/lib/tournament-mode";
+import { captainPortalOpen, type TournamentMode } from "@/lib/tournament-mode";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 
 /**
@@ -165,7 +165,7 @@ export function buildTournamentSubnav(input: { settings: TournamentSettings; ros
 		running || rosterPublished ? { href: "/tournament/schedule", label: active.mode === "finished" ? "Ergebnisse" : "Zeitplan" } : null,
 		active.kind === "fearless" && rosterPublished ? { href: "/tournament/fearless", label: "Fearless" } : null,
 		active.kind === "az" && running ? { href: "/tournament/pools", label: "Pools" } : null,
-		active.mode === "live" && isCaptain ? { href: "/tournament/captain", label: "Captain" } : null,
+		captainPortalOpen(active.mode) && isCaptain ? { href: "/tournament/captain", label: "Captain" } : null,
 	];
 	return items.filter((item): item is TournamentSubnavItem => Boolean(item));
 }
