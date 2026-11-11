@@ -22,6 +22,7 @@ function formatDate(iso: string): string {
 		day: "2-digit",
 		month: "short",
 		year: "numeric",
+		timeZone: "Europe/Berlin",
 	}).format(new Date(iso));
 }
 

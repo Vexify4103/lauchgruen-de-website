@@ -51,6 +51,7 @@ function formatDate(iso: string): string {
 		return new Date(iso).toLocaleString("de-DE", {
 			dateStyle: "medium",
 			timeStyle: "short",
+			timeZone: "Europe/Berlin",
 		});
 	} catch {
 		return iso;

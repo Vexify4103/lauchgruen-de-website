@@ -333,6 +333,6 @@ function playoffScheduleBatches(matches: ScheduleMatch[]) {
 
 function formatScheduleDay(value: string | null, fallback: string) {
 	if (!value) return fallback;
-	return new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+	return new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(value));
 }
 
