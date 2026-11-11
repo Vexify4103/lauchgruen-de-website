@@ -70,7 +70,6 @@ export function SwissBracket({
 
 	const columns = useMemo(() => buildColumns(state, config, need, placement), [state, config, need, placement]);
 	const seeds = state.finalSeedNames ?? (placement ? placementSeeds(state) : undefined);
-	const path = selected ? teamPath(state, selected) : null;
 
 	const toggle = (name: string | null | undefined) => {
 		if (!name) return;
@@ -100,12 +99,6 @@ export function SwissBracket({
 								<span className="max-w-[10rem] truncate">{name}</span>
 							</button>
 						))}
-					{selected && path ? (
-						<span className="ml-1 text-xs text-[var(--muted)]">
-							Weg von <strong className="text-[var(--text)]">{selected}</strong>:{" "}
-							<span className="font-mono">{path.map((step) => (step === "W" ? "S" : step === "L" ? "N" : "·")).join(" ")}</span>
-						</span>
-					) : null}
 				</div>
 			) : null}
 
@@ -127,17 +120,27 @@ export function SwissBracket({
 					))}
 					{seeds || placement || !elimination ? (
 						<section aria-label="Setzliste" className="flex w-[12.5rem] flex-col">
-							<h3 className="mb-3 text-center text-xs font-medium text-[var(--muted)]">{config.advanceTeamCount >= config.teamCount ? "Playoff-Seeds" : "Qualifiziert"}</h3>
+							<h3 className="mb-3 text-center text-xs font-medium text-[var(--muted)]">
+								{config.advanceTeamCount >= config.teamCount ? "Playoff-Seeds" : "Qualifiziert"}
+							</h3>
 							<div className="flex flex-1 flex-col justify-center">
 								<ol className="overflow-hidden rounded-lg border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))]">
 									{Array.from({ length: config.advanceTeamCount }, (_, index) => {
 										const name = seeds?.[index + 1];
 										const dim = selected && name !== selected;
 										return (
-											<li key={index} className={`flex items-center gap-2 border-t border-[var(--line)] px-2.5 py-1.5 text-xs first:border-t-0 ${dim ? "opacity-30" : ""}`}>
+											<li
+												key={index}
+												className={`flex items-center gap-2 border-t border-[var(--line)] px-2.5 py-1.5 text-xs first:border-t-0 ${dim ? "opacity-30" : ""}`}
+											>
 												<span className="w-6 font-mono text-[var(--accent)]">#{index + 1}</span>
 												{name ? (
-													<button type="button" onClick={() => toggle(name)} title={name} className="font-mono font-semibold text-[var(--text)] hover:underline">
+													<button
+														type="button"
+														onClick={() => toggle(name)}
+														title={name}
+														className="font-mono font-semibold text-[var(--text)] hover:underline"
+													>
 														{tagOf(name)}
 													</button>
 												) : (
@@ -177,7 +180,9 @@ function BucketBox({
 			>
 				<div
 					className={`px-2 py-1 text-center font-mono text-xs font-semibold ${
-						advance ? "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent)]" : "bg-[color-mix(in_srgb,var(--danger)_20%,transparent)] text-[var(--danger)]"
+						advance
+							? "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent)]"
+							: "bg-[color-mix(in_srgb,var(--danger)_20%,transparent)] text-[var(--danger)]"
 					}`}
 				>
 					{recordLabel(bucket.record)}
@@ -234,7 +239,10 @@ function BucketBox({
 					);
 				})}
 				{Array.from({ length: bucket.open }, (_, index) => (
-					<li key={`open-${index}`} className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 border-t border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] first:border-t-0">
+					<li
+						key={`open-${index}`}
+						className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 border-t border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] first:border-t-0"
+					>
 						<span className="text-right">—</span>
 						<span className="w-8 text-center text-[11px]">vs</span>
 						<span>—</span>
@@ -322,15 +330,23 @@ function buildColumns(state: SwissStageState, config: StageConfig, need: number,
 		for (const [key, record] of after) {
 			if (!finished(record) || record.wins + record.losses !== afterRound) continue;
 			const id = `${record.wins}-${record.losses}`;
-			const bucket = buckets.get(id) ?? { kind: "result" as const, key: `done-${id}`, record, teams: [], tone: record.wins >= need ? ("advance" as const) : ("out" as const) };
+			const bucket = buckets.get(id) ?? {
+				kind: "result" as const,
+				key: `done-${id}`,
+				record,
+				teams: [],
+				tone: record.wins >= need ? ("advance" as const) : ("out" as const),
+			};
 			bucket.teams.push(names.get(key) ?? key);
 			buckets.set(id, bucket);
 		}
 		// Final records nobody reached yet still get an empty box.
 		for (let other = 0; other < need; other += 1) {
 			if (need + other !== afterRound) continue;
-			if (!buckets.has(`${need}-${other}`)) buckets.set(`${need}-${other}`, { kind: "result", key: `done-${need}-${other}`, record: { wins: need, losses: other }, teams: [], tone: "advance" });
-			if (!buckets.has(`${other}-${need}`)) buckets.set(`${other}-${need}`, { kind: "result", key: `done-${other}-${need}`, record: { wins: other, losses: need }, teams: [], tone: "out" });
+			if (!buckets.has(`${need}-${other}`))
+				buckets.set(`${need}-${other}`, { kind: "result", key: `done-${need}-${other}`, record: { wins: need, losses: other }, teams: [], tone: "advance" });
+			if (!buckets.has(`${other}-${need}`))
+				buckets.set(`${other}-${need}`, { kind: "result", key: `done-${other}-${need}`, record: { wins: other, losses: need }, teams: [], tone: "out" });
 		}
 		return [...buckets.values()].sort((a, b) => b.record.wins - a.record.wins);
 	};
@@ -370,20 +386,6 @@ function buildColumns(state: SwissStageState, config: StageConfig, need: number,
 	const last = resultBuckets(config.swissRounds);
 	if (last.length) columns.push({ label: "Ergebnis", buckets: last });
 	return columns;
-}
-
-/** W/L/? per round for one team, for the path line. */
-function teamPath(state: SwissStageState, name: string) {
-	return [...state.rounds]
-		.sort((a, b) => a.round - b.round)
-		.flatMap((round) => {
-			const pairing = round.pairings.find((entry) => entry.teamAName === name || entry.teamBName === name);
-			if (!pairing) return [];
-			if (pairing.bye) return ["W"];
-			if (!pairing.winnerTeamKey) return ["?"];
-			const key = pairing.teamAName === name ? pairing.teamAKey : pairing.teamBKey;
-			return [pairing.winnerTeamKey === key ? "W" : "L"];
-		});
 }
 
 /** Seeds of the 8-team placement Swiss once rounds three and four are complete. */
