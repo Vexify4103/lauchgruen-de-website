@@ -32,13 +32,14 @@ export function TournamentCodeBox({
 		window.setTimeout(() => setCopied(false), 1800);
 	}
 
-	async function create() {
+	async function create(renew = false) {
+		if (renew && !window.confirm("Neuen Code erzeugen? Der alte Code gilt dann nicht mehr als aktueller Code (z. B. für ein Remake).")) return;
 		setBusy(true);
 		setError("");
 		const response = await fetch("/api/tournament/matches/code", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ matchId }),
+			body: JSON.stringify({ matchId, renew }),
 		}).catch(() => null);
 		const json = (await response?.json().catch(() => null)) as { message?: string } | null;
 		setBusy(false);
@@ -69,6 +70,11 @@ export function TournamentCodeBox({
 					{retry && !code ? (
 						<button type="button" disabled={busy} onClick={() => void create()} className="button primary small">
 							{busy ? "Erzeuge…" : "Code erzeugen"}
+						</button>
+					) : null}
+					{retry && code ? (
+						<button type="button" disabled={busy} onClick={() => void create(true)} className="button ghost small">
+							{busy ? "Erzeuge…" : "Neuer Code"}
 						</button>
 					) : null}
 				</div>

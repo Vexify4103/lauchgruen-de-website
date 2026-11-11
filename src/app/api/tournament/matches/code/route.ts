@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getMatchControlContext } from "@/lib/match-control";
-import { codeVisibleFor, currentGameNumber, ensureTournamentCode, riotTournamentApi } from "@/lib/riot-tournament";
+import { codeVisibleFor, currentGameNumber, ensureTournamentCode, retireTournamentCode, riotTournamentApi } from "@/lib/riot-tournament";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
@@ -10,9 +10,9 @@ import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const schema = z.object({ matchId: z.string().trim().min(1) });
+const schema = z.object({ matchId: z.string().trim().min(1), renew: z.boolean().optional() });
 
-/** Admin retry: create the tournament code for the current game when the automatic try failed. */
+/** Admin: create the code for the current game when the automatic try failed, or replace it (`renew`) for a remake. */
 export async function POST(request: Request) {
 	const session = await auth();
 	const discordId = session?.user?.discordId;
@@ -29,12 +29,13 @@ export async function POST(request: Request) {
 	const actor = session.user.discordHandle ?? discordId;
 	const gameNumber = currentGameNumber(match);
 	try {
+		if (parsed.data.renew) await retireTournamentCode(settings, match.id, gameNumber);
 		const code = await ensureTournamentCode({ settings, matchId: match.id, gameNumber, actor });
 		await writeAuditLog({
 			action: "match.tournament_code",
 			targetType: "match",
 			targetId: match.id,
-			summary: `Turniercode für Spiel ${gameNumber} erzeugt.`,
+			summary: `Turniercode für Spiel ${gameNumber} ${parsed.data.renew ? "ersetzt (Remake)" : "erzeugt"}.`,
 			actorDiscordId: discordId,
 			actorLabel: actor,
 			metadata: { gameNumber, api: code?.api },

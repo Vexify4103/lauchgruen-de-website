@@ -158,6 +158,21 @@ export async function ensureTournamentCode(input: { settings: TournamentSettings
 	return codes.findOne({ _id: id });
 }
 
+/**
+ * Retires the stored code of one game (kept under a new id for the record), so the next
+ * ensureTournamentCode call creates a fresh code. Used for remakes.
+ */
+export async function retireTournamentCode(settings: TournamentSettings, matchId: string, gameNumber: number): Promise<void> {
+	const api = riotTournamentApi();
+	if (!api) return;
+	const { codes } = await collections();
+	const id = codeId(api, settings, matchId, gameNumber);
+	const existing = await codes.findOne({ _id: id });
+	if (!existing) return;
+	await codes.insertOne({ ...existing, _id: `${id}:retired:${Date.now()}`, matchId: `${matchId}:retired` });
+	await codes.deleteOne({ _id: id });
+}
+
 /** Stored code for one game, or null. Only call this for viewers allowed to see it. */
 export async function getTournamentCode(settings: TournamentSettings, matchId: string, gameNumber: number): Promise<TournamentCodeDoc | null> {
 	const api = riotTournamentApi();
