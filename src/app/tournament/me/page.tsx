@@ -21,6 +21,8 @@ import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { DiscordMark } from "@/components/BrandMarks";
+import { RoleIcon } from "@/components/RoleIcon";
+import { captainPortalOpen } from "@/lib/tournament-mode";
 
 export const metadata: Metadata = {
 	title: "Mein Lauchgruen-Konto",
@@ -109,6 +111,9 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		ctx.teams.find((entry) => entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase()) || entry.captainRef?.discordId === discordId) ??
 		null;
 	const isCaptain = team?.captainRef?.discordId === discordId;
+	const portalOpen = captainPortalOpen(settings.activeTournament.mode);
+	const captainRiotId = team?.captainRef?.riotId.toLowerCase();
+	const captainName = team ? (team.players.find((player) => player.riotId.toLowerCase() === captainRiotId)?.name ?? team.captain) : null;
 	const matches = team ? ctx.matches.filter((match) => match.teamAName === team.name || match.teamBName === team.name) : [];
 	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? null;
 	const matchAccessReady = nextMatch?.status === "Live" || nextMatch?.status === "Pending";
@@ -127,6 +132,133 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		{ label: "Team zugewiesen", ok: Boolean(team), detail: team?.name ?? "Noch kein Team" },
 	];
 	const readyCount = checks.filter((check) => check.ok).length;
+
+	const setupSections = (
+		<>
+			<section className="account-section" aria-labelledby="identities-title">
+				<div className="account-section-head">
+					<div>
+						<span>Verbundene Konten</span>
+						<h2 id="identities-title">Dein Game-Pass</h2>
+					</div>
+					<small>Discord bleibt dein Login. Riot und Twitch verknüpfst du einmal für alle Turniere und Overlays.</small>
+				</div>
+				<div className="connection-grid">
+					<article className="connection-card connected discord">
+						<span>
+							<DiscordMark />
+						</span>
+						<div>
+							<small>Login-Konto</small>
+							<h3>Discord</h3>
+							<p>
+								@{discordHandle} · {member === false ? "nicht auf dem Server" : "Servermitglied"}
+							</p>
+						</div>
+						{member === false ? (
+							<a className="connection-action" href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">
+								Server beitreten ↗
+							</a>
+						) : (
+							<b className="connection-badge">Verbunden ✓</b>
+						)}
+					</article>
+					<RiotVerificationCard
+						verified={
+							verified
+								? {
+										riotId: verified.riotId,
+										currentRankAuto: verified.currentRankAuto,
+										summonerLevel: verified.summonerLevel,
+										verifiedAt: verified.verifiedAt,
+									}
+								: null
+						}
+						disconnectBlockedReason={
+							application && applicationDeadlinePassed
+								? "Nach Bewerbungsschluss bleibt der verifizierte Riot-Account mit deiner verbindlichen Bewerbung verknüpft. Für Änderungen wende dich bitte an das Orga-Team."
+								: null
+						}
+					/>
+					<TwitchLinkCard initialLink={twitchLink} status={params.twitch} isOwner={isOwner} verifiedRiotId={verified?.riotId ?? null} returnSource={source} />
+				</div>
+				<p className="account-note">
+					Die Riot-Verknüpfung prüfst du über ein League-Profilicon; wir fragen nie nach deinem Riot-Passwort. Twitch kannst du jederzeit wieder trennen.
+				</p>
+			</section>
+
+			<section className="account-section" aria-labelledby="queue-title">
+				<div className="account-section-head">
+					<div>
+						<span>Turnier</span>
+						<h2 id="queue-title">Deine Queue</h2>
+					</div>
+					<small>
+						{applicationDeadlinePassed
+							? `Bewerbungsschluss war am ${applicationDeadlineLabel}.`
+							: `Bewerbungen und Rücknahmen sind bis ${applicationDeadlineLabel} möglich.`}
+					</small>
+				</div>
+				<div className="my-tournaments">
+					{application ? (
+						<article>
+							<span>{MODE_LABELS[settings.activeTournament.mode] ?? settings.activeTournament.mode}</span>
+							<h3>{settings.activeTournament.name}</h3>
+							<p>
+								{application.preferredRoles.length ? application.preferredRoles.join(" / ") : application.mainRole} · {team?.name ?? "Noch kein Team"}
+							</p>
+							<div className="queue-card-actions">
+								<TournamentDmPreferenceCard initialEnabled={application.discordDmOptIn !== false} />
+								<Link className="queue-action" href={tournamentHref("")}>
+									Turnier ansehen <span aria-hidden="true">↗</span>
+								</Link>
+								{applicationsOpen ? (
+									<Link className="queue-action is-primary" href={tournamentHref("/apply")}>
+										Bewerbung bearbeiten <span aria-hidden="true">↗</span>
+									</Link>
+								) : null}
+								{applicationDeadlinePassed ? (
+									<span className="queue-note">Rücknahme nur über das Orga-Team</span>
+								) : (
+									<WithdrawApplicationButton deadlineLabel={applicationDeadlineLabel} buttonClassName="queue-action is-danger" />
+								)}
+								<b className={`check-status ${team ? "" : "is-pending"}`}>{team ? `Team ${team.name}` : "Teamzuteilung offen"}</b>
+							</div>
+						</article>
+					) : (
+						<div className="account-empty">
+							<h3>{applicationsOpen ? "Noch keine Bewerbung" : "Gerade keine offene Anmeldung"}</h3>
+							<p>
+								{applicationsOpen
+									? `Die Anmeldung für ${settings.activeTournament.name} ist geöffnet. Mit Riot-Verifizierung bist du in wenigen Minuten dabei.`
+									: "Die Anmeldung startet, sobald Termin und Format feststehen. Verknüpfe Riot schon jetzt, dann geht es später schneller."}
+							</p>
+							{applicationsOpen ? (
+								<Link className="button primary small" href={tournamentHref("/apply")}>
+									Jetzt bewerben
+								</Link>
+							) : (
+								<Link className="button ghost small" href={tournamentHref("")}>
+									Zum Turnier
+								</Link>
+							)}
+						</div>
+					)}
+				</div>
+			</section>
+
+			<PreferenceGroupCard
+				mode={normalizeWishGroupMode(settings.wishGroupMode)}
+				registrationOpen={applicationsOpen}
+				hasApplication={Boolean(application)}
+				initialGroup={
+					preferenceGroup
+						? { code: preferenceGroup.code, memberCount: preferenceGroup.memberDiscordIds.length, maxMembers: wishGroupLimit(settings.wishGroupMode) }
+						: null
+				}
+			/>
+		</>
+	);
 
 	return (
 		<main className="account-page">
@@ -161,10 +293,24 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							{settings.activeTournament.name} · <strong>{MODE_LABELS[settings.activeTournament.mode] ?? settings.activeTournament.mode}</strong>
 						</span>
 					</div>
+					{team ? (
+						<div className="account-hero-team">
+							{isCaptain ? <b className="captain-badge">Captain</b> : null}
+							<span>
+								{isCaptain ? "von" : "Team"} {team.tag ? <b className="team-tag">{team.tag}</b> : null}
+								<strong>{team.name}</strong>
+							</span>
+						</div>
+					) : null}
 				</div>
 				<div className="account-hero-actions">
+					{isCaptain && portalOpen ? (
+						<Link className="button primary" href={tournamentHref("/captain")}>
+							Captain-Portal öffnen
+						</Link>
+					) : null}
 					{isOwner ? (
-						<Link className="button primary" href={tournamentHref("/admin")}>
+						<Link className={`button ${isCaptain && portalOpen ? "ghost" : "primary"}`} href={tournamentHref("/admin")}>
 							Admin öffnen
 						</Link>
 					) : null}
@@ -219,7 +365,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 										Match-Seite öffnen
 									</Link>
 								)}
-								{isCaptain ? (
+								{isCaptain && portalOpen ? (
 									<Link className="button ghost" href={tournamentHref("/captain")}>
 										Captain Portal
 									</Link>
@@ -228,144 +374,49 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 						</section>
 					) : null}
 
-					<section className="account-section" aria-labelledby="identities-title">
-						<div className="account-section-head">
-							<div>
-								<span>Verbundene Konten</span>
-								<h2 id="identities-title">Dein Game-Pass</h2>
-							</div>
-							<small>Discord bleibt dein Login. Riot und Twitch verknüpfst du einmal für alle Turniere und Overlays.</small>
-						</div>
-						<div className="connection-grid">
-							<article className="connection-card connected discord">
-								<span>
-									<DiscordMark />
-								</span>
-								<div>
-									<small>Login-Konto</small>
-									<h3>Discord</h3>
-									<p>
-										@{discordHandle} · {member === false ? "nicht auf dem Server" : "Servermitglied"}
-									</p>
-								</div>
-								{member === false ? (
-									<a className="connection-action" href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">
-										Server beitreten ↗
-									</a>
-								) : (
-									<b className="connection-badge">Verbunden ✓</b>
-								)}
-							</article>
-							<RiotVerificationCard
-								verified={
-									verified
-										? {
-												riotId: verified.riotId,
-												currentRankAuto: verified.currentRankAuto,
-												summonerLevel: verified.summonerLevel,
-												verifiedAt: verified.verifiedAt,
-											}
-										: null
-								}
-								disconnectBlockedReason={
-									application && applicationDeadlinePassed
-										? "Nach Bewerbungsschluss bleibt der verifizierte Riot-Account mit deiner verbindlichen Bewerbung verknüpft. Für Änderungen wende dich bitte an das Orga-Team."
-										: null
-								}
-							/>
-							<TwitchLinkCard initialLink={twitchLink} status={params.twitch} isOwner={isOwner} verifiedRiotId={verified?.riotId ?? null} returnSource={source} />
-						</div>
-						<p className="account-note">
-							Die Riot-Verknüpfung prüfst du über ein League-Profilicon; wir fragen nie nach deinem Riot-Passwort. Twitch kannst du jederzeit wieder trennen.
-						</p>
-					</section>
-
-					<section className="account-section" aria-labelledby="queue-title">
-						<div className="account-section-head">
-							<div>
-								<span>Turnier</span>
-								<h2 id="queue-title">Deine Queue</h2>
-							</div>
-							<small>
-								{applicationDeadlinePassed
-									? `Bewerbungsschluss war am ${applicationDeadlineLabel}.`
-									: `Bewerbungen und Rücknahmen sind bis ${applicationDeadlineLabel} möglich.`}
-							</small>
-						</div>
-						<div className="my-tournaments">
-							{application ? (
-								<article>
-									<span>{MODE_LABELS[settings.activeTournament.mode] ?? settings.activeTournament.mode}</span>
-									<h3>{settings.activeTournament.name}</h3>
-									<p>
-										{application.preferredRoles.length ? application.preferredRoles.join(" / ") : application.mainRole} · {team?.name ?? "Noch kein Team"}
-									</p>
-									<div className="queue-card-actions">
-										<TournamentDmPreferenceCard initialEnabled={application.discordDmOptIn !== false} />
-										<Link className="queue-action" href={tournamentHref("")}>
-											Turnier ansehen <span aria-hidden="true">↗</span>
-										</Link>
-										{applicationsOpen ? (
-											<Link className="queue-action is-primary" href={tournamentHref("/apply")}>
-												Bewerbung bearbeiten <span aria-hidden="true">↗</span>
-											</Link>
-										) : null}
-										{applicationDeadlinePassed ? (
-											<span className="queue-note">Rücknahme nur über das Orga-Team</span>
-										) : (
-											<WithdrawApplicationButton deadlineLabel={applicationDeadlineLabel} buttonClassName="queue-action is-danger" />
-										)}
-										<b className={`check-status ${team ? "" : "is-pending"}`}>{team ? `Team ${team.name}` : "Teamzuteilung offen"}</b>
-									</div>
-								</article>
-							) : (
-								<div className="account-empty">
-									<h3>{applicationsOpen ? "Noch keine Bewerbung" : "Gerade keine offene Anmeldung"}</h3>
-									<p>
-										{applicationsOpen
-											? `Die Anmeldung für ${settings.activeTournament.name} ist geöffnet. Mit Riot-Verifizierung bist du in wenigen Minuten dabei.`
-											: "Die Anmeldung startet, sobald Termin und Format feststehen. Verknüpfe Riot schon jetzt, dann geht es später schneller."}
-									</p>
-									{applicationsOpen ? (
-										<Link className="button primary small" href={tournamentHref("/apply")}>
-											Jetzt bewerben
-										</Link>
-									) : (
-										<Link className="button ghost small" href={tournamentHref("")}>
-											Zum Turnier
-										</Link>
-									)}
-								</div>
-							)}
-						</div>
-					</section>
-
-					<PreferenceGroupCard
-						mode={normalizeWishGroupMode(settings.wishGroupMode)}
-						registrationOpen={applicationsOpen}
-						hasApplication={Boolean(application)}
-						initialGroup={
-							preferenceGroup
-								? { code: preferenceGroup.code, memberCount: preferenceGroup.memberDiscordIds.length, maxMembers: wishGroupLimit(settings.wishGroupMode) }
-								: null
-						}
-					/>
-
-					{isCaptain && team ? (
-						<section className="account-section captain-portal" aria-labelledby="captain-title">
+					{team ? null : setupSections}
+					{team ? (
+						<section className={`account-section team-home${isCaptain ? " captain-portal" : ""}`} aria-labelledby="team-title">
 							<div className="account-section-head">
 								<div>
-									<span>Captain</span>
-									<h2 id="captain-title">{team.name}</h2>
+									<span>{isCaptain ? "Du bist Captain" : "Dein Team"}</span>
+									<h2 id="team-title">
+										{team.tag ? <b className="team-tag">{team.tag}</b> : null}
+										{team.name}
+									</h2>
 								</div>
-								<small>Captain-Rechte gelten nur für dein eigenes Team.</small>
+								<small>{isCaptain ? "Du draftest im Champ Select und verwaltest dein Team im Captain-Portal." : `Euer Captain: ${captainName}`}</small>
 							</div>
-							<div className="captain-portal-body">
-								<p>Teamname anpassen, vor dem Match einchecken und Ergebnisse melden: Alles dafür findest du im Captain Portal.</p>
-								<Link className="button primary" href={tournamentHref("/captain")}>
-									Captain Portal öffnen
-								</Link>
-							</div>
+							{isCaptain ? (
+								<div className="captain-portal-body">
+									<ul className="captain-tasks">
+										<li>Teamname und Teamtag festlegen</li>
+										<li>Vor jedem Match bereit melden</li>
+										<li>Picks und Bans im Champ Select locken</li>
+										<li>Ergebnisse und Replays einreichen</li>
+									</ul>
+									{portalOpen ? (
+										<Link className="button primary" href={tournamentHref("/captain")}>
+											Captain-Portal öffnen
+										</Link>
+									) : (
+										<span className="queue-note">Das Captain-Portal öffnet, sobald das Turnier vorbereitet wird.</span>
+									)}
+								</div>
+							) : null}
+							<ul className="account-roster team-roster">
+								{team.players.map((player) => {
+									const captain = player.riotId.toLowerCase() === captainRiotId;
+									return (
+										<li key={player.riotId} data-captain={captain || undefined}>
+											<RoleIcon role={player.role} className="size-4 shrink-0" />
+											<strong title={player.riotId}>{player.name}</strong>
+											{captain ? <b className="captain-badge">Captain</b> : null}
+											<small>{player.role}</small>
+										</li>
+									);
+								})}
+							</ul>
 						</section>
 					) : null}
 
@@ -422,6 +473,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 							<p className="account-note">Matches erscheinen, sobald dir ein Team zugeteilt wurde.</p>
 						)}
 					</section>
+					{team ? setupSections : null}
 				</div>
 
 				<aside className="account-side" aria-label="Kontostatus">
@@ -444,25 +496,6 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								</li>
 							))}
 						</ul>
-					</div>
-					<div>
-						<div className="account-side-kicker">
-							Team
-							{isCaptain ? <b>Captain</b> : null}
-						</div>
-						<h2>{team?.name ?? "Noch kein Team"}</h2>
-						{team ? (
-							<ul className="account-roster">
-								{team.players.map((player) => (
-									<li key={player.riotId}>
-										<strong title={player.riotId}>{player.name}</strong>
-										<small>{player.role}</small>
-									</li>
-								))}
-							</ul>
-						) : (
-							<p className="account-note">Sobald die Turnierleitung die Rosters veröffentlicht, siehst du hier dein Team.</p>
-						)}
 					</div>
 				</aside>
 			</section>

@@ -953,6 +953,91 @@
 		text-transform: uppercase;
 	}
 
+	/* ---------- Team & captain ---------- */
+	.account-hero-team {
+		margin-top: 12px;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		color: var(--muted);
+		font-size: 13px;
+	}
+	.account-hero-team strong {
+		color: var(--text);
+	}
+	.captain-badge {
+		padding: 3px 9px;
+		display: inline-flex;
+		align-items: center;
+		border-radius: 999px;
+		background: var(--accent);
+		color: var(--on-accent, #0b1a10);
+		font-size: 11px;
+		font-weight: 700;
+	}
+	.team-tag {
+		margin-right: 8px;
+		padding: 2px 7px;
+		display: inline-block;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		color: var(--accent);
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: 0.7em;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		vertical-align: middle;
+	}
+	.account-hero-team .team-tag {
+		margin-right: 6px;
+		font-size: 11px;
+	}
+	.captain-tasks {
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 6px;
+		list-style: none;
+		color: var(--muted);
+		font-size: 13px;
+	}
+	.captain-tasks li::before {
+		content: "";
+		margin-right: 10px;
+		display: inline-block;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--accent);
+		vertical-align: middle;
+	}
+	.team-home .captain-portal-body {
+		margin-bottom: 16px;
+		padding: 16px;
+		border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+		border-radius: 14px;
+		background: var(--bg-soft);
+	}
+	.team-roster {
+		margin-top: 0;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	}
+	.team-roster li {
+		justify-content: flex-start;
+		color: var(--muted);
+	}
+	.team-roster li strong {
+		color: var(--text);
+	}
+	.team-roster li small {
+		margin-left: auto;
+		color: var(--muted);
+	}
+	.team-roster li[data-captain] {
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+	}
+
 	/* ---------- Signed out ---------- */
 	.account-gate {
 		max-width: 740px;
