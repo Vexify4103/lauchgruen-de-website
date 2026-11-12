@@ -72,7 +72,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 	});
 	const subnavItems = buildTournamentSubnav({ settings, rosterPublished: rosterPublication.published, isCaptain });
 	const navItems: SiteNavItem[] = [
-		{ href: "/tournament", label: "Turnier", matches: ["/tournament/teams", "/tournament/stage", "/tournament/playoffs", "/tournament/schedule", "/tournament/live"] },
+		{ href: "/tournament", label: "Turnier", matches: subnavItems.map((item) => item.href) },
 		{ href: "/tournament/winners", label: "Archiv", matches: ["/tournament/archive"] },
 		{ href: "/tournament/terms", label: "Regeln" },
 		...(isOwner ? [{ href: "/tournament/admin", label: "Admin" }] : []),

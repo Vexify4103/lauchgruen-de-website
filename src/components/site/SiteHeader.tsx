@@ -22,8 +22,7 @@ function isCurrent(pathname: string, item: SiteNavItem) {
 	if (item.external) return false;
 	const current = normalizePath(pathname);
 	const target = normalizePath(item.href);
-	if (target === "/") return current === "/" || (item.matches ?? []).includes(current);
-	return [target, ...(item.matches ?? []).map(normalizePath)].some((prefix) => current === prefix || current.startsWith(`${prefix}/`));
+	return [target, ...(item.matches ?? []).map(normalizePath)].some((prefix) => current === prefix || (prefix !== "/" && current.startsWith(`${prefix}/`)));
 }
 
 export function SiteHeader({
