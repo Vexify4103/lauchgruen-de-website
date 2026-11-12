@@ -61,10 +61,11 @@ function isBlockStart(line: string) {
 	return /^(#{1,3})\s+/.test(line) || /^\s*[-+*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line) || /^>\s?/.test(line) || /^\s*(---+|___+|\*\*\*+)\s*$/.test(line);
 }
 
-function renderBlocks(markdown: string) {
+function renderBlocks(markdown: string, headingIds: readonly string[] = []) {
 	const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
 	const blocks: ReactNode[] = [];
 	let index = 0;
+	let headingIndex = 0;
 
 	while (index < lines.length) {
 		const line = lines[index];
@@ -75,23 +76,24 @@ function renderBlocks(markdown: string) {
 
 		const heading = /^(#{1,3})\s+(.+)$/.exec(line);
 		if (heading) {
+			const id = headingIds[headingIndex++];
 			const level = heading[1].length;
 			const content = renderInline(heading[2], `heading-${index}`);
 			if (level === 1) {
 				blocks.push(
-					<h1 key={`heading-${index}`} className="mt-5 text-2xl font-black leading-tight text-amber-50 first:mt-0">
+					<h1 id={id} key={`heading-${index}`} className="mt-5 text-2xl font-black leading-tight text-amber-50 first:mt-0">
 						{content}
 					</h1>
 				);
 			} else if (level === 2) {
 				blocks.push(
-					<h2 key={`heading-${index}`} className="mt-5 text-xl font-black leading-snug text-amber-50 first:mt-0">
+					<h2 id={id} key={`heading-${index}`} className="mt-5 text-xl font-black leading-snug text-amber-50 first:mt-0">
 						{content}
 					</h2>
 				);
 			} else {
 				blocks.push(
-					<h3 key={`heading-${index}`} className="mt-4 text-base font-black leading-snug text-amber-100 first:mt-0">
+					<h3 id={id} key={`heading-${index}`} className="mt-4 text-base font-black leading-snug text-amber-100 first:mt-0">
 						{content}
 					</h3>
 				);
@@ -188,6 +190,6 @@ function renderBlocks(markdown: string) {
 	return blocks;
 }
 
-export function TournamentMarkdown({ children, className = "" }: { children: string; className?: string }) {
-	return <div className={`min-w-0 [overflow-wrap:anywhere] ${className}`}>{renderBlocks(children)}</div>;
+export function TournamentMarkdown({ children, className = "", headingIds }: { children: string; className?: string; headingIds?: readonly string[] }) {
+	return <div className={`min-w-0 [overflow-wrap:anywhere] ${className}`}>{renderBlocks(children, headingIds)}</div>;
 }

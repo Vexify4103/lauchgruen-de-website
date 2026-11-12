@@ -1,59 +1,102 @@
 import { TournamentLink as Link } from "../TournamentLink";
-import { getDefaultRuleSections } from "@/lib/tournament-rulebook";
+import { getRuleCategories, getCustomRuleHeadings, getCustomRuleCategories, RULEBOOK_REVISION } from "@/lib/tournament-rulebook";
 import { TournamentMarkdown } from "@/components/TournamentMarkdown";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { PageIntro } from "@/components/site/PageIntro";
+import { CopyRuleLink, RulesNavigation } from "./RulesNavigation";
 
 export default async function TournamentTermsPage() {
 	const settings = await getTournamentSettings();
-	const displayedRuleSections = getDefaultRuleSections(settings);
+	const customRules = settings.activeTournament.rulesMarkdown?.trim();
+	const categories = getRuleCategories(settings);
+	const headings = customRules ? getCustomRuleHeadings(customRules) : [];
+	const navigation = customRules ? getCustomRuleCategories(customRules) : categories;
+	const ruleCount = categories.reduce((sum, category) => sum + category.rules.length, 0);
 	return (
-		<>
-			<section className="page-section compact-top">
-				<PageIntro kicker="Teilnahmebedingungen" title={`Regeln für ${settings.activeTournament.name}.`}>
-					Diese Teilnahmebedingungen halten fest, was du mit deiner Bewerbung bestätigst.
-				</PageIntro>
-
-				<div className="grid max-w-5xl gap-4">
-					{settings.activeTournament.rulesMarkdown?.trim() ? (
-						<article className="content-panel">
-							<TournamentMarkdown>{settings.activeTournament.rulesMarkdown}</TournamentMarkdown>
+		<section className="page-section compact-top rules-page" id="regelwerk">
+			<PageIntro
+				kicker="Das Regelwerk"
+				title={
+					<>
+						Fair spielen.
+						<br />
+						Gut vorbereitet sein.
+					</>
+				}
+			>
+				Die Regeln für {settings.activeTournament.name}. Wähle ein Thema im Inhaltsverzeichnis oder lies das Regelwerk in Ruhe durch. Jede Regel lässt sich direkt
+				verlinken.
+			</PageIntro>
+			<div className="rules-meta">
+				<span>{settings.activeTournament.name}</span>
+				{customRules ? (
+					<span>Eigene Turnierregeln</span>
+				) : (
+					<>
+						<span>
+							{categories.length} Kategorien · {ruleCount} Regeln
+						</span>
+						<span>
+							Stand: {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium" }).format(new Date(`${RULEBOOK_REVISION}T12:00:00Z`))}
+						</span>
+					</>
+				)}
+			</div>
+			<div className={`rules-layout${navigation.length ? "" : " without-navigation"}`}>
+				{navigation.length ? <RulesNavigation categories={navigation} /> : null}
+				<div className="rules-content">
+					{customRules ? (
+						<article className="content-panel rules-custom" id="eigene-regeln">
+							<h2 className="rules-custom-title">Eigene Turnierregeln</h2>
+							<TournamentMarkdown headingIds={headings.map((heading) => heading.id)}>{customRules}</TournamentMarkdown>
 						</article>
 					) : (
-						displayedRuleSections.map((section, index) => (
-							<article key={section.title} className="content-panel tight">
-								<div className="flex gap-4">
-									<span className="grid size-9 shrink-0 place-items-center rounded-2xl border border-lime-200/18 bg-lime-200/10 text-sm font-black text-lime-100">
-										{index + 1}
-									</span>
+						categories.map((category) => (
+							<section className="rules-category" id={category.id} aria-labelledby={`${category.id}-title`} key={category.id}>
+								<header className="rules-category-header">
 									<div>
-										<h2 className="text-lg font-black text-emerald-50">{section.title}</h2>
-										<p className="mt-2 text-sm leading-7 text-emerald-100/70">{section.text}</p>
-										{"list" in section && section.list && (
-											<ul className="mt-2 space-y-1">
-												{section.list.map((item, i) => (
-													<li key={i} className="flex gap-2 text-sm leading-7 text-emerald-100/70">
-														<span className="shrink-0 text-lime-300/60">–</span>
-														{item}
-													</li>
-												))}
-											</ul>
-										)}
-										{"footer" in section && section.footer && <p className="mt-2 text-sm leading-7 text-emerald-100/50">{section.footer}</p>}
+										<p>
+											{category.rules[0].number.toString().padStart(2, "0")} — {category.rules.at(-1)!.number.toString().padStart(2, "0")}
+										</p>
+										<h2 id={`${category.id}-title`}>{category.title}</h2>
 									</div>
-								</div>
-							</article>
+									<span>
+										{category.rules.length} {category.rules.length === 1 ? "Regel" : "Regeln"}
+									</span>
+								</header>
+								{category.rules.map((rule) => (
+									<article id={rule.id} key={rule.id} className="rule-card" aria-labelledby={`${rule.id}-title`}>
+										<header className="rule-card-header">
+											<span className="rule-number" aria-label={`Regel ${rule.number}`}>
+												{rule.number.toString().padStart(2, "0")}
+											</span>
+											<h3 id={`${rule.id}-title`}>{rule.title}</h3>
+											<CopyRuleLink id={rule.id} title={rule.title} />
+										</header>
+										<div className="rule-card-body">
+											<p>{rule.text}</p>
+											{rule.list?.length ? (
+												<ul>
+													{rule.list.map((item) => (
+														<li key={item}>{item}</li>
+													))}
+												</ul>
+											) : null}
+											{rule.footer ? <p className="rule-note">{rule.footer}</p> : null}
+										</div>
+									</article>
+								))}
+							</section>
 						))
 					)}
-
-					<article className="rounded-[2rem] border border-amber-200/18 bg-amber-200/[0.06] p-5 shadow-xl shadow-black/20">
-						<h2 className="text-xs font-black uppercase tracking-[0.28em] text-amber-100/72">Zustimmung bei Bewerbung</h2>
-						<p className="mt-4 text-sm leading-7 text-amber-50/82">
+					<article className="rules-consent">
+						<p className="rules-nav-label">Vor dem Absenden</p>
+						<h2>Zustimmung bei Bewerbung</h2>
+						<p>
 							Wenn du auf &quot;Bewerbung absenden&quot; klickst, bestätigst du, dass du diese Teilnahmebedingungen und die Datenschutzhinweise gelesen hast und mit
 							der Verarbeitung deiner Turnierdaten für Organisation, Durchführung und Nachvollziehbarkeit des Events einverstanden bist.
 						</p>
 					</article>
-
 					<div className="flex flex-wrap gap-3">
 						<Link href="/tournament/privacy" className="button ghost">
 							Datenschutz
@@ -63,7 +106,7 @@ export default async function TournamentTermsPage() {
 						</Link>
 					</div>
 				</div>
-			</section>
-		</>
+			</div>
+		</section>
 	);
 }

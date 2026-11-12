@@ -51,7 +51,7 @@ test("default rule templates preserve mode-specific rules and current format", (
 	const rules = getDefaultRuleSections(settings);
 	assert.ok(rules.some((section) => section.title === "Ultimate-Bravery-Rolls"));
 	assert.ok(!rules.some((section) => section.title.startsWith("Fearless:")));
-	assert.match(getDefaultRulesMarkdown(settings), /## 1\. Twitch-Streams/);
+	assert.match(getDefaultRulesMarkdown(settings), /## 1\. Verbindliche Anmeldung/);
 	assert.match(getDefaultRulesMarkdown(settings), /Swiss/);
-	assert.match(getDefaultRulesMarkdown({ ...settings, activeTournament: { id: "fearless-2026", kind: "fearless" } }), /Fearless: gespielte Champions/);
+	assert.match(getDefaultRulesMarkdown({ ...settings, activeTournament: { id: "fearless-2026", kind: "fearless" } }), /Fearless und Champion-Sperren/);
 });

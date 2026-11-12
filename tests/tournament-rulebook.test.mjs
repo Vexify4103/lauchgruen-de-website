@@ -11,6 +11,7 @@ import * as standings from "../src/lib/tournament-standings.ts";
 import * as structure from "../src/lib/tournament-structure.ts";
 import * as series from "../src/lib/tournament-series.ts";
 import { getDefaultRuleSections, getDefaultRulesMarkdown } from "../src/lib/tournament-rulebook.ts";
+import * as rulebook from "../src/lib/tournament-rulebook.ts";
 import { DEFAULT_STRUCTURE_OPTIONS, SIDE_SELECTION_LABELS, describeSideSelection, describeStructurePlan, sideSelectionForStage } from "../src/lib/tournament-structure.ts";
 import { automaticStageBlueSide, sideChooser } from "../src/lib/tournament-series.ts";
 
@@ -30,9 +31,39 @@ const settings = {
 	fearless: { scope: "tournament", variant: "match", lockOpponentChampions: false },
 };
 const sections = getDefaultRuleSections(settings);
-const text = (number) => JSON.stringify(sections[number - 1]);
+const oldToNew = [21, 1, 2, 16, 3, 8, 9, 10, 19, 17, 12, 11, 4, 13, 14, 6, 15, 7, 20, 5, 22, 18];
+const oldTitles = [
+	"Twitch-Streams",
+	"Verbindliche Anmeldung",
+	"Discord und Riot-Account",
+	"Verhalten",
+	"Account-Änderungen",
+	"Match-Fearless: alles aus euren Spielen ist gesperrt",
+	"Champ Select auf der Website",
+	"Falsche Picks im Spiel",
+	"Spectator Delay",
+	"Coaching und Zuschauer",
+	"Lobby und Seitenwahl",
+	"Pünktlichkeit",
+	"Rückzug, Forfeit und Team-Balance",
+	"Pausen während des Spiels",
+	"Remake",
+	"Turnierformat",
+	"Ergebnismeldung",
+	"Bracket und Seeding",
+	"Streaming",
+	"Substitutes und Teamänderungen",
+	"Öffentliche Darstellung",
+	"Admin-Entscheidungen",
+];
+// Compare rule substance under its previous label, independent of new navigation metadata.
+const text = (number) => {
+	const { id, categoryId, number: newNumber, ...content } = sections[oldToNew[number - 1] - 1];
+	assert.ok(id && categoryId && newNumber);
+	return JSON.stringify({ ...content, title: oldTitles[number - 1] });
+};
 
-test("preserves numbering and every excluded rule verbatim", () => {
+test("renumbers the rulebook without changing protected rule content", () => {
 	assert.equal(sections.length, 22);
 	// Captured before the rules update; rule 16 changes only its phase-specific side-selection description.
 	const protectedRules = {
@@ -56,8 +87,8 @@ test("preserves numbering and every excluded rule verbatim", () => {
 			hash,
 			`Rule ${number}`
 		);
-	assert.equal(sections[16].title, "Ergebnismeldung");
-	assert.equal(sections[17].title, "Bracket und Seeding");
+	assert.equal(sections[14].title, "Replay-Upload und Ergebnisbestätigung");
+	assert.equal(sections[6].title, "Seeding und Paarungen");
 });
 
 test("states the approved conduct, evidence and spectator clarifications", () => {
@@ -120,8 +151,8 @@ test("Swiss tosses for choice, playoffs use seeding, and both public rules agree
 	assert.equal(automaticStageBlueSide({ config: settings.structure, stage: "day-one", games: [] }), null);
 	assert.equal(automaticStageBlueSide({ config: settings.structure, stage: "playoffs", games: [] }), null);
 	const description = describeSideSelection(settings.structure);
-	assert.ok(sections[10].text.includes(description));
-	assert.ok(sections[15].text.includes(description));
+	assert.ok(sections[11].text.includes(description));
+	assert.ok(sections[5].text.includes(description));
 	assert.match(description, /welcher Captain Blue oder Red Side wählen darf/);
 	assert.match(description, /nicht automatisch Blue Side/);
 	assert.match(description, /Playoffs: Höher gesetztes Team wählt/);
@@ -137,8 +168,8 @@ test("other day-one formats retain configured side selection and rule exports st
 	assert.equal(automaticStageBlueSide({ config: { ...settings.structure, dayOneFormat: "groups", sideSelection: "alternate" }, stage: "day-one", games: [] }), "teamA");
 	assert.equal(automaticStageBlueSide({ config: settings.structure, stage: "day-one", games: [{ winner: "teamA", blueSide: "teamA" }] }), "teamB");
 	const markdown = getDefaultRulesMarkdown(settings);
-	assert.match(markdown, /## 17\. Ergebnismeldung/);
-	assert.match(markdown, /## 22\. Admin-Entscheidungen/);
+	assert.match(markdown, /## 15\. Replay-Upload und Ergebnisbestätigung/);
+	assert.match(markdown, /## 22\. Veröffentlichung von Turnierdaten/);
 });
 
 const require = createRequire(import.meta.url);
@@ -221,8 +252,9 @@ test("the terms page renders the updated numbered rules and still respects custo
 	const state = { ...settings, activeTournament: { ...settings.activeTournament, name: "Fearless Turnier" } };
 	const { default: TermsPage } = compile("../src/app/tournament/terms/page.tsx", {
 		"../TournamentLink": { TournamentLink: ({ href, children }) => createElement("a", { href }, children) },
-		"@/lib/tournament-rulebook": { getDefaultRuleSections },
-		"@/components/TournamentMarkdown": { TournamentMarkdown: ({ children }) => createElement("div", null, children) },
+		"@/lib/tournament-rulebook": rulebook,
+		"./RulesNavigation": compile("../src/app/tournament/terms/RulesNavigation.tsx", {}),
+		"@/components/TournamentMarkdown": compile("../src/components/TournamentMarkdown.tsx", {}),
 		"@/lib/tournament-settings": { getTournamentSettings: async () => state },
 		"@/components/site/PageIntro": { PageIntro: ({ title, children }) => createElement("header", null, createElement("h1", null, title), children) },
 	});
@@ -233,9 +265,56 @@ test("the terms page renders the updated numbered rules and still respects custo
 	assert.match(html, /Seitenwahl in Swiss/);
 	assert.match(html, /Seitenwahl in den Playoffs/);
 	assert.doesNotMatch(html, /Vor Minute 3|offiziellen Turnier-Channel/);
-	assert.equal((html.match(/class="content-panel tight"/g) ?? []).length, 22);
+	assert.equal((html.match(/class="rule-card"/g) ?? []).length, 22);
+	assert.equal((html.match(/class="rules-category"/g) ?? []).length, 6);
+	assert.match(html, /id="streaming"/);
+	assert.match(html, /id="seitenwahl"/);
+	assert.match(html, /href="#streaming"/);
 	state.activeTournament.rulesMarkdown = "Custom rules stay untouched.";
 	const custom = renderToStaticMarkup(await TermsPage());
 	assert.match(custom, /Custom rules stay untouched/);
 	assert.doesNotMatch(custom, /Game of Record/);
+	state.activeTournament.rulesMarkdown = "# Custom\n\n## 1. Streaming\n\nCustom-only content.\n\n## 2. Streaming\n\nSecond section.";
+	const customWithHeadings = renderToStaticMarkup(await TermsPage());
+	assert.match(customWithHeadings, /href="#streaming"/);
+	assert.match(customWithHeadings, /id="streaming"/);
+	assert.match(customWithHeadings, /id="streaming-2"/);
+	assert.doesNotMatch(customWithHeadings, /Game of Record/);
+});
+
+test("every format has complete categories, unique stable anchors and contiguous display numbers", () => {
+	for (const kind of ["fearless", "az", "ultimate-bravery"]) {
+		const state = { ...settings, activeTournament: { id: `${kind}-test`, kind } };
+		const rules = getDefaultRuleSections(state);
+		assert.deepEqual(
+			rules.map((rule) => rule.number),
+			rules.map((_, index) => index + 1)
+		);
+		assert.equal(new Set(rules.map((rule) => rule.id)).size, rules.length);
+		const categories = rulebook.getRuleCategories(state);
+		assert.equal(categories.length, 6);
+		assert.deepEqual(
+			categories.flatMap((category) => category.rules),
+			rules
+		);
+		assert.equal(rules.find((rule) => rule.id === "streaming").title, "Streaming-Vorgaben für Teilnehmer");
+		assert.equal(
+			rules.some((rule) => rule.id === "fearless"),
+			kind === "fearless"
+		);
+		assert.equal(
+			rules.some((rule) => rule.id === "bravery-rolls"),
+			kind === "ultimate-bravery"
+		);
+	}
+	assert.deepEqual(
+		rulebook.getCustomRuleHeadings("## 19. Streaming\n\n## 20. Streaming\n\n### **Änderungen & Größe**").map((heading) => heading.id),
+		["streaming", "streaming-2", "regel-anderungen-grosse"]
+	);
+	const exported = getDefaultRulesMarkdown(settings);
+	assert.deepEqual(
+		rulebook.getCustomRuleCategories(exported).map((category) => category.id),
+		rulebook.RULE_CATEGORIES.map((category) => category.id)
+	);
+	assert.equal(rulebook.getCustomRuleHeadings(exported).filter((heading) => heading.id === "streaming").length, 1);
 });

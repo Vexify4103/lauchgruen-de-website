@@ -5,6 +5,93 @@ import type { TournamentSettings } from "@/lib/tournament-settings";
 
 type RuleSection = { title: string; text: string; list?: string[]; footer?: string; kinds?: TournamentKind[] };
 
+export const RULEBOOK_REVISION = "2026-11-12";
+export const RULE_CATEGORIES = [
+	{ id: "teilnahme", title: "Teilnahme & Accounts" },
+	{ id: "format-draft", title: "Turnierformat & Draft" },
+	{ id: "matchablauf", title: "Matchablauf & Ergebnisse" },
+	{ id: "fairplay", title: "Fairplay & Turnierleitung" },
+	{ id: "streams-zuschauer", title: "Streaming & Zuschauer" },
+	{ id: "oeffentlichkeit", title: "Öffentliche Darstellung" },
+] as const;
+
+// Stable IDs are independent of display numbers and the tournament's format-specific rules.
+const RULE_ORDER = [
+	["Verbindliche Anmeldung", "anmeldung", "Verbindliche Anmeldung", "teilnahme"],
+	["Discord und Riot-Account", "accounts", "Discord und Riot-Account", "teilnahme"],
+	["Account-Änderungen", "spielaccounts", "Account-Änderungen und Spielaccounts", "teilnahme"],
+	["Rückzug, Forfeit und Team-Balance", "wunschgruppen", "Wunschgruppen, Team-Balance und Rückzug", "teilnahme"],
+	["Substitutes und Teamänderungen", "ersatzspieler", "Ersatzspieler und Teamänderungen", "teilnahme"],
+	["Turnierformat", "turnierformat", "Turnierformat und Spieltage", "format-draft"],
+	["Bracket und Seeding", "seeding", "Seeding und Paarungen", "format-draft"],
+	["Fearless:", "fearless", "Fearless und Champion-Sperren", "format-draft"],
+	["Champ Select auf der Website", "champ-select", "Champ Select auf der Website", "format-draft"],
+	["Falsche Picks im Spiel", "draft-abweichungen", "Abweichungen vom bestätigten Draft", "format-draft"],
+	["Ultimate-Bravery-Rolls", "bravery-rolls", "Ultimate-Bravery-Rolls", "format-draft"],
+	["Reroll-Ausnahmen und Captains", "rerolls", "Reroll-Ausnahmen und Captains", "format-draft"],
+	["Falsche Runen oder Items", "build-abweichungen", "Falsche Runen oder Items", "format-draft"],
+	["Pünktlichkeit", "spielbereitschaft", "Spielbereitschaft und Pünktlichkeit", "matchablauf"],
+	["Lobby und Seitenwahl", "seitenwahl", "Lobby-Erstellung und Seitenwahl", "matchablauf"],
+	["Pausen während des Spiels", "pausen", "Pausen und technische Probleme", "matchablauf"],
+	["Remake", "remake", "Neustarts und Remakes", "matchablauf"],
+	["Ergebnismeldung", "ergebnisse", "Replay-Upload und Ergebnisbestätigung", "matchablauf"],
+	["Verhalten", "verhalten", "Verhalten und Fairplay", "fairplay"],
+	["Coaching und Zuschauer", "coaching", "Coaching und externe Informationen", "fairplay"],
+	["Admin-Entscheidungen", "orga", "Orga-Entscheidungen und Regelverstöße", "fairplay"],
+	["Spectator Delay", "zuschauer", "Zuschauerplätze und Spectator Delay", "streams-zuschauer"],
+	["Streaming", "streaming", "Streaming-Vorgaben für Teilnehmer", "streams-zuschauer"],
+	["Twitch-Streams", "twitch", "Freiwillige Twitch-Verknüpfung", "streams-zuschauer"],
+	["Öffentliche Darstellung", "turnierdaten", "Veröffentlichung von Turnierdaten", "oeffentlichkeit"],
+] as const;
+
+export type NumberedRule = RuleSection & { id: string; number: number; categoryId: string };
+export type RuleCategory = { id: string; title: string; rules: NumberedRule[] };
+
+export function getRuleCategories(settings: TournamentSettings): RuleCategory[] {
+	const rules = getDefaultRuleSections(settings);
+	return RULE_CATEGORIES.map((category) => ({ ...category, rules: rules.filter((rule) => rule.categoryId === category.id) })).filter((category) => category.rules.length > 0);
+}
+
+/** Uses exactly the heading syntax supported by TournamentMarkdown; duplicate titles stay unique. */
+export function getCustomRuleHeadings(markdown: string) {
+	const used = new Set<string>();
+	return markdown
+		.replace(/\r\n?/g, "\n")
+		.split("\n")
+		.flatMap((line) => {
+			const match = /^(#{1,3})\s+(.+)$/.exec(line);
+			if (!match) return [];
+			const title = match[2].replace(/[*_~`]/g, "");
+			const plainTitle = title.replace(/^\d+[.)]\s*/, "");
+			const slug =
+				plainTitle
+					.toLowerCase()
+					.replace(/ß/g, "ss")
+					.normalize("NFD")
+					.replace(/[\u0300-\u036f]/g, "")
+					.replace(/[^a-z0-9]+/g, "-")
+					.replace(/^-|-$/g, "") || "abschnitt";
+			const categoryId = match[1].length === 1 ? RULE_CATEGORIES.find((category) => category.title === plainTitle)?.id : undefined;
+			const base = categoryId ?? RULE_ORDER.find(([source, , title]) => source === plainTitle || title === plainTitle)?.[1] ?? `regel-${slug}`;
+			let id: string = base;
+			for (let suffix = 2; used.has(id); suffix++) id = `${base}-${suffix}`;
+			used.add(id);
+			return [{ id, title, level: match[1].length }];
+		});
+}
+
+export function getCustomRuleCategories(markdown: string) {
+	const categories: { id: string; title: string; rules: ReturnType<typeof getCustomRuleHeadings> }[] = [];
+	for (const heading of getCustomRuleHeadings(markdown)) {
+		if (heading.level === 1) categories.push({ id: heading.id, title: heading.title, rules: [] });
+		else {
+			if (!categories.length) categories.push({ id: "eigene-regeln", title: "Eigene Turnierregeln", rules: [] });
+			categories.at(-1)!.rules.push(heading);
+		}
+	}
+	return categories;
+}
+
 const ruleSections: RuleSection[] = [
 	{
 		title: "Twitch-Streams",
@@ -262,33 +349,37 @@ function matchFearlessSection(settings: TournamentSettings): RuleSection {
 	};
 }
 
-export function getDefaultRuleSections(settings: TournamentSettings) {
+export function getDefaultRuleSections(settings: TournamentSettings): NumberedRule[] {
 	const config = settings.structure;
 	const kind = tournamentKind(settings.activeTournament);
-	const displayedRuleSections = ruleSections
-		.filter((section) => !section.kinds || section.kinds.includes(kind))
-		.map((section) => (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match" ? matchFearlessSection(settings) : section))
-		.map((section) => (section.title === "Lobby und Seitenwahl" ? { ...section, text: `${section.text} ${describeSideSelection(config)}` } : section))
-		.map((section) =>
-			section.title === "Turnierformat"
-				? {
-						...section,
-						text: `${describeStructurePlan(config).join(" ")} Platzierungen in Tabellen: ${describeTiebreakers(config.tiebreakers)}.${
-							config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination"
-								? " Swiss-Runden werden innerhalb derselben Bilanz gelost; bereits gespielte Paarungen entstehen nicht erneut."
-								: ""
-						}`,
-						list: playoffRuleBullets(config),
-					}
-				: section
-		);
+	const ordered = RULE_ORDER.flatMap(([source, id, title, categoryId]) => {
+		const section = ruleSections.find((rule) => rule.title.startsWith(source));
+		return section && (!section.kinds || section.kinds.includes(kind)) ? [{ section, id, title, categoryId }] : [];
+	});
+	const displayedRuleSections = ordered.map(({ section, id, title, categoryId }, index) => {
+		let resolved = section;
+		if (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match") resolved = matchFearlessSection(settings);
+		if (section.title === "Lobby und Seitenwahl") resolved = { ...section, text: `${section.text} ${describeSideSelection(config)}` };
+		if (section.title === "Turnierformat")
+			resolved = {
+				...section,
+				text: `${describeStructurePlan(config).join(" ")} Platzierungen in Tabellen: ${describeTiebreakers(config.tiebreakers)}.${config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination" ? " Swiss-Runden werden innerhalb derselben Bilanz gelost; bereits gespielte Paarungen entstehen nicht erneut." : ""}`,
+				list: playoffRuleBullets(config),
+			};
+		return { ...resolved, id, title, categoryId, number: index + 1 };
+	});
 	return displayedRuleSections;
 }
 
 export function getDefaultRulesMarkdown(settings: TournamentSettings): string {
-	return getDefaultRuleSections(settings)
-		.map((section, index) =>
-			[`## ${index + 1}. ${section.title}`, section.text, section.list?.map((item) => `- ${item}`).join("\n"), section.footer].filter(Boolean).join("\n\n")
+	return getRuleCategories(settings)
+		.map((category) =>
+			[
+				`# ${category.title}`,
+				...category.rules.map((section) =>
+					[`## ${section.number}. ${section.title}`, section.text, section.list?.map((item) => `- ${item}`).join("\n"), section.footer].filter(Boolean).join("\n\n")
+				),
+			].join("\n\n")
 		)
 		.join("\n\n");
 }
