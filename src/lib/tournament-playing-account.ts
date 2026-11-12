@@ -38,13 +38,20 @@ export function playingAccountResource(tournamentId: string, discordId: string) 
 }
 
 /** Derive the playing identity; never mutate the linked account or its rank. */
-export function withPlayingAccount<T extends { discordId?: string; riotId: string; puuid?: string; scoutRiotId?: string }>(
+export function withPlayingAccount<T extends { discordId?: string; riotId: string; puuid?: string; scoutRiotId?: string; displayName?: string }>(
 	player: T,
 	accounts: ReadonlyMap<string, ApprovedPlayingAccount>
-): T & { playingAccountApproved?: boolean } {
+): T & { playingAccountApproved?: boolean; displayName?: string } {
 	const approved = player.discordId ? accounts.get(player.discordId) : undefined;
 	if (!approved) return player;
-	return { ...player, riotId: approved.riotId, puuid: approved.puuid, scoutRiotId: player.scoutRiotId || approved.scoutRiotId, playingAccountApproved: true };
+	return {
+		...player,
+		displayName: player.displayName || player.riotId.split("#")[0] || player.riotId,
+		riotId: approved.riotId,
+		puuid: approved.puuid,
+		scoutRiotId: player.scoutRiotId || approved.scoutRiotId,
+		playingAccountApproved: true,
+	};
 }
 
 export function activePlayingAccounts(accounts: ApprovedPlayingAccount[], tournamentId: string) {

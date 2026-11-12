@@ -137,7 +137,7 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
 	const scoutRiotId = p.scoutRiotId ?? p.riotId;
 	const encoded = encodeURIComponent(scoutRiotId.replace("#", "-"));
 	return {
-		name: p.riotId.split("#")[0] || p.riotId,
+		name: (p.playingAccountApproved && p.displayName) || p.riotId.split("#")[0] || p.riotId,
 		// Role comes from the player's web application (preferredRoles[0]); we
 		// only fall back to "Fill" when no role was supplied.
 		role: p.role ?? "Fill",

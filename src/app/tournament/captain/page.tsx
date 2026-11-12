@@ -199,10 +199,10 @@ export default async function CaptainPortalPage() {
 								<span className="text-xs text-[var(--muted)]">{player.role}</span>
 								<span className="min-w-0">
 									<span className="block truncate text-sm font-medium text-[var(--text)]">{player.name}</span>
-									<span className="block truncate font-mono text-xs text-[var(--muted)]">{player.riotId}</span>
-									{player.verified === false ? (
+									<span className="block truncate font-mono text-xs text-[var(--muted)]" title={player.riotId}>{player.playingAccountApproved ? "Spielaccount: " : ""}{player.riotId}</span>
+									{player.verified === false && !player.playingAccountApproved ? (
 										<span className="tally mt-1" data-tone="warn">
-											{player.playingAccountApproved ? "Orga-Freigabe" : "Nicht verifiziert"}
+											Nicht verifiziert
 										</span>
 									) : null}
 								</span>

@@ -20,12 +20,12 @@ function compile(file, exports, mocks) {
 	return compiled.exports;
 }
 
-test("public roster shows the playing account but scouting URLs and captain access retain their identities", () => {
+test("public roster keeps the familiar name while playing account, scouting URLs and captain access remain distinct", () => {
 	const { buildPlayer, resolveCaptainRef } = compile("../src/lib/tournament-runtime.ts", "buildPlayer, resolveCaptainRef", {});
 	const main = { discordId: "kami", riotId: "Kami#MUNDO", puuid: "main-puuid", role: "Top", verificationStatus: "verified" };
 	const playing = withPlayingAccount(main, accounts);
 	const publicPlayer = buildPlayer(playing);
-	assert.equal(publicPlayer.name, "Pavadon");
+	assert.equal(publicPlayer.name, "Kami");
 	assert.equal(publicPlayer.riotId, "Pavadon#EUW");
 	assert.ok(publicPlayer.opggUrl.endsWith("Kami-MUNDO"));
 	assert.ok(publicPlayer.dpmUrl.endsWith("Kami-MUNDO"));
@@ -38,6 +38,22 @@ test("public roster shows the playing account but scouting URLs and captain acce
 	assert.equal(resolved.riotId, "Pavadon#EUW");
 	assert.equal(resolved.puuid, "playing-puuid");
 	assert.equal(captain.riotId, "Kami#MUNDO");
+});
+
+test("a registered display name is retained and ordinary player names do not change", () => {
+	const { buildPlayer } = compile("../src/lib/tournament-runtime.ts", "buildPlayer", {});
+	const main = { discordId: "kami", displayName: "kami", riotId: "Kami#MUNDO", puuid: "main" };
+	assert.equal(buildPlayer(withPlayingAccount(main, accounts)).name, "kami");
+	assert.equal(buildPlayer({ discordId: "other", displayName: "Someone", riotId: "Other#EUW" }).name, "Other");
+});
+
+test("public team and captain pages explain the playing account without an organizer approval badge", () => {
+	for (const file of ["../src/app/tournament/teams/page.tsx", "../src/app/tournament/captain/page.tsx"]) {
+		const source = readFileSync(new URL(file, import.meta.url), "utf8");
+		assert.ok(!source.includes("Orga-Freigabe"));
+		assert.ok(source.includes('player.playingAccountApproved ? "Spielaccount: "'));
+		assert.ok(source.includes("player.verified === false && !player.playingAccountApproved"));
+	}
 });
 
 test("the actual replay upload route derives the same approved PUUID from the published roster", async () => {

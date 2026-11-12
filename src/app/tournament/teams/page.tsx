@@ -287,7 +287,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 												</span>
 												<div className="min-w-0 flex-1">
 													<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-														<a href={player.opggUrl} target="_blank" rel="noreferrer" className="truncate text-sm font-bold hover:text-[var(--accent)]">
+														<a href={player.opggUrl} target="_blank" rel="noreferrer" title={`OP.GG: ${player.scoutRiotId || player.riotId}`} className="truncate text-sm font-bold hover:text-[var(--accent)]">
 															{player.name}
 														</a>
 														{isCaptain ? (
@@ -302,14 +302,14 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 														{player.discordId && twitch.get(player.discordId) ? (
 															<TwitchBadge name={player.name} presence={twitch.get(player.discordId)!} />
 														) : null}
-														{player.verified === false ? (
+															{player.verified === false && !player.playingAccountApproved ? (
 															<span className="rounded-full border border-amber-200/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-100">
-																{player.playingAccountApproved ? "Orga-Freigabe" : "Nicht verifiziert"}
+																Nicht verifiziert
 															</span>
 														) : null}
 													</div>
 													<div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
-														<span className="truncate">{player.riotId}</span>
+														<span className="truncate" title={player.riotId}>{player.playingAccountApproved ? "Spielaccount: " : ""}{player.riotId}</span>
 														<a
 															href={player.dpmUrl}
 															target="_blank"

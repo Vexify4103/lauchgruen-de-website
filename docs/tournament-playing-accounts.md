@@ -7,7 +7,7 @@ Under **Admin > Bewerbungen > Bewerbung bearbeiten > Turnier-Spielaccount**, own
 3. The server resolves the real PUUID and checks that the League account exists on the configured tournament platform, is not tournament-blacklisted, and is not assigned to another participant.
 4. Public rosters, captain pages, roster-builder identities and new replay uploads immediately use that playing identity. No roster publication, team-role update or DM is triggered.
 
-The label is **Orga-Freigabe**, not ownership verification. The original linked/verified account, application ID, scouting link, role preferences, main-account balancing rank, team membership and captain's Discord identity are unchanged. Normal profile refreshes continue to refresh the main account, not the lower-ranked playing account.
+The approval label **Orga-Freigabe** is shown only in admin, not as an ownership-verification badge on public team cards. Public pages keep the familiar player name and show **Spielaccount: Name#Tag** underneath when an alternate account is active. The original linked/verified account, application ID, scouting link, role preferences, main-account balancing rank, team membership and captain's Discord identity are unchanged. Normal profile refreshes continue to refresh the main account, not the lower-ranked playing account.
 
 ## Storage and scope
 
