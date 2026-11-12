@@ -202,7 +202,7 @@ export default async function CaptainPortalPage() {
 									<span className="block truncate font-mono text-xs text-[var(--muted)]">{player.riotId}</span>
 									{player.verified === false ? (
 										<span className="tally mt-1" data-tone="warn">
-											Nicht verifiziert
+											{player.playingAccountApproved ? "Orga-Freigabe" : "Nicht verifiziert"}
 										</span>
 									) : null}
 								</span>

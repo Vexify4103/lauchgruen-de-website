@@ -10,6 +10,9 @@ import { writeAuditLog } from "@/lib/tournament-audit";
 import { listMatchReports } from "@/lib/tournament-next";
 import { createReplay, DuplicateReplayError, listReplays, setReplayStatus } from "@/lib/tournament-replays";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
+import { withPlayingAccount } from "@/lib/tournament-playing-account";
+import { readPlayingAccounts } from "@/lib/tournament-playing-account-store";
+import { getTournamentSettings } from "@/lib/tournament-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,17 +59,19 @@ const uploadSchema = z.object({
 });
 const reviewSchema = z.object({ id: z.string().uuid(), status: z.enum(["applied", "rejected"]) });
 
-type StoredRosterTeam = { name: string; players?: Array<{ riotId?: string; puuid?: string }> };
+type StoredRosterTeam = { name: string; players?: Array<{ discordId?: string; riotId?: string; puuid?: string }> };
 
 async function rostersFor(teamAName: string, teamBName: string): Promise<{ teamA: ReplayRoster; teamB: ReplayRoster }> {
 	const doc = await (await getDb()).collection<{ _id: string; teams?: Record<string, StoredRosterTeam> }>("bot_state").findOne({ _id: "default" });
 	const teams = Object.values(doc?.teams ?? {});
+	const settings = await getTournamentSettings();
+	const playingAccounts = await readPlayingAccounts(settings.activeTournament.id);
 	const roster = (name: string): ReplayRoster => {
 		const team = teams.find((entry) => entry.name.toLocaleLowerCase("de-DE") === name.toLocaleLowerCase("de-DE"));
 		// Subs are part of the roster: a sub who played still proves the replay belongs to this team.
 		const players = (team?.players ?? [])
 			.filter((player) => player.riotId)
-			.map((player) => ({ riotId: player.riotId!, puuid: player.puuid?.startsWith("manual-") ? undefined : player.puuid }));
+			.map((player) => withPlayingAccount({ ...player, riotId: player.riotId!, puuid: player.puuid?.startsWith("manual-") ? undefined : player.puuid }, playingAccounts));
 		return { name, players };
 	};
 	return { teamA: roster(teamAName), teamB: roster(teamBName) };

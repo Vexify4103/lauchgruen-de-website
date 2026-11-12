@@ -304,7 +304,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 														) : null}
 														{player.verified === false ? (
 															<span className="rounded-full border border-amber-200/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-100">
-																Nicht verifiziert
+																{player.playingAccountApproved ? "Orga-Freigabe" : "Nicht verifiziert"}
 															</span>
 														) : null}
 													</div>

@@ -25,6 +25,7 @@ import { TournamentCodeBox } from "@/components/TournamentCodeBox";
 import { codeVisibleFor, currentGameNumber, getTournamentCode, tournamentCodeMode } from "@/lib/riot-tournament";
 import { RoleIcon } from "@/components/RoleIcon";
 import { captainPortalOpen } from "@/lib/tournament-mode";
+import { findParticipantTeam } from "@/lib/tournament-playing-account";
 
 export const metadata: Metadata = {
 	title: "Mein Lauchgruen-Konto",
@@ -109,9 +110,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 	);
 	const applicationDeadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
 	const applicationDeadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
-	const team =
-		ctx.teams.find((entry) => entry.players.some((player) => player.riotId.toLowerCase() === application?.riotId.toLowerCase()) || entry.captainRef?.discordId === discordId) ??
-		null;
+	const team = findParticipantTeam(ctx.teams, discordId, application?.riotId) ?? null;
 	const isCaptain = team?.captainRef?.discordId === discordId;
 	const portalOpen = captainPortalOpen(settings.activeTournament.mode);
 	const captainRiotId = team?.captainRef?.riotId.toLowerCase();

@@ -6,6 +6,7 @@ import { ThemedMultiSelect, ThemedSelect } from "@/components/ThemedSelect";
 import { isAdminVersionConflict, useAdminConflict } from "@/components/AdminConflictProvider";
 import { useUnsavedChanges } from "@/components/UnsavedChangesProvider";
 import type { TournamentApplication } from "@/lib/tournament-storage";
+import { PlayingAccountEditor } from "./PlayingAccountEditor";
 
 const roleOptions = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill"];
 
@@ -20,6 +21,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	const [scoutRiotId, setScoutRiotId] = useState(app.scoutRiotId ?? "");
 	const [message, setMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
+	const [accountEditorMounted, setAccountEditorMounted] = useState(false);
 	const [savedValues, setSavedValues] = useState(
 		JSON.stringify({
 			displayName: app.displayName,
@@ -75,7 +77,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	}
 
 	return (
-		<details className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+		<details onToggle={(event) => { if (event.currentTarget.open) setAccountEditorMounted(true); }} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
 			<summary className="cursor-pointer text-xs font-semibold text-[var(--accent)]">Bewerbung bearbeiten</summary>
 			<div className="mt-3 grid gap-3">
 				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
@@ -151,6 +153,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						</span>
 					) : null}
 				</div>
+				{accountEditorMounted ? <PlayingAccountEditor app={app} /> : null}
 			</div>
 		</details>
 	);

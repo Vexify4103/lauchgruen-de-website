@@ -15,6 +15,8 @@ import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import { mainEventTeamCount, seedSlotLayout } from "@/lib/tournament-structure";
 import { getPlayInOutcome } from "@/lib/tournament-play-in";
 import { readScoutAccounts } from "@/lib/tournament-storage";
+import { withPlayingAccount } from "@/lib/tournament-playing-account";
+import { readPlayingAccounts } from "@/lib/tournament-playing-account-store";
 
 // Mirror of the bot's StoredTeam shape — keep in sync with DiscordBot/src/types.ts.
 type StoredPlayer = {
@@ -27,6 +29,7 @@ type StoredPlayer = {
 	verificationStatus?: "verified" | "manual";
 	rosterSource?: "application" | "manual";
 	scoutRiotId?: string;
+	playingAccountApproved?: boolean;
 };
 
 type TeamCaptainRef = {
@@ -99,12 +102,14 @@ async function readBotTeams(): Promise<StoredTeam[] | null> {
 		const teamsObj = doc?.teams;
 		if (!teamsObj) return null;
 		const scouts = await readScoutAccounts().catch(() => new Map<string, string>());
+		const settings = await getTournamentSettings();
+		const playingAccounts = await readPlayingAccounts(settings.activeTournament.id);
 		const values = Object.entries(teamsObj).map(([storageKey, team]) => ({
 			...team,
 			storageKey,
 			players: (team.players ?? []).map((player) => {
 				const scoutRiotId = player.discordId ? scouts.get(player.discordId) : undefined;
-				return scoutRiotId ? { ...player, scoutRiotId } : player;
+				return withPlayingAccount(scoutRiotId ? { ...player, scoutRiotId } : player, playingAccounts);
 			}),
 		}));
 		const tags = withTeamTags(values);
@@ -140,7 +145,8 @@ function buildPlayer(p: StoredPlayer): TournamentPlayer {
 		scoutRiotId,
 		discordId: p.discordId,
 		discordUsername: p.discordUsername,
-		verified: p.verificationStatus !== "manual",
+		verified: !p.playingAccountApproved && p.verificationStatus !== "manual",
+		playingAccountApproved: p.playingAccountApproved,
 		opggUrl: `https://www.op.gg/summoners/euw/${encoded}`,
 		dpmUrl: `https://dpm.lol/${encoded}`,
 	};
@@ -244,12 +250,13 @@ function resolveCaptainRef(stored: StoredTeam): TeamCaptainRef | undefined {
 	const captainRef = stored.meta?.captain;
 	if (!captainRef) return undefined;
 
-	const captainPlayer = stored.players.find((player) => player.riotId.toLowerCase() === captainRef.riotId.toLowerCase());
+	const captainPlayer = stored.players.find((player) => player.discordId === captainRef.discordId) ?? stored.players.find((player) => player.riotId.toLowerCase() === captainRef.riotId.toLowerCase());
 	if (!captainPlayer?.discordId) return captainRef;
 
 	return {
 		...captainRef,
 		discordId: captainPlayer.discordId,
+		riotId: captainPlayer.riotId,
 		discordUsername: captainPlayer.discordUsername ?? captainRef.discordUsername,
 		puuid: captainPlayer.puuid || captainRef.puuid,
 	};

@@ -466,7 +466,7 @@ export function RosterBuilder({
 	}, []);
 
 	async function saveRankOverride(applicant: RosterApplicant, override: string | null) {
-		const appId = applicant.puuid + "|" + applicant.discordId;
+		const appId = applicant.applicationId ?? applicant.puuid + "|" + applicant.discordId;
 		const versionRes = await fetch(`/api/tournament/applications?versionFor=${encodeURIComponent(appId)}`);
 		const versionData = await versionRes.json().catch(() => null);
 		const appVersion: number = versionData?.version ?? 0;
@@ -2170,6 +2170,7 @@ const PlayerRow = memo(function PlayerRow({
 					</div>
 					<div className="mt-0.5 truncate text-xs text-[var(--muted)]" title={[applicant?.riotId, rank, applicant?.preferenceGroupCode].filter(Boolean).join(" · ")}>
 						{applicant?.riotId ?? "Keine Riot-ID"}
+						{applicant?.playingAccountApproved ? <span className="text-[var(--accent)]"> · Orga-Freigabe</span> : null}
 						{rank ? ` · ${rank}` : ""}
 						{applicant?.preferenceGroupCode ? <span className="font-mono"> · {applicant.preferenceGroupCode}</span> : null}
 					</div>
@@ -2202,7 +2203,7 @@ const PlayerRow = memo(function PlayerRow({
 				<div className="flex shrink-0 items-center gap-1">
 					{applicant?.riotId ? (
 						<a
-							href={opggUrl(applicant.riotId)}
+						href={opggUrl(applicant.scoutRiotId || applicant.riotId)}
 							target="_blank"
 							rel="noreferrer"
 							title={`${applicant.riotId} auf OP.GG öffnen`}
@@ -2294,6 +2295,7 @@ function ApplicantCard({
 					<div className="truncate text-sm font-medium text-[var(--text)]">{playerName(applicant)}</div>
 					<div className="mt-0.5 truncate text-xs text-[var(--muted)]">
 						{applicant.riotId}
+						{applicant.playingAccountApproved ? <span className="text-[var(--accent)]"> · Orga-Freigabe</span> : null}
 						{applicant.preferenceGroupCode ? (
 							<span className="font-mono" title="Unverbindliche Wunschgruppe">
 								{" "}
@@ -2304,7 +2306,7 @@ function ApplicantCard({
 					</div>
 				</div>
 				<a
-					href={opggUrl(applicant.riotId)}
+					href={opggUrl(applicant.scoutRiotId || applicant.riotId)}
 					target="_blank"
 					rel="noreferrer"
 					className="inline-flex h-7 items-center rounded-lg px-2 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--admin-step)] hover:text-[var(--text)]"

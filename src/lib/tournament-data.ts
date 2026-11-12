@@ -7,6 +7,7 @@ export type TournamentPlayer = {
 	discordId?: string;
 	discordUsername?: string;
 	verified?: boolean;
+	playingAccountApproved?: boolean;
 	opggUrl: string;
 	dpmUrl: string;
 };

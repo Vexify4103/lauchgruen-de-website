@@ -16,6 +16,8 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { isAllowedPreferenceGroup } from "@/lib/preference-group-settings";
 import { seedSlotLayout } from "@/lib/tournament-structure";
 import { resolveManualRosterIdentity } from "@/lib/roster-manual-player";
+import { withPlayingAccount } from "@/lib/tournament-playing-account";
+import { readPlayingAccounts } from "@/lib/tournament-playing-account-store";
 
 const VALID_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support", "Fill", "Sub"] as const;
 export type PlayerRole = (typeof VALID_ROLES)[number];
@@ -82,6 +84,7 @@ type RosterDraftDoc = {
 const ROSTER_DRAFT_COLLECTION = "tournament_roster_drafts";
 
 export type RosterApplicant = {
+	applicationId?: string;
 	discordId: string;
 	discordHandle: string;
 	discordUsername?: string;
@@ -103,6 +106,9 @@ export type RosterApplicant = {
 	updatedAt: string;
 	verified: boolean;
 	source: "application" | "manual";
+	/** Approval changes playing identity only; verified/currentRank still describe the linked main. */
+	playingAccountApproved?: boolean;
+	scoutRiotId?: string;
 };
 
 export type RosterTeam = {
@@ -181,9 +187,15 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	}));
 
 	const groupSettings = await getTournamentSettings();
+	const playingAccounts = testModeActive ? new Map() : await readPlayingAccounts(groupSettings.activeTournament.id);
+	for (const team of teams) {
+		team.players = team.players.map((player) => withPlayingAccount(player, playingAccounts));
+	}
 	const activePreferenceGroups = preferenceGroups.filter((group) => isAllowedPreferenceGroup(groupSettings.wishGroupMode, group.memberDiscordIds.length));
 	const preferenceGroupByDiscordId = new Map(activePreferenceGroups.flatMap((group) => group.memberDiscordIds.map((discordId) => [discordId, group.code] as const)));
-	const applicants: RosterApplicant[] = visibleApplications.map((application) => toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)));
+	const applicants: RosterApplicant[] = visibleApplications.map((application) => withPlayingAccount({
+		...toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)), scoutRiotId: application.scoutRiotId || application.riotId,
+	}, playingAccounts));
 	const applicantIds = new Set(applicants.map((applicant) => applicant.discordId));
 
 	for (const team of Object.values(teamsObj)) {
@@ -266,6 +278,7 @@ function rosterSignature(teams: Record<string, BotTeam>): string {
 
 function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): RosterApplicant {
 	return {
+		applicationId: app.id,
 		discordId: app.discordId,
 		discordHandle: app.discordHandle,
 		discordUsername: app.discordUsername,

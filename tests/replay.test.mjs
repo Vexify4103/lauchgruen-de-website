@@ -64,6 +64,15 @@ test("reads version, length, winner and players from a ROFL2 file", () => {
 		damageToChampions: 0,
 		visionScore: 0,
 		level: 0,
+		items: [0, 0, 0, 0, 0, 0, 0],
+		summonerSpells: [0, 0],
+		perks: [0, 0, 0, 0, 0, 0],
+		primaryStyle: 0,
+		subStyle: 0,
+		controlWardsPlaced: 0,
+		wardsPlaced: 0,
+		wardsKilled: 0,
+		damageTaken: 0,
 	});
 });
 
