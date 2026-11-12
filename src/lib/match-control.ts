@@ -7,6 +7,7 @@ import type { GroupMatch, TournamentTeam } from "@/lib/tournament-data";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { usesFlexibleEngine } from "@/lib/tournament-kind";
 import type { SeriesGame } from "@/lib/tournament-series";
+import type { SideSelectionRule } from "@/lib/tournament-structure";
 import { buildFlexibleStages, type FlexibleStages } from "@/lib/tournament-stages";
 
 export type ControlMatch = {
@@ -37,6 +38,7 @@ export type ControlMatch = {
 	/** Team that picks the side for the next game, if the side rule leaves it to a team. */
 	sideSelectionTeamName?: string;
 	sideSelectionSeed?: number;
+	sideSelectionRule?: SideSelectionRule;
 	bestOf: number;
 	games: SeriesGame[];
 	group?: string;

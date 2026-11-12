@@ -88,6 +88,21 @@ export const SIDE_SELECTION_LABELS: Record<SideSelectionRule, string> = {
 	alternate: "Abwechselnd (Team A beginnt auf Blau)",
 };
 
+export function usesSwissCoinToss(config: Pick<StructureConfig, "dayOneFormat">, stage?: string): boolean {
+	return stage === "day-one" && (config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination");
+}
+
+/** Swiss tosses for the right to choose; the configured rule governs the playoff bracket. */
+export function sideSelectionForStage(config: Pick<StructureConfig, "dayOneFormat" | "sideSelection">, stage?: string): SideSelectionRule {
+	return usesSwissCoinToss(config, stage) ? "coin-flip" : config.sideSelection;
+}
+
+export function describeSideSelection(config: Pick<StructureConfig, "dayOneFormat" | "sideSelection">): string {
+	return usesSwissCoinToss(config, "day-one")
+		? `Seitenwahl in Swiss: Vor jedem Match entscheidet ein Münzwurf, welcher Captain Blue oder Red Side wählen darf. Der Münzwurf legt nicht automatisch Blue Side fest. Seitenwahl in den Playoffs: ${SIDE_SELECTION_LABELS[config.sideSelection]}.`
+		: `Seitenwahl: ${SIDE_SELECTION_LABELS[config.sideSelection]}.`;
+}
+
 const isPowerOfTwo = (value: number) => value > 0 && (value & (value - 1)) === 0;
 
 export function isOneOf<T extends readonly unknown[]>(values: T, value: unknown): value is T[number] {
@@ -332,7 +347,7 @@ export function describeStructurePlan(config: StructureConfig): string[] {
 			`${PLAYOFF_FORMAT_LABELS[config.format]} mit ${config.advanceTeamCount} Teams (${bo(config.bestOf.playoffs)}, Finale ${bo(config.bestOf.finals)})${extras.length ? ` · ${extras.join(" · ")}` : ""}.`
 		);
 	}
-	lines.push(`Seitenwahl: ${SIDE_SELECTION_LABELS[config.sideSelection]}.`);
+	lines.push(describeSideSelection(config));
 	return lines;
 }
 

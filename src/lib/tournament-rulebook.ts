@@ -1,4 +1,4 @@
-import { describeStructurePlan, describeTiebreakers, playoffRuleBullets } from "@/lib/tournament-structure";
+import { describeSideSelection, describeStructurePlan, describeTiebreakers, playoffRuleBullets } from "@/lib/tournament-structure";
 import { tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
 import { fearlessCapacity } from "@/lib/fearless-capacity";
 import type { TournamentSettings } from "@/lib/tournament-settings";
@@ -29,10 +29,12 @@ const ruleSections: RuleSection[] = [
 		text: "Das Turnier ist ein Spaß- und Community-Event. Alle Teilnehmer behandeln Teammates, Gegner, Zuschauer und Admins respektvoll. Trashtalk, Herabwürdigung oder öffentliches Bloßstellen anderer Teams oder einzelner Spieler ist nicht erlaubt.",
 		list: [
 			"Keine Beleidigungen oder Belästigungen",
+			"Keine rassistischen, antisemitischen, sexistischen oder sonstigen diskriminierenden Äußerungen oder Darstellungen",
 			"Kein Trashtalk gegen Gegner, Teammates, Zuschauer oder Orga",
 			"Keine Schuldzuweisungen, öffentlichen Flaming-Diskussionen oder persönlichen Angriffe nach Games",
 			"Kein absichtliches Feeden oder Griefing",
 			"Kein Cheating oder Scripting",
+			"Keine bewusste Ausnutzung von Bugs und keine gefälschten oder manipulierten Nachweise gegenüber der Orga",
 			"Kein Stream-Sniping",
 			"Keine unsportlichen Manipulationen des Turnierablaufs",
 		],
@@ -70,10 +72,12 @@ const ruleSections: RuleSection[] = [
 	{
 		title: "Falsche Picks im Spiel",
 		kinds: ["fearless", "az"],
-		text: "Abweichungen vom gespeicherten Website-Draft müssen sofort gemeldet werden.",
+		text: "Der gespeicherte Website-Draft einschließlich Champion-Rollenzuordnung ist verbindlich. Bei einem falschen, gesperrten oder falsch zugeordneten Champion muss der Captain sofort Gegner und Orga informieren.",
 		list: [
-			"Vor Minute 3 wird das Match mit dem korrekten Draft neu gestartet",
-			"Wird ein falscher oder gesperrter Champion erst später bemerkt, entscheidet die Orga über Remake oder Niederlage des betreffenden Teams",
+			"Wird der Fehler im Client-Champ-Select erkannt, wird dieser sofort unterbrochen. Nach dem Laden wird das Spiel unverzüglich mit /pause angehalten.",
+			"Ein früher Auswahl- oder Übertragungsfehler kann vor dem verbindlichen Spielbeginn (siehe Remake-Regel) nach Freigabe durch die Orga korrigiert werden. Technische Probleme müssen benannt und nach Möglichkeit belegt werden.",
+			"Niemand startet das Spiel eigenmächtig neu. Maßgeblich bleibt der Website-Draft; ein Neustart erlaubt keinen neuen Draft und setzt keine Fearless-Sperren zurück.",
+			"Auch nach verbindlichem Spielbeginn bleiben falsche oder unerlaubte Champions meldepflichtig. Die Orga entscheidet über Fortsetzung, Neustart, Niederlage oder weitere Sanktionen; eine automatische Dreiminuten-Ausnahme gibt es nicht.",
 		],
 	},
 	{
@@ -114,23 +118,32 @@ const ruleSections: RuleSection[] = [
 	},
 	{
 		title: "Coaching und Zuschauer",
-		text: "Während laufender Spiele dürfen keine externen spielrelevanten Informationen an Teilnehmer weitergegeben werden.",
-		list: ["Kein Live-Coaching während des Spiels", "Keine Informationen durch Zuschauer", "Keine Weitergabe von gegnerischen Positionen oder Cooldowns"],
+		text: "Während laufender Spiele einschließlich technischer Pausen dürfen Teilnehmer keine externen spielrelevanten Informationen erhalten oder weitergeben.",
+		list: [
+			"Kein Live-Coaching und keine spielrelevanten Ansagen durch Trainer, Zuschauer oder andere Personen außerhalb des aktiven Lineups",
+			"Keine Weitergabe von gegnerischen Positionen, Cooldowns oder anderen Informationen aus einer Zuschauerperspektive",
+			"Aktive Spieler dürfen laufende Übertragungen ihres Matches weder ansehen noch anhören oder sich über deren Chat informieren lassen. Das gilt auch für den Cast und gegnerische Streams.",
+			"Zuschauerplätze werden nur nach Freigabe durch die Orga genutzt; die Spectator-Regel bleibt verbindlich.",
+		],
 	},
 	{
 		title: "Lobby und Seitenwahl",
-		text: "Nach jedem Match kommen alle Captains in den Captain-Call. Für jedes kommende Match wird per Münzwurf bestimmt, welches Team die Seitenwahl erhält.",
+		text: "Nach jedem Match kommen alle Captains in den Captain-Call. Das Recht der Seitenwahl richtet sich nach der Turnierphase; die Orga hält die gewählte Seite auf der Match-Seite fest.",
 		list: [
 			"Der Captain mit Seitenwahl entscheidet zwischen Blue Side und Red Side",
-			"Der Blue-Side-Captain erstellt die Lobby",
-			"Der Blue-Side-Captain lädt seine eigenen Spieler und den Captain des gegnerischen Teams ein",
-			"Der gegnerische Captain lädt anschließend seine Spieler ein",
+			"Wenn die Website einen Turniercode bereitstellt, treten die Spieler über diesen Code der Lobby bei. Andernfalls erstellt der Blue-Side-Captain die Lobby, lädt seine Spieler sowie den gegnerischen Captain ein; dieser lädt anschließend sein Team ein.",
+			"Vor Spielbeginn prüfen beide Captains das Lineup anhand der auf der Website angezeigten Spielaccounts. Von der Orga freigegebene Ersatzaccounts sind dabei die maßgeblichen Accounts für dieses Turnier.",
 		],
 		footer: "Das Orga-Team kann bei Problemen eine Lobby neu erstellen lassen oder die Lobby-Erstellung selbst übernehmen.",
 	},
 	{
 		title: "Pünktlichkeit",
-		text: "Teams müssen spätestens 10 Minuten nach dem geplanten Match-Start vollständig im Voice-Channel bereitstehen. Ist ein Team nach Ablauf dieser Frist nicht vollständig anwesend, kann das Orga-Team ein Forfeit zugunsten des wartenden Teams verhängen.",
+		text: "Teams müssen zum von der Orga bestätigten Matchbeginn spielbereit sein. Die Toleranz beträgt 10 Minuten ab diesem Zeitpunkt. Danach kann ausschließlich die Orga ein Forfeit zugunsten des wartenden Teams verhängen.",
+		list: [
+			"Spielbereit bedeutet: fünf zugelassene Spieler im vorgesehenen Voice-Channel, die auf der Website angezeigten Spielaccounts verfügbar, der League-Client aktuell und der Captain erreichbar sowie bereit für Champ Select und Lobby.",
+			"Beim Rolling Schedule sind angezeigte Uhrzeiten Schätzungen. Verzögert sich die vorherige Runde oder eine von der Orga vorgesehene Pause, gilt der anschließend bestätigte Matchbeginn; daraus entsteht keine Verspätung des wartenden Teams.",
+			"Absehbare Verspätungen werden sofort gemeldet. Ein noch nicht installiertes Update oder ein fehlender Account-Zugang begründen keine automatische Verlängerung.",
+		],
 	},
 	{
 		title: "Rückzug, Forfeit und Team-Balance",
@@ -138,6 +151,8 @@ const ruleSections: RuleSection[] = [
 		list: [
 			"Wenn ein Team wegen Rückzug, fehlenden Spielern oder verweigerter Teilnahme nicht spielbereit ist, kann das Orga-Team einzelne Matches als Forfeit werten",
 			"Ein Forfeit kann als Niederlage für das betroffene Team und als Sieg für den Gegner eingetragen werden",
+			"Teams melden fehlende Gegner oder Spielunfähigkeit an die Orga; sie dürfen einen Forfeit nicht selbst erklären oder eigenmächtig das Match als gewonnen melden",
+			"Ein ungespieltes Match benötigt keine Replay. Es darf weder eine erfundene Replay noch eine fiktive Spielzeit eingereicht werden; die Orga dokumentiert den Forfeit ohne eine gespielte Partie vorzutäuschen",
 			"Wenn der Turnierablauf sonst gefährdet ist, darf das Orga-Team Ersatzspieler einsetzen oder Teams kurzfristig anpassen",
 			"Diskussionen über Wunschgruppen oder Teamzuteilung begründen keinen Anspruch auf Neuverteilung",
 		],
@@ -145,17 +160,25 @@ const ruleSections: RuleSection[] = [
 	},
 	{
 		title: "Pausen während des Spiels",
-		text: "Pausen dürfen ausschließlich bei technischen Problemen oder wichtigen Notfällen genutzt werden.",
+		text: "Bei Disconnects, erheblichen technischen Problemen oder wichtigen Notfällen darf mit /pause pausiert werden. Jedes Team hat pro Spiel insgesamt 10 Minuten technische Pausenzeit, nicht 10 Minuten pro Spieler oder Vorfall.",
 		list: [
-			"Der Grund der Pause muss sofort mitgeteilt werden",
+			"Der Captain nennt den Grund sofort im Spielchat und informiert die Orga. Dauer und weitere Unterbrechungen werden nachvollziehbar festgehalten.",
 			"Pausen dürfen nicht für taktische Besprechungen missbraucht werden",
-			"Das Orga-Team kann Pausen beenden oder verlängern",
+			"Vor der Fortsetzung bestätigen beide Captains, dass ihre Teams bereit sind. Es wird nicht überraschend oder gegen eine noch offene technische Meldung unpausiert.",
+			"Ist das Zeitbudget erschöpft, entscheidet die Orga über Fortsetzung, Verlängerung oder weitere Maßnahmen. Kein Team erzwingt eigenmächtig die Fortsetzung oder einen Forfeit.",
 		],
 	},
 	{
 		title: "Remake",
-		text: "Ein Remake kann beantragt werden, wenn ein Spieler innerhalb der ersten 3 Minuten disconnected und nicht rechtzeitig reconnecten kann.",
-		footer: "Der Remake muss vom Orga-Team genehmigt werden. Wiederholte oder selbst verschuldete technische Probleme begründen keinen automatischen Anspruch auf ein Remake.",
+		text: "Ein früher Neustart und ein bereits verbindlich begonnenes Spiel werden unterschieden. Jeder Neustart benötigt die ausdrückliche Freigabe der Orga; ein Disconnect allein begründet keinen automatischen Remake-Anspruch.",
+		list: [
+			"Als verbindlich begonnen (Game of Record) gilt das Spiel, sobald Spieler beider Teams einander sehen, ein Angriff oder eine Fähigkeit gegen Vasallen, Jungle-Monster, Gebäude oder Gegner eingesetzt wird, der gegnerische Jungle betreten oder dort Sicht beziehungsweise eine Fähigkeit platziert wird, oder die Spielzeit 02:00 erreicht. Der erste dieser Zeitpunkte zählt.",
+			"Vor diesem Zeitpunkt können früh gemeldete Auswahl-, Tausch- oder technische Startprobleme nach Prüfung durch die Orga einen Neustart rechtfertigen. Das ist kein Freibrief für nachträgliche Draft-Anpassungen.",
+			"Nach verbindlichem Spielbeginn werden Disconnects und technische Probleme zunächst über die Pausenregel behandelt. Ein Neustart bleibt eine begründete Orga-Ausnahme; Regelverstöße werden dadurch nicht automatisch hinfällig.",
+			"Bei einem genehmigten Neustart bleiben Website-Draft, Picks, Bans und Champion-Rollenzuordnung verbindlich. Bestehende Fearless-Sperren werden weder gelöscht noch durch den Neustart umgangen.",
+			"Bei einem Serverabbruch oder großflächigen Ausfällen informieren die Captains sofort die Orga und sichern verfügbare Nachweise. Nur die Orga entscheidet über Neustart, Neuansetzung oder Spielwertung; einzelne Verbindungsprobleme sind nicht automatisch ein Serverausfall.",
+		],
+		footer: "Wiederholte oder selbst verschuldete technische Probleme begründen keinen automatischen Anspruch auf einen Neustart. Weder die Teams noch die Remake-Funktion im Client ersetzen die Entscheidung der Orga.",
 	},
 	{
 		title: "Turnierformat",
@@ -168,13 +191,25 @@ const ruleSections: RuleSection[] = [
 	},
 	{
 		title: "Ergebnismeldung",
-		text: "Der Captain des Sieger-Teams meldet das Ergebnis unmittelbar nach Spielende im offiziellen Turnier-Channel im Discord.",
-		list: ["Screenshot des Endbildschirms beifügen", "Spielzeit im Format mm:ss angeben", "Ergebnis zeitnah melden", "Bei Streitfällen beide Screenshots bereithalten"],
+		text: "Der Captain des Siegerteams reicht die .rofl-Replay zeitnah nach Spielende über das Captain-Portal beim richtigen Match ein. Bei Bedarf kann auch der gegnerische Captain die Replay einreichen. Ein Discord-Ergebnis-Channel wird dafür nicht verwendet.",
+		list: [
+			"Die Replay wird im League-Client heruntergeladen und über „Replay hochladen“ dem richtigen Match und Spiel zugeordnet. Pro gespieltem Spiel wird eine passende Replay benötigt; keine Datei eines anderen Matches oder bereits gewerteten Spiels verwenden.",
+			"Beide Captains bewahren ihre Original-Replay bis zum Abschluss des Turniers und aller offenen Streitfälle auf.",
+			"Der Upload prüft unter anderem Teilnehmer, Champions, Seiten, Spielzeit und Ergebnis. Eine erfolgreiche technische Prüfung ersetzt nicht die Ergebnisbestätigung durch die Orga.",
+			"Bei fehlenden, abgelehnten oder nicht hochladbaren Replays wird die Orga sofort kontaktiert. Eine technische Warnung oder ein Uploadproblem ist nicht automatisch ein Regelverstoß oder eine Niederlage; bei Bedarf werden zusätzliche Nachweise angefordert.",
+			"Streitfälle werden unverzüglich mit konkreten Angaben zur Situation und möglichst Spielzeit, Screenshots oder Clips an die Orga gemeldet. Nicht eigenmächtig neu spielen oder ein anderes Ergebnis eintragen.",
+			"Forfeits trägt ausschließlich die Orga ein. Für ein ungespieltes Match wird keine Replay und keine erfundene Spielzeit verlangt.",
+		],
 	},
 	{
 		title: "Bracket und Seeding",
-		text: "Seeds und erste Paarungen werden nach der Teamzusammenstellung durch die Orga festgelegt und vor Turnierbeginn im Zeitplan veröffentlicht.",
-		footer: "Bis zur finalen Veröffentlichung begründet der Arbeitsstand keinen Anspruch auf eine bestimmte Paarung.",
+		text: "Die Orga veröffentlicht die anfängliche Setzliste beziehungsweise die Auslosung der ersten Paarungen vor dem Start der jeweiligen Phase. Spätere Paarungen und Platzierungen ergeben sich aus den Ergebnissen und dem veröffentlichten Turnierformat; eine erste Setzliste ist nicht automatisch die Playoff-Reihenfolge.",
+		list: [
+			"Bei Swiss werden die folgenden Runden nach den geltenden Swiss-Losregeln erstellt. Die Playoff-Seeds ergeben sich aus der Vorrunde und den dafür veröffentlichten Platzierungs- und Tiebreaker-Regeln.",
+			"Bei anderen Formaten gelten die auf der Turnierübersicht veröffentlichten Regeln zur Qualifikation und Setzung; ohne Vorrunde veröffentlicht die Orga die direkte Playoff-Setzliste.",
+			"Korrekturen aufgrund fehlerhafter Ergebnisse oder einer falschen Zuordnung werden durch die Orga mit nachvollziehbarer Begründung dokumentiert. Ergebnisse werden nicht ohne sachlichen Grund nachträglich umsortiert.",
+		],
+		footer: "Bis zur finalen Veröffentlichung begründet ein Arbeitsstand keinen Anspruch auf eine bestimmte Paarung. Streitfälle werden an die Orga gemeldet.",
 	},
 	{
 		title: "Streaming",
@@ -233,6 +268,7 @@ export function getDefaultRuleSections(settings: TournamentSettings) {
 	const displayedRuleSections = ruleSections
 		.filter((section) => !section.kinds || section.kinds.includes(kind))
 		.map((section) => (section.title.startsWith("Fearless:") && settings.fearless?.variant === "match" ? matchFearlessSection(settings) : section))
+		.map((section) => (section.title === "Lobby und Seitenwahl" ? { ...section, text: `${section.text} ${describeSideSelection(config)}` } : section))
 		.map((section) =>
 			section.title === "Turnierformat"
 				? {

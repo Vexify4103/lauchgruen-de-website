@@ -9,7 +9,7 @@ import { writeAuditLog } from "@/lib/tournament-audit";
 import { resetDraftState } from "@/lib/tournament-draft";
 import { writeTournamentEvent } from "@/lib/tournament-events";
 import { usesUltimateBravery } from "@/lib/tournament-kind";
-import { automaticBlueSide, canRecordAnotherGame, seriesScore, seriesWinnerSide, type SeriesGame } from "@/lib/tournament-series";
+import { automaticStageBlueSide, canRecordAnotherGame, seriesScore, seriesWinnerSide, type SeriesGame } from "@/lib/tournament-series";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { TOURNAMENT_OWNER_DISCORD_IDS, upsertMatch } from "@/lib/tournament-storage";
 import { afterMatchDecided, afterMatchReopened, resultChangeBlocked, swissLinkFor } from "@/lib/match-result";
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 			});
 			await afterMatchDecided({ matchId: match.id, winner: decided, swiss, settings });
 		} else {
-			const nextBlue = automaticBlueSide({ rule: settings.structure.sideSelection, games }) ?? match.blueSide;
+			const nextBlue = automaticStageBlueSide({ config: settings.structure, stage: match.stage, games }) ?? match.blueSide;
 			await upsertMatch(match.id, {
 				id: match.id,
 				teamAName: match.teamAName,

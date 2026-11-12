@@ -11,7 +11,7 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { enqueueDiscordJob } from "@/lib/discord-job-queue";
 import { buildMatchReadyDiscordOperations } from "@/lib/tournament-match-ready";
 import { usesFlexibleEngine, usesUltimateBravery } from "@/lib/tournament-kind";
-import { automaticBlueSide } from "@/lib/tournament-series";
+import { automaticStageBlueSide } from "@/lib/tournament-series";
 import { currentGameNumber, ensureTournamentCode, riotTournamentApi } from "@/lib/riot-tournament";
 
 export const runtime = "nodejs";
@@ -78,8 +78,8 @@ export async function POST(request: Request) {
 		drewPools = true;
 	}
 
-	// Coin flip and alternating sides are decided by the server when game 1 is released.
-	const releaseBlueSide = releaseFlow && match.games.length === 0 ? automaticBlueSide({ rule: settings.structure.sideSelection, games: [] }) : null;
+	// In Swiss the toss grants a captain the choice, not Blue Side. Staff record that choice separately.
+	const releaseBlueSide = releaseFlow && match.games.length === 0 ? automaticStageBlueSide({ config: settings.structure, stage: match.stage, games: [] }) : null;
 	const updated = notificationRetry
 		? { id: match.id, status: match.status }
 		: await upsertMatch(match.id, {

@@ -1,4 +1,4 @@
-import { winsNeeded, type SideSelectionRule } from "@/lib/tournament-structure";
+import { sideSelectionForStage, usesSwissCoinToss, winsNeeded, type SideSelectionRule, type StructureConfig } from "@/lib/tournament-structure";
 
 export type SeriesSide = "teamA" | "teamB";
 
@@ -61,6 +61,16 @@ export function automaticBlueSide(input: { rule: SideSelectionRule; games: Pick<
 		case "loser-picks":
 			return null;
 	}
+}
+
+/** A Swiss coin toss grants the choice to a captain; staff record Blue after that choice. */
+export function automaticStageBlueSide(input: {
+	config: Pick<StructureConfig, "dayOneFormat" | "sideSelection">;
+	stage?: string;
+	games: Pick<SeriesGame, "blueSide" | "winner">[];
+}) {
+	if (usesSwissCoinToss(input.config, input.stage) && input.games.length === 0) return null;
+	return automaticBlueSide({ rule: sideSelectionForStage(input.config, input.stage), games: input.games });
 }
 
 /** Which team picks the side for the next game, when the rule leaves it to a team. */

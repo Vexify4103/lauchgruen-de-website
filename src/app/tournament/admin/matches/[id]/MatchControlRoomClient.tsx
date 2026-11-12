@@ -533,6 +533,12 @@ export function MatchControlRoomClient({
 									</div>
 								</div>
 							) : null}
+							{match.sideSelectionRule === "higher-seed" && !match.sideSelectionTeamName ? (
+								<p role="alert" className="col-span-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
+									Seitenwahl offen: Teams oder eindeutige Playoff-Seeds fehlen noch. Bitte zuerst das Seeding prüfen. Kein Münzwurf: Das höher gesetzte Team
+									entscheidet über Blue oder Red Side.
+								</p>
+							) : null}
 							<label className="col-span-2 grid gap-1.5">
 								<span className="text-xs font-semibold text-[var(--muted)]">Blue Side</span>
 								<ThemedSelect
@@ -556,7 +562,7 @@ export function MatchControlRoomClient({
 								</span>
 							</label>
 						</div>
-						{match.sideSelectionTeamName ? null : (
+						{(match.sideSelectionRule ? match.sideSelectionRule === "coin-flip" : !match.sideSelectionTeamName) ? (
 							<div className="mt-3">
 								<CoinTossButton
 									teamALabel={match.teamALabel}
@@ -568,7 +574,7 @@ export function MatchControlRoomClient({
 									compact
 								/>
 							</div>
-						)}
+						) : null}
 						<details className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] p-3">
 							<summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">Admin-Notiz und Hinweise</summary>
 							<textarea

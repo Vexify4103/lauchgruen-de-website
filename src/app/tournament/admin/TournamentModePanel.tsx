@@ -29,6 +29,7 @@ import {
 	mainEventTeamCount,
 	reviewStructure,
 	winsNeeded,
+	usesSwissCoinToss,
 	type BestOf,
 	type DayOneFormat,
 	type PlayoffFormat,
@@ -439,13 +440,14 @@ export function TournamentModePanel({
 								</label>
 							))}
 							<label className="text-xs font-medium text-[var(--muted)]">
-								Seitenwahl
+								{usesSwissCoinToss(structure, "day-one") ? "Seitenwahl in den Playoffs" : "Seitenwahl"}
 								<ThemedSelect
 									value={structure.sideSelection}
 									onChange={(value) => updateStructure({ sideSelection: value as SideSelectionRule })}
-									ariaLabel="Seitenwahl"
+									ariaLabel={usesSwissCoinToss(structure, "day-one") ? "Seitenwahl in den Playoffs" : "Seitenwahl"}
 									options={SIDE_SELECTION_RULES.map((rule) => ({ value: rule, label: SIDE_SELECTION_LABELS[rule] }))}
 								/>
+								{usesSwissCoinToss(structure, "day-one") ? <span className="mt-1 block text-xs leading-5">In Swiss entscheidet vor jedem Match ein Münzwurf, welcher Captain die Seite wählen darf.</span> : null}
 							</label>
 							<p className="text-xs leading-5 text-[var(--muted)] sm:col-span-2">{describeTiebreakers(structure.tiebreakers)}.</p>
 						</FormatGroup>

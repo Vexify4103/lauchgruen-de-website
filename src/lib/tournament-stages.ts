@@ -11,7 +11,7 @@ import { seriesWinnerSide, sideChooser, type SeriesSide } from "@/lib/tournament
 import type { TournamentSettings } from "@/lib/tournament-settings";
 import { getStandingOverrides, type StandingOverrides } from "@/lib/tournament-standing-overrides";
 import type { StoredTournamentMatch } from "@/lib/tournament-storage";
-import { mainEventTeamCount, type DayOneFormat } from "@/lib/tournament-structure";
+import { mainEventTeamCount, sideSelectionForStage, type DayOneFormat } from "@/lib/tournament-structure";
 import { getSwissStageState, type SwissPairing, type SwissStageState } from "@/lib/tournament-swiss";
 import { computeUltimateBraverySwissSeeds } from "@/lib/ultimate-bravery-playoffs";
 import type { WheelMatchAssignment } from "@/lib/tournament-wheel";
@@ -49,9 +49,9 @@ type Stored = Record<string, StoredTournamentMatch>;
 
 const emptySeeds = (count: number) => Object.fromEntries(Array.from({ length: count }, (_, index) => [index + 1, null])) as Record<number, string | null>;
 
-function higherSeedSide(teamASeed?: number, teamBSeed?: number): SeriesSide {
-	if (teamASeed === undefined || teamBSeed === undefined) return "teamA";
-	return teamASeed <= teamBSeed ? "teamA" : "teamB";
+function higherSeedSide(teamASeed?: number, teamBSeed?: number): SeriesSide | null {
+	if (teamASeed === undefined || teamBSeed === undefined || teamASeed === teamBSeed) return null;
+	return teamASeed < teamBSeed ? "teamA" : "teamB";
 }
 
 function controlFields(
@@ -84,6 +84,7 @@ function controlFields(
 		games,
 		sideSelectionTeamName: chooser ? ((chooser === "teamA" ? input.teamAName : input.teamBName) ?? undefined) : undefined,
 		sideSelectionSeed: chooserSeed,
+		sideSelectionRule: input.rule,
 	};
 }
 
@@ -111,7 +112,7 @@ function bracketToControl(
 			teamAName: match.teamAName,
 			teamBName: match.teamBName,
 			bestOf: match.bestOf,
-			rule: settings.structure.sideSelection,
+			rule: sideSelectionForStage(settings.structure, match.stage),
 			teamASeed: match.teamASeed,
 			teamBSeed: match.teamBSeed,
 		}),
@@ -303,7 +304,7 @@ export async function buildFlexibleStages(input: {
 							teamAName: pairing.teamAName,
 							teamBName: pairing.teamBName,
 							bestOf: config.bestOf.dayOne,
-							rule: config.sideSelection,
+							rule: sideSelectionForStage(config, "day-one"),
 						}),
 						poolAssignment: assignment(pairing.id),
 					});
