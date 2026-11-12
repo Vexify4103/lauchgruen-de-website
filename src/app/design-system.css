@@ -310,6 +310,12 @@
 	.section-title.compact h2 {
 		font-size: clamp(30px, 4.4vw, 52px);
 	}
+	/* Keep hub titles aligned even when supporting copy grows or brackets use a wider canvas. */
+	.tournament-hub-page .page-section > .section-title {
+		align-items: start;
+		max-width: calc(var(--max) - 48px);
+		margin-inline: auto;
+	}
 
 	/* ---------- Tournament hero & navigation ---------- */
 

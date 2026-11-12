@@ -81,7 +81,7 @@ export function TournamentChrome({
 					/>
 				)}
 
-				<main id="main-content" tabIndex={-1} className={`relative z-10 outline-none ${focusedDraft ? "pt-9" : ""}`}>
+				<main id="main-content" tabIndex={-1} className={`relative z-10 outline-none ${hubRoute ? "tournament-hub-page" : ""} ${focusedDraft ? "pt-9" : ""}`}>
 					{hubRoute ? (
 						<>
 							<TournamentHero hero={hero} />
