@@ -41,9 +41,7 @@ async function loadControlState() {
 	const teams: TeamEntry[] = Object.entries(botDoc?.teams ?? {}).map(([key, team]) => ({ ...team, key }));
 	const tournamentRoleId = process.env.DISCORD_TOURNAMENT_ROLE_ID?.trim();
 	const captainRoleId = process.env.DISCORD_CAPTAINS_ROLE_ID?.trim() || process.env.CAPTAIN_ROLE_ID?.trim();
-	const cleanupDate = settings.structure.dayTwoStartAt
-		? new Date(new Date(settings.structure.dayTwoStartAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
-		: null;
+	const cleanupDate = settings.structure.dayTwoStartAt ? new Date(new Date(settings.structure.dayTwoStartAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() : null;
 	return { teams, members: guildResult.members, tournamentRoleId, captainRoleId, cleanupDate } as const;
 }
 
@@ -81,8 +79,8 @@ function buildOperations(state: Exclude<Awaited<ReturnType<typeof loadControlSta
 				if (!expected.has(discordId))
 					operations.push({ kind: "role", discordId, roleId: team.roleId, enabled: false, label: `${discordId}: veraltete Teamrolle ${team.name} entfernen` });
 		}
-		// Repair also sets staff access and the text category on every team channel.
-		if (force && (process.env.DISCORD_STAFF_ROLE_ID?.trim() || process.env.TEAM_TEXT_CATEGORY_ID)) {
+		// Existing team channels need the pin permission even without a configured staff role.
+		if (force) {
 			for (const team of state.teams) {
 				if (!team.textChannelId && !team.voiceChannelId) continue;
 				operations.push({
@@ -90,7 +88,7 @@ function buildOperations(state: Exclude<Awaited<ReturnType<typeof loadControlSta
 					teamKey: team.key,
 					textChannelId: team.textChannelId,
 					voiceChannelId: team.voiceChannelId,
-					label: `${team.name}: Channel-Zugriff für Staff prüfen`,
+					label: `${team.name}: Channel-Zugriff und Nachrichten anpinnen prüfen`,
 				});
 			}
 		}
@@ -166,7 +164,7 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "DISCORD_TOURNAMENT_ROLE_ID fehlt." }, { status: 400 });
 	const labels: Record<Action, string> = {
 		sync: "Roster-Rollen synchronisieren",
-		repair: "Alle Discord-Rollen reparieren",
+		repair: "Discord-Rollen und Channels reparieren",
 		"end-phase": "Aktive Turnierphase beenden",
 		"remove-access": "Turnierzugang entfernen",
 	};

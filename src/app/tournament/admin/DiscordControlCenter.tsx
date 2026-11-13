@@ -190,8 +190,8 @@ export function DiscordControlCenter() {
 					}
 				/>
 				<ActionRow
-					title="Alle Rollen reparieren"
-					text="Prüft jeden Spieler einzeln. Nach Bot-Ausfällen oder Handänderungen in Discord."
+					title="Rollen und Channels reparieren"
+					text="Prüft Spielerrollen und Channel-Zugriffe. Erlaubt Teams, Nachrichten im eigenen Textchannel anzupinnen."
 					count={status?.counts.repair}
 					action={
 						<button type="button" disabled={isPending} onClick={() => run("repair")} className={`text-[var(--text)] ${BUTTON}`}>
@@ -337,10 +337,7 @@ function JobRow({ job, busy, onRetry }: { job: Job; busy: boolean; onRetry: () =
 				</span>
 			</div>
 			<div className="h-1 overflow-hidden rounded-full bg-[var(--admin-step)]">
-				<div
-					className={`h-full rounded-full ${job.status === "failed" ? "bg-[var(--danger)]" : "bg-[var(--accent)]"}`}
-					style={{ width: `${progress}%` }}
-				/>
+				<div className={`h-full rounded-full ${job.status === "failed" ? "bg-[var(--danger)]" : "bg-[var(--accent)]"}`} style={{ width: `${progress}%` }} />
 			</div>
 			{job.current && running ? <div className="truncate text-xs text-[var(--muted)]">{job.current}</div> : null}
 			{job.status === "failed" ? (

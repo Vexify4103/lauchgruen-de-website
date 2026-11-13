@@ -9,6 +9,8 @@ const SEND_MESSAGES = 2048;
 const READ_MESSAGE_HISTORY = 65536;
 const CONNECT = 1048576;
 const SPEAK = 2097152;
+// Discord's dedicated pin permission is above the range of number bitwise operators.
+const PIN_MESSAGES = BigInt(1) << BigInt(51);
 const MAX_ATTEMPTS = 5;
 
 type TeamResources = {
@@ -42,7 +44,7 @@ function staffRoleId() {
 }
 
 function channelAllow(kind: "voice" | "text") {
-	return kind === "voice" ? VIEW_CHANNEL | CONNECT | SPEAK : VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY;
+	return kind === "voice" ? BigInt(VIEW_CHANNEL | CONNECT | SPEAK) : BigInt(VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY) | PIN_MESSAGES;
 }
 
 function textChannelName(name: string) {
@@ -197,25 +199,46 @@ export async function renameDiscordTeamResources(input: {
 }
 
 /**
- * Brings existing team channels up to date: staff access on both channels and the text channel in
- * the text category. Safe to repeat; Discord treats both calls as "set to this value".
+ * Repairs team text permissions, staff access and the text category without replacing
+ * unrelated permission bits. Resolve the current team role when the queued job executes.
  */
-export async function repairDiscordTeamChannels(input: { textChannelId?: string; voiceChannelId?: string }): Promise<OperationResult> {
+export async function repairDiscordTeamChannels(input: { teamKey: string; textChannelId?: string; voiceChannelId?: string }): Promise<OperationResult> {
 	try {
+		const team = await currentTeam(input.teamKey);
+		if (!team) return { ok: false, message: "Team wurde vor der Channel-Reparatur gelöscht." };
+		if ((input.textChannelId && input.textChannelId !== team.textChannelId) || (input.voiceChannelId && input.voiceChannelId !== team.voiceChannelId))
+			return { ok: false, message: "Teamchannels wurden inzwischen geändert. Bitte Reparatur erneut starten." };
+		if (team.roleId === guildId()) return { ok: false, message: "Die Teamrolle darf nicht @everyone sein." };
 		const staff = staffRoleId();
+		if (staff === guildId()) return { ok: false, message: "Die Staffrolle darf nicht @everyone sein." };
 		for (const [channelId, kind] of [
-			[input.textChannelId, "text"],
-			[input.voiceChannelId, "voice"],
+			[team.textChannelId, "text"],
+			[team.voiceChannelId, "voice"],
 		] as const) {
-			if (!channelId || !staff) continue;
-			await request(`/channels/${channelId}/permissions/${staff}`, {
-				method: "PUT",
-				body: JSON.stringify({ type: DISCORD_ROLE_TYPE, allow: String(channelAllow(kind)), deny: "0" }),
-			});
+			const roles = new Set([...(kind === "text" && team.roleId ? [team.roleId] : []), ...(staff ? [staff] : [])]);
+			if (!channelId || !roles.size) continue;
+			const channel = await request<{
+				guild_id: string;
+				type: number;
+				permission_overwrites: Array<{ id: string; type: number; allow: string; deny: string }>;
+			}>(`/channels/${channelId}`, { method: "GET" });
+			if (channel.guild_id !== guildId() || channel.type !== (kind === "text" ? DISCORD_TEXT_CHANNEL_TYPE : DISCORD_VOICE_CHANNEL_TYPE))
+				return { ok: false, message: "Gespeicherter Teamchannel gehört nicht zum erwarteten Server oder Channeltyp." };
+			for (const role of roles) {
+				const overwrite = channel.permission_overwrites.find((entry) => entry.id === role && entry.type === DISCORD_ROLE_TYPE);
+				const required = channelAllow(kind);
+				const allow = BigInt(overwrite?.allow ?? "0") | required;
+				const deny = BigInt(overwrite?.deny ?? "0") & ~required;
+				if (overwrite && allow === BigInt(overwrite.allow) && deny === BigInt(overwrite.deny)) continue;
+				await request(`/channels/${channelId}/permissions/${role}`, {
+					method: "PUT",
+					body: JSON.stringify({ type: DISCORD_ROLE_TYPE, allow: String(allow), deny: String(deny) }),
+				});
+			}
 		}
 		const textCategory = process.env.TEAM_TEXT_CATEGORY_ID;
-		if (input.textChannelId && textCategory) {
-			await request(`/channels/${input.textChannelId}`, { method: "PATCH", body: JSON.stringify({ parent_id: textCategory, lock_permissions: false }) });
+		if (team.textChannelId && textCategory) {
+			await request(`/channels/${team.textChannelId}`, { method: "PATCH", body: JSON.stringify({ parent_id: textCategory, lock_permissions: false }) });
 		}
 		return { ok: true };
 	} catch (error) {
