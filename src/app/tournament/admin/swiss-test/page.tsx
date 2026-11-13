@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { isLocalSwissSandbox } from "@/lib/swiss-pot-sandbox";
 import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { auth } from "@/lib/auth";
 import { getSwissStageState, listSwissTeams } from "@/lib/tournament-swiss";
@@ -9,6 +11,9 @@ import { TournamentLink as Link } from "../../TournamentLink";
 import { SwissDrawControl } from "../live/SwissDrawControl";
 
 export default async function SwissTestPage() {
+	const host = (await headers()).get("host");
+	const localPotTest = isLocalSwissSandbox(host);
+	const localPort = localPotTest ? new URL(`http://${host}`).port : "";
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 	if (!discordId || !TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)) redirect("/tournament/admin");
@@ -17,6 +22,19 @@ export default async function SwissTestPage() {
 
 	return (
 		<>
+			{localPotTest ? (
+				<section className="admin-panel mb-5">
+					<p className="panel-kicker">Neue lokale Probe</p>
+					<h2 className="mt-2 font-display text-2xl font-semibold">Team für Team aus dem Topf ziehen</h2>
+					<p className="my-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+						Acht erfundene Teams, sichtbare Slots und erklärte Rematch-Verschiebungen. Eigene lokale Mongo-Datenbank; diese bisherige Simulation und das echte Turnier
+						bleiben unberührt.
+					</p>
+					<a className="button primary" href={`http://localhost${localPort ? `:${localPort}` : ""}/swiss-draw-test`}>
+						Neue Topfziehung testen
+					</a>
+				</section>
+			) : null}
 			<section className="admin-panel">
 				<div className="admin-panel-head !mb-3">
 					<div>
@@ -58,7 +76,17 @@ export default async function SwissTestPage() {
 					</div>
 				</div>
 			) : null}
-			<SwissDrawControl initialState={state} configuredRounds={settings.structure.swissRounds} teams={teams.map((team) => team.name)} testTeams={teams} testMode />
+			<SwissDrawControl
+				initialState={state}
+				configuredRounds={settings.structure.swissRounds}
+				teams={teams.map((team) => team.name)}
+				testTeams={teams}
+				testMode
+				potTeams={teams}
+				teamDrawEnabled={
+					settings.structure.dayOneFormat === "swiss" && teams.length === 8 && settings.structure.advanceTeamCount === 8 && settings.structure.swissRounds === 4
+				}
+			/>
 		</>
 	);
 }

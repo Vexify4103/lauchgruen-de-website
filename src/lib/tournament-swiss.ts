@@ -9,6 +9,8 @@ import {
 	type SwissRuleRecord,
 } from "@/lib/tournament-swiss-rules";
 import { seriesWinnerSide } from "@/lib/tournament-series";
+import { advanceSwissPotDraw, type PotEvent, type PotPool } from "@/lib/swiss-pot-draw";
+import { swissStageToPotState } from "@/lib/swiss-live-pot";
 
 const COLLECTION = "tournament_swiss_stages";
 const AUDIT_COLLECTION = "tournament_swiss_audit";
@@ -29,7 +31,7 @@ export type SwissPairing = {
 	integrityNote?: string;
 };
 
-export type SwissRound = { round: number; pairings: SwissPairing[]; complete: boolean; drawnAt: string; drawnBy?: string };
+export type SwissRound = { round: number; pairings: SwissPairing[]; complete: boolean; drawnAt: string; drawnBy?: string; drawPools?: PotPool[] };
 export type SwissStageState = {
 	tournamentId: string;
 	rounds: SwissRound[];
@@ -38,9 +40,10 @@ export type SwissStageState = {
 	finalSeedNames?: Record<number, string>;
 	seedingMethod?: "results-and-average-win-duration";
 	seedingNote?: string;
+	drawEvents?: PotEvent[];
 };
 type SwissRoundDoc = SwissRound & { pendingPairings?: SwissPairing[] };
-type SwissStageDoc = Omit<SwissStageState, "rounds"> & { _id: string; rounds: SwissRoundDoc[] };
+type SwissStageDoc = Omit<SwissStageState, "rounds"> & { _id: string; rounds: SwissRoundDoc[]; scheduledMatchOutbox?: string[] };
 export type SwissTeam = { key: string; name: string };
 type BotStateDoc = { _id: string; teams?: Record<string, { name: string }> };
 type SwissMatchDoc = { _id: string; id: string; status: string; scoreA?: number; scoreB?: number };
@@ -48,7 +51,7 @@ type SwissMatchDoc = { _id: string; id: string; status: string; scoreA?: number;
 export type SwissAuditEntry = {
 	id: string;
 	tournamentId: string;
-	action: "round-created" | "pairing-revealed" | "result-set" | "round-repaired" | "history-corrected" | "round-reset" | "reset";
+	action: "round-created" | "team-drawn" | "pairing-revealed" | "result-set" | "round-repaired" | "history-corrected" | "round-reset" | "reset";
 	createdAt: string;
 	actor?: string;
 	round?: number;
@@ -163,6 +166,14 @@ export async function listSwissTeams(): Promise<SwissTeam[]> {
 export async function getSwissStageState(tournamentId: string): Promise<SwissStageState> {
 	const db = await getDb();
 	const doc = await db.collection<SwissStageDoc>(COLLECTION).findOne({ _id: tournamentId });
+	if (doc?.scheduledMatchOutbox?.length) {
+		// The round and this outbox are one atomic write; interrupted match creation is retryable.
+		for (const id of doc.scheduledMatchOutbox)
+			await db.collection<SwissMatchDoc>("tournament_matches").updateOne({ _id: id }, { $setOnInsert: { id, status: "Scheduled" } }, { upsert: true });
+		await db
+			.collection<SwissStageDoc>(COLLECTION)
+			.updateOne({ _id: tournamentId, updatedAt: doc.updatedAt }, { $pull: { scheduledMatchOutbox: { $in: doc.scheduledMatchOutbox } } });
+	}
 	return doc
 		? {
 				tournamentId: doc.tournamentId,
@@ -172,11 +183,13 @@ export async function getSwissStageState(tournamentId: string): Promise<SwissSta
 					complete: round.complete ?? true,
 					drawnAt: round.drawnAt,
 					drawnBy: round.drawnBy,
+					drawPools: round.drawPools,
 				})),
 				updatedAt: doc.updatedAt,
 				finalSeedNames: doc.finalSeedNames,
 				seedingMethod: doc.seedingMethod,
 				seedingNote: doc.seedingNote,
+				drawEvents: doc.drawEvents,
 				nextBracket: doc.rounds.at(-1)?.pendingPairings?.[0]
 					? doc.rounds.at(-1)!.pendingPairings![0].recordA === doc.rounds.at(-1)!.pendingPairings![0].recordB
 						? doc.rounds.at(-1)!.pendingPairings![0].recordA
@@ -189,6 +202,140 @@ export async function getSwissStageState(tournamentId: string): Promise<SwissSta
 async function getSwissStageDocument(tournamentId: string) {
 	const db = await getDb();
 	return db.collection<SwissStageDoc>(COLLECTION).findOne({ _id: tournamentId });
+}
+
+export class SwissDrawConflict extends Error {
+	readonly code = "draw-conflict";
+	constructor() {
+		super("Die Swiss-Auslosung wurde zwischenzeitlich verändert. Aktuellen Stand laden und erneut versuchen.");
+	}
+}
+
+/** Eight-team placement Swiss: one server-selected team per click; legacy rounds remain untouched. */
+export async function drawNextSwissTeam(input: {
+	tournamentId: string;
+	teams: SwissTeam[];
+	expectedUpdatedAt: string;
+	drawnBy?: string;
+	matchPrefix?: string;
+	persistMatches?: boolean;
+	syncMatchResults?: boolean;
+	bestOf?: number;
+	allowPlacementRematch?: boolean;
+	roundOneOrder?: string[];
+}) {
+	const db = await getDb();
+	await getSwissStageState(input.tournamentId);
+	const document = await getSwissStageDocument(input.tournamentId);
+	if ((document?.updatedAt ?? new Date(0).toISOString()) !== input.expectedUpdatedAt) throw new SwissDrawConflict();
+	if (input.teams.length !== 8 || new Set(input.teams.map((team) => team.key)).size !== 8) throw new Error("Die Topfziehung benötigt genau acht eindeutige Teams.");
+	const rounds = structuredClone(document?.rounds ?? []);
+	if (rounds.at(-1)?.pendingPairings?.length) throw new Error("Die begonnene alte Match-Ziehung muss zunächst abgeschlossen werden.");
+	const keys = new Set(input.teams.map((team) => team.key));
+	if (rounds.some((round) => round.pairings.some((pair) => !keys.has(pair.teamAKey) || !pair.teamBKey || !keys.has(pair.teamBKey))))
+		throw new Error("Die teilnehmenden Teams stimmen nicht mehr mit der Swiss-Historie überein.");
+	if (input.syncMatchResults) {
+		const ids = rounds.flatMap((round) => round.pairings.map((pair) => pair.id));
+		const matches = ids.length
+			? await db
+					.collection<SwissMatchDoc>("tournament_matches")
+					.find({ id: { $in: ids } })
+					.toArray()
+			: [];
+		const byId = new Map(matches.map((match) => [match.id, match]));
+		for (const round of rounds)
+			for (const pair of round.pairings) {
+				const match = byId.get(pair.id);
+				const side = seriesWinnerSide(match?.scoreA, match?.scoreB, input.bestOf ?? 1);
+				if (!side) continue;
+				const winner = side === "teamA" ? pair.teamAKey : pair.teamBKey!;
+				if (pair.winnerTeamKey && pair.winnerTeamKey !== winner && round.round !== rounds.at(-1)?.round)
+					throw new Error("Ein älteres Match-Ergebnis widerspricht der bereits gezogenen Swiss-Historie. Bitte zuerst klären.");
+				pair.winnerTeamKey = winner;
+			}
+	}
+	const before = swissStageToPotState(
+		{ tournamentId: input.tournamentId, rounds, updatedAt: input.expectedUpdatedAt, drawEvents: document?.drawEvents },
+		input.teams,
+		input.roundOneOrder
+	);
+	let next = advanceSwissPotDraw(before, { type: "draw" }, randomInt);
+	const active = next.rounds.at(-1)!;
+	const blocked = active.pools.filter((pool) => !pool.complete && pool.blockedRematches.length);
+	if (blocked.length && !input.allowPlacementRematch)
+		throw new SwissPlacementRematchError(
+			active.round,
+			blocked.map((pool) => ({
+				teamA: input.teams.find((team) => team.key === pool.teamKeys[0])!.name,
+				teamB: input.teams.find((team) => team.key === pool.teamKeys[1])!.name,
+				record: pool.record,
+			}))
+		);
+	for (const pool of blocked) next = advanceSwissPotDraw(next, { type: "approve-rematch", record: pool.record }, randomInt);
+	const now = new Date(Math.max(Date.now(), Date.parse(input.expectedUpdatedAt) + 1)).toISOString();
+	const prefix = input.matchPrefix ?? "swiss";
+	const nextRounds: SwissRoundDoc[] = next.rounds.map((round, index) => {
+		if (index < rounds.length - 1 || (index < rounds.length && rounds[index].complete)) return rounds[index];
+		const pairings: SwissPairing[] = round.pairings
+			.map((pair) => {
+				const poolIndex = round.pools.findIndex((pool) => pool.record === pair.recordA);
+				const pool = round.pools[poolIndex];
+				const slot = round.pools.slice(0, poolIndex).reduce((sum, entry) => sum + entry.slots.length / 2, 0) + pool.slots.indexOf(pair.teamAKey) + 1;
+				return {
+					...pair,
+					id: `${prefix}-r${round.round}-m${slot}`,
+					round: round.round,
+					slot,
+					teamAName: input.teams.find((team) => team.key === pair.teamAKey)!.name,
+					teamBName: input.teams.find((team) => team.key === pair.teamBKey)!.name,
+				};
+			})
+			.sort((a, b) => a.slot - b.slot);
+		return {
+			round: round.round,
+			pairings,
+			complete: round.complete,
+			drawPools: round.pools,
+			drawnAt: rounds[index]?.drawnAt ?? now,
+			drawnBy: rounds[index]?.drawnBy ?? input.drawnBy,
+		};
+	});
+	const oldIds = new Set(rounds.flatMap((round) => round.pairings.map((pair) => pair.id)));
+	const created = nextRounds.flatMap((round) => round.pairings.filter((pair) => !oldIds.has(pair.id)));
+	const outbox = input.persistMatches === false ? [] : created.map((pair) => pair.id);
+	if (outbox.length) {
+		// Match creation only inserts; a leftover document with a status or score would silently carry over into the new pairing.
+		const leftover = await db.collection<SwissMatchDoc>("tournament_matches").findOne({
+			_id: { $in: outbox },
+			$or: [{ status: { $nin: ["Scheduled", "Locked"] } }, { scoreA: { $exists: true } }, { scoreB: { $exists: true } }, { winner: { $exists: true } }],
+		});
+		if (leftover) throw new Error(`Für ${leftover._id} existiert noch ein begonnenes Match aus einer früheren Auslosung. Bitte zuerst in der Matchkontrolle klären.`);
+	}
+	const changes = { rounds: nextRounds, updatedAt: now, drawEvents: next.events, scheduledMatchOutbox: outbox };
+	if (document) {
+		const saved = await db
+			.collection<SwissStageDoc>(COLLECTION)
+			.updateOne({ _id: input.tournamentId, updatedAt: document.updatedAt, rounds: document.rounds }, { $set: changes });
+		if (saved.modifiedCount !== 1) throw new SwissDrawConflict();
+	} else {
+		try {
+			await db.collection<SwissStageDoc>(COLLECTION).insertOne({ _id: input.tournamentId, tournamentId: input.tournamentId, ...changes });
+		} catch (error) {
+			if ((error as { code?: number }).code === 11000) throw new SwissDrawConflict();
+			throw error;
+		}
+	}
+	const events = next.events.slice(before.events.length);
+	const drawn = events.find((event) => event.teamKey);
+	await writeSwissAudit({
+		tournamentId: input.tournamentId,
+		action: drawn ? "team-drawn" : "round-created",
+		actor: input.drawnBy,
+		round: nextRounds.at(-1)!.round,
+		detail: events.map((event) => event.message).join(" "),
+		metadata: { events, pairings: created, rematchApproved: blocked.length > 0 },
+	});
+	return { state: await getSwissStageState(input.tournamentId), drawn, pairings: created };
 }
 
 export async function drawNextSwissMatchup(input: {
@@ -446,8 +593,8 @@ export async function drawNextSwissMatchup(input: {
 			? approvedRematches.length
 				? `Runde ${nextRound} wurde innerhalb der Bilanzgruppen gepaart; ${approvedRematches.length} Rematch(es) wurden von der Turnierleitung freigegeben.`
 				: crossRecordPairs.length
-				? `Runde ${nextRound} wurde ohne Rematches gepaart; ${crossRecordPairs.length} bilanzübergreifende Paarung(en) wurden von der Turnierleitung freigegeben.`
-				: `Runde ${nextRound} wurde strikt innerhalb der Bilanzgruppen und ohne Rematches gepaart.`
+					? `Runde ${nextRound} wurde ohne Rematches gepaart; ${crossRecordPairs.length} bilanzübergreifende Paarung(en) wurden von der Turnierleitung freigegeben.`
+					: `Runde ${nextRound} wurde strikt innerhalb der Bilanzgruppen und ohne Rematches gepaart.`
 			: `Runde ${nextRound} wurde zufällig und ohne Rematches gepaart.`,
 		metadata: {
 			pairByRecord: Boolean(input.pairByRecord),
@@ -461,21 +608,37 @@ export async function drawNextSwissMatchup(input: {
 	return { state: await getSwissStageState(input.tournamentId), round: { ...round, pendingPairings: undefined }, pairing };
 }
 
+/**
+ * Results may only land while their round is still the latest one and the pairing still holds the same teams.
+ * Deliberately not the whole document: results of other matches in the same round must not conflict with each other.
+ */
+function latestPairingGuard(tournamentId: string, document: SwissStageDoc, roundIndex: number, pairing: SwissPairing) {
+	return {
+		_id: tournamentId,
+		rounds: { $size: document.rounds.length },
+		[`rounds.${roundIndex}.pairings`]: { $elemMatch: { id: pairing.id, teamAKey: pairing.teamAKey, teamBKey: pairing.teamBKey } },
+	};
+}
+
 export async function setSwissPairingWinner(tournamentId: string, pairingId: string, winnerTeamKey: string) {
 	const db = await getDb();
 	const document = await db.collection<SwissStageDoc>(COLLECTION).findOne({ _id: tournamentId });
 	const roundIndex = document?.rounds.findIndex((round) => round.pairings.some((entry) => entry.id === pairingId)) ?? -1;
 	const pairing = roundIndex >= 0 ? document?.rounds[roundIndex].pairings.find((entry) => entry.id === pairingId) : undefined;
 	if (!pairing || pairing.bye || !pairing.teamBKey) throw new Error("Diese Swiss-Paarung wurde nicht gefunden.");
+	// A team draw may already have synced this exact winner from the match document; confirming it again is not a change.
+	if (pairing.winnerTeamKey === winnerTeamKey) return getSwissStageState(tournamentId);
 	if (document && roundIndex < document.rounds.length - 1) throw new Error("Das Ergebnis kann nicht mehr geändert werden, weil die nächste Runde bereits ausgelost wurde.");
 	if (winnerTeamKey !== pairing.teamAKey && winnerTeamKey !== pairing.teamBKey) throw new Error("Der gewählte Sieger gehört nicht zu diesem Match.");
-	await db
+	const update = await db
 		.collection<SwissStageDoc>(COLLECTION)
 		.updateOne(
-			{ _id: tournamentId, "rounds.pairings.id": pairingId },
+			latestPairingGuard(tournamentId, document!, roundIndex, pairing),
 			{ $set: { "rounds.$[].pairings.$[pairing].winnerTeamKey": winnerTeamKey, updatedAt: new Date().toISOString() } },
 			{ arrayFilters: [{ "pairing.id": pairingId }] }
 		);
+	if (update.matchedCount !== 1)
+		throw new Error("Die Swiss-Runde wurde zwischenzeitlich neu ausgelost oder zurückgesetzt. Das Swiss-Ergebnis wurde nicht übernommen; bitte Stand neu laden und prüfen.");
 	await writeSwissAudit({
 		tournamentId,
 		action: "result-set",
@@ -494,29 +657,31 @@ export async function clearSwissPairingWinner(tournamentId: string, pairingId: s
 	const roundIndex = document?.rounds.findIndex((round) => round.pairings.some((entry) => entry.id === pairingId)) ?? -1;
 	if (roundIndex < 0) return;
 	if (document && roundIndex < document.rounds.length - 1) throw new Error("Das Ergebnis kann nicht mehr geändert werden, weil die nächste Runde bereits ausgelost wurde.");
-	await db
+	const update = await db
 		.collection<SwissStageDoc>(COLLECTION)
 		.updateOne(
-			{ _id: tournamentId, "rounds.pairings.id": pairingId },
+			latestPairingGuard(tournamentId, document!, roundIndex, document!.rounds[roundIndex].pairings.find((entry) => entry.id === pairingId)!),
 			{ $unset: { "rounds.$[].pairings.$[pairing].winnerTeamKey": "" }, $set: { updatedAt: new Date().toISOString() } },
 			{ arrayFilters: [{ "pairing.id": pairingId }] }
 		);
+	if (update.matchedCount !== 1)
+		throw new Error("Die Swiss-Runde wurde zwischenzeitlich neu ausgelost oder zurückgesetzt. Das Swiss-Ergebnis wurde nicht übernommen; bitte Stand neu laden und prüfen.");
 	await writeSwissAudit({ tournamentId, action: "result-set", pairingId, detail: `Sieger für ${pairingId} wurde entfernt.` });
 }
 
-export async function resetSwissStage(tournamentId: string, matchPrefix = "swiss") {
+export async function resetSwissStage(tournamentId: string, matchPrefix = "swiss", expectedUpdatedAt?: string) {
 	const db = await getDb();
 	const escapedPrefix = matchPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	await Promise.all([
-		db.collection<SwissStageDoc>(COLLECTION).deleteOne({ _id: tournamentId }),
-		db.collection<SwissMatchDoc>("tournament_matches").deleteMany({ id: new RegExp(`^${escapedPrefix}-r\\d+-(?:m\\d+|bye)$`) }),
-	]);
+	const removed = await db.collection<SwissStageDoc>(COLLECTION).deleteOne({ _id: tournamentId, ...(expectedUpdatedAt ? { updatedAt: expectedUpdatedAt } : {}) });
+	if (expectedUpdatedAt && removed.deletedCount !== 1) throw new SwissDrawConflict();
+	await db.collection<SwissMatchDoc>("tournament_matches").deleteMany({ id: new RegExp(`^${escapedPrefix}-r\\d+-(?:m\\d+|bye)$`) });
 	await writeSwissAudit({ tournamentId, action: "reset", detail: `Swiss Stage und Matches mit Präfix ${matchPrefix} zurückgesetzt.` });
 }
 
-export async function resetLatestSwissRound(tournamentId: string) {
+export async function resetLatestSwissRound(tournamentId: string, expectedUpdatedAt?: string) {
 	const db = await getDb();
 	const document = await db.collection<SwissStageDoc>(COLLECTION).findOne({ _id: tournamentId });
+	if (expectedUpdatedAt && document?.updatedAt !== expectedUpdatedAt) throw new SwissDrawConflict();
 	const latestRound = document?.rounds.at(-1);
 	if (!latestRound) throw new Error("Es gibt keine Swiss-Runde, die neu ausgelost werden kann.");
 
@@ -551,9 +716,17 @@ export async function resetLatestSwissRound(tournamentId: string) {
 
 	const now = new Date().toISOString();
 	const roundIndex = document!.rounds.length - 1;
-	const update = await db
-		.collection<SwissStageDoc>(COLLECTION)
-		.updateOne({ _id: tournamentId, [`rounds.${roundIndex}.round`]: latestRound.round }, { $pop: { rounds: 1 }, $set: { updatedAt: now } });
+	const update = await db.collection<SwissStageDoc>(COLLECTION).updateOne(
+		{ _id: tournamentId, updatedAt: document!.updatedAt, rounds: document!.rounds, [`rounds.${roundIndex}.round`]: latestRound.round },
+		{
+			$pop: { rounds: 1 },
+			$set: {
+				updatedAt: now,
+				drawEvents: (document!.drawEvents ?? []).filter((event) => event.round < latestRound.round),
+				scheduledMatchOutbox: (document!.scheduledMatchOutbox ?? []).filter((id) => !matchIds.includes(id)),
+			},
+		}
+	);
 	if (update.modifiedCount !== 1) throw new Error("Die Swiss-Runde wurde zwischenzeitlich verändert. Bitte lade die Seite neu.");
 	if (matchIds.length) await db.collection<SwissMatchDoc>("tournament_matches").deleteMany({ id: { $in: matchIds } });
 	await writeSwissAudit({

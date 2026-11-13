@@ -76,7 +76,8 @@ test("allows Discord to mention only the intended team role", { concurrency: fal
 			roleId: "role-a",
 			payload: { content: "<@&role-a>" },
 		});
-		assert.deepEqual(result, { ok: true });
+		// The mock answers 204 without a body, so there is no message ID to report back.
+		assert.deepEqual(result, { ok: true, messageId: undefined });
 		assert.equal(requests.length, 2);
 		assert.equal(requests[0].url, "https://discord.com/api/v10/guilds/guild-a/roles/role-a");
 		assert.deepEqual(JSON.parse(requests[0].init.body), { mentionable: true });

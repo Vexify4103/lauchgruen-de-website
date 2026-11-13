@@ -41,7 +41,8 @@ export default async function AdminLiveDashboardPage() {
 		config.dayOneFormat === "swiss" || config.dayOneFormat === "swiss-elimination"
 			? await Promise.all([getSwissStageState(settings.activeTournament.id), listSwissAudit(settings.activeTournament.id, 12)])
 			: null;
-	const swissTeamNames = ctx.teams.filter((team) => team.group !== PLAY_IN_GROUP).map((team) => team.name);
+	const swissTeams = ctx.teams.filter((team) => team.group !== PLAY_IN_GROUP && team.storageKey);
+	const swissTeamNames = swissTeams.map((team) => team.name);
 	const stages = ctx.stages;
 	const playInPanel =
 		stages && config.playInTeamCount > 0
@@ -167,7 +168,17 @@ export default async function AdminLiveDashboardPage() {
 				</Panel>
 			</div>
 
-			{swissData ? <SwissDrawControl initialState={swissData[0]} configuredRounds={config.swissRounds} teams={swissTeamNames} initialAudit={swissData[1]} /> : null}
+			{swissData ? (
+				<SwissDrawControl
+					initialState={swissData[0]}
+					configuredRounds={config.swissRounds}
+					teams={swissTeamNames}
+					initialAudit={swissData[1]}
+					potTeams={swissTeams.map((team) => ({ key: team.storageKey!, name: team.name }))}
+					teamDrawEnabled={config.dayOneFormat === "swiss" && swissTeams.length === 8 && config.advanceTeamCount === 8 && config.swissRounds === 4}
+					seededOrder={config.swissRoundOneSeeding === "seeded" ? [...swissTeams].sort((a, b) => a.seed - b.seed).map((team) => team.storageKey!) : undefined}
+				/>
+			) : null}
 		</div>
 	);
 }
@@ -262,7 +273,9 @@ function MatchRow({ match, detail }: { match: ControlMatch; detail: string | nul
 					live ? "bg-[color-mix(in_srgb,var(--live)_6%,transparent)]" : ""
 				}`}
 			>
-				<span className={`inline-flex items-center gap-2 text-xs font-medium ${live ? "text-[var(--live)]" : match.status === "Pending" ? "text-[var(--text)]" : "text-[var(--muted)]"}`}>
+				<span
+					className={`inline-flex items-center gap-2 text-xs font-medium ${live ? "text-[var(--live)]" : match.status === "Pending" ? "text-[var(--text)]" : "text-[var(--muted)]"}`}
+				>
 					{live ? <i aria-hidden className="size-1.5 rounded-full bg-[var(--live)]" /> : null}
 					{STATUS_LABEL[match.status] ?? match.status}
 				</span>

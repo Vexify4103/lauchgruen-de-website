@@ -3,6 +3,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import {
 	drawNextSwissMatchup,
+	drawNextSwissTeam,
+	SwissDrawConflict,
 	getSwissStageState,
 	listSwissAudit,
 	listSwissTeams,
@@ -44,6 +46,7 @@ const actionSchema = z.object({
 	winnerTeamKey: z.string().optional(),
 	allowCrossRecord: z.boolean().optional(),
 	allowRematch: z.boolean().optional(),
+	expectedUpdatedAt: z.string().datetime().optional(),
 });
 export async function GET(request: Request) {
 	const searchParams = new URL(request.url).searchParams;
@@ -81,8 +84,7 @@ export async function POST(request: Request) {
 	if (!parsed.success) return NextResponse.json({ message: "Ungültige Swiss-Aktion." }, { status: 400 });
 	const settings = await getTournamentSettings();
 	const test = parsed.data.test === true;
-	if (!test && !isSwissFormat(settings.structure.dayOneFormat))
-		return NextResponse.json({ message: "Swiss ist aktuell nicht als Tag-1-Format ausgewählt." }, { status: 409 });
+	if (!test && !isSwissFormat(settings.structure.dayOneFormat)) return NextResponse.json({ message: "Swiss ist aktuell nicht als Tag-1-Format ausgewählt." }, { status: 409 });
 	const tournamentId = test ? SWISS_TEST_ID : settings.activeTournament.id;
 	const matchPrefix = test ? SWISS_TEST_ID : "swiss";
 	const testTeams = test ? buildSwissTestTeams(settings.structure.teamCount, await listSwissTeams()) : undefined;
@@ -98,7 +100,13 @@ export async function POST(request: Request) {
 
 	if (parsed.data.action === "reset") {
 		if (parsed.data.confirmation !== "SWISS ZURÜCKSETZEN") return NextResponse.json({ message: "Bestätigung stimmt nicht überein." }, { status: 400 });
-		await resetSwissStage(tournamentId, matchPrefix);
+		try {
+			await resetSwissStage(tournamentId, matchPrefix, parsed.data.expectedUpdatedAt);
+		} catch (error) {
+			if (error instanceof SwissDrawConflict)
+				return NextResponse.json({ code: error.code, message: error.message, state: await getSwissStageState(tournamentId) }, { status: 409 });
+			throw error;
+		}
 		if (!test)
 			await writeAuditLog({
 				action: "swiss.reset",
@@ -114,7 +122,7 @@ export async function POST(request: Request) {
 	if (parsed.data.action === "redraw") {
 		if (parsed.data.confirmation !== "RUNDE NEU AUSLOSEN") return NextResponse.json({ message: "Bestätigung stimmt nicht überein." }, { status: 400 });
 		try {
-			const state = await resetLatestSwissRound(tournamentId);
+			const state = await resetLatestSwissRound(tournamentId, parsed.data.expectedUpdatedAt);
 			if (!test)
 				await writeAuditLog({
 					action: "swiss.round_reset",
@@ -147,6 +155,40 @@ export async function POST(request: Request) {
 		return NextResponse.json({ message: "Runde 1 wird nach Setzliste gepaart. Veröffentliche zuerst die Setzliste im Roster-Builder." }, { status: 409 });
 	}
 	try {
+		const current = await getSwissStageState(tournamentId);
+		const teamDraw =
+			config.dayOneFormat === "swiss" &&
+			mainEventTeamCount(config) === 8 &&
+			(testTeams ?? participants!.teams).length === 8 &&
+			config.advanceTeamCount === 8 &&
+			config.swissRounds === 4 &&
+			!(current.rounds.at(-1) && !current.rounds.at(-1)!.complete && !current.rounds.at(-1)!.drawPools);
+		if (teamDraw) {
+			if (!parsed.data.expectedUpdatedAt) return NextResponse.json({ message: "Bitte lade die Auslosung neu, bevor du ein Team ziehst.", state: current }, { status: 409 });
+			const result = await drawNextSwissTeam({
+				tournamentId,
+				teams: testTeams ?? participants!.teams,
+				expectedUpdatedAt: parsed.data.expectedUpdatedAt,
+				drawnBy: session.user.discordHandle ?? discordId,
+				matchPrefix,
+				persistMatches: !test,
+				syncMatchResults: !test,
+				bestOf: config.bestOf.dayOne,
+				allowPlacementRematch: parsed.data.allowRematch === true,
+				roundOneOrder: participants && config.swissRoundOneSeeding === "seeded" ? participants.seededOrder : undefined,
+			});
+			if (!test)
+				await writeAuditLog({
+					action: "swiss.team_drawn",
+					targetType: "stage",
+					targetId: tournamentId,
+					summary: result.drawn?.message ?? "Bekannte Swiss-Paarungen übernommen.",
+					actorDiscordId: discordId,
+					actorLabel: session.user.discordHandle ?? discordId,
+					metadata: { drawn: result.drawn, pairings: result.pairings, rematchApproved: parsed.data.allowRematch === true },
+				});
+			return NextResponse.json({ ok: true, ...result });
+		}
 		const result = await drawNextSwissMatchup({
 			tournamentId,
 			maximumRounds: config.swissRounds,
@@ -181,6 +223,8 @@ export async function POST(request: Request) {
 			});
 		return NextResponse.json({ ok: true, ...result });
 	} catch (error) {
+		if (error instanceof SwissDrawConflict)
+			return NextResponse.json({ code: error.code, message: error.message, state: await getSwissStageState(tournamentId) }, { status: 409 });
 		if (error instanceof SwissCrossRecordError) {
 			return NextResponse.json({ code: error.code, message: error.message, round: error.round, crossRecordPairs: error.crossRecordPairs }, { status: 409 });
 		}

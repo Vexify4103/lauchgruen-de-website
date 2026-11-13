@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { SwissAuditEntry, SwissCrossRecordPair, SwissPairing, SwissRematchPair, SwissStageState, SwissTeam } from "@/lib/tournament-swiss";
+import { LiveSwissPotControl } from "./LiveSwissPotControl";
 
 type Props = {
 	initialState: SwissStageState;
@@ -11,9 +12,12 @@ type Props = {
 	testTeams?: SwissTeam[];
 	testMode?: boolean;
 	initialAudit?: SwissAuditEntry[];
+	potTeams?: SwissTeam[];
+	teamDrawEnabled?: boolean;
+	seededOrder?: string[];
 };
 
-export function SwissDrawControl({ initialState, configuredRounds, teams, testTeams = [], testMode = false, initialAudit = [] }: Props) {
+export function SwissDrawControl({ initialState, configuredRounds, teams, testTeams = [], testMode = false, initialAudit = [], potTeams, teamDrawEnabled, seededOrder }: Props) {
 	const [state, setState] = useState(initialState);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
@@ -165,6 +169,9 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 		})();
 	}
 
+	if (teamDrawEnabled && potTeams?.length === 8 && (!lastRound || lastRound.complete || lastRound.drawPools))
+		return <LiveSwissPotControl initialState={state} teams={potTeams} testMode={testMode} seededOrder={seededOrder} onReset={setState} />;
+
 	return (
 		<section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--admin-step)]">
 			<header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] px-4 py-3">
@@ -231,9 +238,7 @@ export function SwissDrawControl({ initialState, configuredRounds, teams, testTe
 			) : null}
 			{!testMode && audit.length ? (
 				<details className="mx-4 mb-4 overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)]">
-					<summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-[var(--muted)]">
-						Auslosungsprotokoll · {audit.length} Einträge
-					</summary>
+					<summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-[var(--muted)]">Auslosungsprotokoll · {audit.length} Einträge</summary>
 					<div className="max-h-64 overflow-y-auto border-t border-[var(--line)] p-3">
 						{audit.map((entry) => (
 							<div key={entry.id} className="border-b border-[var(--line)] px-2 py-2.5 last:border-b-0">
@@ -365,7 +370,9 @@ function SwissTestBracket({
 										</div>
 									))
 								) : (
-									<div className="rounded-xl border border-dashed border-[var(--line)] p-5 text-center text-xs font-medium text-[var(--muted)]">Noch nicht ausgelost</div>
+									<div className="rounded-xl border border-dashed border-[var(--line)] p-5 text-center text-xs font-medium text-[var(--muted)]">
+										Noch nicht ausgelost
+									</div>
 								)}
 							</div>
 						</section>
@@ -461,9 +468,7 @@ function RoundSummary({ state, teamCount }: { state: SwissStageState; teamCount:
 					<div key={round.round} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
 						<div className="flex items-center justify-between">
 							<strong className="text-sm text-[var(--text)]">Runde {round.round}</strong>
-							<span className="text-xs font-semibold text-[var(--muted)]">
-								{round.complete ? "Vollständig" : `${round.pairings.length} enthüllt`}
-							</span>
+							<span className="text-xs font-semibold text-[var(--muted)]">{round.complete ? "Vollständig" : `${round.pairings.length} enthüllt`}</span>
 						</div>
 						<div className="mt-3 grid gap-1.5">
 							{round.pairings.map((pairing) => (
@@ -495,9 +500,7 @@ function Roulette({ pairing, drawing, revealed }: { pairing: [string, string]; d
 				<span className="text-xs font-semibold text-[var(--muted)]">VS</span>
 				<strong className="truncate text-xl text-[var(--text)] sm:text-3xl">{pairing[1]}</strong>
 			</div>
-			<div className="relative mt-3 text-center text-xs font-semibold text-[var(--muted)]">
-				{drawing ? "Teams werden gemischt" : "Paarung enthüllt"}
-			</div>
+			<div className="relative mt-3 text-center text-xs font-semibold text-[var(--muted)]">{drawing ? "Teams werden gemischt" : "Paarung enthüllt"}</div>
 		</div>
 	);
 }

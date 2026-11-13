@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./design-system.css";
 @import "./rules.css";
+@import "./draw-reel.css";
 @import "./admin-system.css";
 @import "./site-pages.css";
 @import "./account.css";
