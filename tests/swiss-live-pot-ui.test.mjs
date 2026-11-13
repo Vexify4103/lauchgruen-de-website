@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createElement } from "react";
+import { createElement, Fragment } from "react";
 import ts from "typescript";
 import * as draw from "../src/lib/swiss-pot-draw.ts";
 import * as adapter from "../src/lib/swiss-live-pot.ts";
@@ -34,6 +34,7 @@ function render(pot, { reveal = null, busy = false, testMode = false, seededOrde
 	const compiled = { exports: {} };
 	const mocks = {
 		react: {
+			Fragment,
 			useEffect() {},
 			useEffectEvent: (callback) => callback,
 			useRef: (value) => ({ current: value }),
@@ -58,6 +59,22 @@ test("live control starts with eight empty slots and a one-team draw button", ()
 	assert.match(html, /R1 · 0-0 · Slot A ziehen/);
 	assert.equal((html.match(/data-draw-slot=/g) ?? []).length, 8);
 	assert.equal((html.match(/Noch nicht gezogen/g) ?? []).length, 8);
+});
+
+test("each matchup has a visible vs separator between its paired slots", () => {
+	const html = render(draw.createSwissPotState());
+	assert.equal((html.match(/>vs<\/span>/g) ?? []).length, 4);
+	for (const [left, right] of [
+		["A", "E"],
+		["B", "F"],
+		["C", "G"],
+		["D", "H"],
+	]) {
+		assert.match(html, new RegExp(`aria-label="Slot ${left} gegen Slot ${right}"`));
+		const row = html.slice(html.indexOf(`aria-label="Slot ${left} gegen Slot ${right}"`));
+		assert.ok(row.indexOf(`data-draw-slot="${left}"`) < row.indexOf(">vs</span>"));
+		assert.ok(row.indexOf(">vs</span>") < row.indexOf(`data-draw-slot="${right}"`));
+	}
 });
 
 test("a saved single draw survives rendering without revealing future teams or creating match links", () => {

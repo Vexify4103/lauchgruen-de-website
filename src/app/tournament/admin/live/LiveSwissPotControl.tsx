@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { Fragment, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwissTeamDrawReel, type TeamDrawReveal } from "@/components/SwissTeamDrawReel";
@@ -187,22 +187,33 @@ export function LiveSwissPotControl({
 									</div>
 									<div className="grid gap-2">
 										{Array.from({ length: pool.slots.length / 2 }, (_, row) => (
-											<div key={row} className="grid grid-cols-2 gap-2">
+											<div
+												key={row}
+												role="group"
+												aria-label={`Slot ${slotLetter(row)} gegen Slot ${slotLetter(row + pool.slots.length / 2)}`}
+												className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"
+											>
 												{[row, row + pool.slots.length / 2].map((slot) => {
 													const active = reveal?.round === board.round && reveal.record === pool.record && reveal.slot === slot;
 													return (
-														<div
-															key={slot}
-															data-draw-slot={slotLetter(slot)}
-															className={`swiss-draw-slot min-w-0 rounded-lg border border-[var(--line)] p-2${active ? " is-drawing" : ""}`}
-														>
-															<span className="mb-1 block font-mono text-xs text-[var(--muted)]">{slotLetter(slot)}</span>
-															{active ? (
-																<SwissTeamDrawReel draw={reveal!} onComplete={finishReveal} />
-															) : (
-																<strong className="block break-words text-sm">{name(pool.slots[slot])}</strong>
-															)}
-														</div>
+														<Fragment key={slot}>
+															{slot !== row ? (
+																<span aria-hidden="true" className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+																	vs
+																</span>
+															) : null}
+															<div
+																data-draw-slot={slotLetter(slot)}
+																className={`swiss-draw-slot min-w-0 rounded-lg border border-[var(--line)] p-2${active ? " is-drawing" : ""}`}
+															>
+																<span className="mb-1 block font-mono text-xs text-[var(--muted)]">{slotLetter(slot)}</span>
+																{active ? (
+																	<SwissTeamDrawReel draw={reveal!} onComplete={finishReveal} />
+																) : (
+																	<strong className="block break-words text-sm">{name(pool.slots[slot])}</strong>
+																)}
+															</div>
+														</Fragment>
 													);
 												})}
 											</div>
