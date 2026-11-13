@@ -53,3 +53,9 @@ test("setup copy explains the OBS sources without promotional slogans", () => {
 	assert.match(html, /Wähle dein Team und füge den Link/);
 	assert.doesNotMatch(html, /Für die große Bühne|Euer Turnier\.|Deine Szene\.|Die Draft-Bühne|Dein Match\. Auf einen Blick\./);
 });
+
+test("the compact team overlay is offered on the same setup page", () => {
+	const html = render("gank-mich-doch");
+	assert.ok(html.includes("Team-Overlay (kompakt)"));
+	assert.ok(html.includes("/obs/tournament?team=gank-mich-doch"));
+});

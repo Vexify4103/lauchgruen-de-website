@@ -5,7 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { resolveBroadcastTeam, type BroadcastSnapshot, type BroadcastScene } from "@/lib/tournament-broadcast";
 
-const scenes: { scene: BroadcastScene; title: string; description: string; who: string }[] = [
+/** The compact team overlay predates the broadcast scenes and lives at /obs/tournament. */
+type SetupSource = BroadcastScene | "team-overlay";
+
+const scenes: { scene: SetupSource; title: string; description: string; who: string }[] = [
 	{
 		scene: "swiss-draw",
 		title: "Swiss-Auslosung",
@@ -36,6 +39,12 @@ const scenes: { scene: BroadcastScene; title: string; description: string; who: 
 		description: "Bestätigte Picks und Bans des ausgewählten Matches. Nicht bestätigte Auswahlen bleiben verborgen.",
 		who: "Host & Watchparty",
 	},
+	{
+		scene: "team-overlay",
+		title: "Team-Overlay (kompakt)",
+		description: "Das bisherige kleine Overlay deines Teams. Nur mit ausgewähltem Team, ohne Demodaten.",
+		who: "Spieler-POV",
+	},
 ];
 
 export function BroadcastSetup({ initialTeam }: { initialTeam: string }) {
@@ -63,7 +72,8 @@ export function BroadcastSetup({ initialTeam }: { initialTeam: string }) {
 			window.clearTimeout(timer);
 		};
 	}, []);
-	function url(scene: BroadcastScene) {
+	function url(scene: SetupSource) {
+		if (scene === "team-overlay") return `${origin}/obs/tournament?team=${encodeURIComponent(publicTeamId)}`;
 		const query = new URLSearchParams();
 		if (scene === "match-bar" && position === "bottom") query.set("position", "bottom");
 		if (demo) query.set("demo", "1");
@@ -73,7 +83,7 @@ export function BroadcastSetup({ initialTeam }: { initialTeam: string }) {
 		}
 		return `${origin}/obs/${scene}${query.size ? `?${query}` : ""}`;
 	}
-	async function copy(scene: BroadcastScene) {
+	async function copy(scene: SetupSource) {
 		const value = url(scene);
 		try {
 			await navigator.clipboard.writeText(value);
@@ -158,7 +168,11 @@ export function BroadcastSetup({ initialTeam }: { initialTeam: string }) {
 							<div>
 								<button
 									type="button"
-									disabled={!origin || (!demo && Boolean(team) && !selectedTeam && entry.scene !== "swiss-draw" && entry.scene !== "tournament-board")}
+									disabled={
+										!origin ||
+										(entry.scene === "team-overlay" && (demo || !publicTeamId)) ||
+										(!demo && Boolean(team) && !selectedTeam && entry.scene !== "swiss-draw" && entry.scene !== "tournament-board")
+									}
 									onClick={() => void copy(entry.scene)}
 								>
 									{copied === entry.scene ? "Kopiert" : "OBS-URL kopieren"}
