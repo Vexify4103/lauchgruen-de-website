@@ -27,6 +27,9 @@ export function CopyOverlayButton({ teamId }: { teamId: string }) {
 			>
 				{copied ? "Kopiert" : "OBS-Overlay"}
 			</button>
+			<a href={`/obs/broadcast?team=${encodeURIComponent(teamId)}`} target="_blank" rel="noreferrer" className="button ghost small">
+				Broadcast-Szenen
+			</a>
 			{fallbackUrl ? (
 				<div role="dialog" aria-modal="true" aria-labelledby="overlay-url-title" className="fixed inset-0 z-[100] grid place-items-center px-5">
 					<button type="button" aria-label="Dialog schließen" onClick={() => setFallbackUrl("")} className="absolute inset-0 bg-black/70 backdrop-blur-md" />

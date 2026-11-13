@@ -89,6 +89,11 @@ Independent review handoff: [Claude verification prompt](docs/claude-swiss-draw-
 
 ## Community OBS Overlay
 
+Tournament hosts and participating streamers can configure five dedicated broadcast
+sources at `/obs/broadcast`: Swiss draw, tournament board, match bar, waiting screen
+and spectator champ select. See [the broadcast guide](docs/tournament-broadcast.md)
+for 1920 x 1080 setup, team-following links, safe demo mode and local simulator mirroring.
+
 The public builder at `https://lauchgruen.de/overlay` uses dedicated API
 credentials so its traffic cannot consume the tournament API budget:
 

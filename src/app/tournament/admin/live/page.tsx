@@ -96,6 +96,9 @@ export default async function AdminLiveDashboardPage() {
 				<Figure value={finished.length} label="beendet" />
 				<Figure value={tasks.length} label={tasks.length === 1 ? "Aufgabe" : "Aufgaben"} tone={tasks.length ? "amber" : undefined} />
 				<div className="ml-auto flex flex-wrap gap-2">
+					<a href="/obs/broadcast" target="_blank" rel="noreferrer" className="button ghost small">
+						OBS-Broadcast-Szenen ↗
+					</a>
 					<StateBadge active={settings.tournamentLive} label={settings.tournamentLive ? "Turnier öffentlich live" : "Turnier in Vorbereitung"} />
 					<StateBadge active={settings.draftEnabled} label={settings.draftEnabled ? "Matchzugriff aktiv" : "Matchzugriff pausiert"} />
 				</div>
