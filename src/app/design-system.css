@@ -777,6 +777,13 @@
 		font-size: 13px;
 		overflow-wrap: anywhere;
 	}
+	.roster-card li[data-substitute] {
+		padding-block: 8px;
+		border-top-style: dashed;
+	}
+	.roster-card li:not([data-substitute]) + li[data-substitute] {
+		margin-top: 8px;
+	}
 	.roster-card li small {
 		flex: 0 0 auto;
 		color: var(--muted);
