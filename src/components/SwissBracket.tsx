@@ -8,7 +8,7 @@ import { generateTeamTag } from "@/lib/team-tag";
 type StageConfig = TournamentSettings["structure"];
 type Record2 = { wins: number; losses: number };
 type Bucket =
-	| { kind: "matches"; key: string; record: Record2 | null; pairings: SwissPairing[]; open: number }
+	| { kind: "matches"; key: string; record: Record2 | null; pairings: SwissPairing[]; open: number; note?: string }
 	| { kind: "result"; key: string; record: Record2; teams: string[]; tone: "advance" | "out" };
 
 const NO_ENTRIES: Record<string, string> = {};
@@ -28,6 +28,12 @@ function expectedTeams(teamCount: number, played: number, wins: number) {
 }
 
 /** The 8-team, 4-round placement Swiss ends 2–0 and 0–2 after round three. */
+/** In the 8-team placement Swiss these matches settle two playoff seeds each. */
+const PLACEMENT_DECIDERS: Record<number, Record<string, string>> = {
+	3: { "2-0": "Seed #1 / #2", "0-2": "Seed #7 / #8" },
+	4: { "2-1": "Seed #3 / #4", "1-2": "Seed #5 / #6" },
+};
+
 const PLACEMENT_MATCHES: Record<number, Record<string, number>> = {
 	1: { "0-0": 4 },
 	2: { "1-0": 2, "0-1": 2 },
@@ -209,7 +215,10 @@ function BucketBox({
 	}
 	return (
 		<div className="overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--panel-solid)]">
-			<div className="bg-[var(--bg-soft)] px-2 py-1 text-center font-mono text-xs text-[var(--muted)]">{bucket.record ? recordLabel(bucket.record) : bucket.key}</div>
+			<div className="bg-[var(--bg-soft)] px-2 py-1 text-center font-mono text-xs text-[var(--muted)]">
+				{bucket.record ? recordLabel(bucket.record) : bucket.key}
+				{bucket.note ? <span className="block font-sans text-[11px] font-medium text-[var(--accent)]">Entscheidet {bucket.note}</span> : null}
+			</div>
 			<ul>
 				{bucket.pairings.map((pairing) => {
 					const involved = selected === pairing.teamAName || selected === pairing.teamBName;
@@ -377,6 +386,7 @@ function buildColumns(state: SwissStageState, config: StageConfig, need: number,
 			bucket.open = Math.max(0, planned - bucket.pairings.length);
 			buckets.set(key, bucket);
 		}
+		if (placement) for (const [key, note] of Object.entries(PLACEMENT_DECIDERS[round] ?? {})) if (buckets.has(key)) buckets.get(key)!.note = note;
 		const ordered = [...buckets.values()].sort((a, b) => (b.record?.wins ?? -1) - (a.record?.wins ?? -1) || (a.record?.losses ?? 0) - (b.record?.losses ?? 0));
 		const done = resultBuckets(round - 1);
 		const advanced = done.filter((bucket) => bucket.kind === "result" && bucket.tone === "advance");
@@ -388,11 +398,13 @@ function buildColumns(state: SwissStageState, config: StageConfig, need: number,
 	return columns;
 }
 
-/** Seeds of the 8-team placement Swiss once rounds three and four are complete. */
-function placementSeeds(state: SwissStageState): Record<number, string> | undefined {
+/**
+ * Seeds of the 8-team placement Swiss. Each decider fills its two seeds as soon as it has a winner,
+ * so #1/#2 and #7/#8 show after round three while #3–#6 are still being played.
+ */
+export function placementSeeds(state: SwissStageState): Record<number, string> | undefined {
 	const third = state.rounds.find((round) => round.round === 3);
 	const fourth = state.rounds.find((round) => round.round === 4);
-	if (!third?.complete || !fourth?.complete) return undefined;
 	const { before } = recordsBeforeRounds(state);
 	const assignments = [
 		{ round: third, record: "2-0", winnerSeed: 1, loserSeed: 2 },
@@ -402,14 +414,15 @@ function placementSeeds(state: SwissStageState): Record<number, string> | undefi
 	];
 	const seeds: Record<number, string> = {};
 	for (const assignment of assignments) {
+		if (!assignment.round) continue;
 		const records = before.get(assignment.round.round);
 		const pairing = assignment.round.pairings.find((entry) => {
 			const record = records?.get(entry.teamAKey);
 			return record && `${record.wins}-${record.losses}` === assignment.record;
 		});
-		if (!pairing?.teamBName || !pairing.winnerTeamKey) return undefined;
+		if (!pairing?.teamBName || !pairing.winnerTeamKey) continue;
 		seeds[assignment.winnerSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamAName : pairing.teamBName;
 		seeds[assignment.loserSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamBName : pairing.teamAName;
 	}
-	return seeds;
+	return Object.keys(seeds).length ? seeds : undefined;
 }
