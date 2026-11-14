@@ -14,6 +14,7 @@ import { TransferCaptainCard } from "./TransferCaptainCard";
 import { CaptainMatchActions } from "./CaptainMatchActions";
 import { ReplayUpload } from "./ReplayUpload";
 import { DiscordSignInButton } from "../DiscordSignInButton";
+import { TournamentLiveRefresh } from "@/components/TournamentLiveRefresh";
 
 function opggMultiSearchUrl(riotIds: string[]) {
 	const uniqueIds = [...new Set(riotIds.filter(Boolean))];
@@ -67,8 +68,13 @@ export default async function CaptainPortalPage() {
 	}
 
 	const matches = ctx.matches.filter((match) => match.teamAName === team.name || match.teamBName === team.name);
-	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? matches[0] ?? null;
+	// Between rounds every match is finished: show the most recent one, not the first.
+	const nextMatch = matches.find((match) => match.status === "Live") ?? matches.find((match) => match.status !== "Finished") ?? matches.at(-1) ?? null;
 	const isTeamA = nextMatch?.teamAName === team.name;
+	// Scores are stored as team A : team B; the heading always reads "your team vs opponent".
+	const ownScore = isTeamA ? nextMatch?.scoreA : nextMatch?.scoreB;
+	const opponentScore = isTeamA ? nextMatch?.scoreB : nextMatch?.scoreA;
+	const result = nextMatch?.status === "Finished" && nextMatch.winner ? (nextMatch.winner === team.name ? "Sieg" : "Niederlage") : null;
 	const draftPerspective = nextMatch?.blueSide === (isTeamA ? "teamA" : "teamB") ? "blue" : "red";
 	const assignedPool = nextMatch?.poolAssignment ? (isTeamA ? nextMatch.poolAssignment.teamAPool : nextMatch.poolAssignment.teamBPool) : null;
 	const allowedPool = assignedPool ? pools.find((pool) => pool.pool === assignedPool) : null;
@@ -78,6 +84,8 @@ export default async function CaptainPortalPage() {
 
 	return (
 		<div className="px-5 py-10 sm:py-14">
+			{/* Picks up released matches and results the orga confirms without a manual reload. */}
+			{captainPortalOpen(settings.activeTournament.mode) ? <TournamentLiveRefresh /> : null}
 			<section className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
 				<div className="grid content-start gap-6">
 					<header>
@@ -93,9 +101,17 @@ export default async function CaptainPortalPage() {
 								</p>
 								<span
 									className="tally"
-									data-tone={nextMatch.status === "Live" || nextMatch.status === "Pending" ? "live" : nextMatch.status === "Finished" ? "ok" : undefined}
+									data-tone={
+										nextMatch.status === "Live" || nextMatch.status === "Pending"
+											? "live"
+											: result === "Niederlage"
+												? "warn"
+												: nextMatch.status === "Finished"
+													? "ok"
+													: undefined
+									}
 								>
-									{STATUS_LABELS[nextMatch.status ?? "Scheduled"] ?? nextMatch.status}
+									{result ? `Beendet · ${result}` : (STATUS_LABELS[nextMatch.status ?? "Scheduled"] ?? nextMatch.status)}
 								</span>
 							</div>
 							<h2 id="next-match-title" className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text)]">
@@ -103,8 +119,8 @@ export default async function CaptainPortalPage() {
 							</h2>
 							<dl className="mt-5 grid grid-cols-3 gap-3">
 								<InfoTile
-									label="Score"
-									value={nextMatch.scoreA !== undefined && nextMatch.scoreB !== undefined ? `${nextMatch.scoreA}:${nextMatch.scoreB}` : "–"}
+									label={result ? "Ergebnis (ihr : Gegner)" : "Score (ihr : Gegner)"}
+									value={ownScore !== undefined && opponentScore !== undefined ? `${ownScore}:${opponentScore}${result ? ` · ${result}` : ""}` : "–"}
 								/>
 								<InfoTile label="Eure Seite" value={draftPerspective === "blue" ? "Blau" : "Rot"} />
 								<InfoTile label="Euer Pool" value={assignedPool ? compactPoolLabel(assignedPool) : "–"} />
@@ -149,7 +165,7 @@ export default async function CaptainPortalPage() {
 									<TournamentCodeBox code={tournamentCode?.code ?? null} gameNumber={currentGameNumber(nextMatch)} stub={codeMode.stub} matchId={nextMatch.id} />
 								</div>
 							) : null}
-							<CaptainMatchActions matchId={nextMatch.id} teamName={team.name} />
+							{nextMatch.status !== "Finished" ? <CaptainMatchActions matchId={nextMatch.id} teamName={team.name} /> : null}
 							{nextMatch.teamAName && nextMatch.teamBName && nextMatch.status !== "Finished" ? (
 								<ReplayUpload matchId={nextMatch.id} teamAName={nextMatch.teamAName} teamBName={nextMatch.teamBName} />
 							) : null}
@@ -199,7 +215,10 @@ export default async function CaptainPortalPage() {
 								<span className="text-xs text-[var(--muted)]">{player.role}</span>
 								<span className="min-w-0">
 									<span className="block truncate text-sm font-medium text-[var(--text)]">{player.name}</span>
-									<span className="block truncate font-mono text-xs text-[var(--muted)]" title={player.riotId}>{player.playingAccountApproved ? "Spielaccount: " : ""}{player.riotId}</span>
+									<span className="block truncate font-mono text-xs text-[var(--muted)]" title={player.riotId}>
+										{player.playingAccountApproved ? "Spielaccount: " : ""}
+										{player.riotId}
+									</span>
 									{player.verified === false && !player.playingAccountApproved ? (
 										<span className="tally mt-1" data-tone="warn">
 											Nicht verifiziert
