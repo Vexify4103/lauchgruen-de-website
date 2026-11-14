@@ -80,7 +80,8 @@ export function publicBroadcastMatch(match: ControlMatch, teams: BroadcastTeam[]
 }
 
 export function publicBroadcastDraft(draft: TournamentDraftState, champions: BroadcastChampion[]): BroadcastDraft {
-	const image = new Map(champions.map((champion) => [champion.id, champion]));
+	// Drafts store the display name ("Wukong", "Kai'Sa"); older data may hold the Data Dragon id ("MonkeyKing").
+	const image = new Map(champions.flatMap((champion) => [[champion.id, champion] as const, [champion.name, champion] as const]));
 	const locked = (side: "teamA" | "teamB", kind: "pick" | "ban") =>
 		draft.actions
 			.filter((action) => action.side === side && action.kind === kind && action.lockedAt && !action.skipped)

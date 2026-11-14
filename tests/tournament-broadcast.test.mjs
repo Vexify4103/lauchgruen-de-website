@@ -134,3 +134,23 @@ test("round transitions animate only the correct record pool, and repaired histo
 	assert.equal(broadcastHistoryContinues(before, corrupt), false);
 	assert.deepEqual(broadcastDrawReveals(before, corrupt), []);
 });
+
+test("draft projection finds icons for champions stored by display name, not only by Data Dragon id", () => {
+	const draft = {
+		actions: [
+			{ side: "teamA", kind: "pick", champion: "Wukong", lockedAt: "now" },
+			{ side: "teamB", kind: "pick", champion: "Kai'Sa", lockedAt: "now" },
+			{ side: "teamB", kind: "ban", champion: "LeeSin", lockedAt: "now" },
+		],
+		readyBy: {},
+	};
+	const champions = [
+		{ id: "MonkeyKing", name: "Wukong", image: "https://ddragon/MonkeyKing.png" },
+		{ id: "Kaisa", name: "Kai'Sa", image: "https://ddragon/Kaisa.png" },
+		{ id: "LeeSin", name: "Lee Sin", image: "https://ddragon/LeeSin.png" },
+	];
+	const projected = publicBroadcastDraft(draft, champions);
+	assert.equal(projected.picksA[0].image, "https://ddragon/MonkeyKing.png");
+	assert.equal(projected.picksB[0].image, "https://ddragon/Kaisa.png");
+	assert.equal(projected.bansB[0].image, "https://ddragon/LeeSin.png");
+});
