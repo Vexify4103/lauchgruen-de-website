@@ -251,7 +251,9 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 									</span>
 									<div className="min-w-0 flex-1">
 										<h3 className="!m-0 truncate !text-xl !leading-tight" title={team.name}>
-											{team.name}
+											<Link href={`/tournament/teams/${encodeURIComponent(team.id)}`} className="hover:text-[var(--accent)]">
+												{team.name}
+											</Link>
 										</h3>
 										<div className="mt-1 flex h-4 items-center gap-2 text-xs text-[var(--muted)]">
 											{liveMatch ? (
