@@ -29,6 +29,8 @@ export type TournamentApplication = {
 	acceptedRules: true;
 	acceptedDataStorage: true;
 	discordDmOptIn: boolean;
+	/** Submitted after the deadline: only a substitute spot is guaranteed. */
+	late?: boolean;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -299,10 +301,12 @@ export async function upsertApplication(app: TournamentApplication): Promise<voi
 export async function readScoutAccounts(): Promise<Map<string, string>> {
 	const col = await applicationsCollection();
 	const docs = await col.find({}, { projection: { discordId: 1, riotId: 1, scoutRiotId: 1 } }).toArray();
-	return new Map(docs.flatMap((doc) => {
-		const riotId = doc.scoutRiotId || doc.riotId;
-		return riotId ? [[doc.discordId, riotId] as [string, string]] : [];
-	}));
+	return new Map(
+		docs.flatMap((doc) => {
+			const riotId = doc.scoutRiotId || doc.riotId;
+			return riotId ? [[doc.discordId, riotId] as [string, string]] : [];
+		})
+	);
 }
 
 export async function findApplication(id: string): Promise<TournamentApplication | null> {

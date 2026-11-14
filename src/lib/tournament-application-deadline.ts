@@ -64,3 +64,25 @@ export function areTournamentApplicationsOpen(
 ): boolean {
 	return applicationsEnabled && isTournamentApplicationOpenDateReached(now, openAt) && !isTournamentApplicationDeadlinePassed(now, deadlineOverride, deadline);
 }
+
+export type TournamentApplicationWindow = "open" | "late" | "closed";
+
+/** Modes before the event starts. Late signups close once matches are played. */
+const LATE_SIGNUP_MODES = new Set(["teaser", "registration", "preparation"]);
+
+/**
+ * "late" keeps an enabled signup open after the deadline as a substitute list. Late applicants
+ * are only guaranteed a substitute spot and are flagged so the team builder can tell them apart.
+ */
+export function tournamentApplicationWindow(
+	applicationsEnabled: boolean,
+	mode: string,
+	now = new Date(),
+	deadlineOverride = false,
+	deadline = TOURNAMENT_APPLICATION_DEADLINE,
+	openAt: string | null | undefined = TOURNAMENT_APPLICATION_OPEN_AT
+): TournamentApplicationWindow {
+	if (!applicationsEnabled || !isTournamentApplicationOpenDateReached(now, openAt)) return "closed";
+	if (!isTournamentApplicationDeadlinePassed(now, deadlineOverride, deadline)) return "open";
+	return LATE_SIGNUP_MODES.has(mode) ? "late" : "closed";
+}

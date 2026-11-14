@@ -19,6 +19,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	const [preferredRoles, setPreferredRoles] = useState(app.preferredRoles);
 	const [notes, setNotes] = useState(app.notes);
 	const [scoutRiotId, setScoutRiotId] = useState(app.scoutRiotId ?? "");
+	const [late, setLate] = useState(app.late === true);
 	const [message, setMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
 	const [accountEditorMounted, setAccountEditorMounted] = useState(false);
@@ -29,6 +30,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 			preferredRoles: app.preferredRoles,
 			notes: app.notes,
 			scoutRiotId: app.scoutRiotId ?? "",
+			late: app.late === true,
 		})
 	);
 	const currentValues = JSON.stringify({
@@ -37,6 +39,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 		preferredRoles,
 		notes,
 		scoutRiotId,
+		late,
 	});
 
 	useUnsavedChanges({
@@ -58,6 +61,7 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 				preferredRoles,
 				notes,
 				scoutRiotId: scoutRiotId.trim(),
+				late,
 			}),
 		});
 		const json = (await response.json().catch(() => null)) as { message?: string; version?: number } | null;
@@ -77,7 +81,12 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 	}
 
 	return (
-		<details onToggle={(event) => { if (event.currentTarget.open) setAccountEditorMounted(true); }} className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3">
+		<details
+			onToggle={(event) => {
+				if (event.currentTarget.open) setAccountEditorMounted(true);
+			}}
+			className="rounded-[12px] border border-[var(--line)] bg-[var(--admin-inset)] p-3"
+		>
 			<summary className="cursor-pointer text-xs font-semibold text-[var(--accent)]">Bewerbung bearbeiten</summary>
 			<div className="mt-3 grid gap-3">
 				<label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
@@ -132,6 +141,11 @@ export function EditApplicantForm({ app, initialVersion }: { app: TournamentAppl
 						rows={4}
 						className="rounded-xl border border-[var(--line)] bg-[var(--admin-inset)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus:border-[var(--accent)]"
 					/>
+				</label>
+
+				<label className="flex items-start gap-2 text-xs font-medium text-[var(--muted)]">
+					<input type="checkbox" checked={late} onChange={(event) => setLate(event.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+					<span>Nachmeldung: nach Bewerbungsschluss eingegangen, nur Ersatzplatz garantiert. Haken entfernen, um die Bewerbung regulär zu behandeln.</span>
 				</label>
 
 				<div className="flex flex-wrap items-center gap-2">

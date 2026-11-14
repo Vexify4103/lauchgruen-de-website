@@ -80,6 +80,7 @@ export function ApplicationForm({
 	announcedDate,
 	applicationDeadlineLabel,
 	preferenceGroupLimit,
+	lateMode = "off",
 }: {
 	discordIdentity: DiscordIdentity;
 	isGuildMember: boolean;
@@ -91,6 +92,8 @@ export function ApplicationForm({
 	announcedDate: string;
 	applicationDeadlineLabel: string;
 	preferenceGroupLimit: number;
+	/** "late": signup after the deadline (substitute only). "locked": on-time application, frozen after the deadline. */
+	lateMode?: "off" | "late" | "locked";
 }) {
 	const [verified, setVerified] = useState<VerifiedAccount>(initialVerified);
 	const setProgress = useApplicationProgressUpdate();
@@ -157,6 +160,7 @@ export function ApplicationForm({
 			acceptedRules: formData.get("acceptedRules") === "on",
 			acceptedDataStorage: formData.get("acceptedDataStorage") === "on",
 			discordDmOptIn: formData.get("discordDmOptIn") === "on",
+			...(lateMode === "late" ? { lateAcknowledged: formData.get("lateAcknowledged") === "on" } : {}),
 		};
 
 		const response = await fetch("/api/tournament/applications", {
@@ -304,7 +308,12 @@ export function ApplicationForm({
 					<p>Wähle deine Rollen und bestätige deine Teilnahme. Wir kümmern uns um die Teams.</p>
 				</div>
 				{!verified ? <p className="application-note">Verifiziere zuerst deinen Riot-Account, um das Formular freizuschalten.</p> : null}
-				<fieldset disabled={!verified} className="application-fields">
+				{lateMode === "locked" ? (
+					<p className="application-note">
+						Der Bewerbungsschluss ist vorbei. Deine Bewerbung bleibt gespeichert; Änderungen nimmt nur noch das Orga-Team im Discord vor.
+					</p>
+				) : null}
+				<fieldset disabled={!verified || lateMode === "locked"} className="application-fields">
 					<legend className="sr-only">Bewerbung ausfüllen</legend>
 					{hasApplication ? (
 						<div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold leading-6 text-cyan-50">
@@ -450,6 +459,11 @@ export function ApplicationForm({
 						<Consent name="acceptedDataStorage" defaultChecked={initialApplication?.acceptedDataStorage ?? false}>
 							Ich bin damit einverstanden, dass meine Turnierbewerbung zur Eventorganisation gespeichert wird.
 						</Consent>
+						{lateMode === "late" ? (
+							<Consent name="lateAcknowledged" defaultChecked={hasApplication}>
+								Mir ist klar, dass ich mich nach dem Bewerbungsschluss nachmelde und mir nur ein Platz als Ersatzspieler garantiert werden kann.
+							</Consent>
+						) : null}
 						<Consent name="discordDmOptIn" defaultChecked={initialApplication?.discordDmOptIn !== false} required={false}>
 							Ich möchte wichtige Turnier-Neuigkeiten per Discord-DM vom Bot erhalten, zum Beispiel meine veröffentlichte Teamzuweisung und einen Captain-Status.
 						</Consent>
@@ -473,14 +487,20 @@ export function ApplicationForm({
 								: "Wird abgeschickt…"
 							: hasApplication
 								? "Bewerbung ändern"
-								: "Bewerbung absenden"}
+								: lateMode === "late"
+									? "Nachmeldung absenden"
+									: "Bewerbung absenden"}
 					</button>
 				</fieldset>
-				{hasApplication ? (
+				{hasApplication && lateMode !== "locked" ? (
 					<div className="rounded-2xl border border-rose-300/14 bg-rose-400/[0.045] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
 						<div>
 							<div className="text-xs font-black text-emerald-50">Du kannst doch nicht teilnehmen?</div>
-							<p className="mt-1 text-xs leading-5 text-emerald-100/50">Bis zum Bewerbungsschluss kannst du deine Anmeldung selbst zurückziehen.</p>
+							<p className="mt-1 text-xs leading-5 text-emerald-100/50">
+								{lateMode === "late"
+									? "Deine Nachmeldung kannst du jederzeit selbst zurückziehen."
+									: "Bis zum Bewerbungsschluss kannst du deine Anmeldung selbst zurückziehen."}
+							</p>
 						</div>
 						<WithdrawApplicationButton
 							deadlineLabel={applicationDeadlineLabel}

@@ -333,7 +333,8 @@ export function RosterBuilder({
 				return parseRank(b.manualRankOverride || b.currentRank) - parseRank(a.manualRankOverride || a.currentRank);
 			});
 		}
-		return sorted;
+		// Late signups are substitutes: always below the regular pool.
+		return [...sorted.filter((a) => !a.late), ...sorted.filter((a) => a.late)];
 	}, [allApplicants, state.assignments, sortMode, openRolesAnywhere]);
 
 	const visibleUnassigned = useMemo(() => {
@@ -635,7 +636,8 @@ export function RosterBuilder({
 		setAutoRunning(true);
 		setMessage(null);
 		setBalanceResult(null);
-		const verifiedApplicants = snapshot.applicants.filter((applicant) => applicant.verified);
+		// Late signups only fill gaps by hand, never through auto-balance.
+		const verifiedApplicants = snapshot.applicants.filter((applicant) => applicant.verified && !applicant.late);
 		const result = snakeFillAssignments(verifiedApplicants, snapshot.teams, {
 			splitThreshold: splitThreshold / 100,
 		});
@@ -2203,7 +2205,7 @@ const PlayerRow = memo(function PlayerRow({
 				<div className="flex shrink-0 items-center gap-1">
 					{applicant?.riotId ? (
 						<a
-						href={opggUrl(applicant.scoutRiotId || applicant.riotId)}
+							href={opggUrl(applicant.scoutRiotId || applicant.riotId)}
 							target="_blank"
 							rel="noreferrer"
 							title={`${applicant.riotId} auf OP.GG öffnen`}
@@ -2303,6 +2305,12 @@ function ApplicantCard({
 							</span>
 						) : null}
 						{applicant.verified === false ? <span className="text-[var(--amber)]"> · Nicht verifiziert</span> : null}
+						{applicant.late ? (
+							<span className="text-[var(--amber)]" title="Nach Bewerbungsschluss eingegangen, nur Ersatzplatz garantiert">
+								{" "}
+								· Nachmeldung
+							</span>
+						) : null}
 					</div>
 				</div>
 				<a

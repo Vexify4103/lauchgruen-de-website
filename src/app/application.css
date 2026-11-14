@@ -108,6 +108,22 @@
 		line-height: 1.7;
 		overflow-wrap: anywhere;
 	}
+	.application-late-notice {
+		margin-bottom: 24px;
+		border: 1px solid color-mix(in srgb, var(--amber) 32%, transparent);
+		border-radius: 14px;
+		padding: 16px 20px;
+		background: color-mix(in srgb, var(--amber) 7%, transparent);
+		color: var(--muted);
+		font-size: 14px;
+		line-height: 1.6;
+	}
+	.application-late-notice strong {
+		display: block;
+		margin-bottom: 4px;
+		color: var(--text);
+		font-weight: 600;
+	}
 	.application-steps {
 		display: grid;
 		margin-top: 20px;

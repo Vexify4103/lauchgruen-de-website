@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { auth } from "@/lib/auth";
 import { getSiteUrls } from "@/lib/site-urls";
-import { areTournamentApplicationsOpen } from "@/lib/tournament-application-deadline";
+import { areTournamentApplicationsOpen, tournamentApplicationWindow } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getRosterPublicationStatus } from "@/lib/roster";
 import { TOURNAMENT_OWNER_DISCORD_IDS } from "@/lib/tournament-storage";
@@ -63,6 +63,15 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 		settings.applicationDeadline,
 		settings.applicationOpenAt
 	);
+	const lateSignupOpen =
+		tournamentApplicationWindow(
+			settings.applicationsOpen,
+			active.mode,
+			new Date(),
+			settings.applicationDeadlineOverride,
+			settings.applicationDeadline,
+			settings.applicationOpenAt
+		) === "late";
 	const completion = active.mode === "finished" ? resolveTournamentCompletion((await getMatchControlContext()).matches) : null;
 	const hero = buildTournamentHero({
 		settings,
@@ -112,6 +121,7 @@ export default async function TournamentLayout({ children }: { children: ReactNo
 				) : null}
 				<TournamentChrome
 					applicationsOpen={applicationsOpen}
+					lateSignupOpen={lateSignupOpen}
 					navItems={navItems}
 					hero={hero}
 					subnavItems={subnavItems}

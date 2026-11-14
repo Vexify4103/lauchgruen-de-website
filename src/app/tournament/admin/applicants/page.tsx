@@ -85,6 +85,7 @@ export default async function ApplicantsPage() {
 	// Newest-first
 	const sorted = [...applications].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
+	const lateCount = sorted.filter((a) => a.late).length;
 	const assignedCount = sorted.filter((a) => assignedByDiscordId.has(a.discordId)).length;
 	const unassignedCount = sorted.length - assignedCount;
 
@@ -94,7 +95,7 @@ export default async function ApplicantsPage() {
 				<article>
 					<span>Bewerbungen</span>
 					<strong>{sorted.length}</strong>
-					<small>insgesamt eingegangen</small>
+					<small>{lateCount ? `insgesamt, davon ${lateCount} Nachmeldung${lateCount === 1 ? "" : "en"}` : "insgesamt eingegangen"}</small>
 				</article>
 				<article>
 					<span>Zugewiesen</span>
@@ -196,7 +197,10 @@ function ApplicantCard({
 				<div className="min-w-0">
 					<div className="truncate text-lg font-semibold text-[var(--text)]">{app.discordUsername ? `@${app.discordUsername}` : app.discordHandle}</div>
 					<div className="mt-1 flex flex-wrap items-center gap-2">
-						<div className="min-w-0 truncate text-xs text-[var(--accent)]">{app.riotId}{app.scoutRiotId ? <span className="text-[var(--muted)]"> · OP.GG: {app.scoutRiotId}</span> : null}</div>
+						<div className="min-w-0 truncate text-xs text-[var(--accent)]">
+							{app.riotId}
+							{app.scoutRiotId ? <span className="text-[var(--muted)]"> · OP.GG: {app.scoutRiotId}</span> : null}
+						</div>
 						<a
 							href={opggUrl(app.scoutRiotId || app.riotId)}
 							target="_blank"
@@ -208,12 +212,13 @@ function ApplicantCard({
 					</div>
 				</div>
 				<div className="flex shrink-0 items-start gap-2">
+					{app.late ? (
+						<span title="Nach Bewerbungsschluss eingegangen, nur Ersatzplatz garantiert" className="tally rounded-full border border-[var(--line)] px-3 py-1">
+							Nachmeldung
+						</span>
+					) : null}
 					{assignedTo ? (
-						<span
-							title={`Zugewiesen zu ${assignedTo}`}
-							className="tally rounded-full border border-[var(--line)] px-3 py-1"
-							data-tone="ok"
-						>
+						<span title={`Zugewiesen zu ${assignedTo}`} className="tally rounded-full border border-[var(--line)] px-3 py-1" data-tone="ok">
 							{assignedTo}
 						</span>
 					) : (
@@ -259,10 +264,7 @@ function ApplicantCard({
 						<span className="text-xs italic text-[var(--muted)]">keine angegeben</span>
 					) : (
 						app.preferredRoles.map((r, index) => (
-							<span
-								key={r}
-								className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]"
-							>
+							<span key={r} className="rounded-full border border-[var(--line)] bg-[var(--admin-step)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
 								#{index + 1} · {r}
 							</span>
 						))

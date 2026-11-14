@@ -1,5 +1,5 @@
 import { TournamentLink as Link } from "./TournamentLink";
-import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel } from "@/lib/tournament-application-deadline";
+import { formatTournamentApplicationDeadlineLabel, tournamentApplicationWindow, type TournamentApplicationWindow } from "@/lib/tournament-application-deadline";
 import { getTournamentContext } from "@/lib/tournament-runtime";
 import { playoffFormatLabel } from "@/lib/tournament-format";
 import { mainEventTeamCount } from "@/lib/tournament-structure";
@@ -18,8 +18,9 @@ export default async function TournamentOverviewPage() {
 	const [control, context] = running ? await Promise.all([getMatchControlContext(), getTournamentContext()]) : [null, null];
 	const completion = mode === "finished" && control ? resolveTournamentCompletion(control.matches) : null;
 	const championRoster = completion ? (context?.teams.find((team) => team.name === completion.championTeamName)?.players.map((player) => player.riotId) ?? []) : [];
-	const applicationsOpen = areTournamentApplicationsOpen(
+	const signupWindow = tournamentApplicationWindow(
 		settings.applicationsOpen,
+		mode,
 		new Date(),
 		settings.applicationDeadlineOverride,
 		settings.applicationDeadline,
@@ -38,7 +39,7 @@ export default async function TournamentOverviewPage() {
 			) : null}
 			{completion ? <ChampionSection completion={completion} roster={championRoster} /> : null}
 			<section className="page-section compact-top two-columns" aria-label="Regelwerk und Ablauf">
-				<RulebookPanel settings={settings} applicationsOpen={applicationsOpen} />
+				<RulebookPanel settings={settings} signupWindow={signupWindow} />
 				<aside className="grid gap-4" aria-label="Turnierablauf">
 					<Lifecycle settings={settings} rosterPublished={roster.published} />
 					{settings.structure.prizePool.trim() ? (
@@ -56,7 +57,7 @@ export default async function TournamentOverviewPage() {
 	);
 }
 
-function RulebookPanel({ settings, applicationsOpen }: { settings: TournamentSettings; applicationsOpen: boolean }) {
+function RulebookPanel({ settings, signupWindow }: { settings: TournamentSettings; signupWindow: TournamentApplicationWindow }) {
 	const structure = settings.structure;
 	const rulebook = buildRulebook(settings);
 	const participants = mainEventTeamCount(structure);
@@ -113,7 +114,13 @@ function RulebookPanel({ settings, applicationsOpen }: { settings: TournamentSet
 				</div>
 				<div>
 					<dt>Anmeldung</dt>
-					<dd>{applicationsOpen ? `Offen bis ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}` : "Geschlossen"}</dd>
+					<dd>
+						{signupWindow === "open"
+							? `Offen bis ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)}`
+							: signupWindow === "late"
+								? "Nachmeldung als Ersatz möglich"
+								: "Geschlossen"}
+					</dd>
 				</div>
 			</dl>
 		</div>

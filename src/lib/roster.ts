@@ -106,6 +106,8 @@ export type RosterApplicant = {
 	updatedAt: string;
 	verified: boolean;
 	source: "application" | "manual";
+	/** Signed up after the deadline: substitute only, kept out of auto-balance. */
+	late?: boolean;
 	/** Approval changes playing identity only; verified/currentRank still describe the linked main. */
 	playingAccountApproved?: boolean;
 	scoutRiotId?: string;
@@ -193,9 +195,15 @@ export async function loadRosterSnapshot(): Promise<RosterSnapshot> {
 	}
 	const activePreferenceGroups = preferenceGroups.filter((group) => isAllowedPreferenceGroup(groupSettings.wishGroupMode, group.memberDiscordIds.length));
 	const preferenceGroupByDiscordId = new Map(activePreferenceGroups.flatMap((group) => group.memberDiscordIds.map((discordId) => [discordId, group.code] as const)));
-	const applicants: RosterApplicant[] = visibleApplications.map((application) => withPlayingAccount({
-		...toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)), scoutRiotId: application.scoutRiotId || application.riotId,
-	}, playingAccounts));
+	const applicants: RosterApplicant[] = visibleApplications.map((application) =>
+		withPlayingAccount(
+			{
+				...toApplicant(application, preferenceGroupByDiscordId.get(application.discordId)),
+				scoutRiotId: application.scoutRiotId || application.riotId,
+			},
+			playingAccounts
+		)
+	);
 	const applicantIds = new Set(applicants.map((applicant) => applicant.discordId));
 
 	for (const team of Object.values(teamsObj)) {
@@ -296,6 +304,7 @@ function toApplicant(app: TournamentApplication, preferenceGroupCode?: string): 
 		competitiveExperience: app.hasCompetitiveExperience ? (app.competitiveExperience ?? "") : "",
 		acceptedRules: app.acceptedRules,
 		acceptedDataStorage: app.acceptedDataStorage,
+		...(app.late ? { late: true } : {}),
 		createdAt: app.createdAt,
 		updatedAt: app.updatedAt,
 		verified: true,

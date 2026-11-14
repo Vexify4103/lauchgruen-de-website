@@ -13,7 +13,7 @@ export async function POST() {
 		return NextResponse.json({ message: "Nicht angemeldet." }, { status: 401 });
 	}
 	const [application, settings] = await Promise.all([findApplicationByDiscordId(discordId), getTournamentSettings()]);
-	if (application && isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
+	if (application && !application.late && isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
 		return NextResponse.json(
 			{
 				message: `Deine aktive Bewerbung kann nach dem Bewerbungsschluss am ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)} nur durch das Orga-Team entfernt werden. Deshalb bleibt auch die zugehörige Riot-Verknüpfung gesperrt.`,

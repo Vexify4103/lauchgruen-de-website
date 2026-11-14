@@ -17,7 +17,12 @@ import { AccountLogoutButton } from "./AccountLogoutButton";
 import { TournamentDmPreferenceCard } from "./TournamentDmPreferenceCard";
 import { getSiteUrls } from "@/lib/site-urls";
 import { isTournamentHost } from "@/lib/tournament-url";
-import { areTournamentApplicationsOpen, formatTournamentApplicationDeadlineLabel, isTournamentApplicationDeadlinePassed } from "@/lib/tournament-application-deadline";
+import {
+	areTournamentApplicationsOpen,
+	formatTournamentApplicationDeadlineLabel,
+	isTournamentApplicationDeadlinePassed,
+	tournamentApplicationWindow,
+} from "@/lib/tournament-application-deadline";
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 import { usesUltimateBravery } from "@/lib/tournament-kind";
 import { DiscordMark } from "@/components/BrandMarks";
@@ -108,6 +113,15 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 		settings.applicationDeadline,
 		settings.applicationOpenAt
 	);
+	const lateSignupOpen =
+		tournamentApplicationWindow(
+			settings.applicationsOpen,
+			settings.activeTournament.mode,
+			now,
+			settings.applicationDeadlineOverride,
+			settings.applicationDeadline,
+			settings.applicationOpenAt
+		) === "late";
 	const applicationDeadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
 	const applicationDeadlineLabel = formatTournamentApplicationDeadlineLabel(settings.applicationDeadline);
 	const team = findParticipantTeam(ctx.teams, discordId, application?.riotId) ?? null;
@@ -179,7 +193,7 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								: null
 						}
 						disconnectBlockedReason={
-							application && applicationDeadlinePassed
+							application && !application.late && applicationDeadlinePassed
 								? "Nach Bewerbungsschluss bleibt der verifizierte Riot-Account mit deiner verbindlichen Bewerbung verknüpft. Für Änderungen wende dich bitte an das Orga-Team."
 								: null
 						}
@@ -216,30 +230,34 @@ export default async function TournamentMePage({ searchParams }: { searchParams:
 								<Link className="queue-action" href={tournamentHref("")}>
 									Turnier ansehen <span aria-hidden="true">↗</span>
 								</Link>
-								{applicationsOpen ? (
+								{applicationsOpen || (lateSignupOpen && application.late) ? (
 									<Link className="queue-action is-primary" href={tournamentHref("/apply")}>
-										Bewerbung bearbeiten <span aria-hidden="true">↗</span>
+										{application.late ? "Nachmeldung bearbeiten" : "Bewerbung bearbeiten"} <span aria-hidden="true">↗</span>
 									</Link>
 								) : null}
-								{applicationDeadlinePassed ? (
+								{applicationDeadlinePassed && !application.late ? (
 									<span className="queue-note">Rücknahme nur über das Orga-Team</span>
 								) : (
 									<WithdrawApplicationButton deadlineLabel={applicationDeadlineLabel} buttonClassName="queue-action is-danger" />
 								)}
-								<b className={`check-status ${team ? "" : "is-pending"}`}>{team ? `Team ${team.name}` : "Teamzuteilung offen"}</b>
+								<b className={`check-status ${team ? "" : "is-pending"}`}>
+									{team ? `Team ${team.name}` : application.late ? "Nachmeldung · Ersatzplatz möglich" : "Teamzuteilung offen"}
+								</b>
 							</div>
 						</article>
 					) : (
 						<div className="account-empty">
-							<h3>{applicationsOpen ? "Noch keine Bewerbung" : "Gerade keine offene Anmeldung"}</h3>
+							<h3>{applicationsOpen ? "Noch keine Bewerbung" : lateSignupOpen ? "Bewerbungsschluss vorbei" : "Gerade keine offene Anmeldung"}</h3>
 							<p>
-								{applicationsOpen
-									? `Die Anmeldung für ${settings.activeTournament.name} ist geöffnet. Mit Riot-Verifizierung bist du in wenigen Minuten dabei.`
-									: "Die Anmeldung startet, sobald Termin und Format feststehen. Verknüpfe Riot schon jetzt, dann geht es später schneller."}
+								{lateSignupOpen
+									? `Du kannst dich für ${settings.activeTournament.name} noch nachmelden. Garantiert ist dann nur ein Platz als Ersatzspieler.`
+									: applicationsOpen
+										? `Die Anmeldung für ${settings.activeTournament.name} ist geöffnet. Mit Riot-Verifizierung bist du in wenigen Minuten dabei.`
+										: "Die Anmeldung startet, sobald Termin und Format feststehen. Verknüpfe Riot schon jetzt, dann geht es später schneller."}
 							</p>
-							{applicationsOpen ? (
+							{applicationsOpen || lateSignupOpen ? (
 								<Link className="button primary small" href={tournamentHref("/apply")}>
-									Jetzt bewerben
+									{lateSignupOpen ? "Jetzt nachmelden" : "Jetzt bewerben"}
 								</Link>
 							) : (
 								<Link className="button ghost small" href={tournamentHref("")}>

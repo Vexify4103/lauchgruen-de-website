@@ -5,11 +5,11 @@ import { auth } from "@/lib/auth";
 import { isDiscordGuildMember } from "@/lib/discord";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import {
-	areTournamentApplicationsOpen,
 	formatTournamentApplicationDeadlineLabel,
 	formatTournamentApplicationOpenLabel,
 	isTournamentApplicationDeadlinePassed,
 	isTournamentApplicationOpenDateReached,
+	tournamentApplicationWindow,
 } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { getSummonerByPuuid } from "@/lib/riot";
@@ -40,7 +40,17 @@ const applicationPatchSchema = z.object({
 	notes: z.string().trim().max(1500).optional(),
 	manualRankOverride: z.string().trim().max(40).nullable().optional(),
 	// Empty string clears the scouting account.
-	scoutRiotId: z.union([z.literal(""), z.string().trim().regex(/^[^#]{3,16}#[^#]{2,5}$/)]).optional(),
+	scoutRiotId: z
+		.union([
+			z.literal(""),
+			z
+				.string()
+				.trim()
+				.regex(/^[^#]{3,16}#[^#]{2,5}$/),
+		])
+		.optional(),
+	/** Lets the orga promote a late signup to a regular application. */
+	late: z.boolean().optional(),
 });
 
 function applicationId(puuid: string, discordId: string) {
@@ -49,7 +59,15 @@ function applicationId(puuid: string, discordId: string) {
 
 export async function POST(request: Request) {
 	const settings = await getTournamentSettings();
-	if (!areTournamentApplicationsOpen(settings.applicationsOpen, new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline, settings.applicationOpenAt)) {
+	const signupWindow = tournamentApplicationWindow(
+		settings.applicationsOpen,
+		settings.activeTournament.mode,
+		new Date(),
+		settings.applicationDeadlineOverride,
+		settings.applicationDeadline,
+		settings.applicationOpenAt
+	);
+	if (signupWindow === "closed") {
 		const now = new Date();
 		return NextResponse.json(
 			{
@@ -120,7 +138,20 @@ export async function POST(request: Request) {
 		);
 	}
 
-	const body = await request.json().catch(() => null);
+	const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+	const late = signupWindow === "late";
+	if (late) {
+		const current = await findApplicationByDiscordId(discordId);
+		if (current && !current.late) {
+			return NextResponse.json(
+				{ message: "Der Bewerbungsschluss ist vorbei. Deine Bewerbung bleibt gespeichert; Änderungen nimmt nur noch das Orga-Team vor." },
+				{ status: 403 }
+			);
+		}
+		if (body?.lateAcknowledged !== true) {
+			return NextResponse.json({ message: "Bitte bestätige, dass dir nach Bewerbungsschluss nur ein Platz als Ersatzspieler garantiert werden kann." }, { status: 400 });
+		}
+	}
 	const parsed = applicationSchema.safeParse(body);
 
 	if (!parsed.success) {
@@ -152,6 +183,8 @@ export async function POST(request: Request) {
 		riotVerifiedAt: verified.verifiedAt,
 		currentRankAuto: verified.currentRankAuto,
 		summonerLevel: verified.summonerLevel,
+		// Only the orga promotes a late signup; editing keeps the flag.
+		...(late || existing?.late ? { late: true } : {}),
 		createdAt: existing?.createdAt ?? now,
 		updatedAt: now,
 	};
@@ -159,7 +192,13 @@ export async function POST(request: Request) {
 	await upsertApplication(nextApplication);
 
 	return NextResponse.json({
-		message: existing ? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell hältst." : "Bewerbung gespeichert. Willkommen in der Warteliste.",
+		message: late
+			? existing
+				? "Nachmeldung aktualisiert. Du stehst weiter auf der Ersatzliste."
+				: "Nachmeldung gespeichert. Du stehst auf der Ersatzliste und wirst eingesetzt, sobald ein Platz frei wird."
+			: existing
+				? "Bewerbung aktualisiert. Danke, dass du die Infos aktuell hältst."
+				: "Bewerbung gespeichert. Willkommen in der Warteliste.",
 	});
 }
 
@@ -220,6 +259,7 @@ export async function PATCH(request: Request) {
 		...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
 		...(parsed.data.manualRankOverride !== undefined ? { manualRankOverride: parsed.data.manualRankOverride } : {}),
 		...(parsed.data.scoutRiotId !== undefined ? { scoutRiotId: parsed.data.scoutRiotId || null } : {}),
+		...(parsed.data.late !== undefined ? { late: parsed.data.late } : {}),
 		updatedAt: new Date().toISOString(),
 	};
 
@@ -237,6 +277,7 @@ export async function PATCH(request: Request) {
 			preferredRoles: nextApplication.preferredRoles,
 			...(parsed.data.manualRankOverride !== undefined ? { manualRankOverride: parsed.data.manualRankOverride } : {}),
 			...(parsed.data.scoutRiotId !== undefined ? { scoutRiotId: parsed.data.scoutRiotId || null } : {}),
+			...(parsed.data.late !== undefined ? { late: parsed.data.late } : {}),
 		},
 	});
 
@@ -256,7 +297,10 @@ export async function DELETE(request: Request) {
 	const selfWithdrawal = searchParams.get("self") === "true";
 	if (selfWithdrawal) {
 		const settings = await getTournamentSettings();
-		if (isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
+		const existing = await findApplicationByDiscordId(discordId);
+		if (!existing) return NextResponse.json({ message: "Keine aktive Bewerbung gefunden." }, { status: 404 });
+		// Late signups were never planned in, so they stay withdrawable after the deadline.
+		if (!existing.late && isTournamentApplicationDeadlinePassed(new Date(), settings.applicationDeadlineOverride, settings.applicationDeadline)) {
 			return NextResponse.json(
 				{
 					message: `Die Rücknahme war nur bis ${formatTournamentApplicationDeadlineLabel(settings.applicationDeadline)} möglich. Bitte wende dich an das Orga-Team.`,
@@ -265,15 +309,12 @@ export async function DELETE(request: Request) {
 			);
 		}
 
-		const existing = await findApplicationByDiscordId(discordId);
-		if (!existing) return NextResponse.json({ message: "Keine aktive Bewerbung gefunden." }, { status: 404 });
-
 		const deletedCount = await deleteApplicationsByDiscordId(discordId);
 		await writeAuditLog({
 			action: "application.withdraw",
 			targetType: "application",
 			targetId: existing.id,
-			summary: `${existing.displayName} hat die eigene Bewerbung vor Bewerbungsschluss zurückgezogen.`,
+			summary: `${existing.displayName} hat die eigene ${existing.late ? "Nachmeldung" : "Bewerbung"} zurückgezogen.`,
 			actorDiscordId: discordId,
 			actorLabel: session.user.discordHandle ?? discordId,
 			metadata: { deletedCount, preservedRiotLink: true, selfWithdrawal: true },

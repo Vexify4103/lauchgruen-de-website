@@ -2,11 +2,11 @@ import { TournamentLink as Link } from "../TournamentLink";
 import { auth } from "@/lib/auth";
 import { DISCORD_INVITE_URL, isDiscordGuildMember } from "@/lib/discord";
 import {
-	areTournamentApplicationsOpen,
 	formatTournamentApplicationDeadlineLabel,
 	formatTournamentApplicationOpenLabel,
 	isTournamentApplicationDeadlinePassed,
 	isTournamentApplicationOpenDateReached,
+	tournamentApplicationWindow,
 } from "@/lib/tournament-application-deadline";
 import { getTournamentSettings } from "@/lib/tournament-settings";
 import { findApplicationByDiscordId, findEligibilityOverrideMatch, getVerifiedAccount, updateVerifiedSummonerLevel } from "@/lib/tournament-storage";
@@ -44,13 +44,16 @@ export default async function ApplyPage() {
 	const now = new Date();
 	const openReached = isTournamentApplicationOpenDateReached(now, settings.applicationOpenAt);
 	const deadlinePassed = isTournamentApplicationDeadlinePassed(now, settings.applicationDeadlineOverride, settings.applicationDeadline);
-	const applicationsOpen = areTournamentApplicationsOpen(
+	const signupWindow = tournamentApplicationWindow(
 		settings.applicationsOpen,
+		settings.activeTournament.mode,
 		now,
 		settings.applicationDeadlineOverride,
 		settings.applicationDeadline,
 		settings.applicationOpenAt
 	);
+	const applicationsOpen = signupWindow !== "closed";
+	const late = signupWindow === "late";
 	if (settings.activeTournament.mode !== "registration" && !applicationsOpen) {
 		return (
 			<div className="application-page page-section">
@@ -123,6 +126,8 @@ export default async function ApplyPage() {
 			console.warn("[tournament-apply] Summoner-Level konnte nicht automatisch ergänzt werden.", error);
 		}
 	}
+	// After the deadline, on-time applications are frozen; only late signups stay editable.
+	const lateMode = !late ? "off" : existingApplication && !existingApplication.late ? "locked" : "late";
 	const initialVerified = verifiedAccount
 		? {
 				riotId: verifiedAccount.riotId,
@@ -149,13 +154,22 @@ export default async function ApplyPage() {
 					<p className="application-lead">{tournamentName} · Deine Community. Dein Team. Dein nächstes Match.</p>
 				</div>
 				<div className="application-deadline">
-					<span className="panel-kicker">{settings.applicationDeadlineOverride ? "Sonderfreigabe aktiv" : "Bewerbungsschluss"}</span>
-					<strong>{settings.applicationDeadlineOverride ? "Bewerbungen wieder geöffnet" : deadlineLabel}</strong>
+					<span className="panel-kicker">{late ? "Nachmeldung" : settings.applicationDeadlineOverride ? "Sonderfreigabe aktiv" : "Bewerbungsschluss"}</span>
+					<strong>{late ? `Bewerbungsschluss war ${deadlineLabel}` : settings.applicationDeadlineOverride ? "Bewerbungen wieder geöffnet" : deadlineLabel}</strong>
 					<Link href="/tournament/terms">
 						Turnierregeln lesen <span aria-hidden="true">↗</span>
 					</Link>
 				</div>
 			</header>
+			{late ? (
+				<div className="application-late-notice" role="note">
+					<strong>Der Bewerbungsschluss ist vorbei.</strong>
+					<p>
+						Du kannst dich trotzdem nachmelden. Wir können dir dann nur einen Platz als Ersatzspieler garantieren: Wenn ein Platz frei wird oder ein Team Ersatz
+						braucht, melden wir uns bei dir.
+					</p>
+				</div>
+			) : null}
 			<ApplicationProgressProvider
 				initialProgress={{ discordConnected: Boolean(discordIdentity), riotVerified: Boolean(initialVerified), submitted: Boolean(existingApplication) }}
 			>
@@ -169,9 +183,11 @@ export default async function ApplyPage() {
 								bist.
 							</p>
 							<div className="application-note mt-5">
-								{settings.applicationDeadlineOverride
-									? "Notfall-Bewerbungen sind aktuell wieder geöffnet."
-									: `Bewerbungszeitraum: ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)} bis ${deadlineLabel}`}
+								{late
+									? "Nachmeldungen landen auf der Ersatzliste. Wunschgruppen sind nach Bewerbungsschluss nicht mehr möglich."
+									: settings.applicationDeadlineOverride
+										? "Notfall-Bewerbungen sind aktuell wieder geöffnet."
+										: `Bewerbungszeitraum: ${formatTournamentApplicationOpenLabel(settings.applicationOpenAt)} bis ${deadlineLabel}`}
 							</div>
 						</div>
 
@@ -239,7 +255,8 @@ export default async function ApplyPage() {
 								minimumLevelOverrideKind={eligibilityOverride?.kind ?? null}
 								announcedDate={formatUltimateBraveryDates(settings.structure.startAt, settings.structure.dayTwoStartAt)}
 								applicationDeadlineLabel={deadlineLabel}
-								preferenceGroupLimit={wishGroupLimit(settings.wishGroupMode)}
+								preferenceGroupLimit={late ? 0 : wishGroupLimit(settings.wishGroupMode)}
+								lateMode={lateMode}
 							/>
 						) : (
 							<div className="application-login">

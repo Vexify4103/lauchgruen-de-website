@@ -27,6 +27,7 @@ export function TournamentChrome({
 	compactAccountControl,
 	footerTournamentLabel,
 	applicationsOpen,
+	lateSignupOpen = false,
 }: {
 	children: ReactNode;
 	navItems: SiteNavItem[];
@@ -39,6 +40,8 @@ export function TournamentChrome({
 	compactAccountControl: ReactNode;
 	footerTournamentLabel: string;
 	applicationsOpen: boolean;
+	/** After the deadline: signups continue as a substitute list. */
+	lateSignupOpen?: boolean;
 }) {
 	const pathname = usePathname();
 	const path = relativePath(pathname);
@@ -77,7 +80,9 @@ export function TournamentChrome({
 						navItems={navItems}
 						status={<StatusChip status={status} />}
 						account={accountControl}
-						primaryAction={applicationsOpen ? { href: "/tournament/apply", label: "Bewerben" } : undefined}
+						primaryAction={
+							applicationsOpen ? { href: "/tournament/apply", label: "Bewerben" } : lateSignupOpen ? { href: "/tournament/apply", label: "Nachmelden" } : undefined
+						}
 					/>
 				)}
 
