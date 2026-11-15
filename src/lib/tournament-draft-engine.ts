@@ -212,7 +212,7 @@ function assertSwapWindow(current: TournamentDraftState, sequence: DraftTurn[], 
 
 /** During the role phase a swap request or answer pauses the clock: the phase runs at least `seconds` longer. */
 function withRoleTime(state: TournamentDraftState, sequence: DraftTurn[], now: Date, seconds: number): TournamentDraftState {
-	if (!rolePhaseActive(state, sequence)) return state;
+	if (!rolePhaseActive(state, sequence) || rolePhaseExpired(state, now.getTime(), sequence)) return state;
 	return { ...state, rolePhaseEndsAt: extendedRolePhaseEnd(state, now.getTime(), seconds) };
 }
 

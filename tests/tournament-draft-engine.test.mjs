@@ -195,7 +195,7 @@ test("locking the requested champion drops the request, and a cancelled request 
 	assert.equal(locked.swapRequests, undefined);
 	assert.throws(() => applySwapAnswer(locked, sequence, { side: "teamA", accept: true }), /keine offene/);
 
-	const cancelled = applySwapCancel(requested, sequence, { side: "teamA" });
+	const cancelled = applySwapCancel(requested, sequence, { side: "teamA" }, new Date(requested.currentTurnStartedAt));
 	assert.equal(cancelled.swapRequests, undefined);
 	assert.ok(applySwapRequest(cancelled, sequence, { side: "teamA", actionIndex: 6, champion: "Lux", allowedPicks: ["Lux"] }).swapRequests.teamA);
 });
