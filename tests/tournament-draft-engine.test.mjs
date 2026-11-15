@@ -12,7 +12,17 @@ import {
 	applyUndo,
 } from "../src/lib/tournament-draft-engine.ts";
 import { draftForViewer, draftSideHasRoles } from "../src/lib/tournament-draft-shared.ts";
-import { DRAFT_ROLE_TOTAL_MS, DRAFT_TOTAL_MS, createDraftSequence, draftFinished, draftRoleOrder, rolePhaseActive, suggestRoleOrder } from "../src/lib/tournament-draft-shared.ts";
+import {
+	DRAFT_GRACE_SECONDS,
+	DRAFT_ROLE_TOTAL_MS,
+	rolePhaseEndsAtMs,
+	DRAFT_TOTAL_MS,
+	createDraftSequence,
+	draftFinished,
+	draftRoleOrder,
+	rolePhaseActive,
+	suggestRoleOrder,
+} from "../src/lib/tournament-draft-shared.ts";
 import { championFitsRole, championRoles } from "../src/lib/champion-roles.ts";
 
 const start = new Date("2026-10-10T18:00:00.000Z");
@@ -185,7 +195,7 @@ test("locking the requested champion drops the request, and a cancelled request 
 	assert.equal(locked.swapRequests, undefined);
 	assert.throws(() => applySwapAnswer(locked, sequence, { side: "teamA", accept: true }), /keine offene/);
 
-	const cancelled = applySwapCancel(requested, { side: "teamA" });
+	const cancelled = applySwapCancel(requested, sequence, { side: "teamA" });
 	assert.equal(cancelled.swapRequests, undefined);
 	assert.ok(applySwapRequest(cancelled, sequence, { side: "teamA", actionIndex: 6, champion: "Lux", allowedPicks: ["Lux"] }).swapRequests.teamA);
 });
@@ -244,7 +254,42 @@ test("a team that confirmed its roles cannot ask for a swap anymore", () => {
 	const full = playFullDraft();
 	const now = new Date(full.rolePhaseStartedAt);
 	const requested = applySwapRequest(full, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, now);
-	const confirmed = applyRoleConfirm(requested, sequence, { side: "teamA" }, now);
+	// The own open request blocks the confirmation, so it cannot silently die.
+	assert.throws(() => applyRoleConfirm(requested, sequence, { side: "teamA" }, now), /noch offen/);
+	const confirmed = applyRoleConfirm(applySwapCancel(requested, sequence, { side: "teamA" }, now), sequence, { side: "teamA" }, now);
 	assert.equal(confirmed.swapRequests, undefined);
 	assert.throws(() => applySwapRequest(confirmed, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, now), /bereits bestätigt/);
+});
+
+test("a late swap request extends the role phase so the opponent can answer", () => {
+	const full = playFullDraft();
+	const startMs = new Date(full.rolePhaseStartedAt).getTime();
+	const t = (seconds) => new Date(startMs + seconds * 1000);
+	const grace = DRAFT_GRACE_SECONDS * 1000;
+	// Red confirms early, Blue asks 22 s into the 30 s phase (the Sturmfront case).
+	const redDone = applyRoleConfirm(full, sequence, { side: "teamB" }, t(21));
+	const requested = applySwapRequest(redDone, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, t(22));
+	assert.equal(rolePhaseEndsAtMs(requested), t(42).getTime());
+	assert.throws(() => applyRoleTimeout(requested, sequence, undefined, new Date(t(30).getTime() + grace)), /läuft noch/);
+
+	// Red already confirmed and can still answer; Blue then gets time to confirm.
+	const { state: swapped, outcome } = applySwapAnswer(requested, sequence, { side: "teamA", accept: true }, t(40));
+	assert.equal(outcome, "accepted");
+	assert.equal(rolePhaseEndsAtMs(swapped), t(50).getTime());
+	assert.ok(swapped.roles.teamA.order.includes("Ahri"));
+	const done = applyRoleConfirm(swapped, sequence, { side: "teamA" }, t(45));
+	assert.ok(done.rolesFinalizedAt);
+	assert.ok(done.actions.some((action) => action.champion === "Ahri"));
+
+	// Without an answer the extended phase still ends, at most 60 s later than normal.
+	const timedOut = applyRoleTimeout(requested, sequence, undefined, new Date(t(42).getTime() + grace));
+	assert.ok(timedOut.rolesFinalizedAt);
+	assert.equal(timedOut.swapRequests, undefined);
+	let stretched = requested;
+	for (let second = 40; second <= 120; second += 10) {
+		stretched = applySwapCancel(stretched, sequence, { side: "teamA" }, t(second - 1));
+		if (rolePhaseEndsAtMs(stretched) + grace <= t(second).getTime()) break;
+		stretched = applySwapRequest(stretched, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, t(second));
+	}
+	assert.ok(rolePhaseEndsAtMs(stretched) <= t(90).getTime());
 });

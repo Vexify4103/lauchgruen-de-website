@@ -1,13 +1,15 @@
 // Pure draft state transitions. The Mongo wrapper in tournament-draft.ts loads, applies and stores them.
 import { championRoles } from "@/lib/champion-roles";
 import {
-	DRAFT_ROLE_TOTAL_MS,
+	DRAFT_SWAP_AFTER_SECONDS,
+	DRAFT_SWAP_ANSWER_SECONDS,
 	DRAFT_TOTAL_MS,
 	draftFinished,
 	draftPicks,
 	draftReady,
 	draftTurnExpired,
 	isValidRoleOrder,
+	extendedRolePhaseEnd,
 	nextDraftTurn,
 	rolePhaseActive,
 	rolePhaseExpired,
@@ -150,6 +152,9 @@ export function applyRoleConfirm(
 	input: { side: DraftSide; order?: string[]; confirmedBy?: string },
 	now = new Date()
 ): TournamentDraftState {
+	if (current.swapRequests?.[input.side]) {
+		throw new DraftRuleError("Eure Tausch-Anfrage ist noch offen. Wartet auf die Antwort oder zieht sie zurück.");
+	}
 	const withOrder = input.order ? applyRoleOrder(current, sequence, { side: input.side, order: input.order, updatedBy: input.confirmedBy }, now) : current;
 	assertRolePhase(withOrder, sequence, input.side, now.getTime());
 	const at = now.toISOString();
@@ -160,8 +165,7 @@ export function applyRoleConfirm(
 		...withOrder,
 		roles,
 		rolesFinalizedAt: bothConfirmed ? at : undefined,
-		// Confirming ends the own open request; the order is final for this team.
-		swapRequests: bothConfirmed ? undefined : withoutSwapRequests(withOrder.swapRequests, (request) => request === withOrder.swapRequests?.[input.side]),
+		swapRequests: bothConfirmed ? undefined : withOrder.swapRequests,
 		updatedAt: at,
 		updatedBy: input.confirmedBy,
 	};
@@ -170,7 +174,7 @@ export function applyRoleConfirm(
 /** Role confirmation ran out: the current order of each team becomes final. */
 export function applyRoleTimeout(current: TournamentDraftState, sequence: DraftTurn[], triggeredBy?: string, now = new Date()): TournamentDraftState {
 	if (!rolePhaseActive(current, sequence) || !current.rolePhaseStartedAt) return current;
-	if (now.getTime() < new Date(current.rolePhaseStartedAt).getTime() + DRAFT_ROLE_TOTAL_MS) throw new DraftRuleError("Die Rollenwahl läuft noch.");
+	if (!rolePhaseExpired(current, now.getTime(), sequence)) throw new DraftRuleError("Die Rollenwahl läuft noch.");
 	const at = now.toISOString();
 	return { ...current, rolesFinalizedAt: at, swapRequests: undefined, updatedAt: at, updatedBy: triggeredBy };
 }
@@ -186,6 +190,7 @@ export function applyUndo(current: TournamentDraftState, updatedBy?: string, now
 		pendingSelection: undefined,
 		currentTurnStartedAt: at,
 		rolePhaseStartedAt: undefined,
+		rolePhaseEndsAt: undefined,
 		roles: undefined,
 		rolesFinalizedAt: undefined,
 		updatedAt: at,
@@ -199,9 +204,16 @@ function withoutSwapRequests(requests: TournamentDraftState["swapRequests"], dro
 	return Object.keys(kept).length ? kept : undefined;
 }
 
-function assertSwapWindow(current: TournamentDraftState, sequence: DraftTurn[]) {
+function assertSwapWindow(current: TournamentDraftState, sequence: DraftTurn[], now: Date) {
 	if (!draftReady(current) || current.actions.length === 0) throw new DraftRuleError("Der Draft läuft noch nicht.");
 	if (draftFinished(current, sequence)) throw new DraftRuleError("Der Draft ist abgeschlossen, ein Tausch ist nicht mehr möglich.");
+	if (rolePhaseExpired(current, now.getTime(), sequence)) throw new DraftRuleError("Die Zeit für die Rollenwahl ist abgelaufen.");
+}
+
+/** During the role phase a swap request or answer pauses the clock: the phase runs at least `seconds` longer. */
+function withRoleTime(state: TournamentDraftState, sequence: DraftTurn[], now: Date, seconds: number): TournamentDraftState {
+	if (!rolePhaseActive(state, sequence)) return state;
+	return { ...state, rolePhaseEndsAt: extendedRolePhaseEnd(state, now.getTime(), seconds) };
 }
 
 /**
@@ -214,7 +226,7 @@ export function applySwapRequest(
 	input: { side: DraftSide; actionIndex: number; champion: string; allowedPicks: Iterable<string>; requestedBy?: string },
 	now = new Date()
 ): TournamentDraftState {
-	assertSwapWindow(current, sequence);
+	assertSwapWindow(current, sequence, now);
 	const action = current.actions[input.actionIndex];
 	if (!action || action.side !== input.side || action.kind !== "pick") {
 		throw new DraftRuleError("Nur eigene Picks können getauscht werden.");
@@ -225,19 +237,21 @@ export function applySwapRequest(
 	if (!new Set(input.allowedPicks).has(input.champion)) throw new DraftRuleError("Diesen Champion darf das Team nicht picken.");
 	const at = now.toISOString();
 	const request: DraftSwapRequest = { actionIndex: input.actionIndex, from: action.champion, champion: input.champion, requestedAt: at, requestedBy: input.requestedBy };
-	return { ...current, swapRequests: { ...current.swapRequests, [input.side]: request }, updatedAt: at, updatedBy: input.requestedBy };
+	const next = { ...current, swapRequests: { ...current.swapRequests, [input.side]: request }, updatedAt: at, updatedBy: input.requestedBy };
+	return withRoleTime(next, sequence, now, DRAFT_SWAP_ANSWER_SECONDS);
 }
 
 /** The requesting team withdraws its open request and may ask again later. */
-export function applySwapCancel(current: TournamentDraftState, input: { side: DraftSide; cancelledBy?: string }, now = new Date()): TournamentDraftState {
+export function applySwapCancel(current: TournamentDraftState, sequence: DraftTurn[], input: { side: DraftSide; cancelledBy?: string }, now = new Date()): TournamentDraftState {
 	if (!current.swapRequests?.[input.side]) throw new DraftRuleError("Es gibt keine offene Tausch-Anfrage.");
 	const at = now.toISOString();
-	return {
+	const next = {
 		...current,
 		swapRequests: withoutSwapRequests(current.swapRequests, (request) => request === current.swapRequests?.[input.side]),
 		updatedAt: at,
 		updatedBy: input.cancelledBy,
 	};
+	return withRoleTime(next, sequence, now, DRAFT_SWAP_AFTER_SECONDS);
 }
 
 export type SwapOutcome = "accepted" | "declined" | "stale";
@@ -254,12 +268,12 @@ export function applySwapAnswer(
 ): { state: TournamentDraftState; outcome: SwapOutcome } {
 	const request = current.swapRequests?.[input.side];
 	if (!request) throw new DraftRuleError("Es gibt keine offene Tausch-Anfrage.");
-	assertSwapWindow(current, sequence);
+	assertSwapWindow(current, sequence, now);
 	const at = now.toISOString();
 	const swapRequests = withoutSwapRequests(current.swapRequests, (entry) => entry === request);
 	const action = current.actions[request.actionIndex];
 	const stale = !action || action.champion !== request.from || usedChampions(current).has(request.champion);
-	if (stale) return { state: { ...current, swapRequests, updatedAt: at, updatedBy: input.decidedBy }, outcome: "stale" };
+	if (stale) return { state: withRoleTime({ ...current, swapRequests, updatedAt: at, updatedBy: input.decidedBy }, sequence, now, DRAFT_SWAP_AFTER_SECONDS), outcome: "stale" };
 	const actions = current.actions.map((entry, index) =>
 		index === request.actionIndex && input.accept ? { ...entry, champion: request.champion, swappedFrom: entry.swappedFrom ?? request.from } : entry
 	);
@@ -269,7 +283,7 @@ export function applySwapAnswer(
 			? { ...current.roles, [input.side]: { ...current.roles[input.side]!, order: order.map((name) => (name === request.from ? request.champion : name)) } }
 			: current.roles;
 	return {
-		state: { ...current, actions, roles, swapRequests, updatedAt: at, updatedBy: input.decidedBy },
+		state: withRoleTime({ ...current, actions, roles, swapRequests, updatedAt: at, updatedBy: input.decidedBy }, sequence, now, DRAFT_SWAP_AFTER_SECONDS),
 		outcome: input.accept ? "accepted" : "declined",
 	};
 }

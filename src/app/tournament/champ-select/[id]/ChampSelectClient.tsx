@@ -15,7 +15,7 @@ import {
 	DRAFT_ROLE_SECONDS,
 	DRAFT_ROLES,
 	DRAFT_TOTAL_MS,
-	DRAFT_ROLE_TOTAL_MS,
+	DRAFT_GRACE_SECONDS,
 	DRAFT_TURN_SECONDS,
 	createDraftSequence,
 	draftBans,
@@ -26,6 +26,7 @@ import {
 	draftRoleOrder,
 	nextDraftTurn,
 	rolePhaseActive,
+	rolePhaseEndsAtMs,
 	swapRoleOrder,
 	type DraftAction,
 	type DraftRole,
@@ -180,7 +181,7 @@ export function ChampSelectClient({
 	// Captains and admins report an expired timer; the server decides what happens.
 	useEffect(() => {
 		if (spectator || (!editableSide && !isOwner) || !timer.expired) return;
-		const key = `${state.actions.length}:${state.currentTurnStartedAt ?? state.rolePhaseStartedAt ?? ""}`;
+		const key = `${state.actions.length}:${state.currentTurnStartedAt ?? state.rolePhaseStartedAt ?? ""}:${state.rolePhaseEndsAt ?? ""}`;
 		if (timeoutHandledRef.current === key) return;
 		timeoutHandledRef.current = key;
 		void post({ matchId: match.id, action: "timeout" }).then((json) => {
@@ -442,6 +443,7 @@ export function ChampSelectClient({
 						rolePhase={rolePhase}
 						roleSide={roleSide}
 						roleConfirmed={Boolean(roleSide && state.roles?.[roleSide]?.confirmedAt)}
+						swapPending={Boolean(roleSide && state.swapRequests?.[roleSide])}
 						finished={finished}
 						pending={isPending}
 						onReady={markReady}
@@ -754,6 +756,7 @@ function ActionButton({
 	rolePhase,
 	roleSide,
 	roleConfirmed,
+	swapPending,
 	finished,
 	pending,
 	onReady,
@@ -772,6 +775,7 @@ function ActionButton({
 	rolePhase: boolean;
 	roleSide: DraftSide | null;
 	roleConfirmed: boolean;
+	swapPending: boolean;
 	finished: boolean;
 	pending: boolean;
 	onReady: () => void;
@@ -788,6 +792,7 @@ function ActionButton({
 	if (rolePhase) {
 		if (spectator || !roleSide) return disabled("Rollenwahl läuft");
 		if (roleConfirmed) return disabled(isOwner && !editableSide ? "Rollen bestätigt" : "Warte auf Gegner");
+		if (swapPending) return disabled("Warte auf Antwort zum Tausch");
 		return (
 			<button type="button" className="draft-action-button" disabled={pending} onClick={() => onConfirmRoles(roleSide)}>
 				{isOwner && !editableSide ? `Rollen ${SIDE_LABEL[roleSide]} bestätigen` : "Rollen bestätigen"}
@@ -822,12 +827,18 @@ type TimerState = { label: string; remainingMs: number; expired: boolean };
 
 /** `now` is null until the page is mounted, so server and first client render show the same full timer. */
 function timerState(state: TournamentDraftState, now: number | null, rolePhase: boolean, complete: boolean): TimerState {
+	const roleEnd = rolePhase ? rolePhaseEndsAtMs(state) : null;
+	if (roleEnd !== null) {
+		if (now === null) return { label: String(DRAFT_ROLE_SECONDS), remainingMs: DRAFT_ROLE_SECONDS * 1000, expired: false };
+		const remainingMs = Math.max(0, roleEnd - now);
+		return { label: String(Math.ceil(remainingMs / 1000)), remainingMs, expired: now >= roleEnd + DRAFT_GRACE_SECONDS * 1000 };
+	}
 	const startedAt = rolePhase ? state.rolePhaseStartedAt : !complete && draftReady(state) ? state.currentTurnStartedAt : undefined;
 	const seconds = rolePhase ? DRAFT_ROLE_SECONDS : DRAFT_TURN_SECONDS;
 	if (!startedAt || now === null) return { label: String(seconds), remainingMs: seconds * 1000, expired: false };
 	const elapsed = Math.max(0, now - new Date(startedAt).getTime());
 	const remainingMs = Math.max(0, seconds * 1000 - elapsed);
-	return { label: String(Math.ceil(remainingMs / 1000)), remainingMs, expired: elapsed >= (rolePhase ? DRAFT_ROLE_TOTAL_MS : DRAFT_TOTAL_MS) };
+	return { label: String(Math.ceil(remainingMs / 1000)), remainingMs, expired: elapsed >= DRAFT_TOTAL_MS };
 }
 
 function timeoutMessage(next: TournamentDraftState, previous: TournamentDraftState): string {

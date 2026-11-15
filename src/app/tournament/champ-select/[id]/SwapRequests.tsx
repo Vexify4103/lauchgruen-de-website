@@ -149,11 +149,12 @@ export function SwapPrompts({
 				const answer = canAct(other(side));
 				const own = canAct(side);
 				return (
-					<div key={side} className="draft-swap-prompt" data-side={side} role="status">
+					<div key={side} className="draft-swap-prompt" data-side={side} data-answer={answer || undefined} role={answer ? "alert" : "status"}>
 						<p>
 							{own && !answer ? "Wechsel angefragt: " : `${teamLabel(side)} möchte `}
 							<strong>{request.from}</strong> → <strong>{request.champion}</strong>
 							{own && !answer ? ` · warte auf ${teamLabel(other(side))}` : " tauschen."}
+							{answer ? <span className="draft-swap-prompt-hint">Bitte antworten. Die Rollenzeit wird dafür verlängert.</span> : null}
 						</p>
 						<div>
 							{answer ? (

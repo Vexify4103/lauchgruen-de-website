@@ -246,7 +246,7 @@ export async function POST(request: Request) {
 				return NextResponse.json({ draft: await shownDraft(draft, discordId, isOwner) });
 			}
 			if (parsed.data.action === "cancelSwap") {
-				const draft = await cancelDraftSwap({ matchId: match.id, side: requestSide, cancelledBy: actor });
+				const draft = await cancelDraftSwap({ matchId: match.id, side: requestSide, cancelledBy: actor, extraBanSide });
 				await writeTournamentEvent({ type: "draft.swap_cancelled", targetType: "draft", targetId: match.id, createdBy: actor, payload: { side: requestSide } });
 				return NextResponse.json({ draft: await shownDraft(draft, discordId, isOwner) });
 			}

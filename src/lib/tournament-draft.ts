@@ -188,6 +188,7 @@ function strip(doc: DraftDoc): TournamentDraftState {
 		rolePhaseStartedAt: doc.rolePhaseStartedAt ? String(doc.rolePhaseStartedAt) : undefined,
 		roles: sanitizeRoles(doc.roles),
 		rolesFinalizedAt: doc.rolesFinalizedAt ? String(doc.rolesFinalizedAt) : undefined,
+		rolePhaseEndsAt: doc.rolePhaseEndsAt ? String(doc.rolePhaseEndsAt) : undefined,
 		swapRequests: sanitizeSwapRequests(doc.swapRequests),
 		resetReason: doc.resetReason ? String(doc.resetReason) : undefined,
 		resetAt: doc.resetAt ? String(doc.resetAt) : undefined,
@@ -390,8 +391,8 @@ export async function requestDraftSwap(input: {
 	return saveDraft(applySwapRequest(current, createDraftSequence(input.extraBanSide), input));
 }
 
-export async function cancelDraftSwap(input: { matchId: string; side: DraftSide; cancelledBy?: string }): Promise<TournamentDraftState> {
-	return saveDraft(applySwapCancel(await getDraftState(input.matchId), input));
+export async function cancelDraftSwap(input: { matchId: string; side: DraftSide; cancelledBy?: string; extraBanSide?: DraftSide | null }): Promise<TournamentDraftState> {
+	return saveDraft(applySwapCancel(await getDraftState(input.matchId), createDraftSequence(input.extraBanSide), input));
 }
 
 export async function answerDraftSwap(input: {

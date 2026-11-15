@@ -61,6 +61,8 @@ export type TournamentDraftState = {
 	rolePhaseStartedAt?: string;
 	roles?: Partial<Record<DraftSide, DraftRoleAssignment>>;
 	rolesFinalizedAt?: string;
+	/** Role phase end after a swap request extended it; without it the phase ends DRAFT_ROLE_SECONDS after the start. */
+	rolePhaseEndsAt?: string;
 	/** Open swap request per requesting side. */
 	swapRequests?: Partial<Record<DraftSide, DraftSwapRequest>>;
 	resetReason?: string;
@@ -75,6 +77,29 @@ export const DRAFT_TOTAL_SECONDS = DRAFT_TURN_SECONDS + DRAFT_GRACE_SECONDS;
 export const DRAFT_TOTAL_MS = DRAFT_TOTAL_SECONDS * 1000;
 export const DRAFT_ROLE_SECONDS = 30;
 export const DRAFT_ROLE_TOTAL_MS = (DRAFT_ROLE_SECONDS + DRAFT_GRACE_SECONDS) * 1000;
+/** A swap request during the role phase gives the opponent at least this long to answer. */
+export const DRAFT_SWAP_ANSWER_SECONDS = 20;
+/** After an answer or withdrawal the requesting team gets this long to confirm its roles. */
+export const DRAFT_SWAP_AFTER_SECONDS = 10;
+/** Swap requests can stretch the role phase by at most this much. */
+export const DRAFT_SWAP_MAX_EXTRA_SECONDS = 60;
+
+/** Visible end of the role phase (without grace), in ms. Null before the role phase starts. */
+export function rolePhaseEndsAtMs(state: Pick<TournamentDraftState, "rolePhaseStartedAt" | "rolePhaseEndsAt">): number | null {
+	if (!state.rolePhaseStartedAt) return null;
+	const base = new Date(state.rolePhaseStartedAt).getTime() + DRAFT_ROLE_SECONDS * 1000;
+	const extended = state.rolePhaseEndsAt ? new Date(state.rolePhaseEndsAt).getTime() : 0;
+	return Math.max(base, Number.isFinite(extended) ? extended : 0);
+}
+
+/** New role phase end so that at least `seconds` remain from `nowMs`, capped at DRAFT_SWAP_MAX_EXTRA_SECONDS extra. */
+export function extendedRolePhaseEnd(state: Pick<TournamentDraftState, "rolePhaseStartedAt" | "rolePhaseEndsAt">, nowMs: number, seconds: number): string | undefined {
+	const current = rolePhaseEndsAtMs(state);
+	if (current === null || !state.rolePhaseStartedAt) return state.rolePhaseEndsAt;
+	const cap = new Date(state.rolePhaseStartedAt).getTime() + (DRAFT_ROLE_SECONDS + DRAFT_SWAP_MAX_EXTRA_SECONDS) * 1000;
+	const next = Math.min(cap, Math.max(current, nowMs + seconds * 1000));
+	return next > current ? new Date(next).toISOString() : state.rolePhaseEndsAt;
+}
 
 const blue = (kind: DraftActionKind): DraftTurn => ({ side: "teamA", kind });
 const red = (kind: DraftActionKind): DraftTurn => ({ side: "teamB", kind });
@@ -118,8 +143,9 @@ export function rolePhaseActive(state: TournamentDraftState, sequence: DraftTurn
 }
 
 export function rolePhaseExpired(state: TournamentDraftState, now = Date.now(), sequence: DraftTurn[] = DRAFT_SEQUENCE): boolean {
-	if (!rolePhaseActive(state, sequence) || !state.rolePhaseStartedAt) return false;
-	return now >= new Date(state.rolePhaseStartedAt).getTime() + DRAFT_ROLE_TOTAL_MS;
+	const endsAt = rolePhaseEndsAtMs(state);
+	if (!rolePhaseActive(state, sequence) || endsAt === null) return false;
+	return now >= endsAt + DRAFT_GRACE_SECONDS * 1000;
 }
 
 /** Picks, bans and role confirmation are done. */

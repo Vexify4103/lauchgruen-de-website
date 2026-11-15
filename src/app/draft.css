@@ -674,6 +674,29 @@
 	.draft-swap-prompt p {
 		margin: 0;
 	}
+	.draft-swap-prompt[data-answer] {
+		border-color: var(--accent);
+		font-size: 13px;
+		animation: draft-swap-attention 1.2s ease-in-out 3;
+	}
+	.draft-swap-prompt-hint {
+		display: block;
+		margin-top: 2px;
+		color: var(--muted);
+		font-size: 12px;
+	}
+	@keyframes draft-swap-attention {
+		50% {
+			box-shadow:
+				0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent),
+				0 8px 24px rgba(0, 0, 0, 0.35);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.draft-swap-prompt[data-answer] {
+			animation: none;
+		}
+	}
 	.draft-swap-prompt strong {
 		color: var(--text);
 	}
