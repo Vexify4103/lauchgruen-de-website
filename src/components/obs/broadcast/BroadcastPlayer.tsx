@@ -333,6 +333,13 @@ function TournamentBoard({ data }: { data: BroadcastSnapshot }) {
 	);
 }
 
+/** Series score for Bo3/Bo5; a Bo1 shows "VS" until its result is in, a running 0 : 0 says nothing there. */
+function matchBarScore(match: BroadcastSnapshot["selectedMatch"]) {
+	if (!match) return "VS";
+	if (match.bestOf <= 1 && match.status !== "Finished") return "VS";
+	return `${match.scoreA ?? 0} : ${match.scoreB ?? 0}`;
+}
+
 function MatchBar({ data }: { data: BroadcastSnapshot }) {
 	const match = data.selectedMatch;
 	return (
@@ -347,7 +354,7 @@ function MatchBar({ data }: { data: BroadcastSnapshot }) {
 				</div>
 				<div className="broadcast-matchbar-teams">
 					<strong className={match ? (match.blueSide === "teamA" ? "is-blue" : "is-red") : ""}>{match?.teamA?.name ?? data.selectedTeam?.name ?? "Teams folgen"}</strong>
-					<b>{match ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "VS"}</b>
+					<b>{matchBarScore(match)}</b>
 					<strong className={match ? (match.blueSide === "teamB" ? "is-blue" : "is-red") : ""}>{match?.teamB?.name ?? "Gegner noch offen"}</strong>
 				</div>
 				<div className="broadcast-matchbar-status">
