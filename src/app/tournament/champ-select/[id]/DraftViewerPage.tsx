@@ -1,5 +1,6 @@
 import { getMatchControlContext } from "@/lib/match-control";
 import { getDraftState } from "@/lib/tournament-draft";
+import { draftForViewer } from "@/lib/tournament-draft-shared";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { resolveDraftChampionRules } from "@/lib/draft-champions";
 import { usesChampSelect } from "@/lib/tournament-kind";
@@ -41,7 +42,7 @@ export async function DraftViewerPage({ id, perspective }: { id: string; perspec
 			<section className="mx-auto w-full max-w-[118rem]">
 				<DraftSpectatorClient
 					match={match}
-					draft={draft}
+					draft={draftForViewer(draft, null)}
 					perspective={perspective}
 					blueTeamLabel={blueTeam?.name ?? (match.blueSide === "teamA" ? match.teamALabel : match.teamBLabel)}
 					redTeamLabel={redTeam?.name ?? (match.blueSide === "teamA" ? match.teamBLabel : match.teamALabel)}

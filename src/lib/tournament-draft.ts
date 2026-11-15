@@ -13,9 +13,22 @@ import {
 	type DraftReadyEntry,
 	type DraftRoleAssignment,
 	type DraftSide,
+	type DraftSwapRequest,
 	type TournamentDraftState,
 } from "@/lib/tournament-draft-shared";
-import { applyDraftLock, applyDraftTimeout, applyRoleConfirm, applyRoleOrder, applyRoleTimeout, applyUndo, resetDraft } from "@/lib/tournament-draft-engine";
+import {
+	applyDraftLock,
+	applyDraftTimeout,
+	applyRoleConfirm,
+	applyRoleOrder,
+	applyRoleTimeout,
+	applySwapAnswer,
+	applySwapCancel,
+	applySwapRequest,
+	applyUndo,
+	resetDraft,
+	type SwapOutcome,
+} from "@/lib/tournament-draft-engine";
 
 export { DraftRuleError } from "@/lib/tournament-draft-engine";
 export {
@@ -80,6 +93,7 @@ function sanitizeAction(value: unknown): DraftAction | null {
 		lockedBy: raw.lockedBy ? String(raw.lockedBy) : undefined,
 		...(skipped ? { skipped: true } : {}),
 		...(raw.auto === "hover" || raw.auto === "random" ? { auto: raw.auto } : {}),
+		...(raw.swappedFrom ? { swappedFrom: String(raw.swappedFrom) } : {}),
 	};
 }
 
@@ -112,6 +126,24 @@ function legacyActions(doc: DraftDoc): DraftAction[] {
 		}
 	}
 	return out.slice(0, DRAFT_MAX_SEQUENCE_LENGTH);
+}
+
+function sanitizeSwapRequests(value: unknown): TournamentDraftState["swapRequests"] {
+	if (!value || typeof value !== "object") return undefined;
+	const raw = value as Partial<Record<DraftSide, Partial<DraftSwapRequest>>>;
+	const requests: NonNullable<TournamentDraftState["swapRequests"]> = {};
+	for (const side of ["teamA", "teamB"] as const) {
+		const entry = raw[side];
+		if (!entry || typeof entry.actionIndex !== "number" || !entry.from || !entry.champion || !entry.requestedAt) continue;
+		requests[side] = {
+			actionIndex: entry.actionIndex,
+			from: String(entry.from),
+			champion: String(entry.champion),
+			requestedAt: String(entry.requestedAt),
+			requestedBy: entry.requestedBy ? String(entry.requestedBy) : undefined,
+		};
+	}
+	return Object.keys(requests).length ? requests : undefined;
 }
 
 function sanitizeReady(value: unknown): Partial<Record<DraftSide, DraftReadyEntry>> {
@@ -156,6 +188,7 @@ function strip(doc: DraftDoc): TournamentDraftState {
 		rolePhaseStartedAt: doc.rolePhaseStartedAt ? String(doc.rolePhaseStartedAt) : undefined,
 		roles: sanitizeRoles(doc.roles),
 		rolesFinalizedAt: doc.rolesFinalizedAt ? String(doc.rolesFinalizedAt) : undefined,
+		swapRequests: sanitizeSwapRequests(doc.swapRequests),
 		resetReason: doc.resetReason ? String(doc.resetReason) : undefined,
 		resetAt: doc.resetAt ? String(doc.resetAt) : undefined,
 		updatedAt: doc.updatedAt ?? new Date().toISOString(),
@@ -342,4 +375,34 @@ export async function confirmDraftRoles(input: {
 }): Promise<TournamentDraftState> {
 	const current = await getDraftState(input.matchId);
 	return saveDraft(applyRoleConfirm(current, createDraftSequence(input.extraBanSide), input));
+}
+
+export async function requestDraftSwap(input: {
+	matchId: string;
+	side: DraftSide;
+	actionIndex: number;
+	champion: string;
+	allowedPicks: Iterable<string>;
+	requestedBy?: string;
+	extraBanSide?: DraftSide | null;
+}): Promise<TournamentDraftState> {
+	const current = await getDraftState(input.matchId);
+	return saveDraft(applySwapRequest(current, createDraftSequence(input.extraBanSide), input));
+}
+
+export async function cancelDraftSwap(input: { matchId: string; side: DraftSide; cancelledBy?: string }): Promise<TournamentDraftState> {
+	return saveDraft(applySwapCancel(await getDraftState(input.matchId), input));
+}
+
+export async function answerDraftSwap(input: {
+	matchId: string;
+	side: DraftSide;
+	accept: boolean;
+	decidedBy?: string;
+	extraBanSide?: DraftSide | null;
+}): Promise<{ draft: TournamentDraftState; outcome: SwapOutcome; request: DraftSwapRequest }> {
+	const current = await getDraftState(input.matchId);
+	const request = current.swapRequests?.[input.side];
+	const { state, outcome } = applySwapAnswer(current, createDraftSequence(input.extraBanSide), input);
+	return { draft: await saveDraft(state), outcome, request: request! };
 }

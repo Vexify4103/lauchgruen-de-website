@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { getDraftState } from "@/lib/tournament-draft";
+import { draftForViewer } from "@/lib/tournament-draft-shared";
 import { getMatchControlContext } from "@/lib/match-control";
 import { bonusBanSideForMatch } from "@/lib/tournament-rules";
 import { resolveDraftChampionRules } from "@/lib/draft-champions";
@@ -49,7 +50,7 @@ export default async function ChampSelectPage({ params }: { params: Promise<{ id
 			<section className="mx-auto w-full max-w-[118rem]">
 				<ChampSelectClient
 					match={match}
-					draft={draft}
+					draft={draftForViewer(draft, isOwner ? "all" : editableSide)}
 					editableSide={editableSide}
 					blueTeamLabel={blueTeam?.name ?? (match.blueSide === "teamA" ? match.teamALabel : match.teamBLabel)}
 					redTeamLabel={redTeam?.name ?? (match.blueSide === "teamA" ? match.teamBLabel : match.teamALabel)}

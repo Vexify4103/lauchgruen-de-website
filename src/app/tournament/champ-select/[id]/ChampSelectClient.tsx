@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useEffect, useId, useRef, useState, useTransition, type DragEvent } from "react";
+import { useDeferredValue, useEffect, useId, useRef, useState, useTransition, type DragEvent, type ReactElement } from "react";
 import { championFitsRole } from "@/lib/champion-roles";
 import { RoleIcon } from "@/components/RoleIcon";
 import type { ChampionPool, ChampionPoolEntry } from "@/lib/champion-pools";
+import { SwapCardButton, SwapPicker, SwapPrompts } from "./SwapRequests";
 import { fearlessLockBadge, fearlessLockLabel, type FearlessLock, type FearlessLocks } from "@/lib/fearless";
 import type { ControlMatch } from "@/lib/match-control";
 import {
@@ -19,7 +20,7 @@ import {
 	createDraftSequence,
 	draftBans,
 	draftComplete,
-	draftHasRoles,
+	draftSideHasRoles,
 	draftPicks,
 	draftReady,
 	draftRoleOrder,
@@ -83,6 +84,8 @@ export function ChampSelectClient({
 	const [roleFilter, setRoleFilter] = useState<DraftRole | null>(null);
 	const [hideLocked, setHideLocked] = useState(false);
 	const [swapFrom, setSwapFrom] = useState<{ side: DraftSide; index: number } | null>(null);
+	// Pick that the viewer wants to replace via a swap request (drafter.lol style).
+	const [swapTarget, setSwapTarget] = useState<{ side: DraftSide; actionIndex: number; from: string; slotLabel: string } | null>(null);
 	const [message, setMessage] = useState("");
 	const [now, setNow] = useState<number | null>(null);
 	const [isPending, startTransition] = useTransition();
@@ -193,7 +196,7 @@ export function ChampSelectClient({
 		});
 	}, [editableSide, isOwner, match.id, spectator, state, timer.expired]);
 
-	function run(task: () => Promise<DraftResponse>, onDone?: (draft: TournamentDraftState) => void) {
+	function run(task: () => Promise<DraftResponse>, onDone?: (draft: TournamentDraftState, message?: string) => void) {
 		setMessage("");
 		startTransition(async () => {
 			const json = await task();
@@ -202,7 +205,7 @@ export function ChampSelectClient({
 				return;
 			}
 			setState(json.draft);
-			onDone?.(json.draft);
+			onDone?.(json.draft, json.message);
 		});
 	}
 
@@ -255,6 +258,32 @@ export function ChampSelectClient({
 		run(() => post({ matchId: match.id, action }));
 	}
 
+	function requestSwap(side: DraftSide, actionIndex: number, champion: string) {
+		run(
+			() => post({ matchId: match.id, action: "requestSwap", actionIndex, champion, ...(isOwner ? { side } : {}) }),
+			() => setSwapTarget(null)
+		);
+	}
+
+	function cancelSwap(side: DraftSide) {
+		run(() => post({ matchId: match.id, action: "cancelSwap", ...(isOwner ? { side } : {}) }));
+	}
+
+	function answerSwap(side: DraftSide, accept: boolean) {
+		run(
+			() => post({ matchId: match.id, action: "answerSwap", accept, ...(isOwner ? { side } : {}) }),
+			(_, serverMessage) => setMessage(serverMessage ?? (accept ? "Wechsel angenommen." : "Wechsel abgelehnt."))
+		);
+	}
+
+	// Champions already asked for in an open request are not offered twice.
+	const requested = new Set(Object.values(state.swapRequests ?? {}).map((request) => request?.champion));
+	const swapOptions = (side: DraftSide) =>
+		uniqueChampions(side === "teamA" ? blueChampions : redChampions).filter(
+			(champion) => !used.has(champion.name) && !requested.has(champion.name) && !(fearless && fearlessLocks[side][champion.name])
+		);
+	const swapOpen = ready && !finished && !closedReason;
+
 	const roleSide: DraftSide | null = rolePhase ? (editableSide ?? (isOwner ? (state.roles?.teamA?.confirmedAt ? "teamB" : "teamA") : null)) : null;
 	const laneProps = {
 		state,
@@ -265,6 +294,12 @@ export function ChampSelectClient({
 		swapFrom,
 		onSwapStart: setSwapFrom,
 		onMove: moveRole,
+		swap: {
+			open: swapOpen,
+			pending: isPending,
+			canRequest: (side: DraftSide) => controlsSide(side) && !state.swapRequests?.[side],
+			onOpen: setSwapTarget,
+		},
 	};
 
 	return (
@@ -384,6 +419,16 @@ export function ChampSelectClient({
 			<div className="draft-foot">
 				<BanRow side="teamA" state={state} byName={byName} extra={extraBanSide === "teamA"} currentTurn={ready ? currentTurn : null} preview={preview} />
 				<div className="draft-action">
+					{swapOpen ? (
+						<SwapPrompts
+							requests={state.swapRequests}
+							teamLabel={(side) => (side === "teamA" ? blueTeamLabel : redTeamLabel)}
+							canAct={controlsSide}
+							pending={isPending}
+							onCancel={cancelSwap}
+							onAnswer={answerSwap}
+						/>
+					) : null}
 					<ActionButton
 						spectator={spectator}
 						closedReason={closedReason}
@@ -406,9 +451,21 @@ export function ChampSelectClient({
 					{rolePhase && roleSide && !state.roles?.[roleSide]?.confirmedAt ? (
 						<small>Klicke bei einem Champion auf „Tauschen“ und danach auf den Champion, mit dem er die Lane tauschen soll.</small>
 					) : null}
+					{rolePhase ? <small>Die Rollen des Gegners werden sichtbar, sobald beide Teams bestätigt haben.</small> : null}
 				</div>
 				<BanRow side="teamB" state={state} byName={byName} extra={extraBanSide === "teamB"} currentTurn={ready ? currentTurn : null} preview={preview} />
 			</div>
+
+			{swapTarget && swapOpen ? (
+				<SwapPicker
+					from={swapTarget.from}
+					slotLabel={swapTarget.slotLabel}
+					champions={swapOptions(swapTarget.side)}
+					pending={isPending}
+					onSubmit={(champion) => requestSwap(swapTarget.side, swapTarget.actionIndex, champion)}
+					onClose={() => setSwapTarget(null)}
+				/>
+			) : null}
 
 			{message ? (
 				<p role="status" className="draft-message">
@@ -511,6 +568,7 @@ function PickLane({
 	swapFrom,
 	onSwapStart,
 	onMove,
+	swap,
 }: {
 	side: DraftSide;
 	state: TournamentDraftState;
@@ -522,9 +580,15 @@ function PickLane({
 	swapFrom: { side: DraftSide; index: number } | null;
 	onSwapStart: (value: { side: DraftSide; index: number } | null) => void;
 	onMove: (side: DraftSide, from: number, to: number) => void;
+	swap: {
+		open: boolean;
+		pending: boolean;
+		canRequest: (side: DraftSide) => boolean;
+		onOpen: (target: { side: DraftSide; actionIndex: number; from: string; slotLabel: string }) => void;
+	};
 }) {
 	const [dropTarget, setDropTarget] = useState<number | null>(null);
-	const withRoles = draftHasRoles(state);
+	const withRoles = draftSideHasRoles(state, side);
 	const picks = withRoles ? draftRoleOrder(state, side) : draftPicks(state, side);
 	const actions = state.actions.filter((action) => action.side === side && action.kind === "pick");
 	const activeIndex = currentTurn?.side === side && currentTurn.kind === "pick" ? picks.length : -1;
@@ -542,7 +606,8 @@ function PickLane({
 			{DRAFT_ROLES.map((role, index) => {
 				const name = picks[index];
 				const champion = name ? byName.get(name) : undefined;
-				const auto = actions.find((action) => action.champion === name)?.auto;
+				const pickAction = actions.find((action) => action.champion === name);
+				const auto = pickAction?.auto;
 				const previewChampion = !name && index === activeIndex && preview ? byName.get(preview) : undefined;
 				const shown = champion ?? previewChampion;
 				const content = (
@@ -554,13 +619,31 @@ function PickLane({
 								{DRAFT_ROLE_LABELS[role]}
 							</span>
 						) : null}
-						{auto === "random" ? <span className="draft-auto-chip">Zufall</span> : null}
+						{auto === "random" && !pickAction?.swappedFrom ? <span className="draft-auto-chip">Zufall</span> : null}
 						{shown ? <span className="draft-pick-name">{shown.name}</span> : null}
 					</>
 				);
+				const actionIndex = name ? state.actions.findIndex((action) => action.side === side && action.kind === "pick" && action.champion === name) : -1;
+				const swapButton =
+					swap.open && name && actionIndex >= 0 && swap.canRequest(side) ? (
+						<SwapCardButton
+							champion={name}
+							disabled={swap.pending}
+							onClick={() => swap.onOpen({ side, actionIndex, from: name, slotLabel: withRoles ? DRAFT_ROLE_LABELS[role] : "Pick " + (index + 1) })}
+						/>
+					) : null;
+				const wrap = (card: ReactElement) =>
+					swapButton ? (
+						<div key={role} className="draft-pick-slot">
+							{card}
+							{swapButton}
+						</div>
+					) : (
+						card
+					);
 				if (editable && name) {
 					const pressed = swapFrom?.side === side && swapFrom.index === index;
-					return (
+					return wrap(
 						<button
 							key={role}
 							type="button"
@@ -591,7 +674,7 @@ function PickLane({
 						</button>
 					);
 				}
-				return (
+				return wrap(
 					<div
 						key={role}
 						className="draft-pick"

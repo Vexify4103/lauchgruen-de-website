@@ -14,6 +14,17 @@ export type DraftAction = DraftTurn & {
 	skipped?: boolean;
 	/** Set when the server locked on a timeout instead of the captain. */
 	auto?: "hover" | "random";
+	/** The originally locked champion, once an accepted swap replaced it. */
+	swappedFrom?: string;
+};
+
+/** A team asks the opponent to swap one of its locked picks for another champion (drafter.lol style). */
+export type DraftSwapRequest = {
+	actionIndex: number;
+	from: string;
+	champion: string;
+	requestedAt: string;
+	requestedBy?: string;
 };
 
 export type DraftReadyEntry = {
@@ -36,6 +47,8 @@ export type DraftRoleAssignment = {
 	order: string[];
 	confirmedAt?: string;
 	confirmedBy?: string;
+	/** Set for viewers who may not see this order yet; `order` then holds the plain pick order. */
+	hidden?: true;
 };
 
 export type TournamentDraftState = {
@@ -48,6 +61,8 @@ export type TournamentDraftState = {
 	rolePhaseStartedAt?: string;
 	roles?: Partial<Record<DraftSide, DraftRoleAssignment>>;
 	rolesFinalizedAt?: string;
+	/** Open swap request per requesting side. */
+	swapRequests?: Partial<Record<DraftSide, DraftSwapRequest>>;
 	resetReason?: string;
 	resetAt?: string;
 	updatedAt: string;
@@ -129,6 +144,26 @@ export function draftRoleOrder(state: Pick<TournamentDraftState, "actions" | "ro
 	const picks = draftPicks(state, side);
 	const order = state.roles?.[side]?.order;
 	return order && isValidRoleOrder(order, picks) ? order : picks;
+}
+
+/**
+ * Role orders stay secret until both teams confirmed (or the role timer ran out). Every other viewer gets
+ * the plain pick order of a team, marked `hidden`. `viewer` is the side whose captain is looking, or "all" for admins.
+ */
+export function draftForViewer(state: TournamentDraftState, viewer: DraftSide | "all" | null): TournamentDraftState {
+	if (viewer === "all" || !state.roles || state.rolesFinalizedAt) return state;
+	const roles = { ...state.roles };
+	for (const side of ["teamA", "teamB"] as const) {
+		const entry = roles[side];
+		if (!entry || side === viewer) continue;
+		roles[side] = { order: draftPicks(state, side), confirmedAt: entry.confirmedAt, hidden: true };
+	}
+	return { ...state, roles };
+}
+
+/** Whether the role order of this side is shown: role phase started and the order is not hidden from the viewer. */
+export function draftSideHasRoles(state: Pick<TournamentDraftState, "rolePhaseStartedAt" | "roles">, side: DraftSide): boolean {
+	return Boolean(state.rolePhaseStartedAt) && !state.roles?.[side]?.hidden;
 }
 
 /** Roles are shown once captains had the chance to set them. */

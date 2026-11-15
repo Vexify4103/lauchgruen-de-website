@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { TournamentLink as Link } from "../../TournamentLink";
 import { getChampionPools } from "@/lib/champion-pools";
 import { getDraftState } from "@/lib/tournament-draft";
-import { DRAFT_ROLES, createDraftSequence, draftComplete, draftHasRoles, draftRoleOrder } from "@/lib/tournament-draft-shared";
+import { DRAFT_ROLES, createDraftSequence, draftComplete, draftForViewer, draftRoleOrder, draftSideHasRoles } from "@/lib/tournament-draft-shared";
 import { listReplays } from "@/lib/tournament-replays";
 import { getReplayAssets } from "@/lib/replay-assets";
 import { ReplayScoreboard } from "@/components/ReplayScoreboard";
@@ -91,7 +91,9 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 			</UltimateBraveryPage>
 		);
 	}
-	const [ctx, pools, draft] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(id)]);
+	const [ctx, pools, storedDraft] = await Promise.all([getMatchControlContext(), getChampionPools(), getDraftState(id)]);
+	// Public page: role orders stay hidden until both teams confirmed.
+	const draft = draftForViewer(storedDraft, null);
 	const match = ctx.matches.find((entry) => entry.id === id);
 	if (!match) notFound();
 	if (usesUltimateBravery(settings.activeTournament)) {
@@ -135,7 +137,6 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 	const fearless = usesFearless(settings.activeTournament);
 	const complete = draftComplete(draft, sequence);
 	const byName = new Map(pools.flatMap((pool) => pool.champions).map((champion) => [champion.name, champion]));
-	const withRoles = draftHasRoles(draft);
 	const sides = (["teamA", "teamB"] as const).map((key): SideView => {
 		const name = key === "teamA" ? match.teamAName : match.teamBName;
 		const index = name ? ctx.teams.findIndex((team) => team.name === name) : -1;
@@ -153,7 +154,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 	const sideOf = (key: "teamA" | "teamB") => sides[key === "teamA" ? 0 : 1];
 	const draftSide = (key: "teamA" | "teamB") => ({
 		...sideOf(key),
-		picks: draftRoleOrder(draft, key).map((champion, index) => ({ champion, role: withRoles ? DRAFT_ROLES[index] : null })),
+		picks: draftRoleOrder(draft, key).map((champion, index) => ({ champion, role: draftSideHasRoles(draft, key) ? DRAFT_ROLES[index] : null })),
 		bans: draft.actions.filter((action) => action.side === key && action.kind === "ban"),
 		pool: key === "teamA" ? match.poolAssignment?.teamAPool : match.poolAssignment?.teamBPool,
 	});

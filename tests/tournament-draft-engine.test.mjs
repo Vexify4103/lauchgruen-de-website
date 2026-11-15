@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyDraftLock, applyDraftTimeout, applyRoleConfirm, applyRoleOrder, applyRoleTimeout, applyUndo } from "../src/lib/tournament-draft-engine.ts";
+import {
+	applyDraftLock,
+	applyDraftTimeout,
+	applyRoleConfirm,
+	applyRoleOrder,
+	applyRoleTimeout,
+	applySwapAnswer,
+	applySwapCancel,
+	applySwapRequest,
+	applyUndo,
+} from "../src/lib/tournament-draft-engine.ts";
+import { draftForViewer, draftSideHasRoles } from "../src/lib/tournament-draft-shared.ts";
 import { DRAFT_ROLE_TOTAL_MS, DRAFT_TOTAL_MS, createDraftSequence, draftFinished, draftRoleOrder, rolePhaseActive, suggestRoleOrder } from "../src/lib/tournament-draft-shared.ts";
 import { championFitsRole, championRoles } from "../src/lib/champion-roles.ts";
 
@@ -125,4 +136,115 @@ test("role data resolves display names and lets unknown champions fit every role
 		suggestRoleOrder(["A", "B"], () => undefined),
 		["A", "B"]
 	);
+});
+
+// Six bans, then Blue's first pick runs out and becomes a random Annie (action index 6).
+function draftWithRandomPick() {
+	let state = readyDraft();
+	for (const turn of sequence.slice(0, 6)) state = applyDraftLock(state, sequence, { side: turn.side, kind: turn.kind, champion: "Ban-" + state.actions.length }, at(1000));
+	state = applyDraftTimeout(state, sequence, { allowedPicks: ["Annie"], random: () => 0 }, at(1000 + DRAFT_TOTAL_MS + 1));
+	assert.deepEqual([state.actions[6].champion, state.actions[6].auto], ["Annie", "random"]);
+	return state;
+}
+
+test("a pick can be swapped when the opponent accepts, and asked again later", () => {
+	const requested = applySwapRequest(draftWithRandomPick(), sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri", "Annie"] });
+	assert.deepEqual([requested.swapRequests.teamA.from, requested.swapRequests.teamA.champion], ["Annie", "Ahri"]);
+	assert.throws(() => applySwapRequest(requested, sequence, { side: "teamA", actionIndex: 6, champion: "Lux", allowedPicks: ["Lux"] }), /bereits eine Tausch-Anfrage/);
+
+	const { state, outcome } = applySwapAnswer(requested, sequence, { side: "teamA", accept: true });
+	assert.equal(outcome, "accepted");
+	assert.deepEqual([state.actions[6].champion, state.actions[6].swappedFrom], ["Ahri", "Annie"]);
+	assert.equal(state.swapRequests, undefined);
+	const again = applySwapAnswer(applySwapRequest(state, sequence, { side: "teamA", actionIndex: 6, champion: "Lux", allowedPicks: ["Lux"] }), sequence, {
+		side: "teamA",
+		accept: true,
+	}).state;
+	assert.deepEqual([again.actions[6].champion, again.actions[6].swappedFrom], ["Lux", "Annie"]);
+});
+
+test("a declined swap keeps the pick", () => {
+	const requested = applySwapRequest(draftWithRandomPick(), sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] });
+	const { state, outcome } = applySwapAnswer(requested, sequence, { side: "teamA", accept: false });
+	assert.equal(outcome, "declined");
+	assert.deepEqual([state.actions[6].champion, state.actions[6].swappedFrom], ["Annie", undefined]);
+});
+
+test("swap requests only cover own picks with allowed, unused champions", () => {
+	const state = draftWithRandomPick();
+	assert.throws(() => applySwapRequest(state, sequence, { side: "teamB", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }), /Nur eigene Picks/);
+	assert.throws(() => applySwapRequest(state, sequence, { side: "teamA", actionIndex: 0, champion: "Ahri", allowedPicks: ["Ahri"] }), /Nur eigene Picks/);
+	assert.throws(() => applySwapRequest(state, sequence, { side: "teamA", actionIndex: 6, champion: "Ban-0", allowedPicks: ["Ban-0"] }), /bereits gepickt/);
+	assert.throws(() => applySwapRequest(state, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Lux"] }), /nicht picken/);
+});
+
+test("locking the requested champion drops the request, and a cancelled request can be asked again", () => {
+	const requested = applySwapRequest(draftWithRandomPick(), sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri", "Lux"] });
+	const turn = sequence[7];
+	const locked = applyDraftLock(requested, sequence, { side: turn.side, kind: turn.kind, champion: "Ahri" }, new Date(requested.currentTurnStartedAt));
+	assert.equal(locked.swapRequests, undefined);
+	assert.throws(() => applySwapAnswer(locked, sequence, { side: "teamA", accept: true }), /keine offene/);
+
+	const cancelled = applySwapCancel(requested, { side: "teamA" });
+	assert.equal(cancelled.swapRequests, undefined);
+	assert.ok(applySwapRequest(cancelled, sequence, { side: "teamA", actionIndex: 6, champion: "Lux", allowedPicks: ["Lux"] }).swapRequests.teamA);
+});
+
+test("an accepted swap during role confirmation updates the role order; requests end with the draft", () => {
+	let state = draftWithRandomPick();
+	for (const [index, turn] of sequence.entries()) {
+		if (index <= 6) continue;
+		state = applyDraftLock(
+			state,
+			sequence,
+			{ side: turn.side, kind: turn.kind, champion: (turn.kind === "pick" ? "Pick-" : "Ban-") + index },
+			new Date(state.currentTurnStartedAt)
+		);
+	}
+	assert.ok(rolePhaseActive(state, sequence));
+	const now = new Date(state.rolePhaseStartedAt);
+	const requested = applySwapRequest(state, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, now);
+	const { state: swapped } = applySwapAnswer(requested, sequence, { side: "teamA", accept: true }, now);
+	assert.ok(swapped.roles.teamA.order.includes("Ahri"));
+	assert.ok(!swapped.roles.teamA.order.includes("Annie"));
+	// Any own pick can be swapped, not only timeout picks.
+	const redPick = state.actions.findIndex((action) => action.side === "teamB" && action.kind === "pick");
+	assert.equal(
+		applySwapRequest(state, sequence, { side: "teamB", actionIndex: redPick, champion: "Lux", allowedPicks: ["Lux"] }, now).swapRequests.teamB.from,
+		state.actions[redPick].champion
+	);
+
+	const done = applyRoleTimeout(requested, sequence, undefined, new Date(now.getTime() + DRAFT_ROLE_TOTAL_MS));
+	assert.ok(draftFinished(done, sequence));
+	assert.equal(done.swapRequests, undefined);
+	assert.throws(() => applySwapRequest(done, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }), /abgeschlossen/);
+});
+
+test("role orders stay hidden from the opponent and public until both teams confirmed", () => {
+	const full = playFullDraft();
+	const now = new Date(full.rolePhaseStartedAt);
+	const ordered = applyRoleConfirm(applyRoleOrder(full, sequence, { side: "teamB", order: [...RED_PICKS].reverse() }, now), sequence, { side: "teamB" }, now);
+
+	const blueView = draftForViewer(ordered, "teamA");
+	assert.deepEqual(blueView.roles.teamB.order, RED_PICKS);
+	assert.equal(blueView.roles.teamB.hidden, true);
+	assert.ok(blueView.roles.teamB.confirmedAt);
+	assert.equal(draftSideHasRoles(blueView, "teamB"), false);
+	assert.equal(draftSideHasRoles(blueView, "teamA"), true);
+
+	assert.deepEqual(draftForViewer(ordered, "teamB").roles.teamB.order, [...RED_PICKS].reverse());
+	assert.equal(draftForViewer(ordered, null).roles.teamB.hidden, true);
+	assert.equal(draftForViewer(ordered, "all"), ordered);
+
+	const done = applyRoleConfirm(ordered, sequence, { side: "teamA" }, now);
+	assert.deepEqual(draftForViewer(done, null).roles.teamB.order, [...RED_PICKS].reverse());
+});
+
+test("a team that confirmed its roles cannot ask for a swap anymore", () => {
+	const full = playFullDraft();
+	const now = new Date(full.rolePhaseStartedAt);
+	const requested = applySwapRequest(full, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, now);
+	const confirmed = applyRoleConfirm(requested, sequence, { side: "teamA" }, now);
+	assert.equal(confirmed.swapRequests, undefined);
+	assert.throws(() => applySwapRequest(confirmed, sequence, { side: "teamA", actionIndex: 6, champion: "Ahri", allowedPicks: ["Ahri"] }, now), /bereits bestätigt/);
 });

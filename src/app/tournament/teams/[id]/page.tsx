@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { TournamentLink as Link } from "../../TournamentLink";
 import { getChampionPools } from "@/lib/champion-pools";
 import { getDraftState } from "@/lib/tournament-draft";
-import { DRAFT_ROLES, draftHasRoles, draftRoleOrder } from "@/lib/tournament-draft-shared";
+import { DRAFT_ROLES, draftForViewer, draftRoleOrder, draftSideHasRoles } from "@/lib/tournament-draft-shared";
 import { listReplays, type TournamentReplay } from "@/lib/tournament-replays";
 import { getReplayAssets } from "@/lib/replay-assets";
 import { ReplayScoreboard } from "@/components/ReplayScoreboard";
@@ -175,11 +175,11 @@ function MatchEntry({
 			blue: match.blueSide === key,
 		};
 	};
-	const draft = detail?.draft ?? null;
-	const withRoles = draft ? draftHasRoles(draft) : false;
+	// Public page: role orders stay hidden until both teams confirmed.
+	const draft = detail?.draft ? draftForViewer(detail.draft, null) : null;
 	const draftSide = (key: "teamA" | "teamB") => ({
 		...side(key),
-		picks: draft ? draftRoleOrder(draft, key).map((champion, index) => ({ champion, role: withRoles ? DRAFT_ROLES[index] : null })) : [],
+		picks: draft ? draftRoleOrder(draft, key).map((champion, index) => ({ champion, role: draftSideHasRoles(draft, key) ? DRAFT_ROLES[index] : null })) : [],
 		bans: draft ? draft.actions.filter((action) => action.side === key && action.kind === "ban") : [],
 	});
 	const blueKey = match.blueSide;
