@@ -103,7 +103,11 @@ export function ChampSelectClient({
 	const allChampions = uniqueChampions([...blueChampions, ...redChampions]);
 	const byName = new Map(allChampions.map((champion) => [champion.name, champion]));
 	const used = new Set(state.actions.filter((action) => !action.skipped).map((action) => action.champion));
-	const turnLocks: Record<string, FearlessLock> = currentTurn?.kind === "pick" ? fearlessLocks[currentTurn.side] : {};
+	// Picks: what the picking team can no longer play. Fearless bans: what the enemy can no longer play, so no ban is wasted on it.
+	const banTurn = fearless && currentTurn?.kind === "ban";
+	const turnLocks: Record<string, FearlessLock> =
+		currentTurn?.kind === "pick" ? fearlessLocks[currentTurn.side] : banTurn ? fearlessLocks[currentTurn.side === "teamA" ? "teamB" : "teamA"] : {};
+	const lockLabel = (lock: FearlessLock) => (banTurn ? `Gegner kann ihn nicht mehr picken: ${fearlessLockLabel(lock)}` : fearlessLockLabel(lock));
 	// Fearless: free champions per role for the team picking now (or the viewer's team), so thin roles show early.
 	const countSide: DraftSide | null = fearless ? (currentTurn?.kind === "pick" ? currentTurn.side : editableSide) : null;
 	const roleCounts = countSide
@@ -287,6 +291,9 @@ export function ChampSelectClient({
 
 				<section className="draft-center" aria-label="Champion-Auswahl">
 					<div className="draft-toolbar">
+						<button type="button" className="draft-role-filter" aria-pressed={roleFilter === null} onClick={() => setRoleFilter(null)} title="Alle Champions A–Z">
+							Alle
+						</button>
 						{DRAFT_ROLES.map((role) => (
 							<button
 								key={role}
@@ -355,13 +362,13 @@ export function ChampSelectClient({
 									aria-pressed={canDraft && selected === champion.name}
 									data-hover={!canDraft && serverHover === champion.name}
 									data-used={taken || Boolean(lock)}
-									title={lock ? fearlessLockLabel(lock) : taken ? "Bereits gepickt oder gebannt" : undefined}
-									aria-label={lock ? `${champion.name}, gesperrt: ${fearlessLockLabel(lock)}` : taken ? `${champion.name}, bereits gewählt` : champion.name}
+									title={lock ? lockLabel(lock) : taken ? "Bereits gepickt oder gebannt" : undefined}
+									aria-label={lock ? `${champion.name}, gesperrt: ${lockLabel(lock)}` : taken ? `${champion.name}, bereits gewählt` : champion.name}
 									onClick={() => choose(champion.name)}
 								>
 									<div className="draft-tile-art">
 										<Image src={champion.imageUrl} alt="" fill sizes="5rem" />
-										{lock ? <i className="draft-tile-lock">{fearlessLockBadge(lock)}</i> : null}
+										{lock ? <i className="draft-tile-lock">{banTurn ? "Gegner gesperrt" : fearlessLockBadge(lock)}</i> : null}
 									</div>
 									<span>{champion.name}</span>
 								</button>
