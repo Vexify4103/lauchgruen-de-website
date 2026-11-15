@@ -4,6 +4,7 @@ import { getMatchControlContext } from "@/lib/match-control";
 import { getDraftState } from "@/lib/tournament-draft";
 import { getAllChampions } from "@/lib/champion-pools";
 import { swissStageToPotState } from "@/lib/swiss-live-pot";
+import { isPlacementSwiss, orderBySeeds, placementSeeds } from "@/lib/swiss-placement";
 import { publicBroadcastMatch, publicBroadcastDraft, broadcastEventIsPublic, type BroadcastSnapshot, type BroadcastDraft } from "@/lib/tournament-broadcast";
 
 let cached: { until: number; value: Promise<BroadcastSnapshot> } | undefined;
@@ -57,6 +58,9 @@ async function load(): Promise<BroadcastSnapshot> {
 			(group.standings?.rows ?? []).map((row) => ({ name: row.name, rank: row.rank, wins: row.wins, losses: row.losses, group: group.group }))
 		) ??
 		[];
+	// In the placement Swiss, decider matches set the seeds, not the record: a 2–1 team can already be #2.
+	if (dayOne?.swiss && dayOne.swissStandings && settings.structure && isPlacementSwiss(settings.structure))
+		base.standings = orderBySeeds(base.standings, placementSeeds(dayOne.swiss));
 	if (dayOne?.complete && Object.keys(dayOne.seeds).length && Object.values(dayOne.seeds).every(Boolean)) {
 		const records = new Map(base.standings.map((row) => [row.name, row]));
 		base.standings = Object.entries(dayOne.seeds)

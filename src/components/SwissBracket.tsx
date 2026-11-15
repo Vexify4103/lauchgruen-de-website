@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { TournamentSettings } from "@/lib/tournament-settings";
 import type { SwissPairing, SwissStageState } from "@/lib/tournament-swiss";
 import { generateTeamTag } from "@/lib/team-tag";
+import { isPlacementSwiss, placementSeeds, recordsBeforeRounds } from "@/lib/swiss-placement";
 
 type StageConfig = TournamentSettings["structure"];
 type Record2 = { wins: number; losses: number };
@@ -65,7 +66,7 @@ export function SwissBracket({
 	const [selected, setSelected] = useState<string | null>(null);
 	const elimination = config.dayOneFormat === "swiss-elimination";
 	const need = elimination ? config.swissWinsToAdvance : Infinity;
-	const placement = config.teamCount === 8 && config.advanceTeamCount === 8 && config.swissRounds === 4;
+	const placement = isPlacementSwiss(config);
 	const tagOf = useMemo(() => {
 		// Teams without a known tag get one generated once, up front.
 		const known = new Map(Object.entries(tags));
@@ -76,6 +77,18 @@ export function SwissBracket({
 
 	const columns = useMemo(() => buildColumns(state, config, need, placement), [state, config, need, placement]);
 	const seeds = state.finalSeedNames ?? (placement ? placementSeeds(state) : undefined);
+	const recordByName = useMemo(() => {
+		const { after } = recordsBeforeRounds(state);
+		const byName = new Map<string, Record2>();
+		for (const round of state.rounds)
+			for (const pairing of round.pairings) {
+				const a = after.get(pairing.teamAKey);
+				if (a) byName.set(pairing.teamAName, a);
+				const b = pairing.teamBKey ? after.get(pairing.teamBKey) : undefined;
+				if (b && pairing.teamBName) byName.set(pairing.teamBName, b);
+			}
+		return byName;
+	}, [state]);
 
 	const toggle = (name: string | null | undefined) => {
 		if (!name) return;
@@ -149,13 +162,21 @@ export function SwissBracket({
 													>
 														{tagOf(name)}
 													</button>
-												) : (
+												) : null}
+												{name && recordByName.get(name) ? (
+													<span className="ml-auto font-mono text-[var(--muted)] tabular-nums">{recordLabel(recordByName.get(name)!)}</span>
+												) : name ? null : (
 													<span className="text-[var(--muted)]">offen</span>
 												)}
 											</li>
 										);
 									})}
 								</ol>
+								{placement ? (
+									<p className="mt-2 text-center text-[11px] leading-4 text-[var(--muted)]">
+										Seeds kommen aus den Entscheidungsspielen, nicht aus der Bilanz. #1/#2 und #7/#8 spielen nur drei Runden.
+									</p>
+								) : null}
 							</div>
 						</section>
 					) : null}
@@ -292,35 +313,6 @@ function TeamTag({
 	);
 }
 
-/** Wins and losses of every team before each round, from the results of earlier rounds. */
-function recordsBeforeRounds(state: SwissStageState) {
-	const running = new Map<string, Record2>();
-	const before = new Map<number, Map<string, Record2>>();
-	for (const round of [...state.rounds].sort((a, b) => a.round - b.round)) {
-		before.set(round.round, new Map([...running].map(([key, value]) => [key, { ...value }])));
-		for (const pairing of round.pairings) {
-			const a = running.get(pairing.teamAKey) ?? { wins: 0, losses: 0 };
-			running.set(pairing.teamAKey, a);
-			if (pairing.bye) {
-				a.wins += 1;
-				continue;
-			}
-			if (!pairing.teamBKey) continue;
-			const b = running.get(pairing.teamBKey) ?? { wins: 0, losses: 0 };
-			running.set(pairing.teamBKey, b);
-			if (!pairing.winnerTeamKey) continue;
-			if (pairing.winnerTeamKey === pairing.teamAKey) {
-				a.wins += 1;
-				b.losses += 1;
-			} else {
-				b.wins += 1;
-				a.losses += 1;
-			}
-		}
-	}
-	return { before, after: running };
-}
-
 function buildColumns(state: SwissStageState, config: StageConfig, need: number, placement: boolean) {
 	const { before, after } = recordsBeforeRounds(state);
 	const names = new Map<string, string>();
@@ -396,33 +388,4 @@ function buildColumns(state: SwissStageState, config: StageConfig, need: number,
 	const last = resultBuckets(config.swissRounds);
 	if (last.length) columns.push({ label: "Ergebnis", buckets: last });
 	return columns;
-}
-
-/**
- * Seeds of the 8-team placement Swiss. Each decider fills its two seeds as soon as it has a winner,
- * so #1/#2 and #7/#8 show after round three while #3–#6 are still being played.
- */
-export function placementSeeds(state: SwissStageState): Record<number, string> | undefined {
-	const third = state.rounds.find((round) => round.round === 3);
-	const fourth = state.rounds.find((round) => round.round === 4);
-	const { before } = recordsBeforeRounds(state);
-	const assignments = [
-		{ round: third, record: "2-0", winnerSeed: 1, loserSeed: 2 },
-		{ round: fourth, record: "2-1", winnerSeed: 3, loserSeed: 4 },
-		{ round: fourth, record: "1-2", winnerSeed: 5, loserSeed: 6 },
-		{ round: third, record: "0-2", winnerSeed: 7, loserSeed: 8 },
-	];
-	const seeds: Record<number, string> = {};
-	for (const assignment of assignments) {
-		if (!assignment.round) continue;
-		const records = before.get(assignment.round.round);
-		const pairing = assignment.round.pairings.find((entry) => {
-			const record = records?.get(entry.teamAKey);
-			return record && `${record.wins}-${record.losses}` === assignment.record;
-		});
-		if (!pairing?.teamBName || !pairing.winnerTeamKey) continue;
-		seeds[assignment.winnerSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamAName : pairing.teamBName;
-		seeds[assignment.loserSeed] = pairing.winnerTeamKey === pairing.teamAKey ? pairing.teamBName : pairing.teamAName;
-	}
-	return Object.keys(seeds).length ? seeds : undefined;
 }

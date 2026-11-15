@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as publicData from "../src/lib/tournament-broadcast.ts";
 import * as potAdapter from "../src/lib/swiss-live-pot.ts";
+import * as swissPlacement from "../src/lib/swiss-placement.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../src/lib/tournament-broadcast-server.ts", import.meta.url), "utf8");
@@ -36,7 +37,7 @@ function harness() {
 		"@/lib/tournament-settings": {
 			getTournamentSettings: async () => {
 				state.settings++;
-				return { activeTournament: { id: "cup", name: "Cup", mode: "live" }, draftEnabled: true };
+				return { activeTournament: { id: "cup", name: "Cup", mode: "live" }, draftEnabled: true, structure: state.structure };
 			},
 		},
 		"@/lib/roster": { getRosterPublicationStatus: async () => ({ published: state.published }) },
@@ -55,6 +56,7 @@ function harness() {
 		},
 		"@/lib/champion-pools": { getAllChampions: async () => [] },
 		"@/lib/swiss-live-pot": potAdapter,
+		"@/lib/swiss-placement": swissPlacement,
 		"@/lib/tournament-broadcast": publicData,
 	};
 	const compiled = { exports: {} };
@@ -144,5 +146,39 @@ test("completed placement Swiss shows the official seed order, not a misleading 
 			[1, "Two wins", 2],
 			[2, "Three wins", 3],
 		]
+	);
+});
+
+test("running placement Swiss ranks decided seeds above better records with a later seed", async () => {
+	const h = harness();
+	h.state.structure = { teamCount: 8, advanceTeamCount: 8, swissRounds: 4 };
+	const pair = (id, a, b, winner) => ({ id, teamAKey: a, teamAName: a, teamBKey: b, teamBName: b, winnerTeamKey: winner ?? null });
+	h.state.control.stages = {
+		champion: null,
+		dayOne: {
+			complete: false,
+			seeds: {},
+			groups: [],
+			swiss: {
+				rounds: [
+					{ round: 1, complete: true, pairings: [pair("1a", "A", "B", "A"), pair("1b", "C", "D", "C"), pair("1c", "E", "F", "E"), pair("1d", "G", "H", "G")] },
+					{ round: 2, complete: true, pairings: [pair("2a", "A", "C", "A"), pair("2b", "E", "G", "E"), pair("2c", "B", "D", "B"), pair("2d", "F", "H", "F")] },
+					{ round: 3, complete: true, pairings: [pair("3a", "A", "E", "A"), pair("3b", "C", "B", "C"), pair("3c", "G", "F", "G"), pair("3d", "D", "H", "D")] },
+					{ round: 4, complete: false, pairings: [pair("4a", "C", "G", "C"), pair("4b", "B", "F")] },
+				],
+			},
+			swissStandings: {
+				rows: ["A:3:0", "C:3:1", "E:2:1", "G:2:2", "B:1:2", "F:1:2", "D:1:2", "H:0:3"].map((entry, index) => {
+					const [name, wins, losses] = entry.split(":");
+					return { name, rank: index + 1, wins: Number(wins), losses: Number(losses) };
+				}),
+			},
+		},
+	};
+	const payload = await h.handlers.loadTournamentBroadcast();
+	assert.equal(payload.standingsFinal, false);
+	assert.deepEqual(
+		payload.standings.map((row) => row.rank + ":" + row.name),
+		["1:A", "2:E", "3:C", "4:G", "5:B", "6:F", "7:D", "8:H"]
 	);
 });
