@@ -19,6 +19,8 @@ import { BlacklistManager } from "./BlacklistManager";
 import { EligibilityOverrideManager } from "./EligibilityOverrideManager";
 import { PreferenceGroupManager } from "./PreferenceGroupManager";
 import { getAdminVersions } from "@/lib/admin-version";
+import { listPartnerApiKeys, listPartnerReports } from "@/lib/partner-api-store";
+import { PartnerApiManager } from "./PartnerApiManager";
 
 export const dynamic = "force-dynamic";
 
@@ -70,16 +72,18 @@ export default async function ApplicantsPage() {
 	// The admin layout already gates access; this only guards direct renders.
 	if (!isOwner) redirect("/tournament/admin");
 
-	const [applications, assignedByDiscordId, blacklistEntries, eligibilityOverrides, preferenceGroups, settings] = await Promise.all([
+	const [applications, assignedByDiscordId, blacklistEntries, eligibilityOverrides, preferenceGroups, settings, partnerKeys, partnerReports] = await Promise.all([
 		listApplications(),
 		loadAssignmentMap(),
 		listBlacklistEntries(),
 		listEligibilityOverrides(),
 		listPreferenceGroups(),
 		getTournamentSettings(),
+		listPartnerApiKeys(),
+		listPartnerReports({ status: "pending" }),
 	]);
 	const groupByDiscordId = new Map(preferenceGroups.flatMap((group) => group.memberDiscordIds.map((memberDiscordId) => [memberDiscordId, group.code] as const)));
-	const versions = await getAdminVersions(["blacklist", "eligibility-overrides", "preference-groups", ...applications.map((app) => `application:${app.id}`)]);
+	const versions = await getAdminVersions(["blacklist", "partner-api-keys", "eligibility-overrides", "preference-groups", ...applications.map((app) => `application:${app.id}`)]);
 	const activeEligibilityOverrides = eligibilityOverrides.filter((entry) => isEligibilityOverrideActive(entry, settings.activeTournament.id));
 
 	// Newest-first
@@ -121,7 +125,9 @@ export default async function ApplicantsPage() {
 				</p>
 			</section>
 
-			<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} />
+			<BlacklistManager initialEntries={blacklistEntries} initialVersion={versions.blacklist ?? 0} initialReports={partnerReports} />
+
+			<PartnerApiManager initialKeys={partnerKeys} initialVersion={versions["partner-api-keys"] ?? 0} />
 
 			<EligibilityOverrideManager
 				initialEntries={eligibilityOverrides}

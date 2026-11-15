@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { claimAdminVersion } from "@/lib/admin-version";
 import { auth } from "@/lib/auth";
-import { TOURNAMENT_OWNER_DISCORD_IDS, addBlacklistEntry, deleteBlacklistEntry, listBlacklistEntries } from "@/lib/tournament-storage";
+import { TOURNAMENT_OWNER_DISCORD_IDS, addBlacklistEntry, deleteBlacklistEntry, listBlacklistEntries, updateBlacklistSharing } from "@/lib/tournament-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +12,8 @@ const postSchema = z
 		discordId: z.string().trim().min(1).optional(),
 		riotId: z.string().trim().min(3).optional(),
 		reason: z.string().trim().min(3).max(500),
+		shared: z.boolean().optional(),
+		publicReason: z.string().trim().max(120).optional(),
 		expectedVersion: z.number().int().min(0),
 	})
 	.refine((value) => value.discordId || value.riotId, {
@@ -58,7 +60,41 @@ export async function POST(request: Request) {
 		riotId: parsed.data.riotId,
 		reason: parsed.data.reason,
 		createdBy: session.user.discordHandle ?? session.user.discordId,
+		shared: parsed.data.shared,
+		publicReason: parsed.data.publicReason,
 	});
+	return NextResponse.json({ entry, version: versionClaim.version });
+}
+
+const patchSchema = z.object({
+	id: z.string().trim().min(1),
+	shared: z.boolean(),
+	publicReason: z.string().trim().max(120).optional(),
+	expectedVersion: z.number().int().min(0),
+});
+
+/** Turns partner sharing on or off for an existing entry. */
+export async function PATCH(request: Request) {
+	const session = await requireOwner();
+	if (!session) {
+		return NextResponse.json({ message: "Nicht berechtigt." }, { status: 403 });
+	}
+	const parsed = patchSchema.safeParse(await request.json().catch(() => null));
+	if (!parsed.success) {
+		return NextResponse.json({ message: "Ungültige Freigabe-Daten." }, { status: 400 });
+	}
+	const versionClaim = await claimAdminVersion({
+		resource: "blacklist",
+		expectedVersion: parsed.data.expectedVersion,
+		updatedBy: session.user.discordHandle ?? session.user.discordId,
+	});
+	if (!versionClaim.ok) {
+		return NextResponse.json(versionClaim.conflict, { status: 409 });
+	}
+	const entry = await updateBlacklistSharing(parsed.data.id, { shared: parsed.data.shared, publicReason: parsed.data.publicReason });
+	if (!entry) {
+		return NextResponse.json({ message: "Eintrag nicht gefunden.", version: versionClaim.version }, { status: 404 });
+	}
 	return NextResponse.json({ entry, version: versionClaim.version });
 }
 

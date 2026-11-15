@@ -65,6 +65,10 @@ export type TournamentBlacklistEntry = {
 	reason: string;
 	createdAt: string;
 	createdBy?: string;
+	/** Visible to partners through /api/v1/blacklist. Off unless an owner turns it on. */
+	shared?: boolean;
+	/** Short reason partners see. The internal `reason` never leaves the admin area. */
+	publicReason?: string;
 };
 
 export type TournamentEligibilityOverrideKind = "regular" | "exception";
@@ -821,18 +825,56 @@ export async function listBlacklistEntries(): Promise<TournamentBlacklistEntry[]
 	return docs.map((raw) => stripMongoId(raw) as TournamentBlacklistEntry);
 }
 
-export async function addBlacklistEntry(input: { discordId?: string; riotId?: string; reason: string; createdBy?: string }): Promise<TournamentBlacklistEntry> {
+export async function addBlacklistEntry(input: {
+	discordId?: string;
+	riotId?: string;
+	reason: string;
+	createdBy?: string;
+	shared?: boolean;
+	publicReason?: string;
+}): Promise<TournamentBlacklistEntry> {
+	const id = blacklistId(input);
+	const col = await blacklistCollection();
+	// Re-banning the same player updates the reason but keeps the original date and,
+	// unless sharing is set explicitly, the partner sharing (so partners don't silently lose the entry).
+	const previous = await col.findOne({ _id: id });
+	const shared = input.shared ?? previous?.shared ?? false;
+	const publicReason = input.publicReason?.trim() || (input.shared === undefined ? previous?.publicReason : undefined);
 	const entry: TournamentBlacklistEntry = {
-		id: blacklistId(input),
+		id,
 		...(input.discordId ? { discordId: input.discordId.trim() } : {}),
 		...(input.riotId ? { riotId: input.riotId.trim().toLowerCase() } : {}),
 		reason: input.reason.trim(),
-		createdAt: new Date().toISOString(),
+		createdAt: previous?.createdAt ?? new Date().toISOString(),
 		createdBy: input.createdBy,
+		...(shared ? { shared: true } : {}),
+		...(shared && publicReason ? { publicReason } : {}),
 	};
-	const col = await blacklistCollection();
 	await col.replaceOne({ _id: entry.id }, { ...entry }, { upsert: true });
 	return entry;
+}
+
+/** Saves an entry under its existing id (used when a partner report is merged into an existing ban). */
+export async function replaceBlacklistEntry(entry: TournamentBlacklistEntry): Promise<void> {
+	const col = await blacklistCollection();
+	await col.replaceOne({ _id: entry.id }, { ...entry }, { upsert: true });
+}
+
+export async function updateBlacklistSharing(id: string, input: { shared: boolean; publicReason?: string }): Promise<TournamentBlacklistEntry | null> {
+	const col = await blacklistCollection();
+	const publicReason = input.publicReason?.trim();
+	const doc = await col.findOneAndUpdate(
+		{ _id: id },
+		publicReason ? { $set: { shared: input.shared, publicReason } } : { $set: { shared: input.shared }, $unset: { publicReason: "" } },
+		{ returnDocument: "after" }
+	);
+	return doc ? (stripMongoId(doc) as TournamentBlacklistEntry) : null;
+}
+
+export async function listSharedBlacklistEntries(): Promise<TournamentBlacklistEntry[]> {
+	const col = await blacklistCollection();
+	const docs = await col.find({ shared: true }, { sort: { createdAt: -1 } }).toArray();
+	return docs.map((raw) => stripMongoId(raw) as TournamentBlacklistEntry);
 }
 
 export async function deleteBlacklistEntry(id: string): Promise<void> {
@@ -840,14 +882,14 @@ export async function deleteBlacklistEntry(id: string): Promise<void> {
 	await col.deleteOne({ _id: id });
 }
 
-export async function findBlacklistMatch(input: { discordId?: string; riotId?: string }): Promise<TournamentBlacklistEntry | null> {
+export async function findBlacklistMatch(input: { discordId?: string; riotId?: string; sharedOnly?: boolean }): Promise<TournamentBlacklistEntry | null> {
 	const clauses: Array<Record<string, string>> = [];
 	if (input.discordId) clauses.push({ discordId: input.discordId });
 	if (input.riotId) clauses.push({ riotId: input.riotId.trim().toLowerCase() });
 	if (clauses.length === 0) return null;
 
 	const col = await blacklistCollection();
-	const doc = await col.findOne({ $or: clauses });
+	const doc = await col.findOne(input.sharedOnly ? { $or: clauses, shared: true } : { $or: clauses });
 	return doc ? (stripMongoId(doc) as TournamentBlacklistEntry) : null;
 }
 
