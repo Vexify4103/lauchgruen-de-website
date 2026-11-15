@@ -23,7 +23,9 @@ export function SwapCardButton({ champion, disabled, onClick }: { champion: stri
 	return (
 		<button type="button" className="draft-swap-request-button" disabled={disabled} onClick={onClick} aria-label={`Wechsel für ${champion} anfragen`} title="Wechsel anfragen">
 			<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-				<path d="M3 5h10m0 0-3-3m3 3-3 3M13 11H3m0 0 3-3m-3 3 3 3" />
+				{/* Circular arrows: "replace this champion", distinct from the role-swap arrows */}
+				<path d="M13 8a5 5 0 0 1-8.6 3.5M3 8a5 5 0 0 1 8.6-3.5" />
+				<path d="M11.8 1.8v2.8H9M4.2 14.2v-2.8H7" />
 			</svg>
 		</button>
 	);
