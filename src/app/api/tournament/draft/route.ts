@@ -62,7 +62,9 @@ export async function GET(request: Request) {
 	}
 	const session = await auth();
 	const discordId = session?.user?.discordId;
-	return NextResponse.json({ draft: await shownDraft(await getDraftState(matchId), discordId ?? null, Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId))) });
+	const draft = await shownDraft(await getDraftState(matchId), discordId ?? null, Boolean(discordId && TOURNAMENT_OWNER_DISCORD_IDS.has(discordId)));
+	// serverNow lets each browser correct its own clock, so all timers count down together.
+	return NextResponse.json({ draft, serverNow: Date.now() }, { headers: { "Cache-Control": "no-store" } });
 }
 
 /** Hides role orders the viewer may not see yet: own side for captains, everything for admins, nothing for others. */

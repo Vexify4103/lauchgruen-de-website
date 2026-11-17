@@ -35,6 +35,7 @@ import {
 	type TournamentDraftState,
 } from "@/lib/tournament-draft-shared";
 import { compactPoolLabel } from "@/lib/tournament-wheel-shared";
+import { clockSample, createClockSync } from "@/lib/clock-sync";
 import { playDraftCompleteSound, playDraftStartSound, unlockTournamentAudio } from "@/lib/tournament-sounds";
 
 type EditableSide = DraftSide | null;
@@ -143,7 +144,7 @@ export function ChampSelectClient({
 	}
 
 	useEffect(() => {
-		const tick = () => setNow(Date.now());
+		const tick = () => setNow(serverNow());
 		const first = window.setTimeout(tick, 0);
 		const interval = window.setInterval(tick, 250);
 		return () => {
@@ -154,15 +155,16 @@ export function ChampSelectClient({
 
 	useEffect(() => {
 		let cancelled = false;
-		const interval = window.setInterval(
-			async () => {
-				const next = await fetchDraft(match.id);
-				if (!cancelled && next) setState(next);
-			},
-			spectator ? 800 : 1000
-		);
+		const poll = async () => {
+			const next = await fetchDraft(match.id);
+			if (!cancelled && next) setState(next);
+		};
+		// Poll once right away, so the clock offset is known before the first second runs out.
+		const first = window.setTimeout(poll, 0);
+		const interval = window.setInterval(poll, spectator ? 800 : 1000);
 		return () => {
 			cancelled = true;
+			window.clearTimeout(first);
 			window.clearInterval(interval);
 		};
 	}, [match.id, spectator]);
@@ -904,10 +906,20 @@ function post(body: Record<string, unknown>) {
 	return request("POST", body);
 }
 
+// Shared by every timer on the page: Date.now() + offset is the server's time.
+const serverClock = createClockSync();
+
+function serverNow() {
+	return Date.now() + serverClock.offset();
+}
+
 async function fetchDraft(matchId: string): Promise<TournamentDraftState | null> {
 	try {
+		const sentAt = Date.now();
 		const response = await fetch(`/api/tournament/draft?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" });
-		const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState } | null;
+		const receivedAt = Date.now();
+		const json = (await response.json().catch(() => null)) as { draft?: TournamentDraftState; serverNow?: number } | null;
+		if (response.ok && typeof json?.serverNow === "number") serverClock.add(clockSample(sentAt, receivedAt, json.serverNow));
 		return response.ok && json?.draft ? json.draft : null;
 	} catch {
 		return null;
