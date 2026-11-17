@@ -20,6 +20,7 @@ import {
 	type RiotRoute,
 } from "@/lib/riot";
 import { getAzSheetInfo, type AzSheetInfo } from "@/lib/az-sheet";
+import { azSyncAllowed, azSyncGateAfter, OPEN_AZ_SYNC_GATE, type AzSyncGate, type AzSyncOutcome } from "@/lib/az-sync-gate";
 import { compactRankLabel, getStreamerObsSnapshot, getStreamerPrimaryAccount, type StreamerSlug } from "@/lib/streamer-obs";
 
 const MATCH_COLLECTION = "az_challenge_matches";
@@ -314,7 +315,9 @@ const g = globalThis as unknown as {
 	__azRosterRequest?: Promise<AzChampion[]>;
 	__azSnapshots?: Map<string, { expiresAt: number; data: AzChallengeSnapshot }>;
 	__azSnapshotRequests?: Map<string, Promise<AzChallengeSnapshot>>;
-	__azSyncRequests?: Map<string, Promise<void>>;
+	__azSyncRequests?: Map<string, Promise<AzSyncOutcome | "cooldown">>;
+	__azSyncGates?: Map<string, AzSyncGate>;
+	__azQuietLogAt?: Map<string, number>;
 	__azMastery?: Map<string, { expiresAt: number; data: { level: number; points: number } | null }>;
 	__azIndexesReady?: boolean;
 };
@@ -436,11 +439,11 @@ function toMatchDoc(slug: AzChallengeSlug, puuid: string, match: Awaited<ReturnT
  * loads at most MAX_DETAILS_PER_SYNC details so a cold start never bursts the
  * Riot key. Later polls continue the backfill.
  */
-async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, routing: RiotRoute): Promise<void> {
+async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, routing: RiotRoute): Promise<AzSyncOutcome> {
 	const { matches, state } = await collections();
 	const stored = await state.findOne({ _id: config.slug });
 	const sameScope = stored?.puuid === puuid && stored.startAt === config.startAt;
-	if (sameScope && stored.backfilled && Date.now() - new Date(stored.lastSyncAt).getTime() < SYNC_INTERVAL_MS) return;
+	if (sameScope && stored.backfilled && Date.now() - new Date(stored.lastSyncAt).getTime() < SYNC_INTERVAL_MS) return "synced";
 
 	const challengeStartSeconds = Math.floor(new Date(config.startAt).getTime() / 1000);
 	let startTime = challengeStartSeconds;
@@ -457,15 +460,20 @@ async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, ro
 	const batch = missing.slice(0, MAX_DETAILS_PER_SYNC);
 
 	let failed = 0;
+	let rateLimited = false;
 	for (const matchId of batch) {
 		try {
 			const doc = toMatchDoc(config.slug, puuid, await getMatchByIdForRoute(matchId, routing));
 			if (doc) await matches.updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
 		} catch (error) {
 			failed += 1;
+			// Stop on rate limits; a later poll continues the backfill after the cooldown.
+			if (error instanceof RiotApiError && error.status === 429) {
+				rateLimited = true;
+				quietWarn(config.slug, "match", `Riot-Rate-Limit beim Laden von ${matchId}, Pause bis zum nächsten Versuch.`);
+				break;
+			}
 			console.warn(`[az-challenge:${config.slug}] Match ${matchId} konnte nicht geladen werden:`, error);
-			// Stop on rate limits; the next poll continues the backfill.
-			if (error instanceof RiotApiError && error.status === 429) break;
 		}
 	}
 
@@ -475,6 +483,23 @@ async function syncChallengeMatches(config: AzChallengeConfig, puuid: string, ro
 		{ $set: { puuid, startAt: config.startAt, backfilled, lastSyncAt: new Date().toISOString() } },
 		{ upsert: true }
 	);
+	return rateLimited ? "rate-limited" : backfilled ? "synced" : "backfilling";
+}
+
+const QUIET_LOG_MS = 60_000;
+
+/** Rate limits are expected now and then: one short line per slug and kind per minute, no stack. */
+function quietWarn(slug: string, kind: string, text: string) {
+	g.__azQuietLogAt ??= new Map();
+	const key = `${slug}:${kind}`;
+	const now = Date.now();
+	if (now - (g.__azQuietLogAt.get(key) ?? 0) < QUIET_LOG_MS) return;
+	g.__azQuietLogAt.set(key, now);
+	console.warn(`[az-challenge:${slug}] ${text}`);
+}
+
+function azSyncGate(slug: string): AzSyncGate {
+	return g.__azSyncGates?.get(slug) ?? OPEN_AZ_SYNC_GATE;
 }
 
 /**
@@ -510,27 +535,51 @@ async function readSheet(config: AzChallengeConfig, stored: AzStateDoc | null) {
 	return { excludedMatchIds: info.excludedMatchIds, paused, pauses: nextPauses, message };
 }
 
-async function syncOnce(config: AzChallengeConfig, puuid: string, routing: RiotRoute) {
+/** Runs at most one sync per slug at a time, and none while the slug's cooldown runs. */
+async function syncOnce(config: AzChallengeConfig, puuid: string, routing: RiotRoute): Promise<AzSyncOutcome | "cooldown"> {
 	g.__azSyncRequests ??= new Map();
+	g.__azSyncGates ??= new Map();
 	const pending = g.__azSyncRequests.get(config.slug);
 	if (pending) return pending;
-	const request = syncChallengeMatches(config, puuid, routing).finally(() => g.__azSyncRequests?.delete(config.slug));
+	if (!azSyncAllowed(azSyncGate(config.slug), Date.now())) return "cooldown";
+	const gates = g.__azSyncGates;
+	const request = syncChallengeMatches(config, puuid, routing)
+		.then(
+			(outcome) => {
+				gates.set(config.slug, azSyncGateAfter(azSyncGate(config.slug), outcome, Date.now()));
+				return outcome;
+			},
+			(error: unknown) => {
+				const outcome: AzSyncOutcome = error instanceof RiotApiError && error.status === 429 ? "rate-limited" : "error";
+				gates.set(config.slug, azSyncGateAfter(azSyncGate(config.slug), outcome, Date.now()));
+				throw error;
+			}
+		)
+		.finally(() => g.__azSyncRequests?.delete(config.slug));
 	g.__azSyncRequests.set(config.slug, request);
 	return request;
 }
 
-async function cachedMastery(puuid: string, championId: number, routing: RiotRoute) {
+const MASTERY_RETRY_MS = 60_000;
+
+async function cachedMastery(slug: string, puuid: string, championId: number, routing: RiotRoute) {
 	g.__azMastery ??= new Map();
 	const key = `${routing.credential}:${puuid}:${championId}`;
 	const cached = g.__azMastery.get(key);
 	if (cached && cached.expiresAt > Date.now()) return cached.data;
+	// Same key as the sync: no mastery call while that key waits out a rate limit.
+	const gate = azSyncGate(slug);
+	if (gate.rateLimits > 0 && !azSyncAllowed(gate, Date.now())) return cached?.data ?? null;
 	try {
 		const mastery = await getChampionMasteryByPuuidForRoute(puuid, championId, routing);
 		const data = mastery ? { level: mastery.championLevel, points: mastery.championPoints } : null;
 		g.__azMastery.set(key, { data, expiresAt: Date.now() + MASTERY_CACHE_MS });
 		return data;
 	} catch {
-		return cached?.data ?? null;
+		// Keep the old value and wait a minute, so a failing call is not repeated on every poll.
+		const data = cached?.data ?? null;
+		g.__azMastery.set(key, { data, expiresAt: Date.now() + MASTERY_RETRY_MS });
+		return data;
 	}
 }
 
@@ -723,12 +772,20 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 	]);
 
 	let message: string | undefined;
+	const unreachable = "Riot-Daten kurzzeitig nicht erreichbar. Letzter Stand bleibt sichtbar.";
 	try {
-		await syncOnce(config, account.puuid, account.routing);
+		const outcome = await syncOnce(config, account.puuid, account.routing);
+		// Still waiting out a rate limit: keep the hint visible until Riot answers again.
+		if (outcome === "rate-limited" || (outcome === "cooldown" && azSyncGate(slug).failing)) message = unreachable;
 	} catch (error) {
 		// Keep showing stored progress when Riot or MongoDB hiccups.
-		console.warn(`[az-challenge:${slug}] Sync fehlgeschlagen:`, error);
-		message = "Riot-Daten kurzzeitig nicht erreichbar. Letzter Stand bleibt sichtbar.";
+		if (error instanceof RiotApiError && error.status === 429) {
+			const waitSeconds = Math.round((azSyncGate(slug).nextAt - Date.now()) / 1000);
+			quietWarn(slug, "sync", `Riot-Rate-Limit für "${error.credential}", nächster Versuch in ${waitSeconds} s.`);
+		} else {
+			console.warn(`[az-challenge:${slug}] Sync fehlgeschlagen:`, error);
+		}
+		message = unreachable;
 	}
 
 	const { matches, state } = await collections();
@@ -742,7 +799,7 @@ async function buildAzSnapshot(slug: AzChallengeSlug, options: AzSnapshotOptions
 		pauses: sheet.pauses,
 	});
 	const currentChampion = roster[progress.index] ?? null;
-	const mastery = currentChampion ? await cachedMastery(account.puuid, currentChampion.id, account.routing) : null;
+	const mastery = currentChampion ? await cachedMastery(slug, account.puuid, currentChampion.id, account.routing) : null;
 	const tracked = progress.completed.filter((entry) => !entry.manual);
 	const lastCompleted = tracked.at(-1) ?? null;
 	const startMs = new Date(config.startAt).getTime();
