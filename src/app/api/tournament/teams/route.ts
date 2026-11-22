@@ -262,7 +262,8 @@ export async function PATCH(request: Request) {
 		}).catch(() => undefined);
 		await notifyOrga(
 			`🚫 Gesperrter Teamname abgelehnt: ${quoteName(attempted)} für Team ${quoteName(existing.name)} von <@${discordId}> (Treffer: ${quoteName(blockedCheck.term)}).`,
-			`team-name-blocked:${oldKey}:${Date.now()}`,
+			// One notice per team per 10 minutes, so retries cannot flood the orga channel. The audit log keeps every attempt.
+			`team-name-blocked:${oldKey}:${Math.floor(Date.now() / CAPTAIN_TEAM_RENAME_COOLDOWN_MS)}`,
 			actorLabel
 		);
 		return NextResponse.json({ message: BLOCKED_TEAM_NAME_MESSAGE }, { status: 400 });
