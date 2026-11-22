@@ -16,6 +16,8 @@ import { getTournamentSettings } from "@/lib/tournament-settings";
 import { seedSlotLayout } from "@/lib/tournament-structure";
 import { generateTeamTag, isValidTeamTag, normalizeTeamTag, withTeamTags } from "@/lib/team-tag";
 import { refreshTeamWelcomePosts } from "@/lib/roster";
+import { BLOCKED_TEAM_NAME_MESSAGE, checkTeamName } from "@/lib/team-name-filter";
+import { writeAuditLog } from "@/lib/tournament-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +44,26 @@ const patchSchema = z.object({
 		.optional(),
 	seed: z.coerce.number().int().min(1).max(4).optional(),
 });
+
+/** Inline code keeps names readable and stops them from forming Discord markdown or links. */
+function quoteName(name: string): string {
+	return "`" + name.replace(/`/g, "'") + "`";
+}
+
+/**
+ * Posts to the orga channel (env DISCORD_ORGA_CHANNEL_ID) through the Discord job queue.
+ * Without the variable only the audit log records the event.
+ */
+async function notifyOrga(text: string, dedupeKey: string, actorLabel: string) {
+	const channelId = process.env.DISCORD_ORGA_CHANNEL_ID?.trim();
+	if (!channelId) return;
+	await enqueueDiscordJob({
+		type: "orga-notice",
+		title: "Orga-Hinweis: Teamname",
+		operations: [{ kind: "channel-message", channelId, message: text, dedupeKey, label: "Orga-Kanal" }],
+		actorLabel,
+	}).catch((error) => console.warn("[teams] Orga-Hinweis nicht gesendet:", error));
+}
 
 function teamKey(name: string): string {
 	return name.trim().toLowerCase();
@@ -131,6 +153,7 @@ export async function POST(request: Request) {
 	}
 
 	const warnings: string[] = [];
+	if (!checkTeamName(parsed.data.name).ok) warnings.push("Achtung: Dieser Teamname steht auf der Sperrliste. Captains könnten ihn nicht wählen.");
 	const teamDoc: Record<string, unknown> = {
 		name: parsed.data.name.trim(),
 		players: [],
@@ -222,6 +245,29 @@ export async function PATCH(request: Request) {
 		}
 	}
 
+	const actorLabel = session.user.discordHandle ?? discordId;
+	const nameCheck = nameChanged ? checkTeamName(newName) : ({ ok: true } as const);
+	const tagCheck = parsed.data.tag !== undefined ? checkTeamName(parsed.data.tag) : ({ ok: true } as const);
+	const blockedCheck = !nameCheck.ok ? nameCheck : !tagCheck.ok ? tagCheck : null;
+	if (blockedCheck && !isOwner) {
+		const attempted = !nameCheck.ok ? newName : (parsed.data.tag ?? "");
+		await writeAuditLog({
+			action: "team.name-blocked",
+			targetType: "team",
+			targetId: oldKey,
+			summary: `Gesperrter Teamname abgelehnt für ${existing.name}: ${attempted}`,
+			actorDiscordId: discordId,
+			actorLabel,
+			metadata: { attempted, term: blockedCheck.term, field: !nameCheck.ok ? "name" : "tag" },
+		}).catch(() => undefined);
+		await notifyOrga(
+			`🚫 Gesperrter Teamname abgelehnt: ${quoteName(attempted)} für Team ${quoteName(existing.name)} von <@${discordId}> (Treffer: ${quoteName(blockedCheck.term)}).`,
+			`team-name-blocked:${oldKey}:${Date.now()}`,
+			actorLabel
+		);
+		return NextResponse.json({ message: BLOCKED_TEAM_NAME_MESSAGE }, { status: 400 });
+	}
+
 	const duplicateName = Object.entries(teamsObj).find(([key, team]) => key !== oldKey && teamKey(team.name) === newKey);
 	if (duplicateName) {
 		return NextResponse.json({ message: `Team "${newName}" existiert bereits.` }, { status: 409 });
@@ -275,6 +321,7 @@ export async function PATCH(request: Request) {
 
 	const warnings: string[] = [];
 	if (duplicateSeedWarning) warnings.push(duplicateSeedWarning);
+	if (blockedCheck) warnings.push("Achtung: Dieser Name oder Tag steht auf der Sperrliste. Captains könnten ihn nicht wählen.");
 	if (existing.textChannelId) {
 		nextTeam.textChannelId = existing.textChannelId;
 	}
@@ -302,6 +349,23 @@ export async function PATCH(request: Request) {
 				actorLabel: session.user.discordHandle ?? discordId,
 			})
 		: null;
+
+	if (nameChanged && isCaptain && !isOwner) {
+		await writeAuditLog({
+			action: "team.captain-rename",
+			targetType: "team",
+			targetId: oldKey,
+			summary: `Captain hat Team umbenannt: ${existing.name} → ${newName}`,
+			actorDiscordId: discordId,
+			actorLabel,
+			metadata: { from: existing.name, to: newName },
+		}).catch(() => undefined);
+		await notifyOrga(
+			`✏️ Team umbenannt: ${quoteName(existing.name)} → ${quoteName(newName)} von <@${discordId}>. Zurücksetzen unter /admin/roster.`,
+			`team-rename:${oldKey}:${Date.now()}`,
+			actorLabel
+		);
+	}
 
 	// The welcome post in the team channel names the team and its tag.
 	if (nameChanged || tagChanged) await refreshTeamWelcomePosts({ teamKey: oldKey, actorLabel: session.user.discordHandle ?? discordId }).catch(() => null);

@@ -1,3 +1,4 @@
+import { checkTeamName } from "@/lib/team-name-filter";
 /**
  * Short team tags (2–5 characters, A–Z and 0–9), like Riot's "MKOI" for "Movistar KOI".
  * Teams get one automatically; captains can change it in the captain portal.
@@ -64,13 +65,14 @@ function candidates(name: string): string[] {
 /** Picks a tag for `name` that is not in `taken`; adds digits as a last resort. */
 export function generateTeamTag(name: string, taken: Iterable<string> = []): string {
 	const used = new Set([...taken].map((tag) => tag.toUpperCase()));
-	const options = candidates(name);
+	// Never suggest a blocked code, e.g. "SS" for "Super Squad".
+	const options = candidates(name).filter((tag) => checkTeamName(tag).ok);
 	const free = options.find((tag) => !used.has(tag));
 	if (free) return free;
 	const base = (options[0] ?? "TEAM").slice(0, TEAM_TAG_MAX - 1);
 	for (let index = 2; index < 100; index += 1) {
 		const tag = `${base.slice(0, TEAM_TAG_MAX - String(index).length)}${index}`;
-		if (!used.has(tag)) return tag;
+		if (!used.has(tag) && checkTeamName(tag).ok) return tag;
 	}
 	return base;
 }

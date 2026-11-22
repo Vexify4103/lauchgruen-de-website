@@ -117,6 +117,7 @@ const ruleSections: RuleSection[] = [
 		list: [
 			"Keine Beleidigungen oder Belästigungen",
 			"Keine rassistischen, antisemitischen, sexistischen oder sonstigen diskriminierenden Äußerungen oder Darstellungen",
+			"Teamnamen und Teamtags dürfen keine extremistischen, beleidigenden, diskriminierenden oder sexuellen Inhalte haben, auch nicht verschlüsselt (z. B. Codes wie 88 oder Anspielungen). Die Orga kann unpassende Namen jederzeit ändern; bei Absicht drohen Verwarnung oder Ausschluss",
 			"Kein Trashtalk gegen Gegner, Teammates, Zuschauer oder Orga",
 			"Keine Schuldzuweisungen, öffentlichen Flaming-Diskussionen oder persönlichen Angriffe nach Games",
 			"Kein absichtliches Feeden oder Griefing",
