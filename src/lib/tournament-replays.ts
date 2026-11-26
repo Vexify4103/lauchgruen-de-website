@@ -79,6 +79,17 @@ export async function createReplay(input: Omit<TournamentReplay, "id" | "created
 	return fromDoc(doc);
 }
 
+/** Every confirmed replay of the running tournament, for the archive snapshot. */
+export async function listAppliedReplays(): Promise<TournamentReplay[]> {
+	const docs = await (await collection()).find({ status: "applied" }).sort({ matchId: 1, gameNumber: 1 }).toArray();
+	return docs.map(fromDoc);
+}
+
+/** Archiving clears all uploads, so the next tournament's match ids (e.g. "gf") start without old replays. */
+export async function clearReplays(): Promise<void> {
+	await (await collection()).deleteMany({});
+}
+
 export async function listReplays(matchId: string): Promise<TournamentReplay[]> {
 	const docs = await (await collection()).find({ matchId }).sort({ createdAt: -1 }).toArray();
 	return docs.map(fromDoc);

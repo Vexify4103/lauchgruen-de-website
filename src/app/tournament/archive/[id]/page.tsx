@@ -8,7 +8,9 @@ import { EmptyState, PageIntro } from "@/components/site/PageIntro";
 import { playedChampionsByTeam } from "@/lib/fearless";
 import { formatGameDuration } from "@/lib/match-duration";
 import { TOURNAMENT_KIND_LABELS, tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
-import { getTournamentArchive, type ArchivedControlMatch, type TournamentArchive, type TournamentArchiveSnapshot } from "@/lib/tournament-next";
+import { getTournamentArchive, type ArchivedControlMatch, type ArchivedReplay, type TournamentArchive, type TournamentArchiveSnapshot } from "@/lib/tournament-next";
+import { ReplayScoreboard } from "@/components/ReplayScoreboard";
+import { getReplayAssets } from "@/lib/replay-assets";
 import { compactPoolLabel } from "@/lib/tournament-wheel";
 import { TournamentLink as Link } from "../../TournamentLink";
 
@@ -92,7 +94,9 @@ export default async function TournamentArchivePage({ params, searchParams }: { 
 				{view === "teams" && snapshot ? <Teams snapshot={snapshot} kind={kind} /> : null}
 				{view === "stage" && snapshot ? <Stage snapshot={snapshot} /> : null}
 				{view === "playoffs" && snapshot ? <Playoffs snapshot={snapshot} /> : null}
-				{view === "results" && snapshot?.controlMatches ? <Results matches={snapshot.controlMatches} /> : null}
+				{view === "results" && snapshot?.controlMatches ? (
+					<Results matches={snapshot.controlMatches} replays={snapshot.replays ?? []} assets={snapshot.replays?.length ? await getReplayAssets() : null} />
+				) : null}
 				{view === "drafts" && snapshot ? <Drafts snapshot={snapshot} kind={kind} /> : null}
 			</section>
 		</>
@@ -188,7 +192,11 @@ function Teams({ snapshot, kind }: { snapshot: Snapshot; kind: TournamentKind })
 
 /** Stored tags win; older archives get generated ones in the same order as the live site. */
 function archiveTags(teams: Snapshot["teams"]): Record<string, string> {
-	const entries = teams.map((team) => ({ name: team.name, storageKey: (team as { storageKey?: string }).storageKey ?? team.name.toLowerCase(), meta: { tag: (team as { tag?: string }).tag } }));
+	const entries = teams.map((team) => ({
+		name: team.name,
+		storageKey: (team as { storageKey?: string }).storageKey ?? team.name.toLowerCase(),
+		meta: { tag: (team as { tag?: string }).tag },
+	}));
 	const tags = withTeamTags(entries);
 	return Object.fromEntries(entries.map((entry) => [entry.name, tags.get(entry) ?? ""]));
 }
@@ -301,8 +309,9 @@ function Playoffs({ snapshot }: { snapshot: Snapshot }) {
 	);
 }
 
-function Results({ matches }: { matches: ArchivedControlMatch[] }) {
+function Results({ matches, replays, assets }: { matches: ArchivedControlMatch[]; replays: ArchivedReplay[]; assets: Awaited<ReturnType<typeof getReplayAssets>> }) {
 	const played = matches.filter((match) => match.status === "Finished" && match.teamAName && match.teamBName);
+	const replaysOf = (matchId: string) => replays.filter((replay) => replay.matchId === matchId).sort((a, b) => a.gameNumber - b.gameNumber);
 	return (
 		<>
 			<PageIntro kicker="Ergebnisse" title={`${played.length} gespielte Matches.`} as="h2" />
@@ -319,23 +328,72 @@ function Results({ matches }: { matches: ArchivedControlMatch[] }) {
 						</thead>
 						<tbody>
 							{played.map((match) => (
-								<tr key={match.id}>
-									<td className="whitespace-nowrap text-left text-xs text-[var(--muted)]">{match.round}</td>
-									<td>
-										<span className={match.winner === match.teamAName ? "font-bold" : "text-[var(--muted)]"}>{match.teamAName}</span>
-										<span className="text-[var(--muted)]"> vs </span>
-										<span className={match.winner === match.teamBName ? "font-bold" : "text-[var(--muted)]"}>{match.teamBName}</span>
-									</td>
-									<td className="font-bold">
-										{match.scoreA ?? "–"}:{match.scoreB ?? "–"}
-									</td>
-									<td>{match.gameDurationSeconds ? formatGameDuration(match.gameDurationSeconds) : "–"}</td>
-								</tr>
+								<ResultRows key={match.id} match={match} replays={replaysOf(match.id)} assets={assets}>
+									<tr>
+										<td className="whitespace-nowrap text-left text-xs text-[var(--muted)]">{match.round}</td>
+										<td>
+											<span className={match.winner === match.teamAName ? "font-bold" : "text-[var(--muted)]"}>{match.teamAName}</span>
+											<span className="text-[var(--muted)]"> vs </span>
+											<span className={match.winner === match.teamBName ? "font-bold" : "text-[var(--muted)]"}>{match.teamBName}</span>
+										</td>
+										<td className="font-bold">
+											{match.scoreA ?? "–"}:{match.scoreB ?? "–"}
+										</td>
+										<td>{match.gameDurationSeconds ? formatGameDuration(match.gameDurationSeconds) : "–"}</td>
+									</tr>
+								</ResultRows>
 							))}
 						</tbody>
 					</table>
 				</div>
 			</div>
+		</>
+	);
+}
+
+/** A result row plus, when the archive has them, the replay scoreboards of that match below it. */
+function ResultRows({
+	match,
+	replays,
+	assets,
+	children,
+}: {
+	match: ArchivedControlMatch;
+	replays: ArchivedReplay[];
+	assets: Awaited<ReturnType<typeof getReplayAssets>>;
+	children: React.ReactNode;
+}) {
+	const nameOf = (side: "teamA" | "teamB") => (side === "teamA" ? match.teamAName : match.teamBName) ?? "";
+	return (
+		<>
+			{children}
+			{replays.length ? (
+				<tr>
+					<td colSpan={4} className="text-left">
+						<details>
+							<summary className="cursor-pointer text-xs text-[var(--muted)] hover:text-[var(--text)]">
+								{replays.length > 1 ? `Scoreboards (${replays.length} Spiele)` : "Scoreboard"}
+							</summary>
+							<div className="mt-3 grid gap-5">
+								{replays.map((replay) => {
+									const blue = replay.blueTeam ?? match.games.find((game) => game.number === replay.gameNumber)?.blueSide ?? "teamA";
+									return (
+										<div key={replay.gameNumber} className="grid gap-2">
+											{replays.length > 1 ? <p className="m-0 text-xs font-semibold">Spiel {replay.gameNumber}</p> : null}
+											<ReplayScoreboard
+												summary={{ ...replay.summary, players: replay.summary.players.map((player) => ({ ...player, puuid: "" })) }}
+												assets={assets}
+												blueTeamName={nameOf(blue)}
+												redTeamName={nameOf(blue === "teamA" ? "teamB" : "teamA")}
+											/>
+										</div>
+									);
+								})}
+							</div>
+						</details>
+					</td>
+				</tr>
+			) : null}
 		</>
 	);
 }

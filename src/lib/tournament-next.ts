@@ -20,6 +20,8 @@ import type { StandingsResult } from "@/lib/tournament-standings";
 import type { DayOneFormat } from "@/lib/tournament-structure";
 import type { SeriesGame } from "@/lib/tournament-series";
 import { getDefaultRulesMarkdown } from "@/lib/tournament-rulebook";
+import { clearReplays, listAppliedReplays, type TournamentReplay } from "@/lib/tournament-replays";
+import type { ReplaySummary } from "@/lib/rofl";
 
 type ArchivedPlayer = Pick<TournamentTeam["players"][number], "name" | "role" | "riotId" | "verified" | "opggUrl" | "dpmUrl">;
 type ArchivedTeam = Omit<TournamentTeam, "captainRef" | "discordRoleId" | "players"> & { players: ArchivedPlayer[] };
@@ -34,6 +36,15 @@ export type ArchivedUltimateBraveryRoll = Pick<
 	UltimateBraveryRoll,
 	"matchId" | "teamName" | "riotId" | "role" | "champion" | "startingItems" | "items" | "summonerSpells" | "runes" | "rollNumber" | "rerollsUsed"
 >;
+
+/** Scoreboard of one confirmed replay. Uploader, file hashes and PUUIDs stay out of the archive. */
+export type ArchivedReplay = {
+	matchId: string;
+	gameNumber: number;
+	/** Side that played blue, from the replay check. */
+	blueTeam: "teamA" | "teamB" | null;
+	summary: Omit<ReplaySummary, "players"> & { players: Array<Omit<ReplaySummary["players"][number], "puuid">> };
+};
 
 export type TournamentArchiveSnapshot = {
 	information?: { description: string; rulesMarkdown: string };
@@ -54,6 +65,8 @@ export type TournamentArchiveSnapshot = {
 	swiss?: SwissStageState;
 	fearless?: TournamentSettings["fearless"];
 	ultimateBraveryRolls?: ArchivedUltimateBraveryRoll[];
+	/** Confirmed replay scoreboards. Missing on archives created before replays were archived. */
+	replays?: ArchivedReplay[];
 	/** Flexible engine: play-in pairs, final tables and staff decisions for ties. */
 	playIn?: PlayInPair[];
 	stageTables?: {
@@ -223,6 +236,15 @@ function publicRoll(roll: UltimateBraveryRoll): ArchivedUltimateBraveryRoll {
 	return { matchId, teamName, riotId, role, champion, startingItems, items, summonerSpells, runes, rollNumber, rerollsUsed };
 }
 
+export function publicReplay(replay: TournamentReplay): ArchivedReplay {
+	return {
+		matchId: replay.matchId,
+		gameNumber: replay.gameNumber,
+		blueTeam: replay.evaluation.blueTeam ?? null,
+		summary: { ...replay.summary, players: replay.summary.players.map(({ puuid, ...player }) => (void puuid, player)) },
+	};
+}
+
 function publicDrafts(drafts: TournamentDraftState[]): ArchivedDraft[] {
 	return drafts.map((draft) => ({
 		matchId: draft.matchId,
@@ -300,7 +322,7 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 	if (!champion) throw new Error("Das Gewinnerteam wurde im aktuellen Turnier nicht gefunden.");
 
 	const flexible = usesFlexibleEngine(active);
-	const [state, wheel, drafts, swiss, rolls] = await Promise.all([
+	const [state, wheel, drafts, swiss, rolls, replays] = await Promise.all([
 		readTournamentState(ctx.groupMatches),
 		getTournamentWheelState(),
 		listDraftStates(),
@@ -308,6 +330,7 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 			? getSwissStageState(active.id)
 			: Promise.resolve(null),
 		usesUltimateBravery(active) ? listAllUltimateBraveryRolls() : Promise.resolve([]),
+		listAppliedReplays(),
 	]);
 	const snapshot: TournamentArchiveSnapshot = {
 		information: { description: active.description ?? "", rulesMarkdown: active.rulesMarkdown?.trim() || getDefaultRulesMarkdown(settings) },
@@ -328,6 +351,7 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 			: {}),
 		...(active.kind === "fearless" ? { fearless: settings.fearless } : {}),
 		...(rolls.length > 0 ? { ultimateBraveryRolls: rolls.map(publicRoll) } : {}),
+		...(replays.length > 0 ? { replays: replays.map(publicReplay) } : {}),
 		...(control.stages
 			? {
 					...(control.stages.playIn ? { playIn: control.stages.playIn.pairs } : {}),
@@ -373,6 +397,7 @@ export async function archiveActiveTournament(input: { note?: string; vodUrl?: s
 		clearUltimateBraveryRolls(),
 		clearPlayIn(),
 		clearStandingOverrides(active.id),
+		clearReplays(),
 	]);
 	await updateTournamentSettings({
 		patch: {
