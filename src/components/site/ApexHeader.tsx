@@ -1,10 +1,12 @@
 import { auth } from "@/lib/auth";
 import { TournamentAccountControl } from "@/app/tournament/TournamentAccountControl";
 import { SiteHeader } from "./SiteHeader";
+import { getVisibleChallenge } from "@/lib/winchallenge/store";
 
 /** Header for the main site (lauchgruen.de): stream hub, clips, OBS tools and the account center. */
 export async function ApexHeader({ apexUrl, tournamentUrl, brand }: { apexUrl: string; tournamentUrl: string; brand?: string }) {
-	const session = await auth();
+	// The Win Challenge link appears only while a published challenge exists.
+	const [session, winChallenge] = await Promise.all([auth(), getVisibleChallenge().catch(() => null)]);
 	const discordId = session?.user?.discordId;
 	const account = discordId
 		? {
@@ -23,6 +25,7 @@ export async function ApexHeader({ apexUrl, tournamentUrl, brand }: { apexUrl: s
 				{ href: "/", label: "Start", matches: ["/landing"] },
 				{ href: "/clips", label: "Clips" },
 				{ href: "/overlay", label: "OBS-Tools" },
+				...(winChallenge ? [{ href: "/winchallenge", label: "Win Challenge" }] : []),
 				{ href: tournamentUrl, label: "Turnier", external: true },
 			]}
 			status={
