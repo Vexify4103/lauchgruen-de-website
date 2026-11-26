@@ -15,9 +15,10 @@ const labelClass = "block text-xs font-semibold text-[var(--muted)]";
 
 export function ArchiveTournamentPanel({ activeName, championTeam }: Props) {
 	const formId = useId();
-	const [name, setName] = useState("Fearless Turnier");
-	const [season, setSeason] = useState("Fearless Turnier 2026");
-	const [id, setId] = useState("fearless-2026");
+	// Placeholders: name, season, type and id can be changed later while the tournament is a teaser.
+	const [name, setName] = useState("Nächstes Turnier");
+	const [season, setSeason] = useState("2027");
+	const [id, setId] = useState("turnier-2027-1");
 	const [idTouched, setIdTouched] = useState(false);
 	const [kind, setKind] = useState<TournamentKind>("fearless");
 	const [note, setNote] = useState("");

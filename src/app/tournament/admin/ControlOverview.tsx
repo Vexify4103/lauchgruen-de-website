@@ -7,6 +7,7 @@ import type { TournamentSettings } from "@/lib/tournament-settings";
 import { TournamentLink as Link } from "../TournamentLink";
 import { AdminModal } from "./AdminModal";
 import { ArchiveTournamentPanel } from "./ArchiveTournamentPanel";
+import { UpcomingTournamentEditor } from "./UpcomingTournamentEditor";
 import { DiscordControlCenter } from "./DiscordControlCenter";
 import { TournamentModePanel, type TournamentSettingsSection } from "./TournamentModePanel";
 import { RefreshRanksButton } from "./applicants/RefreshRanksButton";
@@ -168,6 +169,9 @@ export function ControlOverview({
 				<div className="grid gap-5">
 					<TournamentModePanel initialSettings={settings} initialVersion={settingsVersion} section="lifecycle" onSaved={saved} />
 					{archive.pending ? <ArchiveTournamentPanel activeName={active.name} championTeam={archive.championTeam} /> : null}
+					{active.mode === "teaser" ? (
+						<UpcomingTournamentEditor active={active} initialVersion={settingsVersion} identityLocked={stats.applications > 0} onSaved={saved} />
+					) : null}
 				</div>
 			</AdminModal>
 			<AdminModal open={modal === "riot"} kicker="Daten & Discord" title="Riot-Profile abgleichen" onClose={close} wide keepMounted>

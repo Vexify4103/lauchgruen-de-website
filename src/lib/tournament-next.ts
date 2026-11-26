@@ -270,6 +270,30 @@ function archiveRoleCleanupOperations(teams: TournamentTeam[]): DiscordOperation
 	return operations;
 }
 
+/**
+ * Changes the announced tournament (name, season, type, id) while it is still a teaser and nobody
+ * applied yet. Applications, Swiss stages and overrides are stored under the tournament id, so the
+ * id and type lock once the first application exists.
+ */
+export async function updateUpcomingTournament(input: NextTournamentInput & { updatedBy?: string }) {
+	const settings = await getTournamentSettings();
+	const active = settings.activeTournament;
+	if (active.mode !== "teaser") throw new Error("Nur ein angekündigtes Turnier (Ankündigungsmodus) kann so geändert werden.");
+	const db = await getDb();
+	const identityChanged = input.id !== active.id || input.kind !== active.kind;
+	if (identityChanged && (await db.collection("tournament_applications").countDocuments({}, { limit: 1 })) > 0) {
+		throw new Error("Es gibt schon Bewerbungen. ID und Turnierart können nicht mehr geändert werden.");
+	}
+	if (input.id !== active.id && (await getTournamentArchive(input.id))) throw new Error("Diese ID gehört schon zu einem archivierten Turnier.");
+	return updateTournamentSettings({
+		patch: {
+			activeTournament: { ...active, id: input.id, name: input.name, season: input.season, kind: input.kind },
+			...(input.kind !== active.kind ? { draftEnabled: input.kind !== "ultimate-bravery" } : {}),
+		},
+		updatedBy: input.updatedBy,
+	});
+}
+
 export type NextTournamentInput = {
 	id: string;
 	name: string;
