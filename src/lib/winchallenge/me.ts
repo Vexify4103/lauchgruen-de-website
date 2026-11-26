@@ -1,7 +1,7 @@
 /** The logged-in player's own view: sign-up state, team incl. join code, partner, Twitch link. */
 import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
-import { teamLiveState, type LiveState } from "@/lib/winchallenge/live";
+import { skipLiveCheck, teamLiveState, type LiveState } from "@/lib/winchallenge/live";
 import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
 import { elapsedMs, timerRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinParticipant, WinPayout, WinTeam } from "@/lib/winchallenge/types";
@@ -67,7 +67,7 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 						running: team.status === "running" && timerRunning(team.segments),
 						done: gamesDone(team, challenge.games),
 						members: members.map((member) => ({ id: member.id, name: member.discordName, twitch: member.twitchLogin })),
-						live: await teamLiveState(members).catch(() => "twitch-down" as const),
+						live: skipLiveCheck() ? "live" : await teamLiveState(members).catch(() => "twitch-down" as const),
 					}
 				: null,
 			payouts: {

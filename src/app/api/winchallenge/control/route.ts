@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { LIVE_REQUIRED_ACTIONS, type WinTeamAction } from "@/lib/winchallenge/actions";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
-import { teamLiveState } from "@/lib/winchallenge/live";
+import { skipLiveCheck, teamLiveState } from "@/lib/winchallenge/live";
 import { controlTeam, getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
@@ -40,9 +40,7 @@ export async function POST(request: Request) {
 		if (action.action === "start" && Date.now() < new Date(challenge.startAt).getTime()) {
 			return winError(400, "Start ist erst ab dem offiziellen Startzeitpunkt möglich.", "too-early");
 		}
-		// Local test runs only: nobody is live there. Never honoured in production builds.
-		const skipLive = process.env.NODE_ENV !== "production" && process.env.WINCHALLENGE_SKIP_LIVE_CHECK === "1";
-		if (LIVE_REQUIRED_ACTIONS.has(action.action) && !skipLive) {
+		if (LIVE_REQUIRED_ACTIONS.has(action.action) && !skipLiveCheck()) {
 			const members = (await listParticipants(challenge.id)).filter((entry) => team.memberIds.includes(entry.id));
 			liveCheck = await teamLiveState(members);
 			if (liveCheck === "offline") return winError(400, "Einer von euch muss auf Twitch live sein.", "not-live");

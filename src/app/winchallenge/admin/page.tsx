@@ -13,7 +13,7 @@ export default async function WinChallengeAdminPage() {
 			<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-6">
 				<h1 className="font-display text-2xl font-semibold text-[var(--text)]">Win Challenge Admin</h1>
 				<p className="mt-2 text-sm text-[var(--muted)]">Bitte mit Discord anmelden.</p>
-				<DiscordSignInButton redirectTo="/winchallenge/admin" returnToCurrentPage className="button mt-4">
+				<DiscordSignInButton redirectTo="/winchallenge/admin" returnToCurrentPage className="button primary mt-4">
 					Mit Discord anmelden
 				</DiscordSignInButton>
 			</section>

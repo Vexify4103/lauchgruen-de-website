@@ -190,7 +190,7 @@ function TeamForms({ busy, act }: { busy: boolean; act: Act }) {
 					autoComplete="off"
 					spellCheck={false}
 				/>
-				<button type="submit" className="button justify-self-start" disabled={busy || code.trim().length < 4}>
+				<button type="submit" className="button ghost justify-self-start" disabled={busy || code.trim().length < 4}>
 					Beitreten
 				</button>
 			</form>
@@ -268,7 +268,7 @@ function WishChannel({ current, busy, act }: { current: string | null; busy: boo
 					Twitch-Kanal
 				</label>
 				<input id="wc-wish" className={`${input} max-w-xs`} value={value} onChange={(event) => setValue(event.target.value)} maxLength={25} placeholder="twitch-name" autoComplete="off" spellCheck={false} />
-				<button type="submit" className="button" disabled={busy || value.trim() === (current ?? "")}>
+				<button type="submit" className="button ghost" disabled={busy || value.trim() === (current ?? "")}>
 					Speichern
 				</button>
 			</form>

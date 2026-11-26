@@ -30,3 +30,8 @@ export async function teamLiveState(members: WinParticipant[]): Promise<LiveStat
 	if (live.size > 0) return "live";
 	return ok ? "offline" : "twitch-down";
 }
+
+/** Local test runs only: nobody is live there. Never honoured in production builds. */
+export function skipLiveCheck(): boolean {
+	return process.env.NODE_ENV !== "production" && process.env.WINCHALLENGE_SKIP_LIVE_CHECK === "1";
+}
