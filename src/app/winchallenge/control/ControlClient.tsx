@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MyState } from "@/lib/winchallenge/me";
 import { formatElapsed } from "@/lib/winchallenge/timer";
 import type { WinGame, WinTeamStatus } from "@/lib/winchallenge/types";
+import { NeedsPartnerNotice } from "../NeedsPartnerNotice";
 import { winFetch } from "../win-api";
 
 type MeResponse = ({ loggedIn: false } | ({ loggedIn: true } & MyState)) & { message?: string };
@@ -75,7 +76,7 @@ export function ControlClient() {
 				setPending(null);
 			}
 		},
-		[load],
+		[load]
 	);
 
 	if (!me) return <p className="text-sm text-[var(--muted)]">{error ?? "Lade…"}</p>;
@@ -88,6 +89,7 @@ export function ControlClient() {
 				<Link href="/winchallenge/mitmachen" className="font-semibold text-[var(--accent)] underline-offset-2 hover:underline">
 					Zur Anmeldung
 				</Link>
+				{me.participant ? <NeedsPartnerNotice className="mt-3" /> : null}
 			</Notice>
 		);
 	}
@@ -122,9 +124,12 @@ export function ControlClient() {
 
 				<div className="mt-5 flex flex-wrap gap-3">
 					{team.status === "forming" ? (
-						<p className="text-sm text-[var(--muted)]">
-							Warte auf deinen Partner. Code: <span className="font-mono text-[var(--text)]">{team.joinCode}</span>
-						</p>
+						<div className="grid gap-3">
+							<NeedsPartnerNotice />
+							<p className="text-sm text-[var(--muted)]">
+								Team-Code für deinen Partner: <span className="font-mono text-[var(--text)]">{team.joinCode}</span>
+							</p>
+						</div>
 					) : null}
 					{team.status === "ready" ? (
 						<BigButton primary disabled={busy || ended || untilStart > 0 || !liveOk} onClick={() => press({ action: "start" }, "start")}>
@@ -142,9 +147,13 @@ export function ControlClient() {
 						</BigButton>
 					) : null}
 				</div>
-				{active ? <p className="mt-3 text-xs text-[var(--muted)]">Die Uhr läuft ab dem offiziellen Start, auch in der Pause. Pause zeigt nur, dass ihr gerade nicht spielt.</p> : null}
-				{!liveOk && (team.status === "ready" || active) ?<p className="mt-3 text-sm text-[var(--amber)]">Einer von euch muss auf Twitch live sein.</p> : null}
-				{team.live === "twitch-down" ? <p className="mt-3 text-xs text-[var(--muted)]">Twitch ist gerade nicht erreichbar. Aktionen gehen trotzdem und werden vermerkt.</p> : null}
+				{active ? (
+					<p className="mt-3 text-xs text-[var(--muted)]">Die Uhr läuft ab dem offiziellen Start, auch in der Pause. Pause zeigt nur, dass ihr gerade nicht spielt.</p>
+				) : null}
+				{!liveOk && (team.status === "ready" || active) ? <p className="mt-3 text-sm text-[var(--amber)]">Einer von euch muss auf Twitch live sein.</p> : null}
+				{team.live === "twitch-down" ? (
+					<p className="mt-3 text-xs text-[var(--muted)]">Twitch ist gerade nicht erreichbar. Aktionen gehen trotzdem und werden vermerkt.</p>
+				) : null}
 				<div aria-live="polite">{error ? <p className="mt-3 rounded-lg border border-[var(--danger)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p> : null}</div>
 			</header>
 
@@ -254,19 +263,36 @@ function GameRow({
 							Rückgängig
 						</button>
 					) : (
-						<button type="button" className={`${button} primary`} disabled={disabled || !liveOk || team.status === "finished"} onClick={() => press({ action: "done", gameId: game.id }, key("done"))}>
+						<button
+							type="button"
+							className={`${button} primary`}
+							disabled={disabled || !liveOk || team.status === "finished"}
+							onClick={() => press({ action: "done", gameId: game.id }, key("done"))}
+						>
 							{pending === key("done") ? "…" : "Erledigt"}
 						</button>
 					)
 				) : (
 					<>
-						<button type="button" className={`${button} ghost`} disabled={disabled || progress.count === 0} onClick={() => press({ action: "minus", gameId: game.id }, key("minus"))} aria-label={`${game.title} minus eins`}>
+						<button
+							type="button"
+							className={`${button} ghost`}
+							disabled={disabled || progress.count === 0}
+							onClick={() => press({ action: "minus", gameId: game.id }, key("minus"))}
+							aria-label={`${game.title} minus eins`}
+						>
 							−
 						</button>
 						<span className="min-w-12 text-center font-mono tabular-nums text-[var(--text)]">
 							{progress.count}/{target}
 						</span>
-						<button type="button" className={`${button} primary`} disabled={disabled || !liveOk || done || team.status === "finished"} onClick={() => press({ action: "plus", gameId: game.id }, key("plus"))} aria-label={`${game.title} plus eins`}>
+						<button
+							type="button"
+							className={`${button} primary`}
+							disabled={disabled || !liveOk || done || team.status === "finished"}
+							onClick={() => press({ action: "plus", gameId: game.id }, key("plus"))}
+							aria-label={`${game.title} plus eins`}
+						>
 							+
 						</button>
 						<button

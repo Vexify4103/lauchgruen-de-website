@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ThemedSelect } from "@/components/ThemedSelect";
 import type { MyState } from "@/lib/winchallenge/me";
+import { NeedsPartnerNotice } from "../NeedsPartnerNotice";
 import { formatDateTime, winFetch } from "../win-api";
 
 type MeResponse = ({ loggedIn: false } | ({ loggedIn: true; isOwner: boolean } & MyState)) & { message?: string };
@@ -17,7 +18,8 @@ const TWITCH_NOTICE: Record<string, string> = {
 	configuration: "Twitch-Verknüpfung ist gerade nicht verfügbar.",
 };
 
-const input = "w-full rounded-lg border border-[var(--line-strong)] bg-[var(--bg)] px-3 py-2.5 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]";
+const input =
+	"w-full rounded-lg border border-[var(--line-strong)] bg-[var(--bg)] px-3 py-2.5 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]";
 
 function Step({ number, title, done, children }: { number: number; title: string; done?: boolean; children: ReactNode }) {
 	return (
@@ -71,7 +73,7 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 				setBusy(false);
 			}
 		},
-		[load],
+		[load]
 	);
 
 	if (!me) return <p className="text-sm text-[var(--muted)]">{error ?? "Lade…"}</p>;
@@ -102,7 +104,14 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 				{me.twitch ? (
 					<div className="flex items-center gap-3">
 						{me.twitch.profileImageUrl ? (
-							<Image src={me.twitch.profileImageUrl} alt="" width={40} height={40} unoptimized className="size-10 shrink-0 rounded-full border border-[var(--line)] object-cover" />
+							<Image
+								src={me.twitch.profileImageUrl}
+								alt=""
+								width={40}
+								height={40}
+								unoptimized
+								className="size-10 shrink-0 rounded-full border border-[var(--line)] object-cover"
+							/>
 						) : null}
 						<p>
 							Verknüpft mit <span className="font-semibold text-[var(--text)]">twitch.tv/{me.twitch.login}</span>. Darüber prüfen wir, ob einer von euch live ist.
@@ -122,12 +131,17 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 				{signedUp ? (
 					<p>Du bist dabei.</p>
 				) : (
-					<SignUpForm disabled={busy || !me.twitch || closed || !challenge.signupOpen} reason={!me.twitch ? "Verknüpfe zuerst Twitch." : !challenge.signupOpen || closed ? "Die Anmeldung ist gerade geschlossen." : null} onSubmit={() => act("/api/winchallenge/signup", { acceptRules: true }, "Du bist angemeldet.")} />
+					<SignUpForm
+						disabled={busy || !me.twitch || closed || !challenge.signupOpen}
+						reason={!me.twitch ? "Verknüpfe zuerst Twitch." : !challenge.signupOpen || closed ? "Die Anmeldung ist gerade geschlossen." : null}
+						onSubmit={() => act("/api/winchallenge/signup", { acceptRules: true }, "Du bist angemeldet.")}
+					/>
 				)}
 			</Step>
 
 			{signedUp ? (
 				<Step number={3} title="Team bilden" done={Boolean(me.team && me.team.members.length === 2)}>
+					{me.team && me.team.members.length === 2 ? null : <NeedsPartnerNotice className="mb-4" />}
 					{me.team ? <TeamBox me={me} busy={busy} closed={closed} act={act} /> : <TeamForms busy={busy || closed} act={act} />}
 				</Step>
 			) : null}
@@ -179,7 +193,16 @@ function TeamForms({ busy, act }: { busy: boolean; act: Act }) {
 				<label htmlFor="wc-team-name" className="font-semibold text-[var(--text)]">
 					Team erstellen
 				</label>
-				<input id="wc-team-name" className={input} value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={40} placeholder="Teamname" autoComplete="off" />
+				<input
+					id="wc-team-name"
+					className={input}
+					value={name}
+					onChange={(event) => setName(event.target.value)}
+					minLength={2}
+					maxLength={40}
+					placeholder="Teamname"
+					autoComplete="off"
+				/>
 				<button type="submit" className="button primary justify-self-start" disabled={busy || name.trim().length < 2}>
 					Erstellen
 				</button>
@@ -228,7 +251,12 @@ function TeamBox({ me, busy, closed, act }: { me: Extract<MeResponse, { loggedIn
 					<button type="button" className="button small ghost" onClick={() => void copy()}>
 						{copied ? "Kopiert" : "Kopieren"}
 					</button>
-					<button type="button" className="button small ghost" disabled={busy || closed} onClick={() => void act("/api/winchallenge/team", { action: "new-code" }, "Neuer Code erstellt. Der alte gilt nicht mehr.")}>
+					<button
+						type="button"
+						className="button small ghost"
+						disabled={busy || closed}
+						onClick={() => void act("/api/winchallenge/team", { action: "new-code" }, "Neuer Code erstellt. Der alte gilt nicht mehr.")}
+					>
 						Neuer Code
 					</button>
 				</div>
