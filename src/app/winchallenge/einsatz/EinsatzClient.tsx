@@ -55,7 +55,7 @@ export function EinsatzClient() {
 			<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-5 sm:p-6">
 				<h2 className="font-display text-lg font-semibold text-[var(--text)]">Du schenkst</h2>
 				{give.length === 0 ? (
-					<p className="mt-3 text-sm text-[var(--muted)]">Du schuldest keinen Sub. Entweder hat dein Team nicht gestartet, oder es gibt niemanden außerhalb deines Teams, der etwas bekommt.</p>
+					<p className="mt-3 text-sm text-[var(--muted)]">Du schuldest keinen Sub. Entweder warst du ohne Partner, oder es gibt niemanden außerhalb deines Teams, der etwas bekommt.</p>
 				) : (
 					give.map((payout) => <GiveRow key={payout.id} payout={payout} busy={busy === payout.id} onPaid={() => mark(payout.id, "paid")} />)
 				)}

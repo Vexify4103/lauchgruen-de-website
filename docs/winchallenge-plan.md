@@ -201,7 +201,7 @@ Twitch live status: reuse `src/lib/twitch.ts`.
 
 The site never handles money. It only tells everyone whom to gift a sub to and tracks confirmations.
 
-**Pot:** 1 sub per participant (both members of every team that started, incl. teams that gave up). Teams that never started and solo players without a team owe nothing (decision for Lauchgruen, default).
+**Pot:** 1 sub per participant in a full duo, whether the team started, gave up or never started (user decision 2026-11-26). Solo players and half teams cannot play and owe nothing. To let a no-show team off, the admin removes the team before ending.
 
 **When:** Lauchgruen presses **Challenge beenden** in admin once places 1–3 are decided (three teams finished, or he decides it is enough). The ranking is frozen at that moment.
 

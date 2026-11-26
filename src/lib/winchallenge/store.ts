@@ -456,8 +456,9 @@ export async function removeParticipant(input: { participant: WinParticipant; ac
 /* ------------------------------------------------------------------ end and payout */
 
 /** Who owes a sub: members of teams that started (also those that gave up). */
+/** Everyone in a full duo owes one sub, started or not. Solo players and half teams cannot play and owe nothing. */
 export function payersFor(teams: WinTeam[]) {
-	return teams.filter((team) => team.segments.length > 0).flatMap((team) => team.memberIds.map((id) => ({ id, teamId: team.id })));
+	return teams.filter((team) => team.memberIds.length === 2).flatMap((team) => team.memberIds.map((id) => ({ id, teamId: team.id })));
 }
 
 /**
