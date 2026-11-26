@@ -512,7 +512,7 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 					</p>
 					<ul className="grid gap-1">
 						{state.payouts.map((payout) => (
-							<li key={payout.id} className="grid gap-2 rounded-lg px-3 py-2 text-sm odd:bg-[var(--bg)] sm:grid-cols-[1fr_1fr_60px_1fr_auto] sm:items-center">
+							<li key={payout.id} className="grid gap-2 rounded-lg px-3 py-2 text-sm odd:bg-[var(--bg)] sm:grid-cols-[1fr_1fr_60px_1fr_130px_150px] sm:items-center">
 								<span className="text-[var(--text)]">{names.get(payout.payerId)?.discordName ?? "?"}</span>
 								<span className="text-[var(--text)]">an {names.get(payout.recipientId)?.discordName ?? "?"}</span>
 								<span className="text-[var(--muted)]">Platz {payout.place}</span>
@@ -526,6 +526,26 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 									<option value="open">offen</option>
 									<option value="paid">verschenkt</option>
 									<option value="confirmed">bestätigt</option>
+								</select>
+								<select
+									aria-label="Empfänger ändern"
+									className={input}
+									value=""
+									onChange={(event) => {
+										const recipient = names.get(event.target.value);
+										if (recipient && window.confirm(`Sub von ${names.get(payout.payerId)?.discordName ?? "?"} neu an ${recipient.discordName} geben?`)) {
+											void run({ action: "payout-reassign", payoutId: payout.id, recipientId: recipient.id, channel: recipient.wishChannel || state.fallbackChannel }, "Sub neu zugeteilt.");
+										}
+									}}
+								>
+									<option value="">Neu zuteilen…</option>
+									{state.participants
+										.filter((entry) => entry.id !== payout.recipientId && entry.teamId !== names.get(payout.payerId)?.teamId)
+										.map((entry) => (
+											<option key={entry.id} value={entry.id}>
+												{entry.discordName}
+											</option>
+										))}
 								</select>
 							</li>
 						))}
