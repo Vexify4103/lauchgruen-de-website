@@ -3,7 +3,7 @@
 /**
  * Win Challenge OBS overlays: team tracker (`main`), slim bar (`bar`) and the leaderboard.
  * Transparent background, polls every 2 s, timer runs locally on the server clock.
- * Query options: ?scale=1.2 ?align=left|right ?hideList=1 ?pot=1 ?limit=5
+ * Query options: ?scale=1.2 ?align=left|right ?hideList=1 ?pot=1 ?limit=5 ?bg=55 (panel opacity in %, 0 = no panel)
  */
 import { useEffect, useRef, useState } from "react";
 import { formatElapsed } from "@/lib/winchallenge/timer";
@@ -11,7 +11,7 @@ import type { WinGame } from "@/lib/winchallenge/types";
 import type { PublicChallenge, PublicTeam } from "@/lib/winchallenge/view";
 
 export type WinOverlayMode = "main" | "bar" | "leaderboard";
-export type WinOverlayOptions = { scale: number; align: "left" | "right"; hideList: boolean; showPot: boolean; limit: number };
+export type WinOverlayOptions = { scale: number; align: "left" | "right"; hideList: boolean; showPot: boolean; limit: number; bg: number };
 
 type TeamFeed = { serverNow: number; challenge: { name: string; status: string; games: WinGame[] }; team: PublicTeam; teamCount: number };
 type Banner = { key: number; title: string; sub: string; big: boolean };
@@ -19,8 +19,8 @@ type Banner = { key: number; title: string; sub: string; big: boolean };
 const POLL_MS = 2000;
 
 const CSS = `
-.wco { --bg: rgba(7, 17, 12, 0.88); --line: rgba(217, 249, 157, 0.16); --text: #effbf2; --muted: #a2bfac; --accent: #bef264; --live: #ff6b6b;
-  color: var(--text); font-family: "DM Sans", "Segoe UI", Arial, sans-serif; transform-origin: top left; }
+.wco { --bg: rgba(7, 17, 12, 0.55); --line: rgba(217, 249, 157, 0.16); --text: #effbf2; --muted: #a2bfac; --accent: #bef264; --live: #ff6b6b;
+  color: var(--text); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); font-family: "DM Sans", "Segoe UI", Arial, sans-serif; transform-origin: top left; }
 .wco * { box-sizing: border-box; }
 .wco-panel { background: var(--bg); border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
 .wco-kicker { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
@@ -114,7 +114,14 @@ function Frame({ options, children }: { options: WinOverlayOptions; children: Re
 	return (
 		<div style={{ display: "flex", justifyContent: options.align === "right" ? "flex-end" : "flex-start", padding: 12 }}>
 			<style>{CSS}</style>
-			<div className="wco" style={{ transform: `scale(${options.scale})`, transformOrigin: options.align === "right" ? "top right" : "top left" }}>
+			<div
+				className="wco"
+				style={{
+					transform: `scale(${options.scale})`,
+					transformOrigin: options.align === "right" ? "top right" : "top left",
+					["--bg" as string]: `rgba(7, 17, 12, ${options.bg / 100})`,
+				}}
+			>
 				{children}
 			</div>
 		</div>
@@ -167,7 +174,14 @@ export function WinTeamOverlay({ slug, mode, options }: { slug: string; mode: "m
 	const now = useNow();
 	const banner = useBanners(data?.team, data?.challenge.games ?? []);
 
-	if (!data) return error ? <Frame options={options}><div className="wco-panel" style={{ fontSize: 14 }}>Win Challenge: {error}</div></Frame> : null;
+	if (!data)
+		return error ? (
+			<Frame options={options}>
+				<div className="wco-panel" style={{ fontSize: 14 }}>
+					Win Challenge: {error}
+				</div>
+			</Frame>
+		) : null;
 	const { team, challenge } = data;
 	const games = challenge.games;
 	const stateById = new Map(team.games.map((game) => [game.id, game]));
@@ -184,7 +198,9 @@ export function WinTeamOverlay({ slug, mode, options }: { slug: string; mode: "m
 					<span className="wco-bar-sep" />
 					<span>
 						<div className="wco-bar-label">{current ? "Aktuell" : team.name}</div>
-						<div className="wco-bar-value">{current ? `${current.title}${current.type === "counter" ? ` · ${counterText(current, stateById.get(current.id))}` : ""}` : "Win Challenge"}</div>
+						<div className="wco-bar-value">
+							{current ? `${current.title}${current.type === "counter" ? ` · ${counterText(current, stateById.get(current.id))}` : ""}` : "Win Challenge"}
+						</div>
 					</span>
 					<span className="wco-bar-sep" />
 					<span>
