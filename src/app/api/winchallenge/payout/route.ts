@@ -1,10 +1,12 @@
 /**
  * POST /api/winchallenge/payout: { id, action: "paid" | "confirm" }
  * The payer marks a gift as sent; the recipient confirms it. Own entries only.
+ * Marking "paid" also runs the Twitch sub check for that channel when its owner connected it.
  */
 import { z } from "zod";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import { getVisibleChallenge, getParticipantByDiscord, listPayouts, setPayoutStatus } from "@/lib/winchallenge/store";
+import { checkSubs } from "@/lib/winchallenge/subcheck";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +34,11 @@ export async function POST(request: Request) {
 			actor: user.name,
 		});
 		if (!updated) return winError(409, paid ? "Der Sub ist schon als verschenkt markiert." : "Der Sub ist schon bestätigt.");
+		if (paid) {
+			// A connected channel confirms the gift right away; otherwise it stays "verschenkt".
+			const check = await checkSubs(challenge, { channels: [payout.channel] }).catch(() => null);
+			if (check?.confirmedIds.includes(payout.id)) return winJson({ ok: true, status: "confirmed" });
+		}
 		return winJson({ ok: true, status: updated.status });
 	} catch (error) {
 		return handleWinError(error, "Speichern fehlgeschlagen.");

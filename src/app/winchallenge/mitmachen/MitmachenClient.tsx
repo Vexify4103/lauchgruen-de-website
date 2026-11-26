@@ -174,7 +174,11 @@ function SignUpForm({ disabled, reason, onSubmit }: { disabled: boolean; reason:
 				<li>Ihr spielt zu zweit eine feste Liste an Spielen durch, in beliebiger Reihenfolge. Wer zuerst alles geschafft hat, gewinnt.</li>
 				<li>Die Uhr läuft für alle ab dem offiziellen Start, auch in Pausen. Pause zeigt nur auf Stream und Rangliste, dass ihr gerade nicht spielt.</li>
 				<li>Start, Weiter, Erledigt und Fortschritt gehen nur, wenn einer von euch auf Twitch live ist.</li>
-				<li>Einsatz: jeder schenkt nach dem Ende 1 Twitch-Sub an ein Team aus den Top 3. Die Seite sagt dir, an wen.</li>
+				<li>
+					Einsatz: jeder schenkt nach dem Ende 1 Twitch-Sub an ein Team aus den Top 3. Die Seite sagt dir, an wen. Verschenke mit deinem verknüpften Twitch-Konto und
+					nicht anonym.
+				</li>
+				<li>Wer seinen Sub nicht verschenkt, steht öffentlich in der Rangliste und ist bei der nächsten Win Challenge gesperrt.</li>
 				<li>Fair Play unter Freunden. Die Orga kann Zeiten korrigieren und Teams entfernen.</li>
 			</ul>
 			<label className="mt-4 flex items-start gap-2 text-[var(--text)]">

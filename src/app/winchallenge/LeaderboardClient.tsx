@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatElapsed } from "@/lib/winchallenge/timer";
-import type { PublicChallenge, PublicTeam } from "@/lib/winchallenge/view";
+import type { PublicChallenge, PublicDebt, PublicTeam } from "@/lib/winchallenge/view";
 import { formatDateTime } from "./win-api";
 import { TEAM_STATUS_LABEL, usePublicChallenge } from "./usePublicChallenge";
 
@@ -14,7 +14,9 @@ export function LeaderboardClient({ initial }: { initial: PublicChallenge | null
 		return (
 			<section className="mx-auto max-w-2xl rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-6">
 				<h1 className="font-display text-3xl font-semibold text-[var(--text)]">Win Challenge</h1>
-				<p className="mt-3 text-sm leading-6 text-[var(--muted)]">Zweierteams spielen eine feste Liste an Spielen durch. Wer zuerst alles geschafft hat, gewinnt. Die nächste Runde ist noch nicht angekündigt.</p>
+				<p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+					Zweierteams spielen eine feste Liste an Spielen durch. Wer zuerst alles geschafft hat, gewinnt. Die nächste Runde ist noch nicht angekündigt.
+				</p>
 			</section>
 		);
 	}
@@ -29,8 +31,12 @@ export function LeaderboardClient({ initial }: { initial: PublicChallenge | null
 					<p className="text-xs font-semibold text-[var(--accent)]">Win Challenge</p>
 					<h1 className="mt-1 font-display text-3xl font-semibold text-[var(--text)] sm:text-4xl">{challenge.name}</h1>
 					<p className="mt-2 text-sm text-[var(--muted)]">
-						{ended ? `Beendet ${formatDateTime(challenge.endedAt)}` : started ? `Läuft seit ${formatDateTime(challenge.startAt)}` : `Start ${formatDateTime(challenge.startAt)}`} · {data.teams.length} Teams · {data.participants}{" "}
-						Spieler · {data.pot} Subs im Pot
+						{ended
+							? `Beendet ${formatDateTime(challenge.endedAt)}`
+							: started
+								? `Läuft seit ${formatDateTime(challenge.startAt)}`
+								: `Start ${formatDateTime(challenge.startAt)}`}{" "}
+						· {data.teams.length} Teams · {data.participants} Spieler · {data.pot} Subs im Pot
 					</p>
 					{ended && data.payouts.total ? (
 						<p className="mt-1 text-sm text-[var(--muted)]">
@@ -66,6 +72,8 @@ export function LeaderboardClient({ initial }: { initial: PublicChallenge | null
 				</ol>
 			</section>
 
+			{ended && data.payouts.total ? <DebtList debts={data.debts} /> : null}
+
 			<div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
 				<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-5 sm:p-6">
 					<h2 className="font-display text-lg font-semibold text-[var(--text)]">Die Spiele</h2>
@@ -99,6 +107,40 @@ export function LeaderboardClient({ initial }: { initial: PublicChallenge | null
 	);
 }
 
+/** Public list of subs that are not confirmed yet. Not paying gets you banned from the next round. */
+function DebtList({ debts }: { debts: PublicDebt[] }) {
+	return (
+		<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-5 sm:p-6">
+			<h2 className="font-display text-lg font-semibold text-[var(--text)]">Offene Subs</h2>
+			{debts.length === 0 ? (
+				<p className="mt-2 text-sm text-[var(--muted)]">Alle Subs sind angekommen. Danke an alle.</p>
+			) : (
+				<>
+					<p className="mt-1 text-sm text-[var(--muted)]">Wer seinen Sub nicht verschenkt, ist bei der nächsten Win Challenge gesperrt.</p>
+					<ul className="mt-4 grid gap-1">
+						{debts.map((debt, index) => (
+							<li
+								key={`${debt.payer}-${index}`}
+								className="grid grid-cols-[1fr_auto] gap-x-3 rounded-lg px-3 py-2 text-sm odd:bg-[var(--bg)] sm:grid-cols-[1fr_1fr_auto]"
+							>
+								<span className="font-semibold text-[var(--text)]">{debt.payer}</span>
+								<span className="col-start-1 text-[var(--muted)] sm:col-start-auto">
+									an {debt.recipient} auf {debt.channel}
+								</span>
+								<span
+									className={`row-span-2 row-start-1 col-start-2 self-center text-xs sm:row-span-1 sm:col-start-3 ${debt.status === "open" ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}
+								>
+									{debt.status === "open" ? "offen" : "verschenkt, nicht bestätigt"}
+								</span>
+							</li>
+						))}
+					</ul>
+				</>
+			)}
+		</section>
+	);
+}
+
 function TeamRow({ team, elapsed }: { team: PublicTeam; elapsed: number }) {
 	const liveMember = team.members.find((member) => member.live);
 	return (
@@ -122,7 +164,12 @@ function TeamRow({ team, elapsed }: { team: PublicTeam; elapsed: number }) {
 				</span>
 				<span className="col-start-2 text-xs text-[var(--muted)] sm:col-start-auto">
 					{liveMember ? (
-						<a href={`https://twitch.tv/${liveMember.twitch}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold text-[var(--text)]">
+						<a
+							href={`https://twitch.tv/${liveMember.twitch}`}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex items-center gap-1.5 font-semibold text-[var(--text)]"
+						>
 							<span className="size-2 rounded-full bg-[var(--live)]" aria-hidden="true" />
 							live
 						</a>

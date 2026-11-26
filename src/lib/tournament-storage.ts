@@ -115,7 +115,9 @@ export type CommunityOverlayStreamer = {
 
 export type TwitchLinkState = {
 	discordId: string;
-	returnSource?: "main" | "overlay" | "tournament" | "winchallenge";
+	returnSource?: "main" | "overlay" | "tournament" | "winchallenge" | "winchallenge-einsatz";
+	/** "subs": Win Challenge sub check, stores a channel token instead of linking an account. */
+	purpose?: "subs";
 	createdAt: Date;
 	expiresAt: Date;
 };
@@ -591,7 +593,7 @@ export async function leavePreferenceGroup(discordId: string): Promise<void> {
 	);
 }
 
-export async function createTwitchLinkState(state: string, discordId: string, returnSource?: TwitchLinkState["returnSource"]): Promise<void> {
+export async function createTwitchLinkState(state: string, discordId: string, returnSource?: TwitchLinkState["returnSource"], purpose?: TwitchLinkState["purpose"]): Promise<void> {
 	const now = new Date();
 	const expiresAt = new Date(now.getTime() + TWITCH_LINK_STATE_TTL_MIN * 60 * 1000);
 	const col = await twitchLinkStatesCollection();
@@ -600,6 +602,7 @@ export async function createTwitchLinkState(state: string, discordId: string, re
 		{
 			discordId,
 			...(returnSource ? { returnSource } : {}),
+			...(purpose ? { purpose } : {}),
 			createdAt: now,
 			expiresAt,
 		},

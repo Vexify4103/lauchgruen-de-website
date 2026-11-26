@@ -32,6 +32,9 @@ export type PublicTeam = {
 
 export type PublicFeedEntry = { at: string; team: string; text: string };
 
+/** A sub that is not confirmed yet, shown publicly after the end. */
+export type PublicDebt = { payer: string; recipient: string; channel: string; status: "open" | "paid" };
+
 export type PublicChallenge = {
 	serverNow: number;
 	challenge: Pick<WinChallenge, "name" | "slug" | "startAt" | "status" | "signupOpen" | "split" | "games" | "endedAt"> | null;
@@ -40,6 +43,7 @@ export type PublicChallenge = {
 	soloParticipants: number;
 	pot: number;
 	payouts: { total: number; done: number };
+	debts: PublicDebt[];
 	feed: PublicFeedEntry[];
 };
 
@@ -55,7 +59,7 @@ function feedText(kind: string, gameTitle: string | undefined): string {
 export async function buildPublicChallenge(): Promise<PublicChallenge> {
 	const serverNow = Date.now();
 	const challenge = await getVisibleChallenge();
-	if (!challenge) return { serverNow, challenge: null, teams: [], participants: 0, soloParticipants: 0, pot: 0, payouts: { total: 0, done: 0 }, feed: [] };
+	if (!challenge) return { serverNow, challenge: null, teams: [], participants: 0, soloParticipants: 0, pot: 0, payouts: { total: 0, done: 0 }, debts: [], feed: [] };
 
 	const [teams, participants, events, payouts] = await Promise.all([
 		listTeams(challenge.id),
@@ -122,6 +126,15 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 		soloParticipants: participants.filter((participant) => !participant.teamId).length,
 		pot: payersFor(teams).length,
 		payouts: { total: payouts.length, done: payouts.filter((payout) => payout.status === "confirmed").length },
+		debts: payouts
+			.filter((payout): payout is typeof payout & { status: "open" | "paid" } => payout.status !== "confirmed")
+			.map((payout) => ({
+				payer: names.get(payout.payerId) ?? byId.get(payout.payerId)?.twitchLogin ?? "?",
+				recipient: names.get(payout.recipientId) ?? byId.get(payout.recipientId)?.twitchLogin ?? "?",
+				channel: payout.channel,
+				status: payout.status,
+			}))
+			.sort((a, b) => (a.status === b.status ? a.payer.localeCompare(b.payer, "de") : a.status === "open" ? -1 : 1)),
 		feed: events
 			.filter((event) => event.kind === "challenge-ended" || (event.teamId && teamName.has(event.teamId)))
 			.map((event) => ({

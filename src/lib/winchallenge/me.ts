@@ -3,6 +3,7 @@ import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
 import { skipLiveCheck, teamLiveState, twitchIdentities, type LiveState } from "@/lib/winchallenge/live";
 import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
+import { listSubChannels, type SubChannelInfo } from "@/lib/winchallenge/subcheck";
 import { subTargetOf } from "@/lib/winchallenge/subs";
 import { elapsedMs, clockRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinParticipant, WinPayout, WinSubTarget, WinTeam } from "@/lib/winchallenge/types";
@@ -24,13 +25,15 @@ export type MyState = {
 		  })
 		| null;
 	payouts: { give: MyPayout[]; receive: MyPayout[] };
+	/** Set when subs are gifted on this player's own channel: whether the automatic check is connected. */
+	subChannel: { login: string; connected: SubChannelInfo | null } | null;
 };
 
 export async function loadMyState(discordId: string): Promise<{ state: MyState; participant: WinParticipant | null; team: WinTeam | null }> {
 	const serverNow = Date.now();
 	const [challenge, link] = await Promise.all([getVisibleChallenge(), getTwitchLink(discordId).catch(() => null)]);
 	const twitch = link ? { login: link.login, displayName: link.displayName, profileImageUrl: link.profileImageUrl ?? "" } : null;
-	const empty: MyState = { serverNow, challenge, twitch, participant: null, team: null, payouts: { give: [], receive: [] } };
+	const empty: MyState = { serverNow, challenge, twitch, participant: null, team: null, payouts: { give: [], receive: [] }, subChannel: null };
 	if (!challenge) return { state: empty, participant: null, team: null };
 
 	const participant = await getParticipantByDiscord(challenge.id, discordId);
@@ -54,6 +57,10 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 		otherName: nameOf(otherId),
 		otherTwitch: byId.get(otherId)?.twitchLogin ?? "",
 	});
+
+	const ownLogin = (link?.login || participant.twitchLogin).toLowerCase();
+	const ownChannelNeeded = payouts.some((payout) => payout.channel.toLowerCase() === ownLogin);
+	const connected = ownChannelNeeded ? ((await listSubChannels([ownLogin]).catch(() => []))[0] ?? null) : null;
 
 	return {
 		participant,
@@ -92,6 +99,7 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 				give: payouts.filter((payout) => payout.payerId === participant.id).map((payout) => named(payout, payout.recipientId)),
 				receive: payouts.filter((payout) => payout.recipientId === participant.id).map((payout) => named(payout, payout.payerId)),
 			},
+			subChannel: ownChannelNeeded ? { login: ownLogin, connected } : null,
 		},
 	};
 }

@@ -4,6 +4,8 @@ const TWITCH_AUTHORIZE_URL = "https://id.twitch.tv/oauth2/authorize";
 const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const TWITCH_USERS_URL = "https://api.twitch.tv/helix/users";
 
+export type TwitchReturnSource = "main" | "overlay" | "tournament" | "winchallenge" | "winchallenge-einsatz";
+
 export type LinkedTwitchIdentity = {
 	twitchUserId: string;
 	login: string;
@@ -41,7 +43,7 @@ export function getTwitchLinkRedirectUri(requestUrl?: string): string {
 	throw new Error("TWITCH_LINK_REDIRECT_URI oder AUTH_URL fehlt.");
 }
 
-export function getTwitchAuthorizeUrl(input: { state: string; redirectUri: string }): string {
+export function getTwitchAuthorizeUrl(input: { state: string; redirectUri: string; scope?: string }): string {
 	const clientId = process.env.TWITCH_CLIENT_ID?.trim();
 	if (!clientId) throw new Error("TWITCH_CLIENT_ID fehlt.");
 
@@ -49,14 +51,21 @@ export function getTwitchAuthorizeUrl(input: { state: string; redirectUri: strin
 		client_id: clientId,
 		redirect_uri: input.redirectUri,
 		response_type: "code",
-		scope: "",
+		scope: input.scope ?? "",
 		state: input.state,
 		force_verify: "true",
 	});
 	return `${TWITCH_AUTHORIZE_URL}?${params.toString()}`;
 }
 
+export type TwitchUserToken = { accessToken: string; refreshToken: string; expiresIn: number };
+
 export async function exchangeTwitchCode(input: { code: string; redirectUri: string }): Promise<LinkedTwitchIdentity> {
+	return (await exchangeTwitchCodeWithToken(input)).identity;
+}
+
+/** Like exchangeTwitchCode, but also returns the user token. Only for flows that store it server-side. */
+export async function exchangeTwitchCodeWithToken(input: { code: string; redirectUri: string }): Promise<{ identity: LinkedTwitchIdentity; token: TwitchUserToken }> {
 	const clientId = process.env.TWITCH_CLIENT_ID?.trim();
 	const clientSecret = process.env.TWITCH_CLIENT_SECRET?.trim();
 	if (!clientId || !clientSecret) {
@@ -78,7 +87,7 @@ export async function exchangeTwitchCode(input: { code: string; redirectUri: str
 		throw new Error(`Twitch Token-Austausch fehlgeschlagen (${tokenResponse.status}).`);
 	}
 
-	const tokenJson = (await tokenResponse.json()) as { access_token?: string };
+	const tokenJson = (await tokenResponse.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
 	if (!tokenJson.access_token) {
 		throw new Error("Twitch hat kein Zugriffstoken zurückgegeben.");
 	}
@@ -106,18 +115,22 @@ export async function exchangeTwitchCode(input: { code: string; redirectUri: str
 	if (!user) throw new Error("Twitch-Profil wurde nicht gefunden.");
 
 	return {
-		twitchUserId: user.id,
-		login: user.login,
-		displayName: user.display_name,
-		profileImageUrl: user.profile_image_url,
+		identity: {
+			twitchUserId: user.id,
+			login: user.login,
+			displayName: user.display_name,
+			profileImageUrl: user.profile_image_url,
+		},
+		token: { accessToken: tokenJson.access_token, refreshToken: tokenJson.refresh_token ?? "", expiresIn: tokenJson.expires_in ?? 3600 },
 	};
 }
 
-export function getTwitchLinkReturnUrl(requestUrl: string, status: string, returnSource?: "main" | "overlay" | "tournament" | "winchallenge"): URL {
+export function getTwitchLinkReturnUrl(requestUrl: string, status: string, returnSource?: TwitchReturnSource): URL {
 	const configuredAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
 	const configuredRedirectUri = process.env.TWITCH_LINK_REDIRECT_URI?.trim();
 	const publicOrigin = configuredAuthUrl ? new URL(configuredAuthUrl).origin : configuredRedirectUri ? new URL(configuredRedirectUri).origin : new URL(requestUrl).origin;
-	const url = new URL(returnSource === "winchallenge" ? "/winchallenge/mitmachen" : "/me", getSiteUrls(new URL(publicOrigin).host).apex);
+	const path = returnSource === "winchallenge" ? "/winchallenge/mitmachen" : returnSource === "winchallenge-einsatz" ? "/winchallenge/einsatz" : "/me";
+	const url = new URL(path, getSiteUrls(new URL(publicOrigin).host).apex);
 	url.searchParams.set("twitch", status);
 	if (returnSource) url.searchParams.set("from", returnSource);
 	return url;

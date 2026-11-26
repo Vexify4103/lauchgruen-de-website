@@ -1,7 +1,7 @@
 /**
  * Win Challenge admin (owners only).
  * GET:  full state incl. Discord ids, join codes, payouts and the last events.
- * POST: { action: save-challenge | team-correct | team-remove | team-assign | team-unassign | participant-remove | end | payout-set | payout-reassign, ... }
+ * POST: { action: save-challenge | team-correct | team-remove | team-assign | team-unassign | participant-remove | end | payout-set | payout-reassign | subcheck, ... }
  */
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/tournament-audit";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/winchallenge/store";
 import { gamePlayMs } from "@/lib/winchallenge/actions";
 import { twitchIdentities } from "@/lib/winchallenge/live";
+import { checkSubs, listSubChannels } from "@/lib/winchallenge/subcheck";
 import { subChannelOf } from "@/lib/winchallenge/subs";
 import { elapsedMs } from "@/lib/winchallenge/timer";
 
@@ -45,7 +46,8 @@ export async function GET() {
 	if ("error" in gate) return gate.error;
 	try {
 		const challenge = await getCurrentChallenge();
-		if (!challenge) return winJson({ serverNow: Date.now(), challenge: null, teams: [], participants: [], payouts: [], events: [], fallbackChannel: FALLBACK_CHANNEL });
+		if (!challenge)
+			return winJson({ serverNow: Date.now(), challenge: null, teams: [], participants: [], payouts: [], events: [], subChannels: [], fallbackChannel: FALLBACK_CHANNEL });
 		const now = Date.now();
 		const playNow = challenge.endedAt ? Math.min(now, new Date(challenge.endedAt).getTime()) : now;
 		const [teams, participants, payouts, events] = await Promise.all([
@@ -54,6 +56,7 @@ export async function GET() {
 			listPayouts(challenge.id),
 			listEvents(challenge.id, { limit: 200 }),
 		]);
+		const subChannels = await listSubChannels([...new Set(payouts.map((payout) => payout.channel))]).catch(() => []);
 		return winJson({
 			serverNow: now,
 			challenge,
@@ -65,6 +68,7 @@ export async function GET() {
 			participants: participants.map((participant) => ({ ...participant, subChannel: subChannelOf(participant, participants, FALLBACK_CHANNEL) })),
 			payouts,
 			events,
+			subChannels,
 			fallbackChannel: FALLBACK_CHANNEL,
 		});
 	} catch (error) {
@@ -122,6 +126,7 @@ const schema = z.discriminatedUnion("action", [
 	z.object({ action: z.literal("end"), confirm: z.literal("BEENDEN") }),
 	z.object({ action: z.literal("payout-set"), payoutId: z.string().min(1), status: z.enum(["open", "paid", "confirmed"]) }),
 	z.object({ action: z.literal("payout-reassign"), payoutId: z.string().min(1), recipientId: z.string().min(1) }),
+	z.object({ action: z.literal("subcheck") }),
 ]);
 
 export async function POST(request: Request) {
@@ -221,6 +226,11 @@ export async function POST(request: Request) {
 			const payouts = await endChallenge({ challenge, actor: user.name, channelFallback: FALLBACK_CHANNEL });
 			await audit("end", challenge.id, `Challenge "${challenge.name}" beendet, ${payouts.length} Subs offen`);
 			return winJson({ ok: true, payouts: payouts.length });
+		}
+		if (input.action === "subcheck") {
+			if (challenge.status === "open") return winError(400, "Die Challenge läuft noch.");
+			const result = await checkSubs(challenge, { force: true });
+			return winJson({ ok: true, confirmed: result.confirmedIds.length, channels: result.channels });
 		}
 		if (input.action === "payout-set") {
 			const updated = await setPayoutStatus({ payoutId: input.payoutId, challengeId: challenge.id, status: input.status, actor: user.name });

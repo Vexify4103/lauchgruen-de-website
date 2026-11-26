@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { exchangeTwitchCode, getTwitchLinkRedirectUri, getTwitchLinkReturnUrl } from "@/lib/twitch-link";
-import { consumeTwitchLinkState, getTwitchLink, upsertTwitchLink } from "@/lib/tournament-storage";
+import { exchangeTwitchCode, exchangeTwitchCodeWithToken, getTwitchLinkRedirectUri, getTwitchLinkReturnUrl, type TwitchReturnSource } from "@/lib/twitch-link";
+import { consumeTwitchLinkState, getTwitchLink, upsertTwitchLink, type TwitchLinkState } from "@/lib/tournament-storage";
+import { getVisibleChallenge } from "@/lib/winchallenge/store";
+import { checkSubs, saveSubChannel } from "@/lib/winchallenge/subcheck";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +17,7 @@ export async function GET(request: Request) {
 		return NextResponse.redirect(getTwitchLinkReturnUrl(request.url, "cancelled", cancelledState?.returnSource));
 	}
 
-	let returnSource: "main" | "overlay" | "tournament" | "winchallenge" | undefined;
+	let returnSource: TwitchReturnSource | undefined;
 	try {
 		const storedState = await consumeTwitchLinkState(state);
 		if (!storedState) {
@@ -23,6 +25,7 @@ export async function GET(request: Request) {
 		}
 		returnSource = storedState.returnSource;
 		const discordId = storedState.discordId;
+		if (storedState.purpose === "subs") return await connectSubChannel(request.url, code, storedState);
 		const identity = await exchangeTwitchCode({
 			code,
 			redirectUri: getTwitchLinkRedirectUri(request.url),
@@ -42,4 +45,23 @@ export async function GET(request: Request) {
 		console.error("[twitch-link] OAuth callback failed:", error);
 		return NextResponse.redirect(getTwitchLinkReturnUrl(request.url, "failed", returnSource));
 	}
+}
+
+/**
+ * Win Challenge sub check: stores the channel token, never touches the account link.
+ * Only the channel the player already linked may be connected, so nobody reads a foreign channel.
+ */
+async function connectSubChannel(requestUrl: string, code: string, state: TwitchLinkState) {
+	const { identity, token } = await exchangeTwitchCodeWithToken({ code, redirectUri: getTwitchLinkRedirectUri(requestUrl) });
+	const link = await getTwitchLink(state.discordId);
+	if (!link || link.twitchUserId !== identity.twitchUserId) {
+		return NextResponse.redirect(getTwitchLinkReturnUrl(requestUrl, "subs-mismatch", "winchallenge-einsatz"));
+	}
+	if (!token.refreshToken) throw new Error("Twitch hat kein Refresh-Token geliefert.");
+	await saveSubChannel({ twitchUserId: identity.twitchUserId, login: identity.login, discordId: state.discordId, ...token });
+	const challenge = await getVisibleChallenge().catch(() => null);
+	if (challenge && challenge.status !== "open") {
+		await checkSubs(challenge, { channels: [identity.login], force: true }).catch((error) => console.error("[winchallenge] sub check after connect failed:", error));
+	}
+	return NextResponse.redirect(getTwitchLinkReturnUrl(requestUrl, "subs-connected", "winchallenge-einsatz"));
 }

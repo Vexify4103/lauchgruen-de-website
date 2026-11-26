@@ -212,7 +212,7 @@ The site never handles money. It only tells everyone whom to gift a sub to and t
 
 **Assignment:** each paying participant gets exactly one recipient. Never a member of their own team. The assignment is computed once at the end, stored, and does not change afterwards (admin can reassign single entries).
 
-**Where the sub goes:** a gifted sub is always for a channel. Every participant picks a **sub target** on the sign-up page: their own Twitch channel (default) or their partner's. Older free-text entries map to "partner" when they name the partner, else "self". Fallback: Lauchgruen's channel. The payer gifts 1 sub to the recipient's Twitch name on that channel.
+**Where the sub goes:** a gifted sub is always for a channel. Every participant picks a **sub target** on the sign-up page: their own Twitch channel (default) or their partner's. Older free-text entries map to "partner" when they name the partner, else "self". Fallback: Lauchgruen's channel. The payer gifts 1 sub on that channel. On the partner's channel the gift goes to the recipient's Twitch name. On the recipient's own channel it goes to any viewer, because Twitch does not let a streamer receive a sub on their own channel.
 
 **Einsatz page** (`/winchallenge/einsatz`), shown to every participant after the end:
 - "Du schenkst: 1 Sub an **name** auf Kanal **kanal**", with a button to open the channel, and **Erledigt**.
@@ -222,7 +222,9 @@ The site never handles money. It only tells everyone whom to gift a sub to and t
 
 **Admin payout view:** table of all assignments with state, reminder hint for open ones, manual override, reassign.
 
-Possible later: automatic check through Twitch "Get Broadcaster Subscriptions" (`gifter_id`) if all subs go to one channel whose owner connects their Twitch account. Not in the first version.
+**Public debt list** (user decision 2026-11-27): after the end, the leaderboard shows every sub that is not confirmed yet (payer, recipient, channel, state). The rule: whoever does not pay is banned from the next Win Challenge. Gifts must come from the linked Twitch account and must not be anonymous.
+
+**Automatic check** (user decision 2026-11-27, `src/lib/winchallenge/subcheck.ts`): the owner of a payout channel connects it once on the Einsatz page (`/api/twitch/connect?purpose=subs`, scope `channel:read:subscriptions`, same registered callback). Only the Twitch account already linked to that Discord user can be connected. Tokens stay server-side in `winchallenge_sub_channels`. The check reads "Get Broadcaster Subscriptions" and confirms a payout when a gifted sub on its channel has the payer as `gifter_id` (one gift proves one payout). It runs after connecting, when a payer presses Erledigt, on "Jetzt prüfen" (throttled to 15 s per channel) and from admin. Limits: anonymous gifts cannot be matched, Twitch lists current subs only (about one month), and a gift the payer made on that channel before the end also counts. Manual confirm by recipient or admin still works.
 
 **Note:** the stake is voluntary and among friends; the site only records who owes whom. Lauchgruen should make sure the rules box states the stake clearly before sign-up.
 
@@ -344,7 +346,6 @@ Rough effort: 4–5 days (sign-up, stream check and payout add about 2 days to t
 
 - Discord messages to a challenge channel (sign-up, game done, team finished, payout reminders)
 - Auto-pause when no member is live for 10 minutes
-- Automatic sub check via Twitch API when all subs go to one channel
 - Stream Deck: secret per-member link for pause/resume and `+` (needs its own token, unlike the overlays)
 - Sound in the overlay on "done"
 - Per-game stats on the leaderboard ("schnellstes Team bei Minecraft")

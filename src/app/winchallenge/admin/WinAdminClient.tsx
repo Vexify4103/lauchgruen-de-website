@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ThemedSelect } from "@/components/ThemedSelect";
+import type { SubChannelInfo } from "@/lib/winchallenge/subcheck";
 import { formatElapsed } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinGame, WinParticipant, WinPayout, WinTeam, WinTeamStatus } from "@/lib/winchallenge/types";
 import { formatDateTime, fromLocalInput, toLocalInput, winFetch } from "../win-api";
@@ -15,6 +16,7 @@ type AdminState = {
 	participants: (WinParticipant & { subChannel: string })[];
 	payouts: WinPayout[];
 	events: AdminEvent[];
+	subChannels: SubChannelInfo[];
 	fallbackChannel: string;
 };
 
@@ -743,7 +745,10 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 								<span className="text-[var(--text)]">{names.get(payout.payerId)?.discordName ?? "?"}</span>
 								<span className="text-[var(--text)]">an {names.get(payout.recipientId)?.discordName ?? "?"}</span>
 								<span className="text-[var(--muted)]">Platz {payout.place}</span>
-								<span className="text-[var(--muted)]">Kanal {payout.channel}</span>
+								<span className="text-[var(--muted)]">
+									Kanal {payout.channel}
+									{payout.confirmedBy === "Twitch" ? <span className="block text-xs text-[var(--accent)]">per Twitch geprüft</span> : null}
+								</span>
 								<ThemedSelect
 									compact
 									ariaLabel="Status"
@@ -777,7 +782,44 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 			) : challenge.status !== "open" ? (
 				<p className="text-sm text-[var(--muted)]">Keine Subs zu verteilen.</p>
 			) : null}
+			{state.payouts.length ? <SubCheckBlock state={state} run={run} /> : null}
 		</Panel>
+	);
+}
+
+/** Which payout channels the owners connected for the automatic Twitch check. */
+function SubCheckBlock({ state, run }: { state: AdminState; run: Run }) {
+	const channels = [...new Set(state.payouts.filter((payout) => payout.status !== "confirmed").map((payout) => payout.channel))].sort();
+	const connected = new Map(state.subChannels.map((entry) => [entry.login, entry]));
+	return (
+		<div className="mt-6 border-t border-[var(--line)] pt-4">
+			<h3 className="text-sm font-semibold text-[var(--text)]">Automatische Prüfung</h3>
+			<p className="mt-1 text-sm text-[var(--muted)]">
+				Kanalbesitzer verbinden ihren Kanal einmal auf der Einsatz-Seite. Dann bestätigt die Seite verschenkte Subs selbst. Anonyme Gifts erkennt Twitch nicht.
+			</p>
+			{channels.length === 0 ? (
+				<p className="mt-3 text-sm text-[var(--muted)]">Alle Subs sind bestätigt.</p>
+			) : (
+				<ul className="mt-3 grid gap-1">
+					{channels.map((channel) => {
+						const info = connected.get(channel);
+						return (
+							<li key={channel} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-sm odd:bg-[var(--bg)]">
+								<span className="text-[var(--text)]">{channel}</span>
+								<span className={info?.lastError ? "text-[var(--danger)]" : "text-[var(--muted)]"}>
+									{!info ? "nicht verbunden" : info.lastError ? info.lastError : info.lastCheckAt ? `geprüft ${formatDateTime(info.lastCheckAt)}` : "verbunden"}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+			)}
+			{channels.some((channel) => connected.has(channel)) ? (
+				<button type="button" className="button small mt-3" onClick={() => void run({ action: "subcheck" }, "Prüfung abgeschlossen.")}>
+					Jetzt alle prüfen
+				</button>
+			) : null}
+		</div>
 	);
 }
 
