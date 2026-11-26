@@ -187,7 +187,7 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 	return (
 		<Panel
 			title="Einrichtung"
-			description="Name, Startzeit, Spieleliste und Aufteilung des Einsatzes. Vor dem Start ist der Timer gesperrt. Die Reihenfolge der Spiele ist nur für die Anzeige."
+			description="Name, Startzeit, Spieleliste und Aufteilung des Einsatzes. Vor dem Start ist der Timer gesperrt. Die Uhr läuft für alle ab dem Start, wer zuerst fertig ist, gewinnt. Die Reihenfolge der Spiele ist nur für die Anzeige."
 		>
 			{hasTeams ? <p className="mb-4 rounded-lg border border-[var(--amber)] px-3 py-2 text-sm text-[var(--amber)]">Teams spielen schon. Änderungen an der Spieleliste wirken sofort auf alle Overlays.</p> : null}
 			<fieldset disabled={locked || saving} className="grid gap-5">
@@ -432,7 +432,7 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 			</div>
 			<label className={label}>
 				Grund (Pflicht)
-				<input className={input} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="z. B. Timer über Nacht weitergelaufen" maxLength={300} />
+				<input className={input} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="z. B. Spiel versehentlich abgehakt" maxLength={300} />
 			</label>
 			<div className="flex flex-wrap gap-3">
 				<button type="button" className="button primary" disabled={busy || reason.trim().length < 3} onClick={submit}>

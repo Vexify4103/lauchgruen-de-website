@@ -8,15 +8,25 @@ export function timerRunning(segments: WinSegment[]): boolean {
 	return Boolean(last && !last.end);
 }
 
-/** Running time in ms: closed segments, the open one up to `now`, plus the admin correction. Never negative. */
-export function elapsedMs(team: Pick<WinTeam, "segments" | "adjustMs" | "finalMs">, now: number): number {
+/** Official start and (once ended) end of the challenge. The clock of every team runs between them. */
+export type WinClock = { startAt: string; endedAt?: string };
+
+/**
+ * Time since the official start (the winner is whoever finishes first, so pauses do not stop the clock).
+ * Frozen at the finish, at giving up and at the end of the challenge. 0 before the team started.
+ * Includes the admin correction. Never negative.
+ */
+export function elapsedMs(team: Pick<WinTeam, "segments" | "adjustMs" | "finalMs" | "status">, now: number, clock: WinClock): number {
 	if (team.finalMs !== undefined) return Math.max(0, team.finalMs);
-	let total = team.adjustMs ?? 0;
-	for (const segment of team.segments) {
-		const end = segment.end ? ms(segment.end) : now;
-		total += Math.max(0, end - ms(segment.start));
-	}
-	return Math.max(0, total);
+	if (team.segments.length === 0) return 0;
+	let stop = clock.endedAt ? Math.min(now, ms(clock.endedAt)) : now;
+	if (team.status === "gave-up") stop = Math.min(stop, ms(team.segments.at(-1)?.end ?? new Date(stop).toISOString()));
+	return Math.max(0, stop - ms(clock.startAt) + (team.adjustMs ?? 0));
+}
+
+/** True while the team's clock moves: started, not done, not given up, challenge still open. Pause does not stop it. */
+export function clockRunning(team: Pick<WinTeam, "status" | "segments" | "finalMs">, clock: WinClock): boolean {
+	return !clock.endedAt && team.finalMs === undefined && team.segments.length > 0 && (team.status === "running" || team.status === "paused");
 }
 
 /** Opens a new segment. No-op while one is open. */

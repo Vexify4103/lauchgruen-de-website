@@ -135,8 +135,9 @@ function SignUpForm({ disabled, reason, onSubmit }: { disabled: boolean; reason:
 	return (
 		<>
 			<ul className="grid list-disc gap-1.5 pl-5">
-				<li>Ihr spielt zu zweit eine feste Liste an Spielen durch. Die Reihenfolge ist egal, nur die gelaufene Zeit zählt.</li>
-				<li>Start, Weiter, Erledigt und Fortschritt gehen nur, wenn einer von euch auf Twitch live ist. Pause geht immer.</li>
+				<li>Ihr spielt zu zweit eine feste Liste an Spielen durch, in beliebiger Reihenfolge. Wer zuerst alles geschafft hat, gewinnt.</li>
+				<li>Die Uhr läuft für alle ab dem offiziellen Start, auch in Pausen. Pause zeigt nur auf Stream und Rangliste, dass ihr gerade nicht spielt.</li>
+				<li>Start, Weiter, Erledigt und Fortschritt gehen nur, wenn einer von euch auf Twitch live ist.</li>
 				<li>Einsatz: jeder schenkt nach dem Ende 1 Twitch-Sub an ein Team aus den Top 3. Die Seite sagt dir, an wen.</li>
 				<li>Fair Play unter Freunden. Die Orga kann Zeiten korrigieren und Teams entfernen.</li>
 			</ul>

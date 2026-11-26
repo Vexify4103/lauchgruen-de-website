@@ -1,6 +1,6 @@
 # Win Challenge: build plan
 
-A race between duo teams. Anyone can sign up on a public page and is in right away. Players form a team of two with a join code. Each team works through a fixed list of games in any order. The team that finishes every game in the least **running time** wins. There is no auto-tracking: the teams press the buttons themselves (it is among friends, we trust each other). One team member must be live on Twitch to resume the timer or to count progress.
+A race between duo teams. Anyone can sign up on a public page and is in right away. Players form a team of two with a join code. Each team works through a fixed list of games in any order. The team that **finishes every game first** wins. The clock runs for everyone from the official start time. There is no auto-tracking: the teams press the buttons themselves (it is among friends, we trust each other). One team member must be live on Twitch to resume the timer or to count progress.
 
 Every participant enters with one Twitch sub as stake. When the challenge is over, the site tells every participant whom to gift their sub to. The top 3 teams receive the subs.
 
@@ -20,10 +20,10 @@ Status: planned, not built.
 | Order | Free. Teams pick which game to play next |
 | Start | Start button stays locked until the challenge start time (server-checked) |
 | Stream rule | Start, resume and every progress button need at least one team member live on Twitch |
-| Pause | Unlimited. Only running time counts (sleep breaks are fine) |
+| Pause | Status only (shows "PAUSE" on stream and leaderboard). The clock keeps running, so pausing cannot be used to gain time (changed 2026-11-26) |
 | Reset | No timer reset for teams. Admins can correct a time |
 | Checking | No auto-check of games. Buttons only. No proof, no mod review |
-| Ranking | Finished teams first (fastest time), then by games done, then by lowest time so far |
+| Ranking | First to finish wins. Then by games done, then by who reached that count first |
 | End date | None. Lauchgruen ends the challenge in admin when it is decided (see section 9) |
 | Stake | Each participant gifts 1 Twitch sub. Places 1–3 receive them |
 | Rules page | Not needed. Short rules box on the sign-up page instead |
@@ -189,8 +189,8 @@ Query options: `?scale=`, `?align=left|right`, `?hideList=1` for small layouts.
 - Live updates by polling (5 s)
 
 Ranking:
-1. Finished teams, by final time ascending
-2. Then started teams: more games done first, then lower running time
+1. Finished teams, by finish time (clock since the official start, incl. admin correction)
+2. Then started teams: more games done first, then whoever reached that count first
 3. Teams that never started, then gave-up teams last
 
 Twitch live status: reuse `src/lib/twitch.ts`.
@@ -233,7 +233,7 @@ Possible later: automatic check through Twitch "Get Broadcaster Subscriptions" (
 - **Challenge setup**: name, start time, game list (add, edit, reorder for display, type, target), sign-up open or closed, sub split. Editing the list after the start shows a warning.
 - **Participants and teams**: list, create teams, move players, regenerate join codes, remove players or teams. Works also after the start.
 - **Corrections** per team, every change needs a reason and goes to the event log:
-  - set running time (e.g. timer left running overnight: "−8 h")
+  - add or remove time (penalty or fix, e.g. "+10 min")
   - stop or start the timer
   - set counter, tries, done state of any game
   - undo "aufgegeben", undo "fertig"

@@ -6,7 +6,7 @@ import { gameProgress, gamesDone } from "@/lib/winchallenge/actions";
 import { liveStatus } from "@/lib/winchallenge/live";
 import { rankTeams } from "@/lib/winchallenge/ranking";
 import { getVisibleChallenge, listEvents, listParticipants, listPayouts, listTeams, payersFor } from "@/lib/winchallenge/store";
-import { timerRunning } from "@/lib/winchallenge/timer";
+import { clockRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinGame, WinTeamStatus } from "@/lib/winchallenge/types";
 
 export type PublicMember = { name: string; twitch: string; live: boolean };
@@ -68,7 +68,7 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 	const teamName = new Map(teams.map((team) => [team.id, team.name]));
 	const gameTitle = new Map(challenge.games.map((game: WinGame) => [game.id, game.title]));
 
-	const ranked = rankTeams(teams, challenge.games, serverNow);
+	const ranked = rankTeams(teams, challenge.games, serverNow, challenge);
 	return {
 		serverNow,
 		challenge: {
@@ -89,7 +89,7 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 			done: gamesDone(team, challenge.games),
 			total: challenge.games.length,
 			elapsedMs,
-			running: team.status === "running" && timerRunning(team.segments),
+			running: clockRunning(team, challenge),
 			finishedAt: team.finishedAt ?? null,
 			members: team.memberIds.map((id) => ({
 				name: byId.get(id)?.discordName ?? "?",

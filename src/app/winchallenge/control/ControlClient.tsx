@@ -142,7 +142,8 @@ export function ControlClient() {
 						</BigButton>
 					) : null}
 				</div>
-				{!liveOk && (team.status === "ready" || active) ? <p className="mt-3 text-sm text-[var(--amber)]">Einer von euch muss auf Twitch live sein.</p> : null}
+				{active ? <p className="mt-3 text-xs text-[var(--muted)]">Die Uhr läuft ab dem offiziellen Start, auch in der Pause. Pause zeigt nur, dass ihr gerade nicht spielt.</p> : null}
+				{!liveOk && (team.status === "ready" || active) ?<p className="mt-3 text-sm text-[var(--amber)]">Einer von euch muss auf Twitch live sein.</p> : null}
 				{team.live === "twitch-down" ? <p className="mt-3 text-xs text-[var(--muted)]">Twitch ist gerade nicht erreichbar. Aktionen gehen trotzdem und werden vermerkt.</p> : null}
 				<div aria-live="polite">{error ? <p className="mt-3 rounded-lg border border-[var(--danger)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p> : null}</div>
 			</header>
@@ -176,7 +177,7 @@ export function ControlClient() {
 						className="button small danger"
 						disabled={busy}
 						onClick={() => {
-							if (window.confirm("Wirklich aufgeben? Der Timer stoppt. Euer Einsatz bleibt fällig.")) void press({ action: "give-up" }, "give-up");
+							if (window.confirm("Wirklich aufgeben? Ihr landet am Ende der Rangliste. Euer Einsatz bleibt fällig.")) void press({ action: "give-up" }, "give-up");
 						}}
 					>
 						Aufgeben

@@ -3,7 +3,7 @@ import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
 import { skipLiveCheck, teamLiveState, type LiveState } from "@/lib/winchallenge/live";
 import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
-import { elapsedMs, timerRunning } from "@/lib/winchallenge/timer";
+import { elapsedMs, clockRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinParticipant, WinPayout, WinTeam } from "@/lib/winchallenge/types";
 
 export type MyPayout = WinPayout & { otherName: string; otherTwitch: string };
@@ -63,8 +63,8 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 						finishedAt: team.finishedAt,
 						finalMs: team.finalMs,
 						version: team.version,
-						elapsedMs: elapsedMs(team, serverNow),
-						running: team.status === "running" && timerRunning(team.segments),
+						elapsedMs: elapsedMs(team, serverNow, challenge),
+						running: clockRunning(team, challenge),
 						done: gamesDone(team, challenge.games),
 						members: members.map((member) => ({ id: member.id, name: member.discordName, twitch: member.twitchLogin })),
 						live: skipLiveCheck() ? "live" : await teamLiveState(members).catch(() => "twitch-down" as const),

@@ -32,6 +32,7 @@ function team(overrides = {}) {
 	};
 }
 const act = (t, input, minutes) => applyTeamAction(t, input, { games, startAt, now: at(minutes) });
+const clock = { startAt };
 
 test("start is locked before the start time and needs a full team", () => {
 	assert.throws(() => act(team(), { action: "start" }, -1), (error) => error instanceof WinActionError && error.code === "too-early");
@@ -39,13 +40,16 @@ test("start is locked before the start time and needs a full team", () => {
 	assert.equal(act(team(), { action: "start" }, 0).status, "running");
 });
 
-test("only running time counts; pause twice changes nothing", () => {
-	let t = act(team(), { action: "start" }, 0);
+test("clock runs from the official start; pause does not stop it", () => {
+	assert.equal(elapsedMs(team(), at(30).getTime(), clock), 0, "not started yet");
+	let t = act(team(), { action: "start" }, 20);
 	t = act(t, { action: "pause" }, 60);
 	assert.equal(act(t, { action: "pause" }, 70), t);
+	assert.equal(elapsedMs(t, at(120).getTime(), clock), 120 * 60_000, "paused, clock still runs from start");
 	t = act(t, { action: "resume" }, 12 * 60);
-	assert.equal(elapsedMs(t, at(12 * 60 + 30).getTime()), 90 * 60_000);
-	assert.equal(elapsedMs({ ...t, adjustMs: -10 * 3600_000 }, at(12 * 60 + 30).getTime()), 0);
+	assert.equal(elapsedMs(t, at(12 * 60 + 30).getTime(), clock), (12 * 60 + 30) * 60_000);
+	assert.equal(elapsedMs({ ...t, adjustMs: -30 * 3600_000 }, at(12 * 60 + 30).getTime(), clock), 0);
+	assert.equal(elapsedMs(t, at(900).getTime(), { startAt, endedAt: at(800).toISOString() }), 800 * 60_000, "frozen at the end");
 	assert.equal(formatElapsed(41 * 3600_000 + 23 * 60_000 + 7_000), "41:23:07");
 });
 
@@ -70,11 +74,11 @@ test("last game freezes the time; undo reopens the team paused", () => {
 	t = act(t, { action: "done", gameId: "lol" }, 90);
 	assert.equal(t.status, "finished");
 	assert.equal(t.finalMs, 90 * 60_000);
-	assert.equal(elapsedMs(t, at(500).getTime()), 90 * 60_000);
+	assert.equal(elapsedMs(t, at(500).getTime(), clock), 90 * 60_000);
 	const reopened = act(t, { action: "undo", gameId: "mc" }, 100);
 	assert.equal(reopened.status, "paused");
 	assert.equal(reopened.finalMs, undefined);
-	assert.equal(elapsedMs(reopened, at(500).getTime()), 90 * 60_000);
+	assert.equal(elapsedMs(reopened, at(500).getTime(), clock), 500 * 60_000, "reopened: clock runs on");
 	assert.throws(() => act(t, { action: "plus", gameId: "lol" }, 101), (error) => error.code === "not-running");
 });
 
@@ -83,18 +87,20 @@ test("give up stops the clock and blocks progress", () => {
 	t = act(t, { action: "give-up" }, 30);
 	assert.equal(t.status, "gave-up");
 	assert.equal(t.statusBeforeGiveUp, "running");
-	assert.equal(elapsedMs(t, at(300).getTime()), 30 * 60_000);
+	assert.equal(elapsedMs(t, at(300).getTime(), clock), 30 * 60_000);
 	assert.throws(() => act(t, { action: "done", gameId: "mc" }, 31), (error) => error.code === "not-running");
 });
 
-test("ranking: finished by time, then progress, then not started, then gave up", () => {
+test("ranking: first to finish wins, then progress (who got there first), then not started, then gave up", () => {
 	const now = at(600).getTime();
-	const finished = (id, minutes) => ({ ...team({ id, name: id }), status: "finished", finalMs: minutes * 60_000, progress: { lol: { count: 3, tries: 0, doneAt: startAt }, mc: { count: 1, tries: 0, doneAt: startAt } } });
-	const running = (id, done, minutes) => ({ ...team({ id, name: id }), status: "paused", segments: [{ start: startAt, end: at(minutes).toISOString() }], progress: done ? { mc: { count: 1, tries: 0, doneAt: startAt } } : {} });
+	const finished = (id, minutes) => ({ ...team({ id, name: id }), status: "finished", segments: [{ start: startAt, end: at(minutes).toISOString() }], finalMs: minutes * 60_000, progress: { lol: { count: 3, tries: 0, doneAt: startAt }, mc: { count: 1, tries: 0, doneAt: at(minutes).toISOString() } } });
+	// "slow" paused most of the time: pausing must not help it.
+	const running = (id, done, doneMinute) => ({ ...team({ id, name: id }), status: "paused", segments: [{ start: startAt, end: at(10).toISOString() }], progress: done ? { mc: { count: 1, tries: 0, doneAt: at(doneMinute).toISOString() } } : {} });
 	const ranked = rankTeams(
-		[team({ id: "gaveup", name: "gaveup", status: "gave-up" }), running("slow", 1, 300), team({ id: "new", name: "new" }), finished("b", 200), running("fast", 1, 100), running("zero", 0, 10), finished("a", 150)],
+		[team({ id: "gaveup", name: "gaveup", status: "gave-up", segments: [{ start: startAt, end: at(5).toISOString() }] }), running("slow", 1, 300), team({ id: "new", name: "new" }), finished("b", 200), running("fast", 1, 100), running("zero", 0, 0), finished("a", 150)],
 		games,
-		now
+		now,
+		clock
 	);
 	assert.deepEqual(ranked.map((row) => row.team.id), ["a", "b", "fast", "slow", "zero", "new", "gaveup"]);
 	assert.deepEqual(ranked.map((row) => row.rank), [1, 2, 3, 4, 5, 6, 7]);

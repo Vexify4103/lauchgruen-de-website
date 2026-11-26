@@ -386,7 +386,7 @@ export async function correctTeam(input: { teamId: string; challenge: WinChallen
 				delete next.finishedAt;
 			}
 		}
-		const settled = settleFinish(next, team, input.challenge.games, now);
+		const settled = settleFinish(next, team, input.challenge.games, now, input.challenge.startAt);
 		// A finished team's frozen time follows later corrections of adjustMs.
 		if (settled.status === "finished" && input.correction.adjustMs !== undefined && team.status === "finished") {
 			delete settled.finalMs;
@@ -449,7 +449,7 @@ export async function endChallenge(input: { challenge: WinChallenge; actor: stri
 	for (const team of teams.filter((entry) => entry.status === "running")) {
 		await mutateTeam(team.id, (current) => applyTeamAction(current, { action: "pause" }, { games: input.challenge.games, startAt: input.challenge.startAt, now }));
 	}
-	const ranked = rankTeams(await listTeams(input.challenge.id), input.challenge.games, now.getTime());
+	const ranked = rankTeams(await listTeams(input.challenge.id), input.challenge.games, now.getTime(), { startAt: input.challenge.startAt, endedAt: now.toISOString() });
 	const places = ranked.filter((row) => row.team.status === "finished").map((row) => ({ teamId: row.team.id, memberIds: row.team.memberIds }));
 	const assignments = assignPayouts(payersFor(teams), places, input.challenge.split);
 	const byId = new Map(participants.map((participant) => [participant.id, participant]));

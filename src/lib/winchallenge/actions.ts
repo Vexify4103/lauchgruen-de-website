@@ -118,17 +118,17 @@ export function applyTeamAction(team: WinTeam, input: WinTeamAction, ctx: { game
 	if (progress.doneAt === undefined) delete progress.doneAt;
 	next.progress[game.id] = progress;
 	if (progress.doneAt && next.currentGameId === game.id) delete next.currentGameId;
-	return settleFinish(next, team, ctx.games, at);
+	return settleFinish(next, team, ctx.games, at, ctx.startAt);
 }
 
 /** Stops the clock when every game is done, and reopens a finished team when one is undone. */
-export function settleFinish(next: WinTeam, previous: WinTeam, games: WinGame[], at: string): WinTeam {
+export function settleFinish(next: WinTeam, previous: WinTeam, games: WinGame[], at: string, startAt: string): WinTeam {
 	const allDone = games.length > 0 && games.every((game) => gameDone(next, game));
 	if (allDone && previous.status !== "finished") {
 		const segments = closeSegment(next.segments, at);
 		const finished: WinTeam = { ...next, segments, status: "finished", finishedAt: at };
 		delete finished.finalMs;
-		finished.finalMs = elapsedMs(finished, new Date(at).getTime());
+		finished.finalMs = elapsedMs(finished, new Date(at).getTime(), { startAt });
 		return finished;
 	}
 	if (!allDone && previous.status === "finished") {

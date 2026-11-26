@@ -46,7 +46,7 @@ export async function GET() {
 		return winJson({
 			serverNow: now,
 			challenge,
-			teams: teams.map((team) => ({ ...team, elapsedMs: elapsedMs(team, now) })),
+			teams: teams.map((team) => ({ ...team, elapsedMs: elapsedMs(team, now, challenge) })),
 			participants,
 			payouts,
 			events,
