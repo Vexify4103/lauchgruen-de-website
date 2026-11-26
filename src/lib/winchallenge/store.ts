@@ -274,6 +274,29 @@ export async function joinTeam(input: { challenge: WinChallenge; participant: Wi
 	return fromDoc<WinTeam>(joined)!;
 }
 
+/**
+ * Admin pairing for solo sign-ups: puts `participant` into a waiting team, or builds a new team with
+ * `partner`. Reuses the player flows, so the same race guards apply. A failed second step undoes the first.
+ */
+export async function assignToTeam(input: { challenge: WinChallenge; participant: WinParticipant; actor: string } & ({ team: WinTeam } | { partner: WinParticipant; name: string })): Promise<WinTeam> {
+	if (input.participant.teamId) throw new WinStoreError("has-team", `${input.participant.discordName} ist schon in einem Team.`);
+	if ("team" in input) {
+		if (input.team.challengeId !== input.challenge.id || input.team.status !== "forming" || input.team.memberIds.length !== 1) {
+			throw new WinStoreError("no-team", "Dieses Team wartet nicht mehr auf einen Partner.");
+		}
+		return joinTeam({ challenge: input.challenge, participant: input.participant, code: input.team.joinCode, actor: input.actor });
+	}
+	if (input.partner.teamId) throw new WinStoreError("has-team", `${input.partner.discordName} ist schon in einem Team.`);
+	if (input.partner.id === input.participant.id) throw new WinStoreError("bad-partner", "Bitte zwei verschiedene Spieler wählen.");
+	const team = await createTeam({ challenge: input.challenge, participant: input.participant, name: input.name, actor: input.actor });
+	try {
+		return await joinTeam({ challenge: input.challenge, participant: input.partner, code: team.joinCode, actor: input.actor });
+	} catch (error) {
+		await leaveTeam({ participant: { ...input.participant, teamId: team.id }, actor: input.actor }).catch(() => undefined);
+		throw error;
+	}
+}
+
 /** Leaving works only before the team's timer started. The last member leaving deletes the team. */
 export async function leaveTeam(input: { participant: WinParticipant; actor: string }): Promise<void> {
 	const teamId = input.participant.teamId;

@@ -1,12 +1,13 @@
 /**
  * Win Challenge admin (owners only).
  * GET:  full state incl. Discord ids, join codes, payouts and the last events.
- * POST: { action: save-challenge | team-correct | team-remove | participant-remove | end | payout-set | payout-reassign, ... }
+ * POST: { action: save-challenge | team-correct | team-remove | team-assign | team-unassign | participant-remove | end | payout-set | payout-reassign, ... }
  */
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/tournament-audit";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import {
+	assignToTeam,
 	correctTeam,
 	endChallenge,
 	getCurrentChallenge,
@@ -14,6 +15,7 @@ import {
 	listEvents,
 	listParticipants,
 	listPayouts,
+	leaveTeam,
 	listTeams,
 	reassignPayout,
 	removeParticipant,
@@ -91,6 +93,14 @@ const schema = z.discriminatedUnion("action", [
 		progress: z.record(z.string(), z.object({ count: z.number().int().min(0).max(1_000_000), tries: z.number().int().min(0).max(1_000_000), done: z.boolean() })).optional(),
 	}),
 	z.object({ action: z.literal("team-remove"), teamId: z.string().min(1), reason }),
+	z.object({
+		action: z.literal("team-assign"),
+		participantId: z.string().min(1),
+		teamId: z.string().min(1).optional(),
+		partnerId: z.string().min(1).optional(),
+		name: z.string().trim().max(40).optional(),
+	}),
+	z.object({ action: z.literal("team-unassign"), participantId: z.string().min(1), reason }),
 	z.object({ action: z.literal("participant-remove"), participantId: z.string().min(1), reason }),
 	z.object({ action: z.literal("end"), confirm: z.literal("BEENDEN") }),
 	z.object({ action: z.literal("payout-set"), payoutId: z.string().min(1), status: z.enum(["open", "paid", "confirmed"]) }),
@@ -147,6 +157,31 @@ export async function POST(request: Request) {
 			if (!team || team.challengeId !== challenge.id) return winError(404, "Team nicht gefunden.");
 			await removeTeam({ team, actor: user.name, reason: input.reason });
 			await audit("team-remove", team.id, `Team "${team.name}" entfernt: ${input.reason}`);
+			return winJson({ ok: true });
+		}
+		if (input.action === "team-assign") {
+			const everyone = await listParticipants(challenge.id);
+			const participant = everyone.find((entry) => entry.id === input.participantId);
+			if (!participant) return winError(404, "Spieler nicht gefunden.");
+			let team;
+			if (input.teamId) {
+				const target = await getTeam(input.teamId);
+				if (!target || target.challengeId !== challenge.id) return winError(404, "Team nicht gefunden.");
+				team = await assignToTeam({ challenge, participant, team: target, actor: user.name });
+			} else {
+				const partner = everyone.find((entry) => entry.id === input.partnerId);
+				if (!partner) return winError(400, "Bitte einen Partner oder ein wartendes Team wählen.");
+				team = await assignToTeam({ challenge, participant, partner, name: input.name || `${participant.discordName} & ${partner.discordName}`.slice(0, 40), actor: user.name });
+			}
+			await audit("team-assign", team.id, `${participant.discordName} ins Team "${team.name}" gesetzt`);
+			return winJson({ ok: true, team });
+		}
+		if (input.action === "team-unassign") {
+			const participant = (await listParticipants(challenge.id)).find((entry) => entry.id === input.participantId);
+			if (!participant) return winError(404, "Spieler nicht gefunden.");
+			if (!participant.teamId) return winError(400, `${participant.discordName} ist in keinem Team.`);
+			await leaveTeam({ participant, actor: user.name });
+			await audit("team-unassign", participant.id, `${participant.discordName} aus Team genommen: ${input.reason}`);
 			return winJson({ ok: true });
 		}
 		if (input.action === "participant-remove") {

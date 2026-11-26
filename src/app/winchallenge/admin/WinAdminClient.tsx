@@ -51,7 +51,8 @@ const EVENT_LABEL: Record<string, string> = {
 	payout: "Sub-Status",
 };
 
-const input = "w-full rounded-lg border border-[var(--line-strong)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]";
+const input =
+	"w-full rounded-lg border border-[var(--line-strong)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]";
 const label = "grid gap-1.5 text-xs font-medium text-[var(--muted)]";
 
 function Panel({ title, description, children, actions }: { title: string; description?: string; children: ReactNode; actions?: ReactNode }) {
@@ -101,7 +102,7 @@ export function WinAdminClient() {
 				return false;
 			}
 		},
-		[load],
+		[load]
 	);
 
 	if (!state) {
@@ -114,17 +115,24 @@ export function WinAdminClient() {
 				<p className="text-xs font-semibold text-[var(--accent)]">Win Challenge</p>
 				<h1 className="mt-1 font-display text-3xl font-semibold text-[var(--text)]">Admin</h1>
 				<p className="mt-2 text-sm text-[var(--muted)]">
-					{state.challenge ? `${state.challenge.name} · ${CHALLENGE_STATUS[state.challenge.status]} · Start ${formatDateTime(state.challenge.startAt)}` : "Noch keine Challenge angelegt."}
+					{state.challenge
+						? `${state.challenge.name} · ${CHALLENGE_STATUS[state.challenge.status]} · Start ${formatDateTime(state.challenge.startAt)}`
+						: "Noch keine Challenge angelegt."}
 				</p>
 			</header>
 			<div aria-live="polite" className="grid gap-2">
 				{error ? <p className="rounded-lg border border-[var(--danger)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p> : null}
 				{notice ? <p className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--accent)]">{notice}</p> : null}
 			</div>
-			<SetupPanel challenge={state.challenge} hasTeams={state.teams.some((team) => team.segments.length > 0)} onSave={(body) => run({ action: "save-challenge", ...body }, "Challenge gespeichert.")} />
+			<SetupPanel
+				challenge={state.challenge}
+				hasTeams={state.teams.some((team) => team.segments.length > 0)}
+				onSave={(body) => run({ action: "save-challenge", ...body }, "Challenge gespeichert.")}
+			/>
 			{state.challenge ? (
 				<>
 					<TeamsPanel state={state} run={run} />
+					<AssignPanel state={state} run={run} />
 					<ParticipantsPanel state={state} run={run} />
 					<EndPanel state={state} run={run} />
 					<EventsPanel state={state} />
@@ -190,7 +198,11 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 			title="Einrichtung"
 			description="Name, Startzeit, Spieleliste und Aufteilung des Einsatzes. Vor dem Start ist der Timer gesperrt. Die Uhr läuft für alle ab dem Start, wer zuerst fertig ist, gewinnt. Die Reihenfolge der Spiele ist nur für die Anzeige."
 		>
-			{hasTeams ? <p className="mb-4 rounded-lg border border-[var(--amber)] px-3 py-2 text-sm text-[var(--amber)]">Teams spielen schon. Änderungen an der Spieleliste wirken sofort auf alle Overlays.</p> : null}
+			{hasTeams ? (
+				<p className="mb-4 rounded-lg border border-[var(--amber)] px-3 py-2 text-sm text-[var(--amber)]">
+					Teams spielen schon. Änderungen an der Spieleliste wirken sofort auf alle Overlays.
+				</p>
+			) : null}
 			<fieldset disabled={locked || saving} className="grid gap-5">
 				<div className="grid gap-4 sm:grid-cols-2">
 					<label className={label}>
@@ -217,7 +229,11 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 									min={0}
 									max={100}
 									value={value}
-									onChange={(event) => setSplit((current) => current.map((entry, position) => (position === index ? Number(event.target.value) : entry)) as [number, number, number])}
+									onChange={(event) =>
+										setSplit(
+											(current) => current.map((entry, position) => (position === index ? Number(event.target.value) : entry)) as [number, number, number]
+										)
+									}
 								/>
 							))}
 						</div>
@@ -238,7 +254,12 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 							</label>
 							<label className={label}>
 								Ziel
-								<input className={input} value={game.goal} onChange={(event) => updateGame(index, { goal: event.target.value })} placeholder="z. B. 150cc Cup gewinnen" />
+								<input
+									className={input}
+									value={game.goal}
+									onChange={(event) => updateGame(index, { goal: event.target.value })}
+									placeholder="z. B. 150cc Cup gewinnen"
+								/>
 							</label>
 							<label className={label}>
 								Art
@@ -265,7 +286,13 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 							</label>
 							<label className={`${label} md:col-span-5`}>
 								Hinweis für Spieler (optional, nicht im Overlay)
-								<input className={input} value={game.note ?? ""} onChange={(event) => updateGame(index, { note: event.target.value })} maxLength={300} placeholder="z. B. Map-Code 1234-5678-9012" />
+								<input
+									className={input}
+									value={game.note ?? ""}
+									onChange={(event) => updateGame(index, { note: event.target.value })}
+									maxLength={300}
+									placeholder="z. B. Map-Code 1234-5678-9012"
+								/>
 							</label>
 							<div className="flex items-end gap-1 md:col-start-6 md:row-start-1">
 								<button type="button" className="button small ghost" onClick={() => moveGame(index, -1)} aria-label={`${game.title || game.id} nach oben`}>
@@ -274,7 +301,12 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 								<button type="button" className="button small ghost" onClick={() => moveGame(index, 1)} aria-label={`${game.title || game.id} nach unten`}>
 									↓
 								</button>
-								<button type="button" className="button small ghost" onClick={() => setGames((current) => current.filter((_, position) => position !== index))} aria-label={`${game.title || game.id} entfernen`}>
+								<button
+									type="button"
+									className="button small ghost"
+									onClick={() => setGames((current) => current.filter((_, position) => position !== index))}
+									aria-label={`${game.title || game.id} entfernen`}
+								>
 									✕
 								</button>
 							</div>
@@ -347,7 +379,9 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 	const [status, setStatus] = useState<WinTeamStatus>(team.status);
 	const [name, setName] = useState(team.name);
 	const [progress, setProgress] = useState(() =>
-		Object.fromEntries(games.map((game) => [game.id, { count: team.progress[game.id]?.count ?? 0, tries: team.progress[game.id]?.tries ?? 0, done: Boolean(team.progress[game.id]?.doneAt) }])),
+		Object.fromEntries(
+			games.map((game) => [game.id, { count: team.progress[game.id]?.count ?? 0, tries: team.progress[game.id]?.tries ?? 0, done: Boolean(team.progress[game.id]?.doneAt) }])
+		)
 	);
 	const [busy, setBusy] = useState(false);
 
@@ -357,7 +391,7 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 			Object.entries(progress).filter(([gameId, value]) => {
 				const before = team.progress[gameId];
 				return value.count !== (before?.count ?? 0) || value.tries !== (before?.tries ?? 0) || value.done !== Boolean(before?.doneAt);
-			}),
+			})
 		);
 		setBusy(true);
 		const ok = await run(
@@ -370,7 +404,7 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 				...(name.trim() !== team.name ? { name: name.trim() } : {}),
 				...(Object.keys(changedProgress).length ? { progress: changedProgress } : {}),
 			},
-			`${team.name} korrigiert.`,
+			`${team.name} korrigiert.`
 		);
 		setBusy(false);
 		if (ok) {
@@ -382,7 +416,8 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 	return (
 		<div className="grid gap-4 border-t border-[var(--line)] px-4 py-4">
 			<p className="text-xs text-[var(--muted)]">
-				Beitrittscode: <span className="font-mono text-[var(--text)]">{team.joinCode}</span> · Korrektur bisher: {Math.round(team.adjustMs / 60_000)} min · Overlay-Slug: {team.slug}
+				Beitrittscode: <span className="font-mono text-[var(--text)]">{team.joinCode}</span> · Korrektur bisher: {Math.round(team.adjustMs / 60_000)} min · Overlay-Slug:{" "}
+				{team.slug}
 			</p>
 			<div className="grid gap-4 sm:grid-cols-3">
 				<label className={label}>
@@ -448,7 +483,8 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 					className="button danger"
 					disabled={busy || reason.trim().length < 3}
 					onClick={() => {
-						if (window.confirm(`Team "${team.name}" wirklich entfernen? Die Spieler bleiben angemeldet.`)) void run({ action: "team-remove", teamId: team.id, reason }, `${team.name} entfernt.`);
+						if (window.confirm(`Team "${team.name}" wirklich entfernen? Die Spieler bleiben angemeldet.`))
+							void run({ action: "team-remove", teamId: team.id, reason }, `${team.name} entfernt.`);
 					}}
 				>
 					Team entfernen
@@ -460,8 +496,92 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 
 /* ------------------------------------------------------------------ participants */
 
+function AssignPanel({ state, run }: { state: AdminState; run: Run }) {
+	const [playerId, setPlayerId] = useState("");
+	const [partnerKey, setPartnerKey] = useState("");
+	const [name, setName] = useState("");
+	const solos = state.participants.filter((entry) => !entry.teamId);
+	const names = new Map(state.participants.map((entry) => [entry.id, entry.discordName]));
+	const waiting = state.teams.filter((team) => team.status === "forming" && team.memberIds.length === 1);
+	const player = solos.find((entry) => entry.id === playerId);
+	const partnerSolo = partnerKey.startsWith("p:") ? solos.find((entry) => `p:${entry.id}` === partnerKey) : undefined;
+	const suggested = player && partnerSolo ? `${player.discordName} & ${partnerSolo.discordName}`.slice(0, 40) : "";
+	const partnerOptions = [
+		...waiting.map((team) => ({ value: `t:${team.id}`, label: team.name, description: `Team wartet · ${names.get(team.memberIds[0]) ?? "?"}`, group: "Wartende Teams" })),
+		...solos
+			.filter((entry) => entry.id !== playerId)
+			.map((entry) => ({ value: `p:${entry.id}`, label: entry.discordName, description: `twitch.tv/${entry.twitchLogin}`, group: "Spieler ohne Team" })),
+	];
+
+	async function assign() {
+		if (!player || !partnerKey) return;
+		const body = partnerKey.startsWith("t:")
+			? { action: "team-assign", participantId: player.id, teamId: partnerKey.slice(2) }
+			: { action: "team-assign", participantId: player.id, partnerId: partnerKey.slice(2), name: name.trim() || suggested };
+		if (await run(body, "Team gebildet.")) {
+			setPlayerId("");
+			setPartnerKey("");
+			setName("");
+		}
+	}
+
+	return (
+		<Panel
+			title={`Team zuweisen (${solos.length} ohne Team)`}
+			description="Spieler ohne Partner zusammensetzen oder in ein wartendes Team stecken. Geht nur, bis der Timer des Teams läuft."
+		>
+			{solos.length === 0 ? (
+				<p className="text-sm text-[var(--muted)]">Alle Spieler haben ein Team.</p>
+			) : (
+				<div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+					<div className={label}>
+						Spieler
+						<ThemedSelect
+							value={playerId}
+							placeholder="Spieler wählen…"
+							ariaLabel="Spieler"
+							onChange={(value) => {
+								setPlayerId(value);
+								if (partnerKey === `p:${value}`) setPartnerKey("");
+							}}
+							options={solos.map((entry) => ({ value: entry.id, label: entry.discordName, description: `twitch.tv/${entry.twitchLogin}` }))}
+						/>
+					</div>
+					<div className={label}>
+						Partner oder Team
+						<ThemedSelect
+							value={partnerKey}
+							placeholder="Partner wählen…"
+							ariaLabel="Partner oder Team"
+							disabled={!player}
+							onChange={setPartnerKey}
+							options={partnerOptions}
+							emptyMessage="Niemand frei."
+						/>
+					</div>
+					<label className={label}>
+						Teamname
+						<input
+							className={input}
+							value={partnerKey.startsWith("t:") ? "" : name}
+							onChange={(event) => setName(event.target.value)}
+							maxLength={40}
+							placeholder={partnerKey.startsWith("t:") ? "bleibt wie es ist" : suggested || "z. B. Lauch Duo"}
+							disabled={!partnerSolo}
+						/>
+					</label>
+					<button type="button" className="button primary" disabled={!player || !partnerKey} onClick={() => void assign()}>
+						Team bilden
+					</button>
+				</div>
+			)}
+		</Panel>
+	);
+}
+
 function ParticipantsPanel({ state, run }: { state: AdminState; run: Run }) {
 	const teams = useMemo(() => new Map(state.teams.map((team) => [team.id, team.name])), [state.teams]);
+	const teamStatus = useMemo(() => new Map(state.teams.map((team) => [team.id, team.status])), [state.teams]);
 	return (
 		<Panel title={`Spieler (${state.participants.length})`} description="Alle Anmeldungen. Entfernen nimmt den Spieler auch aus seinem Team.">
 			{state.participants.length === 0 ? <p className="text-sm text-[var(--muted)]">Noch keine Anmeldungen.</p> : null}
@@ -469,21 +589,42 @@ function ParticipantsPanel({ state, run }: { state: AdminState; run: Run }) {
 				{state.participants.map((participant) => (
 					<li key={participant.id} className="grid gap-1 rounded-lg px-3 py-2 text-sm odd:bg-[var(--bg)] sm:grid-cols-[1.2fr_1fr_1fr_1fr_auto] sm:items-center">
 						<span className="text-[var(--text)]">{participant.discordName}</span>
-						<a className="text-[var(--muted)] underline-offset-2 hover:underline" href={`https://twitch.tv/${participant.twitchLogin}`} target="_blank" rel="noreferrer">
+						<a
+							className="text-[var(--muted)] underline-offset-2 hover:underline"
+							href={`https://twitch.tv/${participant.twitchLogin}`}
+							target="_blank"
+							rel="noreferrer"
+						>
 							twitch.tv/{participant.twitchLogin}
 						</a>
-						<span className="text-[var(--muted)]">{participant.teamId ? teams.get(participant.teamId) ?? "?" : "ohne Team"}</span>
+						<span className="text-[var(--muted)]">{participant.teamId ? (teams.get(participant.teamId) ?? "?") : "ohne Team"}</span>
 						<span className="text-[var(--muted)]">Sub auf: {participant.subChannel}</span>
-						<button
-							type="button"
-							className="button small ghost"
-							onClick={() => {
-								const reason = window.prompt(`Grund für das Entfernen von ${participant.discordName}:`);
-								if (reason && reason.trim().length >= 3) void run({ action: "participant-remove", participantId: participant.id, reason }, `${participant.discordName} entfernt.`);
-							}}
-						>
-							Entfernen
-						</button>
+						<div className="flex flex-wrap gap-2">
+							{participant.teamId && (teamStatus.get(participant.teamId) === "forming" || teamStatus.get(participant.teamId) === "ready") ? (
+								<button
+									type="button"
+									className="button small ghost"
+									onClick={() => {
+										const reason = window.prompt(`Grund, warum ${participant.discordName} aus dem Team kommt:`);
+										if (reason && reason.trim().length >= 3)
+											void run({ action: "team-unassign", participantId: participant.id, reason }, `${participant.discordName} ist jetzt ohne Team.`);
+									}}
+								>
+									Aus Team nehmen
+								</button>
+							) : null}
+							<button
+								type="button"
+								className="button small ghost"
+								onClick={() => {
+									const reason = window.prompt(`Grund für das Entfernen von ${participant.discordName}:`);
+									if (reason && reason.trim().length >= 3)
+										void run({ action: "participant-remove", participantId: participant.id, reason }, `${participant.discordName} entfernt.`);
+								}}
+							>
+								Entfernen
+							</button>
+						</div>
 					</li>
 				))}
 			</ul>
@@ -510,7 +651,12 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 						Zum Bestätigen BEENDEN eingeben
 						<input className={input} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
 					</label>
-					<button type="button" className="button danger" disabled={confirm !== "BEENDEN"} onClick={() => run({ action: "end", confirm }, "Challenge beendet, Subs verteilt.")}>
+					<button
+						type="button"
+						className="button danger"
+						disabled={confirm !== "BEENDEN"}
+						onClick={() => run({ action: "end", confirm }, "Challenge beendet, Subs verteilt.")}
+					>
 						Challenge beenden
 					</button>
 				</div>
@@ -575,7 +721,7 @@ function EventsPanel({ state }: { state: AdminState }) {
 					<li key={event.id} className="grid gap-1 rounded-lg px-3 py-1.5 text-xs odd:bg-[var(--bg)] sm:grid-cols-[150px_120px_1fr_1fr_1.5fr]">
 						<span className="tabular-nums text-[var(--muted)]">{formatDateTime(event.at)}</span>
 						<span className="text-[var(--text)]">{EVENT_LABEL[event.kind] ?? event.kind}</span>
-						<span className="text-[var(--muted)]">{event.teamId ? teams.get(event.teamId) ?? "gelöschtes Team" : "–"}</span>
+						<span className="text-[var(--muted)]">{event.teamId ? (teams.get(event.teamId) ?? "gelöschtes Team") : "–"}</span>
 						<span className="text-[var(--muted)]">{event.actor}</span>
 						<span className="text-[var(--muted)]">
 							{[event.gameId, event.reason, event.liveCheck === "twitch-down" ? "Twitch nicht erreichbar" : null].filter(Boolean).join(" · ")}
