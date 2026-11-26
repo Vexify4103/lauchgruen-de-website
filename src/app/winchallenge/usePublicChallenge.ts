@@ -12,6 +12,10 @@ export function usePublicChallenge(initial: PublicChallenge | null) {
 	const [now, setNow] = useState(0);
 
 	useEffect(() => {
+		// Server and first client render both show the snapshot; the local clock starts after mount.
+		const mountedAt = Date.now();
+		setReceived(mountedAt);
+		setNow(mountedAt);
 		async function poll() {
 			if (document.visibilityState !== "visible") return;
 			try {
