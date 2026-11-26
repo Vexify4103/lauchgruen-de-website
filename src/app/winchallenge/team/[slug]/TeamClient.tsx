@@ -7,7 +7,7 @@ import { formatDateTime } from "../../win-api";
 import { TEAM_STATUS_LABEL, usePublicChallenge } from "../../usePublicChallenge";
 
 export function TeamClient({ slug, initial }: { slug: string; initial: PublicChallenge }) {
-	const { data, elapsed } = usePublicChallenge(initial);
+	const { data, elapsed, playTime } = usePublicChallenge(initial);
 	const team = data?.teams.find((entry) => entry.slug === slug);
 	const challenge = data?.challenge;
 	if (!data || !challenge || !team) {
@@ -56,7 +56,10 @@ export function TeamClient({ slug, initial }: { slug: string; initial: PublicCha
 						const done = Boolean(state?.doneAt);
 						const current = team.currentGameId === game.id;
 						return (
-							<li key={game.id} className={`grid gap-1 rounded-xl border px-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center ${current ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
+							<li
+								key={game.id}
+								className={`grid gap-1 rounded-xl border px-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center ${current ? "border-[var(--accent)]" : "border-[var(--line)]"}`}
+							>
 								<span>
 									<span className="font-semibold text-[var(--text)]">
 										<span className={done ? "text-[var(--accent)]" : "text-[var(--muted)]"} aria-hidden="true">
@@ -69,7 +72,14 @@ export function TeamClient({ slug, initial }: { slug: string; initial: PublicCha
 										{game.type === "counter" && !done ? ` · ${state?.count ?? 0}/${Math.max(1, game.target ?? 1)} · Versuch ${(state?.tries ?? 0) + 1}` : ""}
 									</span>
 								</span>
-								<span className="text-xs tabular-nums text-[var(--muted)]">{done ? `geschafft ${formatDateTime(state?.doneAt)}` : current ? "spielen sie gerade" : "offen"}</span>
+								<span className="grid gap-0.5 text-xs tabular-nums text-[var(--muted)] sm:text-right">
+									<span>{done ? `geschafft ${formatDateTime(state?.doneAt)}` : current ? "spielen sie gerade" : "offen"}</span>
+									{state && (state.playMs > 0 || state.playing) ? (
+										<span title="Zeit, in der das Spiel bei laufendem Timer als aktuelles Spiel markiert war">
+											<span className="font-mono text-[var(--text)]">{formatElapsed(playTime(state))}</span> gespielt
+										</span>
+									) : null}
+								</span>
 							</li>
 						);
 					})}

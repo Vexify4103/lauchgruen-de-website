@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/mongo";
 import { slugifyTournamentId } from "@/lib/tournament-archive-shared";
 import { checkTeamName } from "@/lib/team-name-filter";
-import { applyTeamAction, settleFinish, WinActionError, type WinTeamAction } from "@/lib/winchallenge/actions";
+import { applyTeamAction, settleFinish, settleGameTime, WinActionError, type WinTeamAction } from "@/lib/winchallenge/actions";
 import { generateJoinCode, normalizeJoinCode } from "@/lib/winchallenge/join-code";
 import { assignPayouts } from "@/lib/winchallenge/payout";
 import { rankTeams } from "@/lib/winchallenge/ranking";
@@ -94,23 +94,21 @@ export async function saveChallenge(input: ChallengeInput, existingId?: string):
 	const database = await db();
 	const now = new Date().toISOString();
 	if (existingId) {
-		const updated = await database
-			.collection<Doc<WinChallenge>>(CHALLENGES)
-			.findOneAndUpdate(
-				{ _id: existingId },
-				{
-					$set: {
-						name: input.name,
-						startAt: input.startAt,
-						signupOpen: input.signupOpen,
-						split: input.split,
-						games: input.games,
-						...(input.status ? { status: input.status } : {}),
-						updatedAt: now,
-					},
+		const updated = await database.collection<Doc<WinChallenge>>(CHALLENGES).findOneAndUpdate(
+			{ _id: existingId },
+			{
+				$set: {
+					name: input.name,
+					startAt: input.startAt,
+					signupOpen: input.signupOpen,
+					split: input.split,
+					games: input.games,
+					...(input.status ? { status: input.status } : {}),
+					updatedAt: now,
 				},
-				{ returnDocument: "after" }
-			);
+			},
+			{ returnDocument: "after" }
+		);
 		if (!updated) throw new WinStoreError("not-found", "Challenge nicht gefunden.");
 		return fromDoc<WinChallenge>(updated)!;
 	}
@@ -424,7 +422,12 @@ export async function correctTeam(input: { teamId: string; challenge: WinChallen
 		if (input.correction.progress) {
 			for (const [gameId, value] of Object.entries(input.correction.progress)) {
 				const previous = team.progress[gameId];
-				next.progress[gameId] = { count: value.count, tries: value.tries, ...(value.done ? { doneAt: previous?.doneAt ?? now } : {}) };
+				next.progress[gameId] = {
+					count: value.count,
+					tries: value.tries,
+					...(value.done ? { doneAt: previous?.doneAt ?? now } : {}),
+					...(previous?.playMs ? { playMs: previous.playMs } : {}),
+				};
 			}
 		}
 		if (input.correction.status && input.correction.status !== team.status) {
@@ -446,7 +449,7 @@ export async function correctTeam(input: { teamId: string; challenge: WinChallen
 			const base = settled.segments.reduce((sum, segment) => sum + Math.max(0, new Date(segment.end ?? now).getTime() - new Date(segment.start).getTime()), 0);
 			settled.finalMs = Math.max(0, base + settled.adjustMs);
 		}
-		return settled;
+		return settleGameTime(team, settled, now);
 	});
 	await logEvent({
 		challengeId: input.challenge.id,

@@ -2,7 +2,7 @@
  * Public view of the challenge: leaderboard page, team pages and overlays all read this shape.
  * Never contains Discord ids or join codes.
  */
-import { gameProgress, gamesDone } from "@/lib/winchallenge/actions";
+import { gamePlayMs, gameProgress, gamesDone } from "@/lib/winchallenge/actions";
 import { liveStatus } from "@/lib/winchallenge/live";
 import { rankTeams } from "@/lib/winchallenge/ranking";
 import { getVisibleChallenge, listEvents, listParticipants, listPayouts, listTeams, payersFor } from "@/lib/winchallenge/store";
@@ -11,7 +11,8 @@ import type { WinChallenge, WinGame, WinTeamStatus } from "@/lib/winchallenge/ty
 
 export type PublicMember = { name: string; twitch: string; live: boolean };
 
-export type PublicGameState = { id: string; count: number; tries: number; doneAt: string | null };
+/** `playMs` at `serverNow`; while `playing`, add the time since then. */
+export type PublicGameState = { id: string; count: number; tries: number; doneAt: string | null; playMs: number; playing: boolean };
 
 export type PublicTeam = {
 	slug: string;
@@ -69,6 +70,8 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 	const gameTitle = new Map(challenge.games.map((game: WinGame) => [game.id, game.title]));
 
 	const ranked = rankTeams(teams, challenge.games, serverNow, challenge);
+	// Per-game play time stops when the challenge ends.
+	const playNow = challenge.endedAt ? Math.min(serverNow, new Date(challenge.endedAt).getTime()) : serverNow;
 	return {
 		serverNow,
 		challenge: {
@@ -99,7 +102,14 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 			currentGameId: team.currentGameId ?? null,
 			games: challenge.games.map((game) => {
 				const progress = gameProgress(team, game.id);
-				return { id: game.id, count: progress.count, tries: progress.tries, doneAt: progress.doneAt ?? null };
+				return {
+					id: game.id,
+					count: progress.count,
+					tries: progress.tries,
+					doneAt: progress.doneAt ?? null,
+					playMs: gamePlayMs(team, game.id, playNow),
+					playing: !challenge.endedAt && team.status === "running" && team.currentGameId === game.id && Boolean(team.currentSince),
+				};
 			}),
 		})),
 		participants: participants.length,
@@ -108,6 +118,10 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 		payouts: { total: payouts.length, done: payouts.filter((payout) => payout.status === "confirmed").length },
 		feed: events
 			.filter((event) => event.kind === "challenge-ended" || (event.teamId && teamName.has(event.teamId)))
-			.map((event) => ({ at: event.at, team: event.teamId ? (teamName.get(event.teamId) ?? "") : "", text: feedText(event.kind, event.gameId ? gameTitle.get(event.gameId) : undefined) })),
+			.map((event) => ({
+				at: event.at,
+				team: event.teamId ? (teamName.get(event.teamId) ?? "") : "",
+				text: feedText(event.kind, event.gameId ? gameTitle.get(event.gameId) : undefined),
+			})),
 	};
 }

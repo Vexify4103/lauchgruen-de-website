@@ -23,6 +23,7 @@ import {
 	saveChallenge,
 	setPayoutStatus,
 } from "@/lib/winchallenge/store";
+import { gamePlayMs } from "@/lib/winchallenge/actions";
 import { subChannelOf } from "@/lib/winchallenge/subs";
 import { elapsedMs } from "@/lib/winchallenge/timer";
 
@@ -45,11 +46,21 @@ export async function GET() {
 		const challenge = await getCurrentChallenge();
 		if (!challenge) return winJson({ serverNow: Date.now(), challenge: null, teams: [], participants: [], payouts: [], events: [], fallbackChannel: FALLBACK_CHANNEL });
 		const now = Date.now();
-		const [teams, participants, payouts, events] = await Promise.all([listTeams(challenge.id), listParticipants(challenge.id), listPayouts(challenge.id), listEvents(challenge.id, { limit: 200 })]);
+		const playNow = challenge.endedAt ? Math.min(now, new Date(challenge.endedAt).getTime()) : now;
+		const [teams, participants, payouts, events] = await Promise.all([
+			listTeams(challenge.id),
+			listParticipants(challenge.id),
+			listPayouts(challenge.id),
+			listEvents(challenge.id, { limit: 200 }),
+		]);
 		return winJson({
 			serverNow: now,
 			challenge,
-			teams: teams.map((team) => ({ ...team, elapsedMs: elapsedMs(team, now, challenge) })),
+			teams: teams.map((team) => ({
+				...team,
+				elapsedMs: elapsedMs(team, now, challenge),
+				playMs: Object.fromEntries(challenge.games.map((game) => [game.id, gamePlayMs(team, game.id, playNow)])),
+			})),
 			participants: participants.map((participant) => ({ ...participant, subChannel: subChannelOf(participant, participants, FALLBACK_CHANNEL) })),
 			payouts,
 			events,
@@ -61,7 +72,12 @@ export async function GET() {
 }
 
 const gameSchema = z.object({
-	id: z.string().trim().min(1).max(60).regex(/^[a-z0-9-]+$/, "Spiel-ID: nur a-z, 0-9 und -"),
+	id: z
+		.string()
+		.trim()
+		.min(1)
+		.max(60)
+		.regex(/^[a-z0-9-]+$/, "Spiel-ID: nur a-z, 0-9 und -"),
 	title: z.string().trim().min(1).max(80),
 	goal: z.string().trim().min(1).max(200),
 	type: z.enum(["check", "counter"]),
@@ -115,8 +131,8 @@ export async function POST(request: Request) {
 	if (!parsed.success) return winError(400, parsed.error.issues[0]?.message ?? "Ungültige Eingabe.");
 	const input = parsed.data;
 	const audit = (action: string, targetId: string, summary: string, metadata?: Record<string, unknown>) =>
-		writeAuditLog({ action: `winchallenge.${action}`, targetType: "winchallenge", targetId, summary, actorDiscordId: user.discordId, actorLabel: user.name, metadata }).catch((error) =>
-			console.error("[winchallenge] audit failed", error),
+		writeAuditLog({ action: `winchallenge.${action}`, targetType: "winchallenge", targetId, summary, actorDiscordId: user.discordId, actorLabel: user.name, metadata }).catch(
+			(error) => console.error("[winchallenge] audit failed", error)
 		);
 
 	try {
@@ -131,7 +147,7 @@ export async function POST(request: Request) {
 			if (challenge && input.status === "draft" && challenge.status === "open") return winError(400, "Eine offene Challenge kann nicht zurück in den Entwurf.");
 			const saved = await saveChallenge(
 				{ name: input.name, startAt: new Date(input.startAt).toISOString(), signupOpen: input.signupOpen, split: input.split, games: input.games, status: input.status },
-				challenge?.id,
+				challenge?.id
 			);
 			await audit("save", saved.id, `Challenge "${saved.name}" gespeichert`, { status: saved.status, games: saved.games.length });
 			return winJson({ ok: true, challenge: saved });
@@ -171,7 +187,13 @@ export async function POST(request: Request) {
 			} else {
 				const partner = everyone.find((entry) => entry.id === input.partnerId);
 				if (!partner) return winError(400, "Bitte einen Partner oder ein wartendes Team wählen.");
-				team = await assignToTeam({ challenge, participant, partner, name: input.name || `${participant.discordName} & ${partner.discordName}`.slice(0, 40), actor: user.name });
+				team = await assignToTeam({
+					challenge,
+					participant,
+					partner,
+					name: input.name || `${participant.discordName} & ${partner.discordName}`.slice(0, 40),
+					actor: user.name,
+				});
 			}
 			await audit("team-assign", team.id, `${participant.discordName} ins Team "${team.name}" gesetzt`);
 			return winJson({ ok: true, team });
@@ -208,7 +230,13 @@ export async function POST(request: Request) {
 		const recipient = everyone.find((entry) => entry.id === input.recipientId);
 		if (!recipient) return winError(404, "Empfänger nicht gefunden.");
 		if (recipient.id === payout.payerId) return winError(400, "Niemand beschenkt sich selbst.");
-		await reassignPayout({ payoutId: payout.id, challengeId: challenge.id, recipientId: recipient.id, channel: subChannelOf(recipient, everyone, FALLBACK_CHANNEL), actor: user.name });
+		await reassignPayout({
+			payoutId: payout.id,
+			challengeId: challenge.id,
+			recipientId: recipient.id,
+			channel: subChannelOf(recipient, everyone, FALLBACK_CHANNEL),
+			actor: user.name,
+		});
 		await audit("payout-reassign", payout.id, `Sub neu zugeteilt an ${recipient.discordName}`);
 		return winJson({ ok: true });
 	} catch (error) {

@@ -6,7 +6,7 @@ import { formatElapsed } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinGame, WinParticipant, WinPayout, WinTeam, WinTeamStatus } from "@/lib/winchallenge/types";
 import { formatDateTime, fromLocalInput, toLocalInput, winFetch } from "../win-api";
 
-type AdminTeam = WinTeam & { elapsedMs: number };
+type AdminTeam = WinTeam & { elapsedMs: number; playMs: Record<string, number> };
 type AdminEvent = { id: string; at: string; actor: string; kind: string; teamId?: string; gameId?: string; reason?: string; liveCheck?: string };
 type AdminState = {
 	serverNow: number;
@@ -133,6 +133,7 @@ export function WinAdminClient() {
 			{state.challenge ? (
 				<>
 					<TeamsPanel state={state} run={run} />
+					<GameTimesPanel state={state} />
 					<AssignPanel state={state} run={run} />
 					<ParticipantsPanel state={state} run={run} />
 					<EndPanel state={state} run={run} />
@@ -365,10 +366,79 @@ function TeamsPanel({ state, run }: { state: AdminState; run: Run }) {
 								</span>
 								<span className="font-mono text-sm tabular-nums text-[var(--text)]">{formatElapsed(team.elapsedMs)}</span>
 							</button>
-							{openId === team.id ? <TeamCorrectionForm team={team} games={games} run={run} /> : null}
+							{openId === team.id ? (
+								<>
+									<TeamGameTimes team={team} games={games} />
+									<TeamCorrectionForm team={team} games={games} run={run} />
+								</>
+							) : null}
 						</li>
 					);
 				})}
+			</ul>
+		</Panel>
+	);
+}
+
+/** Play time per game: time the game was marked current while the team's timer ran. */
+function TeamGameTimes({ team, games }: { team: AdminTeam; games: WinGame[] }) {
+	return (
+		<div className="border-t border-[var(--line)] px-4 py-3">
+			<p className="text-xs font-semibold text-[var(--muted)]">Zeit pro Spiel</p>
+			<ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+				{games.map((game) => {
+					const progress = team.progress[game.id];
+					const current = team.currentGameId === game.id;
+					return (
+						<li key={game.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1 odd:bg-[var(--bg)]">
+							<span className="truncate text-[var(--text)]">
+								{progress?.doneAt ? "✓ " : current ? "▶ " : ""}
+								{game.title}
+							</span>
+							<span className="shrink-0 text-[var(--muted)]">
+								<span className="font-mono tabular-nums text-[var(--text)]">{formatElapsed(team.playMs[game.id] ?? 0)}</span>
+								{game.type === "counter" ? ` · ${(progress?.tries ?? 0) + 1}. Versuch` : ""}
+							</span>
+						</li>
+					);
+				})}
+			</ul>
+		</div>
+	);
+}
+
+/** Fastest finished teams per game, by play time. */
+function GameTimesPanel({ state }: { state: AdminState }) {
+	const games = state.challenge?.games ?? [];
+	const rows = games.map((game) => ({
+		game,
+		best: state.teams
+			.filter((team) => team.progress[game.id]?.doneAt && (team.playMs[game.id] ?? 0) > 0)
+			.sort((a, b) => a.playMs[game.id] - b.playMs[game.id])
+			.slice(0, 3),
+	}));
+	return (
+		<Panel
+			title="Schnellste pro Spiel"
+			description="Gespielte Zeit pro Spiel: läuft, solange das Spiel bei laufendem Timer als aktuelles Spiel markiert ist. Pausen zählen nicht, Wechsel zwischen Spielen werden zusammengerechnet."
+		>
+			<ul className="grid gap-2 sm:grid-cols-2">
+				{rows.map(({ game, best }) => (
+					<li key={game.id} className="rounded-xl border border-[var(--line)] px-4 py-3">
+						<p className="font-semibold text-[var(--text)]">{game.title}</p>
+						{best.length === 0 ? <p className="mt-1 text-sm text-[var(--muted)]">Noch kein Team fertig.</p> : null}
+						<ol className="mt-1 grid gap-0.5 text-sm">
+							{best.map((team, index) => (
+								<li key={team.id} className="flex justify-between gap-3">
+									<span className="truncate text-[var(--muted)]">
+										{index + 1}. {team.name}
+									</span>
+									<span className="font-mono tabular-nums text-[var(--text)]">{formatElapsed(team.playMs[game.id])}</span>
+								</li>
+							))}
+						</ol>
+					</li>
+				))}
 			</ul>
 		</Panel>
 	);

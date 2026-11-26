@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PublicChallenge, PublicTeam } from "@/lib/winchallenge/view";
+import type { PublicChallenge, PublicGameState, PublicTeam } from "@/lib/winchallenge/view";
 
 const POLL_MS = 5000;
 
@@ -36,7 +36,8 @@ export function usePublicChallenge(initial: PublicChallenge | null) {
 	}, []);
 
 	const elapsed = (team: PublicTeam) => (team.running ? team.elapsedMs + Math.max(0, now - received) : team.elapsedMs);
-	return { data, elapsed };
+	const playTime = (game: PublicGameState) => (game.playing ? game.playMs + Math.max(0, now - received) : game.playMs);
+	return { data, elapsed, playTime };
 }
 
 export const TEAM_STATUS_LABEL: Record<PublicTeam["status"], string> = {

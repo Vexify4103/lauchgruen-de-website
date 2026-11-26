@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyTeamAction, gamesDone, WinActionError } from "../src/lib/winchallenge/actions.ts";
+import { applyTeamAction, gamePlayMs, gamesDone, WinActionError } from "../src/lib/winchallenge/actions.ts";
 import { generateJoinCode, JOIN_CODE_ALPHABET, normalizeJoinCode } from "../src/lib/winchallenge/join-code.ts";
 import { assignPayouts, splitByPercent } from "../src/lib/winchallenge/payout.ts";
 import { rankTeams } from "../src/lib/winchallenge/ranking.ts";
@@ -58,7 +58,7 @@ test("counter counts tries on reset and finishes at the target", () => {
 	t = act(t, { action: "plus", gameId: "lol" }, 10);
 	t = act(t, { action: "plus", gameId: "lol" }, 20);
 	t = act(t, { action: "reset", gameId: "lol" }, 30);
-	assert.deepEqual(t.progress.lol, { count: 0, tries: 1 });
+	assert.deepEqual(t.progress.lol, { count: 0, tries: 1, playMs: 20 * 60_000 });
 	t = act(t, { action: "plus", gameId: "lol" }, 40);
 	t = act(t, { action: "plus", gameId: "lol" }, 50);
 	t = act(t, { action: "plus", gameId: "lol" }, 60);
@@ -173,4 +173,32 @@ test("payout: single finisher gets everything except from itself", () => {
 	checkAssignments(result, payers);
 	assert.equal(result.length, 4);
 	assert.ok(result.every((entry) => entry.place === 1));
+});
+
+test("play time per game adds up across switches and skips pauses", () => {
+	let t = act(team(), { action: "start" }, 0);
+	t = act(t, { action: "current", gameId: "lol" }, 0);
+	t = act(t, { action: "current", gameId: "mc" }, 10); // lol 10 min
+	t = act(t, { action: "pause" }, 15); // mc 5 min
+	t = act(t, { action: "resume" }, 45); // 30 min pause, not counted
+	t = act(t, { action: "current", gameId: "lol" }, 50); // mc +5 = 10 min
+	t = act(t, { action: "plus", gameId: "lol" }, 60); // lol +10 = 20 min, still current
+	assert.equal(t.progress.lol.playMs, 20 * 60_000);
+	assert.equal(t.progress.mc.playMs, 10 * 60_000);
+	assert.equal(gamePlayMs(t, "lol", at(65).getTime()), 25 * 60_000);
+	assert.equal(gamePlayMs(t, "mc", at(65).getTime()), 10 * 60_000);
+});
+
+test("pressing a game's buttons makes it current; done stops its clock", () => {
+	let t = act(team(), { action: "start" }, 0);
+	t = act(t, { action: "plus", gameId: "lol" }, 5);
+	assert.equal(t.currentGameId, "lol");
+	t = act(t, { action: "done", gameId: "mc" }, 20); // lol 15 min, mc done right away, no current game
+	assert.equal(t.progress.lol.playMs, 15 * 60_000);
+	assert.equal(t.currentGameId, undefined);
+	assert.equal(t.currentSince, undefined);
+	t = act(t, { action: "reset", gameId: "lol" }, 30);
+	t = act(t, { action: "minus", gameId: "lol" }, 40); // corrections keep play time
+	assert.equal(t.progress.lol.playMs, 25 * 60_000);
+	assert.equal(t.progress.lol.tries, 1);
 });

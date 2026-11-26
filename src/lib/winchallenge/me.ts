@@ -39,10 +39,18 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 		await syncParticipantTwitch(participant.id, link.twitchUserId, link.login);
 	}
 
-	const [team, all, payouts] = await Promise.all([participant.teamId ? getTeam(participant.teamId) : Promise.resolve(null), listParticipants(challenge.id), listPayouts(challenge.id)]);
+	const [team, all, payouts] = await Promise.all([
+		participant.teamId ? getTeam(participant.teamId) : Promise.resolve(null),
+		listParticipants(challenge.id),
+		listPayouts(challenge.id),
+	]);
 	const byId = new Map(all.map((entry) => [entry.id, entry]));
 	const members = team ? team.memberIds.map((id) => byId.get(id)).filter((entry): entry is WinParticipant => Boolean(entry)) : [];
-	const named = (payout: WinPayout, otherId: string): MyPayout => ({ ...payout, otherName: byId.get(otherId)?.discordName ?? "?", otherTwitch: byId.get(otherId)?.twitchLogin ?? "" });
+	const named = (payout: WinPayout, otherId: string): MyPayout => ({
+		...payout,
+		otherName: byId.get(otherId)?.discordName ?? "?",
+		otherTwitch: byId.get(otherId)?.twitchLogin ?? "",
+	});
 
 	return {
 		participant,
@@ -51,7 +59,13 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 			serverNow,
 			challenge,
 			twitch,
-			participant: { id: participant.id, discordName: participant.discordName, twitchLogin: participant.twitchLogin, subTarget: subTargetOf(participant, all), createdAt: participant.createdAt },
+			participant: {
+				id: participant.id,
+				discordName: participant.discordName,
+				twitchLogin: participant.twitchLogin,
+				subTarget: subTargetOf(participant, all),
+				createdAt: participant.createdAt,
+			},
 			team: team
 				? {
 						id: team.id,

@@ -40,7 +40,8 @@ export type WinTeamStatus = "forming" | "ready" | "running" | "paused" | "finish
 
 export type WinSegment = { start: string; end?: string };
 
-export type WinGameProgress = { count: number; tries: number; doneAt?: string };
+/** `playMs`: time this game was the current game while the team was running (see `settleGameTime`). */
+export type WinGameProgress = { count: number; tries: number; doneAt?: string; playMs?: number };
 
 export type WinTeam = {
 	id: string;
@@ -59,6 +60,8 @@ export type WinTeam = {
 	/** Status before giving up, so an admin can undo it. */
 	statusBeforeGiveUp?: WinTeamStatus;
 	currentGameId?: string;
+	/** Since when `currentGameId` collects play time. Only set while running. */
+	currentSince?: string;
 	progress: Record<string, WinGameProgress>;
 	version: number;
 	createdAt: string;
