@@ -57,7 +57,7 @@ const CSS = `
 .wco-bar-sep { width: 1px; height: 32px; background: var(--line); }
 .wco-bar-label { font-size: 12px; font-weight: 700; color: var(--muted); }
 .wco-bar-value { font-size: 20px; font-weight: 800; }
-.wco-lb-row { display: grid; grid-template-columns: 34px 1fr 64px 120px; gap: 12px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--line); font-size: 16px; }
+.wco-lb-row { display: grid; grid-template-columns: 28px 1fr 56px 104px; gap: 12px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--line); font-size: 16px; }
 .wco-lb-row:first-of-type { border-top: 0; }
 .wco-lb-rank { font-weight: 800; color: var(--accent); }
 .wco-lb-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -126,6 +126,11 @@ function Frame({ options, children }: { options: WinOverlayOptions; children: Re
 			</div>
 		</div>
 	);
+}
+
+/** Places only mean something once a team has started; before that the order is just alphabetical. */
+function placeOf(team: PublicTeam) {
+	return team.status === "forming" || team.status === "ready" ? "–" : String(team.rank);
 }
 
 function stateLabel(team: PublicTeam) {
@@ -213,7 +218,7 @@ export function WinTeamOverlay({ slug, mode, options }: { slug: string; mode: "m
 					<span>
 						<div className="wco-bar-label">Platz</div>
 						<div className="wco-bar-value">
-							{team.rank} / {data.teamCount}
+							{placeOf(team)} / {data.teamCount}
 						</div>
 					</span>
 				</div>
@@ -238,7 +243,7 @@ export function WinTeamOverlay({ slug, mode, options }: { slug: string; mode: "m
 				<div className="wco-state">
 					{stateLabel(team)}
 					<span>
-						{team.done} / {team.total} geschafft · Platz {team.rank}
+						{team.done} / {team.total} geschafft · Platz {placeOf(team)}
 					</span>
 				</div>
 				<div className="wco-bar-track">
@@ -284,18 +289,20 @@ export function WinLeaderboardOverlay({ options }: { options: WinOverlayOptions 
 	const { data, received } = useFeed<PublicChallenge>(`/api/obs/winchallenge/leaderboard?limit=${options.limit}`);
 	const now = useNow();
 	if (!data?.challenge) return null;
+	// Half teams cannot play, so they stay off the stream.
+	const teams = data.teams.filter((team) => team.status !== "forming");
 	return (
 		<Frame options={options}>
-			<div className="wco-panel" style={{ width: 460 }}>
+			<div className="wco-panel" style={{ width: 520 }}>
 				<div className="wco-kicker">{data.challenge.name}</div>
 				<h1 className="wco-title" style={{ fontSize: 22 }}>
 					Rangliste
 				</h1>
 				<div style={{ marginTop: 10 }}>
-					{data.teams.length === 0 ? <div className="wco-foot">Noch keine Teams</div> : null}
-					{data.teams.map((team) => (
+					{teams.length === 0 ? <div className="wco-foot">Noch keine Teams</div> : null}
+					{teams.map((team) => (
 						<div key={team.slug} className="wco-lb-row">
-							<span className="wco-lb-rank">{team.rank}</span>
+							<span className="wco-lb-rank">{placeOf(team)}</span>
 							<span className="wco-lb-name">
 								<i className={`wco-dot${team.members.some((member) => member.live) ? " is-live" : ""}`} />
 								{team.name}

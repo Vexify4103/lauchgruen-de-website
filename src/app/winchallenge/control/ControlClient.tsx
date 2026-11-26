@@ -330,6 +330,7 @@ function OverlayLinks({ slug }: { slug: string }) {
 	const links = [
 		{ key: "main", label: "Tracker (Seitenleiste, 420 × 900)", url: `${origin}/obs/winchallenge/${slug}/main` },
 		{ key: "bar", label: "Leiste (1920 × 80)", url: `${origin}/obs/winchallenge/${slug}/bar` },
+		{ key: "leaderboard", label: "Rangliste aller Teams (560 × 600)", url: `${origin}/obs/winchallenge/leaderboard` },
 	];
 	async function copy(key: string, url: string) {
 		await navigator.clipboard.writeText(url).catch(() => undefined);
