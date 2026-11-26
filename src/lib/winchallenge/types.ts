@@ -13,6 +13,8 @@ export type WinGame = {
 	/** Counter games: count needed to finish, e.g. 3 for "3 wins in a row". */
 	target?: number;
 	icon?: string;
+	/** Extra info for players (map code, rules). Shown on the site, never in the overlays. */
+	note?: string;
 };
 
 export type WinChallengeStatus = "draft" | "open" | "ended" | "archived";

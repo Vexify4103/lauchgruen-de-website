@@ -64,6 +64,7 @@ const gameSchema = z.object({
 	type: z.enum(["check", "counter"]),
 	target: z.number().int().min(1).max(100000).optional(),
 	icon: z.string().trim().max(300).optional(),
+	note: z.string().trim().max(300).optional(),
 });
 
 const reason = z.string().trim().min(3, "Bitte einen Grund angeben.").max(300);

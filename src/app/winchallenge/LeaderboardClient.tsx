@@ -76,6 +76,7 @@ export function LeaderboardClient({ initial }: { initial: PublicChallenge | null
 								<span>
 									<span className="font-semibold text-[var(--text)]">{game.title}</span>
 									<span className="block text-[var(--muted)]">{game.goal}</span>
+									{game.note ? <span className="mt-1 block text-xs text-[var(--text)]">Hinweis: {game.note}</span> : null}
 								</span>
 							</li>
 						))}

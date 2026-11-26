@@ -178,6 +178,7 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 				type: game.type,
 				...(game.type === "counter" ? { target: game.target ?? 1 } : {}),
 				...(game.icon?.trim() ? { icon: game.icon.trim() } : {}),
+				...(game.note?.trim() ? { note: game.note.trim() } : {}),
 			})),
 		});
 		setSaving(false);
@@ -256,7 +257,11 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 									onChange={(event) => updateGame(index, { target: Number(event.target.value) })}
 								/>
 							</label>
-							<div className="flex items-end gap-1">
+							<label className={`${label} md:col-span-5`}>
+								Hinweis für Spieler (optional, nicht im Overlay)
+								<input className={input} value={game.note ?? ""} onChange={(event) => updateGame(index, { note: event.target.value })} maxLength={300} placeholder="z. B. Map-Code 1234-5678-9012" />
+							</label>
+							<div className="flex items-end gap-1 md:col-start-6 md:row-start-1">
 								<button type="button" className="button small ghost" onClick={() => moveGame(index, -1)} aria-label={`${game.title || game.id} nach oben`}>
 									↑
 								</button>

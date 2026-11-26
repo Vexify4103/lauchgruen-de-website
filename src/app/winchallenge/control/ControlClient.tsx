@@ -244,6 +244,7 @@ function GameRow({
 					{game.goal}
 					{game.type === "counter" ? ` · ${progress.count}/${target} · Versuch ${progress.tries + 1}` : ""}
 				</p>
+				{game.note ? <p className="mt-1 text-xs text-[var(--text)]">Hinweis: {game.note}</p> : null}
 			</div>
 			<div className="flex flex-wrap items-center gap-2">
 				{game.type === "check" ? (
