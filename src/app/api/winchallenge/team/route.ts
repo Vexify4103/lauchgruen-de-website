@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import { loadMyState } from "@/lib/winchallenge/me";
-import { createTeam, getCurrentChallenge, joinTeam, leaveTeam, regenerateJoinCode } from "@/lib/winchallenge/store";
+import { createTeam, getVisibleChallenge, joinTeam, leaveTeam, regenerateJoinCode } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 	const parsed = schema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return winError(400, "Teamname braucht 2 bis 40 Zeichen, der Code 6 Zeichen.");
 	try {
-		const challenge = await getCurrentChallenge();
+		const challenge = await getVisibleChallenge();
 		if (!challenge || challenge.status !== "open") return winError(400, "Die Challenge nimmt gerade keine Teamänderungen an.");
 		const { participant, team } = await loadMyState(user.discordId);
 		if (!participant) return winError(400, "Melde dich zuerst an.");

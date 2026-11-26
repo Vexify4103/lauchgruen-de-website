@@ -5,7 +5,7 @@
 import { gameProgress, gamesDone } from "@/lib/winchallenge/actions";
 import { liveStatus } from "@/lib/winchallenge/live";
 import { rankTeams } from "@/lib/winchallenge/ranking";
-import { getCurrentChallenge, listEvents, listParticipants, listPayouts, listTeams, payersFor } from "@/lib/winchallenge/store";
+import { getVisibleChallenge, listEvents, listParticipants, listPayouts, listTeams, payersFor } from "@/lib/winchallenge/store";
 import { timerRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinGame, WinTeamStatus } from "@/lib/winchallenge/types";
 
@@ -53,7 +53,7 @@ function feedText(kind: string, gameTitle: string | undefined): string {
 
 export async function buildPublicChallenge(): Promise<PublicChallenge> {
 	const serverNow = Date.now();
-	const challenge = await getCurrentChallenge();
+	const challenge = await getVisibleChallenge();
 	if (!challenge) return { serverNow, challenge: null, teams: [], participants: 0, soloParticipants: 0, pot: 0, payouts: { total: 0, done: 0 }, feed: [] };
 
 	const [teams, participants, events, payouts] = await Promise.all([

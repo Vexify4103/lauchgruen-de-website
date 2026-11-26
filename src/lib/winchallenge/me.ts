@@ -2,7 +2,7 @@
 import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
 import { teamLiveState, type LiveState } from "@/lib/winchallenge/live";
-import { getCurrentChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
+import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
 import { elapsedMs, timerRunning } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinParticipant, WinPayout, WinTeam } from "@/lib/winchallenge/types";
 
@@ -27,7 +27,7 @@ export type MyState = {
 
 export async function loadMyState(discordId: string): Promise<{ state: MyState; participant: WinParticipant | null; team: WinTeam | null }> {
 	const serverNow = Date.now();
-	const [challenge, link] = await Promise.all([getCurrentChallenge(), getTwitchLink(discordId).catch(() => null)]);
+	const [challenge, link] = await Promise.all([getVisibleChallenge(), getTwitchLink(discordId).catch(() => null)]);
 	const twitch = link ? { login: link.login, displayName: link.displayName } : null;
 	const empty: MyState = { serverNow, challenge, twitch, participant: null, team: null, payouts: { give: [], receive: [] } };
 	if (!challenge) return { state: empty, participant: null, team: null };

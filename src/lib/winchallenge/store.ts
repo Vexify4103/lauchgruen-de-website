@@ -69,6 +69,12 @@ export class WinStoreError extends WinActionError {}
 /* ------------------------------------------------------------------ challenge */
 
 /** The current challenge: the newest one that is not archived. Null before the first one is created. */
+/** Current challenge for players and the public. A draft stays hidden until the admin publishes it. */
+export async function getVisibleChallenge(): Promise<WinChallenge | null> {
+	const challenge = await getCurrentChallenge();
+	return challenge && challenge.status !== "draft" ? challenge : null;
+}
+
 export async function getCurrentChallenge(): Promise<WinChallenge | null> {
 	const doc = await (await db())
 		.collection<Doc<WinChallenge>>(CHALLENGES)

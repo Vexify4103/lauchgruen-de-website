@@ -7,7 +7,7 @@ import { z } from "zod";
 import { LIVE_REQUIRED_ACTIONS, type WinTeamAction } from "@/lib/winchallenge/actions";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import { teamLiveState } from "@/lib/winchallenge/live";
-import { controlTeam, getCurrentChallenge, getParticipantByDiscord, getTeam, listParticipants } from "@/lib/winchallenge/store";
+import { controlTeam, getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 	if (!parsed.success) return winError(400, "Ungültige Aktion.");
 	const action = parsed.data as WinTeamAction;
 	try {
-		const challenge = await getCurrentChallenge();
+		const challenge = await getVisibleChallenge();
 		if (!challenge) return winError(404, "Aktuell gibt es keine Challenge.");
 		if (challenge.status !== "open") return winError(400, "Die Challenge ist beendet.");
 		const participant = await getParticipantByDiscord(challenge.id, user.discordId);

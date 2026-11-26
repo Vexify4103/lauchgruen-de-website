@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
-import { getCurrentChallenge, getParticipantByDiscord, listPayouts, setPayoutStatus } from "@/lib/winchallenge/store";
+import { getVisibleChallenge, getParticipantByDiscord, listPayouts, setPayoutStatus } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 	const parsed = schema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return winError(400, "Ungültige Aktion.");
 	try {
-		const challenge = await getCurrentChallenge();
+		const challenge = await getVisibleChallenge();
 		if (!challenge) return winError(404, "Aktuell gibt es keine Challenge.");
 		const participant = await getParticipantByDiscord(challenge.id, user.discordId);
 		const payout = (await listPayouts(challenge.id)).find((entry) => entry.id === parsed.data.id);
