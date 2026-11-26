@@ -1,11 +1,11 @@
 /**
  * GET   /api/winchallenge/me: own sign-up, team (with join code), Twitch link, payouts.
- * PATCH /api/winchallenge/me: { wishChannel } channel for receiving gifted subs.
+ * PATCH /api/winchallenge/me: { subTarget: self | partner } who receives this player's gifted subs.
  */
 import { z } from "zod";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import { loadMyState } from "@/lib/winchallenge/me";
-import { setWishChannel } from "@/lib/winchallenge/store";
+import { setSubTarget } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,26 +21,19 @@ export async function GET() {
 	}
 }
 
-const patchSchema = z.object({
-	wishChannel: z
-		.string()
-		.trim()
-		.max(25)
-		.regex(/^[a-zA-Z0-9_]*$/, "Nur der Twitch-Name, ohne Link.")
-		.nullable(),
-});
+const patchSchema = z.object({ subTarget: z.enum(["self", "partner"]) });
 
 export async function PATCH(request: Request) {
 	const user = await currentUser();
 	if (!user) return winError(401, "Bitte mit Discord anmelden.");
 	const parsed = patchSchema.safeParse(await request.json().catch(() => null));
-	if (!parsed.success) return winError(400, parsed.error.issues[0]?.message ?? "Ungültiger Kanal.");
+	if (!parsed.success) return winError(400, parsed.error.issues[0]?.message ?? "Ungültige Auswahl.");
 	try {
 		const { participant } = await loadMyState(user.discordId);
 		if (!participant) return winError(404, "Du bist nicht angemeldet.");
-		await setWishChannel(participant.id, parsed.data.wishChannel ? parsed.data.wishChannel.toLowerCase() : null);
+		await setSubTarget(participant.id, parsed.data.subTarget);
 		return winJson({ ok: true });
 	} catch (error) {
-		return handleWinError(error, "Kanal konnte nicht gespeichert werden.");
+		return handleWinError(error, "Auswahl konnte nicht gespeichert werden.");
 	}
 }

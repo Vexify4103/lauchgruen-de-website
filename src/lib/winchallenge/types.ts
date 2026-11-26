@@ -72,12 +72,16 @@ export type WinParticipant = {
 	discordName: string;
 	twitchId: string;
 	twitchLogin: string;
-	/** Channel this participant wants gifted subs on. */
+	/** Who gets this participant's gifted subs: their own channel or their partner's. Unset means "self". */
+	subTarget?: WinSubTarget;
+	/** Legacy free-text channel from early sign-ups; read only through `subTargetOf`. */
 	wishChannel?: string;
 	teamId?: string;
 	acceptedRulesAt: string;
 	createdAt: string;
 };
+
+export type WinSubTarget = "self" | "partner";
 
 export type WinPayoutStatus = "open" | "paid" | "confirmed";
 

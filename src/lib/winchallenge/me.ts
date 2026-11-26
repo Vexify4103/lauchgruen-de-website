@@ -3,16 +3,17 @@ import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
 import { skipLiveCheck, teamLiveState, type LiveState } from "@/lib/winchallenge/live";
 import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
+import { subTargetOf } from "@/lib/winchallenge/subs";
 import { elapsedMs, clockRunning } from "@/lib/winchallenge/timer";
-import type { WinChallenge, WinParticipant, WinPayout, WinTeam } from "@/lib/winchallenge/types";
+import type { WinChallenge, WinParticipant, WinPayout, WinSubTarget, WinTeam } from "@/lib/winchallenge/types";
 
 export type MyPayout = WinPayout & { otherName: string; otherTwitch: string };
 
 export type MyState = {
 	serverNow: number;
 	challenge: WinChallenge | null;
-	twitch: { login: string; displayName: string } | null;
-	participant: Pick<WinParticipant, "id" | "discordName" | "twitchLogin" | "wishChannel" | "createdAt"> | null;
+	twitch: { login: string; displayName: string; profileImageUrl: string } | null;
+	participant: (Pick<WinParticipant, "id" | "discordName" | "twitchLogin" | "createdAt"> & { subTarget: WinSubTarget }) | null;
 	team:
 		| (Pick<WinTeam, "id" | "slug" | "name" | "joinCode" | "status" | "progress" | "currentGameId" | "finishedAt" | "finalMs" | "version"> & {
 				elapsedMs: number;
@@ -28,7 +29,7 @@ export type MyState = {
 export async function loadMyState(discordId: string): Promise<{ state: MyState; participant: WinParticipant | null; team: WinTeam | null }> {
 	const serverNow = Date.now();
 	const [challenge, link] = await Promise.all([getVisibleChallenge(), getTwitchLink(discordId).catch(() => null)]);
-	const twitch = link ? { login: link.login, displayName: link.displayName } : null;
+	const twitch = link ? { login: link.login, displayName: link.displayName, profileImageUrl: link.profileImageUrl ?? "" } : null;
 	const empty: MyState = { serverNow, challenge, twitch, participant: null, team: null, payouts: { give: [], receive: [] } };
 	if (!challenge) return { state: empty, participant: null, team: null };
 
@@ -50,7 +51,7 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 			serverNow,
 			challenge,
 			twitch,
-			participant: { id: participant.id, discordName: participant.discordName, twitchLogin: participant.twitchLogin, wishChannel: participant.wishChannel, createdAt: participant.createdAt },
+			participant: { id: participant.id, discordName: participant.discordName, twitchLogin: participant.twitchLogin, subTarget: subTargetOf(participant, all), createdAt: participant.createdAt },
 			team: team
 				? {
 						id: team.id,

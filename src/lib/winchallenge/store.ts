@@ -10,7 +10,8 @@ import { applyTeamAction, settleFinish, WinActionError, type WinTeamAction } fro
 import { generateJoinCode, normalizeJoinCode } from "@/lib/winchallenge/join-code";
 import { assignPayouts } from "@/lib/winchallenge/payout";
 import { rankTeams } from "@/lib/winchallenge/ranking";
-import type { WinChallenge, WinGame, WinParticipant, WinPayout, WinPayoutStatus, WinTeam, WinTeamStatus } from "@/lib/winchallenge/types";
+import { subChannelOf } from "@/lib/winchallenge/subs";
+import type { WinChallenge, WinGame, WinParticipant, WinPayout, WinPayoutStatus, WinSubTarget, WinTeam, WinTeamStatus } from "@/lib/winchallenge/types";
 
 const CHALLENGES = "winchallenge_challenges";
 const PARTICIPANTS = "winchallenge_participants";
@@ -171,10 +172,11 @@ export async function signUp(input: { challenge: WinChallenge; discordId: string
 	return fromDoc<WinParticipant>(doc)!;
 }
 
-export async function setWishChannel(participantId: string, wishChannel: string | null): Promise<void> {
+/** Stores the sub choice and drops the legacy free-text channel. */
+export async function setSubTarget(participantId: string, subTarget: WinSubTarget): Promise<void> {
 	await (await db())
 		.collection<Doc<WinParticipant>>(PARTICIPANTS)
-		.updateOne({ _id: participantId }, wishChannel ? { $set: { wishChannel } } : { $unset: { wishChannel: "" } });
+		.updateOne({ _id: participantId }, { $set: { subTarget }, $unset: { wishChannel: "" } });
 }
 
 /** Keeps the stored Twitch login current, e.g. after a relink. */
@@ -459,7 +461,7 @@ export async function endChallenge(input: { challenge: WinChallenge; actor: stri
 		payerId: assignment.payerId,
 		recipientId: assignment.recipientId,
 		place: assignment.place,
-		channel: byId.get(assignment.recipientId)?.wishChannel || input.channelFallback,
+		channel: subChannelOf(byId.get(assignment.recipientId) ?? { id: assignment.recipientId, twitchLogin: "" }, participants, input.channelFallback),
 		status: "open",
 	}));
 	if (docs.length) await database.collection<Doc<WinPayout>>(PAYOUTS).insertMany(docs, { ordered: false }).catch((error) => {

@@ -35,7 +35,7 @@ Status: planned, not built.
 3. **Give up button:** default = yes, marks the team "aufgegeben" and stops the timer. Admin can undo. A team that gives up still owes its subs.
 4. **Going offline while the timer runs:** default = the timer keeps running (their loss). Option: auto-pause when no member was live for 10 minutes.
 5. **Sub split** between places: default = 50 % / 30 % / 20 % of all subs (see section 9).
-6. **Which channel the sub is gifted on:** default = a channel the recipient chooses on their profile ("Wunschkanal"), fallback Lauchgruen's channel. See section 9.
+6. **Which channel the sub is gifted on:** the recipient picks "my channel" (default) or "my partner's channel" on the sign-up page; fallback Lauchgruen's channel only without a linked Twitch login. See section 9.
 7. **Do winners also pay their own stake:** default = yes, everyone pays one sub. Nobody is ever assigned to gift to their own team.
 
 ---
@@ -52,7 +52,7 @@ Status: planned, not built.
   - `counter`: needs `target` (e.g. 3). Buttons `+`, `−`, `Reset`. Done when the count reaches the target
 - optional icon or image
 
-**Participant**: Discord ID and name, Twitch login and ID, signed up at, team (optional), "Wunschkanal" for receiving subs.
+**Participant**: Discord ID and name, Twitch login and ID, signed up at, team (optional), sub target (self or partner) for receiving subs.
 
 **Team**: name, two members, join code, status (`forming`, `ready`, `running`, `paused`, `finished`, `gave-up`).
 - `forming`: one member, waiting for a partner
@@ -212,7 +212,7 @@ The site never handles money. It only tells everyone whom to gift a sub to and t
 
 **Assignment:** each paying participant gets exactly one recipient. Never a member of their own team. The assignment is computed once at the end, stored, and does not change afterwards (admin can reassign single entries).
 
-**Where the sub goes:** a gifted sub is always for a channel. Default: every participant sets a **Wunschkanal** on their profile (the channel they want a sub on). Fallback: Lauchgruen's channel. The payer gifts 1 sub to the recipient's Twitch name on that channel.
+**Where the sub goes:** a gifted sub is always for a channel. Every participant picks a **sub target** on the sign-up page: their own Twitch channel (default) or their partner's. Older free-text entries map to "partner" when they name the partner, else "self". Fallback: Lauchgruen's channel. The payer gifts 1 sub to the recipient's Twitch name on that channel.
 
 **Einsatz page** (`/winchallenge/einsatz`), shown to every participant after the end:
 - "Du schenkst: 1 Sub an **name** auf Kanal **kanal**", with a button to open the channel, and **Erledigt**.
@@ -260,7 +260,7 @@ New collections, all prefixed `winchallenge_`:
 
 // winchallenge_participants
 { _id: string; challengeId: string; discordId: string; discordName: string;
-  twitchId: string; twitchLogin: string; wishChannel?: string;
+  twitchId: string; twitchLogin: string; subTarget?: "self" | "partner";
   teamId?: string; acceptedRulesAt: string; createdAt: string }       // unique (challengeId, discordId)
 
 // winchallenge_teams
@@ -307,7 +307,7 @@ GET  /api/obs/winchallenge/leaderboard         overlay data (+ serverNow)
 GET  /api/winchallenge/me                      logged in: own participant, team, Twitch link state
 POST /api/winchallenge/signup                  logged in: { acceptRules: true }
 POST /api/winchallenge/team                    participant: { action: create | join | leave | new-code, name?, code? }
-PATCH /api/winchallenge/me                     participant: { wishChannel }
+PATCH /api/winchallenge/me                     participant: { subTarget: self | partner }
 
 POST /api/winchallenge/control                 team member: { action, gameId?, expectedVersion }
      actions: start | pause | resume | done | undo | plus | minus | reset | current | give-up

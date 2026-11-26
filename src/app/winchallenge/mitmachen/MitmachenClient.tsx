@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ThemedSelect } from "@/components/ThemedSelect";
 import type { MyState } from "@/lib/winchallenge/me";
 import { formatDateTime, winFetch } from "../win-api";
 
@@ -98,9 +100,14 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 
 			<Step number={1} title="Twitch verknüpfen" done={Boolean(me.twitch)}>
 				{me.twitch ? (
-					<p>
-						Verknüpft mit <span className="font-semibold text-[var(--text)]">twitch.tv/{me.twitch.login}</span>. Darüber prüfen wir, ob einer von euch live ist.
-					</p>
+					<div className="flex items-center gap-3">
+						{me.twitch.profileImageUrl ? (
+							<Image src={me.twitch.profileImageUrl} alt="" width={40} height={40} unoptimized className="size-10 shrink-0 rounded-full border border-[var(--line)] object-cover" />
+						) : null}
+						<p>
+							Verknüpft mit <span className="font-semibold text-[var(--text)]">twitch.tv/{me.twitch.login}</span>. Darüber prüfen wir, ob einer von euch live ist.
+						</p>
+					</div>
 				) : (
 					<>
 						<p>Während der Timer läuft, muss einer von euch beiden auf Twitch live sein. Dafür brauchen wir deinen Twitch-Namen.</p>
@@ -125,7 +132,7 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 				</Step>
 			) : null}
 
-			{signedUp ? <WishChannel current={me.participant?.wishChannel ?? null} busy={busy} act={act} /> : null}
+			{signedUp && me.participant ? <SubTarget me={me} busy={busy} act={act} /> : null}
 		</div>
 	);
 }
@@ -254,25 +261,35 @@ function TeamBox({ me, busy, closed, act }: { me: Extract<MeResponse, { loggedIn
 	);
 }
 
-function WishChannel({ current, busy, act }: { current: string | null; busy: boolean; act: Act }) {
-	const [value, setValue] = useState(current ?? "");
-	function save(event: FormEvent) {
-		event.preventDefault();
-		void act("/api/winchallenge/me", { wishChannel: value.trim() || null }, "Wunschkanal gespeichert.", "PATCH");
+function SubTarget({ me, busy, act }: { me: MyState; busy: boolean; act: Act }) {
+	const current = me.participant?.subTarget ?? "self";
+	const own = me.participant?.twitchLogin ?? "";
+	const partner = me.team?.members.find((member) => member.id !== me.participant?.id);
+	function change(value: string) {
+		if (value !== "self" && value !== "partner") return;
+		void act("/api/winchallenge/me", { subTarget: value }, "Gespeichert.", "PATCH");
 	}
 	return (
 		<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-5 sm:p-6">
-			<h2 className="font-display text-lg font-semibold text-[var(--text)]">Wunschkanal</h2>
-			<p className="mt-2 text-sm leading-6 text-[var(--muted)]">Falls ihr in die Top 3 kommt: auf welchem Kanal möchtest du die geschenkten Subs bekommen? Leer lassen heißt Lauchgruens Kanal.</p>
-			<form onSubmit={save} className="mt-4 flex flex-wrap gap-2">
-				<label htmlFor="wc-wish" className="sr-only">
-					Twitch-Kanal
-				</label>
-				<input id="wc-wish" className={`${input} max-w-xs`} value={value} onChange={(event) => setValue(event.target.value)} maxLength={25} placeholder="twitch-name" autoComplete="off" spellCheck={false} />
-				<button type="submit" className="button ghost" disabled={busy || value.trim() === (current ?? "")}>
-					Speichern
-				</button>
-			</form>
+			<h2 className="font-display text-lg font-semibold text-[var(--text)]">Subs bei Gewinn</h2>
+			<p className="mt-2 text-sm leading-6 text-[var(--muted)]">Falls ihr in die Top 3 kommt: auf wessen Kanal sollen deine geschenkten Subs gehen?</p>
+			<div className="mt-4 max-w-sm">
+				<ThemedSelect
+					value={current}
+					disabled={busy}
+					onChange={change}
+					ariaLabel="Empfänger der Subs"
+					options={[
+						{ value: "self", label: "Mein Kanal", description: own ? `twitch.tv/${own}` : undefined },
+						{
+							value: "partner",
+							label: partner ? `Kanal von ${partner.name}` : "Kanal meines Partners",
+							description: partner ? `twitch.tv/${partner.twitch}` : "Noch kein Partner im Team",
+							disabled: !partner,
+						},
+					]}
+				/>
+			</div>
 		</section>
 	);
 }

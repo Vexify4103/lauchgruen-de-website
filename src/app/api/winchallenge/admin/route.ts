@@ -21,6 +21,7 @@ import {
 	saveChallenge,
 	setPayoutStatus,
 } from "@/lib/winchallenge/store";
+import { subChannelOf } from "@/lib/winchallenge/subs";
 import { elapsedMs } from "@/lib/winchallenge/timer";
 
 export const runtime = "nodejs";
@@ -47,7 +48,7 @@ export async function GET() {
 			serverNow: now,
 			challenge,
 			teams: teams.map((team) => ({ ...team, elapsedMs: elapsedMs(team, now, challenge) })),
-			participants,
+			participants: participants.map((participant) => ({ ...participant, subChannel: subChannelOf(participant, participants, FALLBACK_CHANNEL) })),
 			payouts,
 			events,
 			fallbackChannel: FALLBACK_CHANNEL,
@@ -93,7 +94,7 @@ const schema = z.discriminatedUnion("action", [
 	z.object({ action: z.literal("participant-remove"), participantId: z.string().min(1), reason }),
 	z.object({ action: z.literal("end"), confirm: z.literal("BEENDEN") }),
 	z.object({ action: z.literal("payout-set"), payoutId: z.string().min(1), status: z.enum(["open", "paid", "confirmed"]) }),
-	z.object({ action: z.literal("payout-reassign"), payoutId: z.string().min(1), recipientId: z.string().min(1), channel: z.string().trim().min(1).max(25).regex(/^[a-zA-Z0-9_]+$/) }),
+	z.object({ action: z.literal("payout-reassign"), payoutId: z.string().min(1), recipientId: z.string().min(1) }),
 ]);
 
 export async function POST(request: Request) {
@@ -168,10 +169,11 @@ export async function POST(request: Request) {
 		}
 		const payout = (await listPayouts(challenge.id)).find((entry) => entry.id === input.payoutId);
 		if (!payout) return winError(404, "Eintrag nicht gefunden.");
-		const recipient = (await listParticipants(challenge.id)).find((entry) => entry.id === input.recipientId);
+		const everyone = await listParticipants(challenge.id);
+		const recipient = everyone.find((entry) => entry.id === input.recipientId);
 		if (!recipient) return winError(404, "Empfänger nicht gefunden.");
 		if (recipient.id === payout.payerId) return winError(400, "Niemand beschenkt sich selbst.");
-		await reassignPayout({ payoutId: payout.id, challengeId: challenge.id, recipientId: recipient.id, channel: input.channel.toLowerCase(), actor: user.name });
+		await reassignPayout({ payoutId: payout.id, challengeId: challenge.id, recipientId: recipient.id, channel: subChannelOf(recipient, everyone, FALLBACK_CHANNEL), actor: user.name });
 		await audit("payout-reassign", payout.id, `Sub neu zugeteilt an ${recipient.discordName}`);
 		return winJson({ ok: true });
 	} catch (error) {

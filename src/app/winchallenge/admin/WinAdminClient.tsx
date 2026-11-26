@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ThemedSelect } from "@/components/ThemedSelect";
 import { formatElapsed } from "@/lib/winchallenge/timer";
 import type { WinChallenge, WinGame, WinParticipant, WinPayout, WinTeam, WinTeamStatus } from "@/lib/winchallenge/types";
 import { formatDateTime, fromLocalInput, toLocalInput, winFetch } from "../win-api";
@@ -11,7 +12,7 @@ type AdminState = {
 	serverNow: number;
 	challenge: WinChallenge | null;
 	teams: AdminTeam[];
-	participants: WinParticipant[];
+	participants: (WinParticipant & { subChannel: string })[];
 	payouts: WinPayout[];
 	events: AdminEvent[];
 	fallbackChannel: string;
@@ -241,10 +242,15 @@ function SetupPanel({ challenge, hasTeams, onSave }: { challenge: WinChallenge |
 							</label>
 							<label className={label}>
 								Art
-								<select className={input} value={game.type} onChange={(event) => updateGame(index, { type: event.target.value as WinGame["type"] })}>
-									<option value="check">Abhaken</option>
-									<option value="counter">Zähler</option>
-								</select>
+								<ThemedSelect
+									value={game.type}
+									onChange={(value) => updateGame(index, { type: value as WinGame["type"] })}
+									ariaLabel="Art"
+									options={[
+										{ value: "check", label: "Abhaken" },
+										{ value: "counter", label: "Zähler" },
+									]}
+								/>
 							</label>
 							<label className={label}>
 								Ziel-Zahl
@@ -385,13 +391,12 @@ function TeamCorrectionForm({ team, games, run }: { team: AdminTeam; games: WinG
 				</label>
 				<label className={label}>
 					Status
-					<select className={input} value={status} onChange={(event) => setStatus(event.target.value as WinTeamStatus)}>
-						{Object.entries(STATUS_LABEL).map(([value, text]) => (
-							<option key={value} value={value}>
-								{text}
-							</option>
-						))}
-					</select>
+					<ThemedSelect
+						value={status}
+						onChange={(value) => setStatus(value as WinTeamStatus)}
+						ariaLabel="Status"
+						options={Object.entries(STATUS_LABEL).map(([value, text]) => ({ value, label: text }))}
+					/>
 				</label>
 				<label className={label}>
 					Teamname
@@ -468,7 +473,7 @@ function ParticipantsPanel({ state, run }: { state: AdminState; run: Run }) {
 							twitch.tv/{participant.twitchLogin}
 						</a>
 						<span className="text-[var(--muted)]">{participant.teamId ? teams.get(participant.teamId) ?? "?" : "ohne Team"}</span>
-						<span className="text-[var(--muted)]">Sub auf: {participant.wishChannel ?? `${state.fallbackChannel} (Standard)`}</span>
+						<span className="text-[var(--muted)]">Sub auf: {participant.subChannel}</span>
 						<button
 							type="button"
 							className="button small ghost"
@@ -522,36 +527,32 @@ function EndPanel({ state, run }: { state: AdminState; run: Run }) {
 								<span className="text-[var(--text)]">an {names.get(payout.recipientId)?.discordName ?? "?"}</span>
 								<span className="text-[var(--muted)]">Platz {payout.place}</span>
 								<span className="text-[var(--muted)]">Kanal {payout.channel}</span>
-								<select
-									aria-label="Status"
-									className={input}
+								<ThemedSelect
+									compact
+									ariaLabel="Status"
 									value={payout.status}
-									onChange={(event) => run({ action: "payout-set", payoutId: payout.id, status: event.target.value }, "Status gespeichert.")}
-								>
-									<option value="open">offen</option>
-									<option value="paid">verschenkt</option>
-									<option value="confirmed">bestätigt</option>
-								</select>
-								<select
-									aria-label="Empfänger ändern"
-									className={input}
+									onChange={(value) => run({ action: "payout-set", payoutId: payout.id, status: value }, "Status gespeichert.")}
+									options={[
+										{ value: "open", label: "offen" },
+										{ value: "paid", label: "verschenkt" },
+										{ value: "confirmed", label: "bestätigt" },
+									]}
+								/>
+								<ThemedSelect
+									compact
+									ariaLabel="Empfänger ändern"
 									value=""
-									onChange={(event) => {
-										const recipient = names.get(event.target.value);
+									placeholder="Neu zuteilen…"
+									onChange={(value) => {
+										const recipient = names.get(value);
 										if (recipient && window.confirm(`Sub von ${names.get(payout.payerId)?.discordName ?? "?"} neu an ${recipient.discordName} geben?`)) {
-											void run({ action: "payout-reassign", payoutId: payout.id, recipientId: recipient.id, channel: recipient.wishChannel || state.fallbackChannel }, "Sub neu zugeteilt.");
+											void run({ action: "payout-reassign", payoutId: payout.id, recipientId: recipient.id }, "Sub neu zugeteilt.");
 										}
 									}}
-								>
-									<option value="">Neu zuteilen…</option>
-									{state.participants
+									options={state.participants
 										.filter((entry) => entry.id !== payout.recipientId && entry.teamId !== names.get(payout.payerId)?.teamId)
-										.map((entry) => (
-											<option key={entry.id} value={entry.id}>
-												{entry.discordName}
-											</option>
-										))}
-								</select>
+										.map((entry) => ({ value: entry.id, label: entry.discordName, description: `twitch.tv/${entry.subChannel}` }))}
+								/>
 							</li>
 						))}
 					</ul>
