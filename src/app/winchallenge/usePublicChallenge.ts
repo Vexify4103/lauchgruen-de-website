@@ -8,8 +8,8 @@ const POLL_MS = 5000;
 /** Polls the public challenge every 5 s while the tab is visible; `elapsed` runs locally between polls. */
 export function usePublicChallenge(initial: PublicChallenge | null) {
 	const [data, setData] = useState(initial);
-	const [received, setReceived] = useState(() => Date.now());
-	const [now, setNow] = useState(() => Date.now());
+	const [received, setReceived] = useState(0);
+	const [now, setNow] = useState(0);
 
 	useEffect(() => {
 		async function poll() {
