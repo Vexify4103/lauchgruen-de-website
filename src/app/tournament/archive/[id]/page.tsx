@@ -10,6 +10,7 @@ import { formatGameDuration } from "@/lib/match-duration";
 import { TOURNAMENT_KIND_LABELS, tournamentKind, type TournamentKind } from "@/lib/tournament-kind";
 import { getTournamentArchive, type ArchivedControlMatch, type ArchivedReplay, type TournamentArchive, type TournamentArchiveSnapshot } from "@/lib/tournament-next";
 import { ReplayScoreboard } from "@/components/ReplayScoreboard";
+import { ArchiveResultRow } from "./ArchiveResultRow";
 import { getReplayAssets } from "@/lib/replay-assets";
 import { compactPoolLabel } from "@/lib/tournament-wheel";
 import { TournamentLink as Link } from "../../TournamentLink";
@@ -324,25 +325,37 @@ function Results({ matches, replays, assets }: { matches: ArchivedControlMatch[]
 								<th scope="col">Begegnung</th>
 								<th scope="col">Ergebnis</th>
 								<th scope="col">Spielzeit</th>
+								<th scope="col">
+									<span className="sr-only">Scoreboard</span>
+								</th>
 							</tr>
 						</thead>
 						<tbody>
-							{played.map((match) => (
-								<ResultRows key={match.id} match={match} replays={replaysOf(match.id)} assets={assets}>
-									<tr>
-										<td className="whitespace-nowrap text-left text-xs text-[var(--muted)]">{match.round}</td>
-										<td>
-											<span className={match.winner === match.teamAName ? "font-bold" : "text-[var(--muted)]"}>{match.teamAName}</span>
-											<span className="text-[var(--muted)]"> vs </span>
-											<span className={match.winner === match.teamBName ? "font-bold" : "text-[var(--muted)]"}>{match.teamBName}</span>
-										</td>
-										<td className="font-bold">
-											{match.scoreA ?? "–"}:{match.scoreB ?? "–"}
-										</td>
-										<td>{match.gameDurationSeconds ? formatGameDuration(match.gameDurationSeconds) : "–"}</td>
-									</tr>
-								</ResultRows>
-							))}
+							{played.map((match) => {
+								const matchReplays = replaysOf(match.id);
+								return (
+									<ArchiveResultRow
+										key={match.id}
+										columns={5}
+										label={matchReplays.length > 1 ? `Scoreboards (${matchReplays.length})` : "Scoreboard"}
+										detail={matchReplays.length ? <MatchScoreboards match={match} replays={matchReplays} assets={assets} /> : null}
+										cells={
+											<>
+												<td className="whitespace-nowrap text-left text-xs text-[var(--muted)]">{match.round}</td>
+												<td>
+													<span className={match.winner === match.teamAName ? "font-bold" : "text-[var(--muted)]"}>{match.teamAName}</span>
+													<span className="text-[var(--muted)]"> vs </span>
+													<span className={match.winner === match.teamBName ? "font-bold" : "text-[var(--muted)]"}>{match.teamBName}</span>
+												</td>
+												<td className="font-bold">
+													{match.scoreA ?? "–"}:{match.scoreB ?? "–"}
+												</td>
+												<td>{match.gameDurationSeconds ? formatGameDuration(match.gameDurationSeconds) : "–"}</td>
+											</>
+										}
+									/>
+								);
+							})}
 						</tbody>
 					</table>
 				</div>
@@ -351,50 +364,26 @@ function Results({ matches, replays, assets }: { matches: ArchivedControlMatch[]
 	);
 }
 
-/** A result row plus, when the archive has them, the replay scoreboards of that match below it. */
-function ResultRows({
-	match,
-	replays,
-	assets,
-	children,
-}: {
-	match: ArchivedControlMatch;
-	replays: ArchivedReplay[];
-	assets: Awaited<ReturnType<typeof getReplayAssets>>;
-	children: React.ReactNode;
-}) {
+/** The replay scoreboards of one match, one per game. */
+function MatchScoreboards({ match, replays, assets }: { match: ArchivedControlMatch; replays: ArchivedReplay[]; assets: Awaited<ReturnType<typeof getReplayAssets>> }) {
 	const nameOf = (side: "teamA" | "teamB") => (side === "teamA" ? match.teamAName : match.teamBName) ?? "";
 	return (
-		<>
-			{children}
-			{replays.length ? (
-				<tr>
-					<td colSpan={4} className="text-left">
-						<details>
-							<summary className="cursor-pointer text-xs text-[var(--muted)] hover:text-[var(--text)]">
-								{replays.length > 1 ? `Scoreboards (${replays.length} Spiele)` : "Scoreboard"}
-							</summary>
-							<div className="mt-3 grid gap-5">
-								{replays.map((replay) => {
-									const blue = replay.blueTeam ?? match.games.find((game) => game.number === replay.gameNumber)?.blueSide ?? "teamA";
-									return (
-										<div key={replay.gameNumber} className="grid gap-2">
-											{replays.length > 1 ? <p className="m-0 text-xs font-semibold">Spiel {replay.gameNumber}</p> : null}
-											<ReplayScoreboard
-												summary={{ ...replay.summary, players: replay.summary.players.map((player) => ({ ...player, puuid: "" })) }}
-												assets={assets}
-												blueTeamName={nameOf(blue)}
-												redTeamName={nameOf(blue === "teamA" ? "teamB" : "teamA")}
-											/>
-										</div>
-									);
-								})}
-							</div>
-						</details>
-					</td>
-				</tr>
-			) : null}
-		</>
+		<div className="grid gap-5 py-2">
+			{replays.map((replay) => {
+				const blue = replay.blueTeam ?? match.games.find((game) => game.number === replay.gameNumber)?.blueSide ?? "teamA";
+				return (
+					<div key={replay.gameNumber} className="grid gap-2">
+						{replays.length > 1 ? <p className="m-0 text-xs font-semibold">Spiel {replay.gameNumber}</p> : null}
+						<ReplayScoreboard
+							summary={{ ...replay.summary, players: replay.summary.players.map((player) => ({ ...player, puuid: "" })) }}
+							assets={assets}
+							blueTeamName={nameOf(blue)}
+							redTeamName={nameOf(blue === "teamA" ? "teamB" : "teamA")}
+						/>
+					</div>
+				);
+			})}
+		</div>
 	);
 }
 
