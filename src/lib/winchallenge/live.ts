@@ -10,17 +10,30 @@ export type LiveState = "live" | "offline" | "twitch-down";
 
 /** Current Twitch login per participant id (falls back to the login stored at sign-up). */
 export async function currentTwitchLogins(participants: WinParticipant[]): Promise<Map<string, string>> {
+	return (await twitchIdentities(participants)).logins;
+}
+
+/** Current Twitch login (lowercase) and display name per participant id, from the linked account. */
+export async function twitchIdentities(participants: WinParticipant[]): Promise<{ logins: Map<string, string>; names: Map<string, string> }> {
 	const links = await listTwitchLinksForDiscordIds(participants.map((participant) => participant.discordId)).catch(() => []);
-	const byDiscord = new Map(links.map((link) => [link.discordId, link.login]));
-	return new Map(participants.map((participant) => [participant.id, (byDiscord.get(participant.discordId) ?? participant.twitchLogin).toLowerCase()]));
+	const byDiscord = new Map(links.map((link) => [link.discordId, link]));
+	const logins = new Map<string, string>();
+	const names = new Map<string, string>();
+	for (const participant of participants) {
+		const link = byDiscord.get(participant.discordId);
+		const login = link?.login || participant.twitchLogin;
+		logins.set(participant.id, login.toLowerCase());
+		names.set(participant.id, link?.displayName || login);
+	}
+	return { logins, names };
 }
 
 /** Live logins among the given participants, and whether Twitch answered at all. */
-export async function liveStatus(participants: WinParticipant[]): Promise<{ live: Set<string>; logins: Map<string, string>; ok: boolean }> {
-	const logins = await currentTwitchLogins(participants);
+export async function liveStatus(participants: WinParticipant[]): Promise<{ live: Set<string>; logins: Map<string, string>; names: Map<string, string>; ok: boolean }> {
+	const { logins, names } = await twitchIdentities(participants);
 	const { streams, ok } = await getStreamsChecked([...logins.values()]);
 	const live = new Set([...logins.entries()].filter(([, login]) => streams.has(login)).map(([id]) => id));
-	return { live, logins, ok };
+	return { live, logins, names, ok };
 }
 
 /** "live" when a member streams, "twitch-down" when Twitch did not answer (the action is then allowed). */

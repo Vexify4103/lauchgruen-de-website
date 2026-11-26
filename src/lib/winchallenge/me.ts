@@ -1,7 +1,7 @@
 /** The logged-in player's own view: sign-up state, team incl. join code, partner, Twitch link. */
 import { getTwitchLink } from "@/lib/tournament-storage";
 import { gamesDone } from "@/lib/winchallenge/actions";
-import { skipLiveCheck, teamLiveState, type LiveState } from "@/lib/winchallenge/live";
+import { skipLiveCheck, teamLiveState, twitchIdentities, type LiveState } from "@/lib/winchallenge/live";
 import { getVisibleChallenge, getParticipantByDiscord, getTeam, listParticipants, listPayouts, syncParticipantTwitch } from "@/lib/winchallenge/store";
 import { subTargetOf } from "@/lib/winchallenge/subs";
 import { elapsedMs, clockRunning } from "@/lib/winchallenge/timer";
@@ -45,10 +45,13 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 		listPayouts(challenge.id),
 	]);
 	const byId = new Map(all.map((entry) => [entry.id, entry]));
+	// Players are shown by their Twitch name everywhere outside admin.
+	const { names } = await twitchIdentities(all);
+	const nameOf = (id: string) => names.get(id) ?? byId.get(id)?.twitchLogin ?? "?";
 	const members = team ? team.memberIds.map((id) => byId.get(id)).filter((entry): entry is WinParticipant => Boolean(entry)) : [];
 	const named = (payout: WinPayout, otherId: string): MyPayout => ({
 		...payout,
-		otherName: byId.get(otherId)?.discordName ?? "?",
+		otherName: nameOf(otherId),
 		otherTwitch: byId.get(otherId)?.twitchLogin ?? "",
 	});
 
@@ -81,7 +84,7 @@ export async function loadMyState(discordId: string): Promise<{ state: MyState; 
 						elapsedMs: elapsedMs(team, serverNow, challenge),
 						running: clockRunning(team, challenge),
 						done: gamesDone(team, challenge.games),
-						members: members.map((member) => ({ id: member.id, name: member.discordName, twitch: member.twitchLogin })),
+						members: members.map((member) => ({ id: member.id, name: nameOf(member.id), twitch: member.twitchLogin })),
 						live: skipLiveCheck() ? "live" : await teamLiveState(members).catch(() => "twitch-down" as const),
 					}
 				: null,

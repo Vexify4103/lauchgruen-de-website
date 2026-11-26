@@ -64,7 +64,12 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 		listPayouts(challenge.id),
 	]);
 	const members = participants.filter((participant) => participant.teamId);
-	const { live, logins } = await liveStatus(members).catch(() => ({ live: new Set<string>(), logins: new Map<string, string>(), ok: false }));
+	const { live, logins, names } = await liveStatus(members).catch(() => ({
+		live: new Set<string>(),
+		logins: new Map<string, string>(),
+		names: new Map<string, string>(),
+		ok: false,
+	}));
 	const byId = new Map(participants.map((participant) => [participant.id, participant]));
 	const teamName = new Map(teams.map((team) => [team.id, team.name]));
 	const gameTitle = new Map(challenge.games.map((game: WinGame) => [game.id, game.title]));
@@ -95,7 +100,8 @@ export async function buildPublicChallenge(): Promise<PublicChallenge> {
 			running: clockRunning(team, challenge),
 			finishedAt: team.finishedAt ?? null,
 			members: team.memberIds.map((id) => ({
-				name: byId.get(id)?.discordName ?? "?",
+				// Players are shown by their Twitch name; Discord names stay in admin.
+				name: names.get(id) ?? byId.get(id)?.twitchLogin ?? "?",
 				twitch: logins.get(id) ?? byId.get(id)?.twitchLogin ?? "",
 				live: live.has(id),
 			})),

@@ -24,6 +24,7 @@ import {
 	setPayoutStatus,
 } from "@/lib/winchallenge/store";
 import { gamePlayMs } from "@/lib/winchallenge/actions";
+import { twitchIdentities } from "@/lib/winchallenge/live";
 import { subChannelOf } from "@/lib/winchallenge/subs";
 import { elapsedMs } from "@/lib/winchallenge/timer";
 
@@ -187,11 +188,13 @@ export async function POST(request: Request) {
 			} else {
 				const partner = everyone.find((entry) => entry.id === input.partnerId);
 				if (!partner) return winError(400, "Bitte einen Partner oder ein wartendes Team wählen.");
+				const { names } = await twitchIdentities([participant, partner]);
+				const fallbackName = `${names.get(participant.id) ?? participant.twitchLogin} & ${names.get(partner.id) ?? partner.twitchLogin}`.slice(0, 40);
 				team = await assignToTeam({
 					challenge,
 					participant,
 					partner,
-					name: input.name || `${participant.discordName} & ${partner.discordName}`.slice(0, 40),
+					name: input.name || fallbackName,
 					actor: user.name,
 				});
 			}
