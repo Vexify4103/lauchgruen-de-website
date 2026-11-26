@@ -9,7 +9,7 @@
  */
 import { getDb } from "@/lib/mongo";
 import { listTwitchLinksForDiscordIds } from "@/lib/tournament-storage";
-import { listParticipants, listPayouts, setPayoutStatus } from "@/lib/winchallenge/store";
+import { getVisibleChallenge, listParticipants, listPayouts, setPayoutStatus } from "@/lib/winchallenge/store";
 import { matchGifts, type TwitchSub } from "@/lib/winchallenge/subs";
 import type { WinChallenge, WinParticipant } from "@/lib/winchallenge/types";
 
@@ -17,6 +17,8 @@ const SUB_CHANNELS = "winchallenge_sub_channels";
 export const SUB_SCOPE = "channel:read:subscriptions";
 export const SUB_CHECK_ACTOR = "Twitch";
 const THROTTLE_MS = 15_000;
+/** Background checks from page loads read a channel at most once a minute. */
+const AUTO_THROTTLE_MS = 60_000;
 
 type SubChannelDoc = {
 	_id: string; // Twitch user id
@@ -160,7 +162,7 @@ async function payerTwitchIds(participants: WinParticipant[]): Promise<Map<strin
  * Reads the subscriber lists of connected payout channels and confirms the payouts they prove.
  * Without `force`, a channel checked in the last 15 seconds is skipped.
  */
-export async function checkSubs(challenge: WinChallenge, options: { channels?: string[]; force?: boolean } = {}): Promise<SubCheckResult> {
+export async function checkSubs(challenge: WinChallenge, options: { channels?: string[]; force?: boolean; throttleMs?: number } = {}): Promise<SubCheckResult> {
 	const only = options.channels?.map((channel) => channel.toLowerCase());
 	const payouts = (await listPayouts(challenge.id)).filter((payout) => payout.status !== "confirmed" && (!only || only.includes(payout.channel.toLowerCase())));
 	const result: SubCheckResult = { confirmedIds: [], channels: [] };
@@ -175,7 +177,7 @@ export async function checkSubs(challenge: WinChallenge, options: { channels?: s
 			result.channels.push({ login, state: "not-connected" });
 			continue;
 		}
-		if (!options.force && doc.lastCheckAt && Date.now() - new Date(doc.lastCheckAt).getTime() < THROTTLE_MS) {
+		if (!options.force && doc.lastCheckAt && Date.now() - new Date(doc.lastCheckAt).getTime() < (options.throttleMs ?? THROTTLE_MS)) {
 			result.channels.push({ login, state: "skipped" });
 			continue;
 		}
@@ -198,4 +200,23 @@ export async function checkSubs(challenge: WinChallenge, options: { channels?: s
 		if (updated) result.confirmedIds.push(payoutId);
 	}
 	return result;
+}
+
+const auto = globalThis as unknown as { __winAutoSubCheck?: Promise<void> };
+
+/**
+ * Check run by page loads (leaderboard, Einsatz) after the end, so nobody has to press a button.
+ * One run per process at a time; channels are read at most once a minute. Never throws.
+ */
+export async function autoCheckSubs(): Promise<void> {
+	auto.__winAutoSubCheck ??= (async () => {
+		const challenge = await getVisibleChallenge();
+		if (!challenge || challenge.status === "open") return;
+		await checkSubs(challenge, { throttleMs: AUTO_THROTTLE_MS });
+	})()
+		.catch((error) => console.error("[winchallenge] automatic sub check failed:", error))
+		.finally(() => {
+			auto.__winAutoSubCheck = undefined;
+		});
+	await auto.__winAutoSubCheck;
 }

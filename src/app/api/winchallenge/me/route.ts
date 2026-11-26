@@ -1,11 +1,13 @@
 /**
  * GET   /api/winchallenge/me: own sign-up, team (with join code), Twitch link, payouts.
+ *       After the end it first runs the automatic sub check, so the Einsatz page shows fresh states.
  * PATCH /api/winchallenge/me: { subTarget: self | partner } who receives this player's gifted subs.
  */
 import { z } from "zod";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
 import { loadMyState } from "@/lib/winchallenge/me";
 import { setSubTarget } from "@/lib/winchallenge/store";
+import { autoCheckSubs } from "@/lib/winchallenge/subcheck";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,7 @@ export async function GET() {
 	const user = await currentUser();
 	if (!user) return winJson({ loggedIn: false });
 	try {
+		await autoCheckSubs();
 		const { state } = await loadMyState(user.discordId);
 		return winJson({ loggedIn: true, isOwner: user.isOwner, ...state });
 	} catch (error) {

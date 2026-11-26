@@ -128,7 +128,11 @@ export function EinsatzClient() {
 			{receive.length ? (
 				<section className="rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] p-5 sm:p-6">
 					<h2 className="font-display text-lg font-semibold text-[var(--text)]">Du bekommst {receive.length === 1 ? "1 Sub" : `${receive.length} Subs`}</h2>
-					<p className="mt-1 text-sm text-[var(--muted)]">Bestätige jeden Sub, sobald er angekommen ist.</p>
+					<p className="mt-1 text-sm text-[var(--muted)]">
+						{receive.every((payout) => payout.channelConnected)
+							? "Die Seite prüft die Subs selbst über Twitch. Manuell bestätigen musst du nur anonyme Gifts."
+							: "Bestätige jeden Sub, sobald er angekommen ist. Verbundene Kanäle prüft die Seite selbst."}
+					</p>
 					<ul className="mt-4 grid gap-2">
 						{receive.map((payout) => (
 							<li key={payout.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] px-4 py-3">
@@ -136,11 +140,27 @@ export function EinsatzClient() {
 									<span className="font-semibold text-[var(--text)]">{payout.otherName}</span>
 									<span className="block text-xs text-[var(--muted)]">
 										auf Kanal {payout.channel} · {STATUS[payout.status]}
-										{payout.confirmedBy === "Twitch" ? " (per Twitch geprüft)" : ""}
+										{payout.confirmedBy === "Twitch"
+											? " (per Twitch geprüft)"
+											: payout.status !== "confirmed" && payout.channelConnected
+												? " · wird automatisch geprüft"
+												: ""}
 									</span>
 								</span>
 								{payout.status === "confirmed" ? (
 									<span className="text-sm font-semibold text-[var(--accent)]">Erhalten ✓</span>
+								) : payout.channelConnected ? (
+									<button
+										type="button"
+										className="text-xs text-[var(--muted)] underline underline-offset-2 hover:text-[var(--text)] disabled:opacity-50"
+										disabled={busy === payout.id}
+										onClick={() => {
+											if (window.confirm(`Sub von ${payout.otherName} manuell bestätigen? Nur nötig, wenn er anonym verschenkt wurde.`))
+												void mark(payout.id, "confirm");
+										}}
+									>
+										Manuell bestätigen
+									</button>
 								) : (
 									<button type="button" className="button small primary" disabled={busy === payout.id} onClick={() => void mark(payout.id, "confirm")}>
 										Erhalten
