@@ -4,7 +4,7 @@ import { LoadingOrb } from "@/components/LoadingIndicator";
 
 import { useEffect, useEffectEvent, useState, useTransition, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { NicknameSyncButton } from "./NicknameSyncButton";
+import { NicknameSync } from "./NicknameSyncButton";
 
 type ControlStatus = {
 	configured: { tournamentRole: boolean; captainRole: boolean; teamRoles: number; teams: number };
@@ -199,7 +199,9 @@ export function DiscordControlCenter() {
 						</button>
 					}
 				/>
-				<ActionRow title="Nicknames" text="Format „Anzeigename | Riot-ID“ für alle Roster-Spieler." action={<NicknameSyncButton />} />
+				<NicknameSync>
+					{({ actions, status }) => <ActionRow title="Nicknames" text="Format „Anzeigename | Riot-ID“ für alle Roster-Spieler." action={actions} footer={status} />}
+				</NicknameSync>
 				<ActionRow
 					title="Team-Begrüßungen"
 					text="Bearbeitet die Begrüßung in jedem Teamchannel (Captain, Teamtag, Termine). Postet nichts Neues, pingt niemanden."
@@ -297,7 +299,7 @@ function ConfigBadge({ ok, label }: { ok: boolean; label: string }) {
 	);
 }
 
-function ActionRow({ title, text, count, action }: { title: string; text: string; count?: number; action: ReactNode }) {
+function ActionRow({ title, text, count, action, footer }: { title: string; text: string; count?: number; action: ReactNode; footer?: ReactNode }) {
 	return (
 		<div className="grid items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
 			<div className="min-w-0">
@@ -312,6 +314,7 @@ function ActionRow({ title, text, count, action }: { title: string; text: string
 				<p className="m-0 mt-0.5 text-xs leading-5 text-[var(--muted)]">{text}</p>
 			</div>
 			<div className="sm:justify-self-end">{action}</div>
+			{footer ? <div className="sm:col-span-2">{footer}</div> : null}
 		</div>
 	);
 }

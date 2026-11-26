@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type SyncState = { status: "idle"; message: "" } | { status: "loading"; message: string } | { status: "success"; message: string } | { status: "error"; message: string };
@@ -16,7 +16,8 @@ type DiscordJobStatus = {
 	warnings: string[];
 };
 
-export function NicknameSyncButton() {
+/** Buttons and status separately, so the row can show the status across its full width. */
+export function NicknameSync({ children }: { children: (parts: { actions: ReactNode; status: ReactNode }) => ReactNode }) {
 	const [state, setState] = useState<SyncState>({ status: "idle", message: "" });
 	const [job, setJob] = useState<DiscordJobStatus | null>(null);
 
@@ -142,8 +143,8 @@ export function NicknameSyncButton() {
 
 	const busy = state.status === "loading" || (job !== null && job.status !== "completed" && job.status !== "failed");
 
-	return (
-		<div className="grid gap-2">
+	const actions = (
+		<>
 			<ConfirmDialog
 				open={Boolean(pendingReset)}
 				tone="danger"
@@ -175,6 +176,11 @@ export function NicknameSyncButton() {
 					Entfernen
 				</button>
 			</div>
+		</>
+	);
+	const hasStatus = Boolean(state.message || job);
+	const status = hasStatus ? (
+		<div className="grid gap-2">
 			{state.message ? (
 				<div
 					className={`rounded-xl border px-3 py-2 text-xs ${
@@ -206,5 +212,6 @@ export function NicknameSyncButton() {
 				</div>
 			) : null}
 		</div>
-	);
+	) : null;
+	return children({ actions, status });
 }

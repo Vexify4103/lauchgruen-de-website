@@ -239,8 +239,9 @@ async function clearDiscordNicknameWithRetry(discordId: string): Promise<Discord
 	if (member === "missing-config") {
 		return { ok: false, message: "Discord-Nickname-Reset übersprungen: Bot-Token oder Guild-ID fehlt." };
 	}
+	// Left the server: there is no nickname to remove.
 	if (member === "missing-member") {
-		return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+		return { ok: true, changed: false };
 	}
 	if (member === "error" || !member) {
 		return { ok: false, message: "Discord-Mitglied konnte vor dem Nickname-Reset nicht gelesen werden." };
@@ -282,7 +283,7 @@ async function clearDiscordNicknameWithRetry(discordId: string): Promise<Discord
 		}
 
 		if (response.status === 404) {
-			return { ok: false, message: "Discord-Mitglied wurde auf dem Server nicht gefunden." };
+			return { ok: true, changed: false };
 		}
 
 		if (response.status === 403) {
