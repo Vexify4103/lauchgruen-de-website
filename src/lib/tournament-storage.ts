@@ -115,7 +115,7 @@ export type CommunityOverlayStreamer = {
 
 export type TwitchLinkState = {
 	discordId: string;
-	returnSource?: "main" | "overlay" | "tournament";
+	returnSource?: "main" | "overlay" | "tournament" | "winchallenge";
 	createdAt: Date;
 	expiresAt: Date;
 };

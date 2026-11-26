@@ -113,11 +113,11 @@ export async function exchangeTwitchCode(input: { code: string; redirectUri: str
 	};
 }
 
-export function getTwitchLinkReturnUrl(requestUrl: string, status: string, returnSource?: "main" | "overlay" | "tournament"): URL {
+export function getTwitchLinkReturnUrl(requestUrl: string, status: string, returnSource?: "main" | "overlay" | "tournament" | "winchallenge"): URL {
 	const configuredAuthUrl = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL)?.trim();
 	const configuredRedirectUri = process.env.TWITCH_LINK_REDIRECT_URI?.trim();
 	const publicOrigin = configuredAuthUrl ? new URL(configuredAuthUrl).origin : configuredRedirectUri ? new URL(configuredRedirectUri).origin : new URL(requestUrl).origin;
-	const url = new URL("/me", getSiteUrls(new URL(publicOrigin).host).apex);
+	const url = new URL(returnSource === "winchallenge" ? "/winchallenge/mitmachen" : "/me", getSiteUrls(new URL(publicOrigin).host).apex);
 	url.searchParams.set("twitch", status);
 	if (returnSource) url.searchParams.set("from", returnSource);
 	return url;

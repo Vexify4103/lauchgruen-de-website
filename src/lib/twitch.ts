@@ -225,6 +225,14 @@ export async function getStream(login: string, scope: TwitchCredentialScope = "d
  * to 100 user_login parameters, so a full tournament fits comfortably.
  */
 export async function getStreams(logins: string[]): Promise<Map<string, TwitchStream>> {
+	return (await getStreamsChecked(logins)).streams;
+}
+
+// Until this time the cached "offline" answers come from a failed request, so the live state is unknown.
+let streamsUnknownUntil = 0;
+
+/** Like getStreams, but also says whether Twitch answered. `ok: false` means the live state is unknown. */
+export async function getStreamsChecked(logins: string[]): Promise<{ streams: Map<string, TwitchStream>; ok: boolean }> {
 	const uniqueLogins = [...new Set(logins.map((login) => login.trim().toLowerCase()).filter(Boolean))].slice(0, 100);
 	const result = new Map<string, TwitchStream>();
 	const missing: string[] = [];
@@ -238,7 +246,7 @@ export async function getStreams(logins: string[]): Promise<Map<string, TwitchSt
 		}
 	}
 
-	if (missing.length === 0) return result;
+	if (missing.length === 0) return { streams: result, ok: Date.now() >= streamsUnknownUntil };
 
 	const params = new URLSearchParams();
 	for (const login of missing) params.append("user_login", login);
@@ -255,6 +263,12 @@ export async function getStreams(logins: string[]): Promise<Map<string, TwitchSt
 			language: string;
 		}>;
 	} | null;
+	if (!json) {
+		// Same as before: cache the failure briefly, so an outage does not trigger a request per call.
+		for (const login of missing) streamCache.set(login, { data: null, expiresAt: Date.now() + STREAM_CACHE_MS });
+		streamsUnknownUntil = Date.now() + STREAM_CACHE_MS;
+		return { streams: result, ok: false };
+	}
 
 	const found = new Map<string, TwitchStream>();
 	for (const stream of json?.data ?? []) {
@@ -279,7 +293,7 @@ export async function getStreams(logins: string[]): Promise<Map<string, TwitchSt
 		});
 	}
 
-	return result;
+	return { streams: result, ok: true };
 }
 
 /**

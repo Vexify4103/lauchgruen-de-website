@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 		return NextResponse.redirect(getTwitchLinkReturnUrl(request.url, "cancelled", cancelledState?.returnSource));
 	}
 
-	let returnSource: "main" | "overlay" | "tournament" | undefined;
+	let returnSource: "main" | "overlay" | "tournament" | "winchallenge" | undefined;
 	try {
 		const storedState = await consumeTwitchLinkState(state);
 		if (!storedState) {

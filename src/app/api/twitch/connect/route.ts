@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
 	const requestedSource = new URL(request.url).searchParams.get("from");
-	const returnSource = requestedSource === "overlay" || requestedSource === "tournament" || requestedSource === "main" ? requestedSource : "main";
+	const returnSource = requestedSource === "overlay" || requestedSource === "tournament" || requestedSource === "main" || requestedSource === "winchallenge" ? requestedSource : "main";
 	const session = await auth();
 	const discordId = session?.user?.discordId;
 	if (!discordId) {

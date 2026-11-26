@@ -96,6 +96,11 @@ export function proxy(req: NextRequest) {
 			return NextResponse.next();
 		}
 
+		// Win Challenge: pages, team portal and its API live on the apex.
+		if (pathname === "/winchallenge" || pathname.startsWith("/winchallenge/") || pathname.startsWith("/api/winchallenge")) {
+			return NextResponse.next();
+		}
+
 		if (
 			pathname.startsWith("/api/riot/") ||
 			pathname.startsWith("/api/overlay/") ||
