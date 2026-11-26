@@ -129,7 +129,22 @@ export function MitmachenClient({ twitchStatus }: { twitchStatus: string | null 
 
 			<Step number={2} title="Anmelden" done={signedUp}>
 				{signedUp ? (
-					<p>Du bist dabei.</p>
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<p>Du bist dabei.</p>
+						{closed || (me.team && me.team.status !== "forming" && me.team.status !== "ready") ? null : (
+							<button
+								type="button"
+								className="button small ghost"
+								disabled={busy}
+								onClick={() => {
+									const warning = me.team ? "Wirklich abmelden? Du verlässt dabei auch dein Team." : "Wirklich abmelden?";
+									if (window.confirm(warning)) void act("/api/winchallenge/signup", undefined, "Du bist abgemeldet.", "DELETE");
+								}}
+							>
+								Abmelden
+							</button>
+						)}
+					</div>
 				) : (
 					<SignUpForm
 						disabled={busy || !me.twitch || closed || !challenge.signupOpen}

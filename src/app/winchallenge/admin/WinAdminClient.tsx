@@ -31,6 +31,7 @@ const CHALLENGE_STATUS: Record<WinChallenge["status"], string> = { draft: "Entwu
 
 const EVENT_LABEL: Record<string, string> = {
 	signup: "Anmeldung",
+	withdraw: "Abgemeldet",
 	"team-create": "Team erstellt",
 	"team-join": "Team beigetreten",
 	"team-leave": "Team verlassen",

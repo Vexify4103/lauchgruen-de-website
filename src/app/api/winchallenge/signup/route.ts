@@ -1,8 +1,11 @@
-/** POST /api/winchallenge/signup: { acceptRules: true }. Needs Discord login and a linked Twitch account. */
+/**
+ * POST /api/winchallenge/signup: { acceptRules: true }. Needs Discord login and a linked Twitch account.
+ * DELETE /api/winchallenge/signup: take the sign-up back (leaves the team first). Not after the team started.
+ */
 import { z } from "zod";
 import { getTwitchLink } from "@/lib/tournament-storage";
 import { currentUser, handleWinError, winError, winJson } from "@/lib/winchallenge/http";
-import { getVisibleChallenge, signUp } from "@/lib/winchallenge/store";
+import { getParticipantByDiscord, getVisibleChallenge, signUp, withdrawSignup } from "@/lib/winchallenge/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,5 +25,20 @@ export async function POST(request: Request) {
 		return winJson({ ok: true, participantId: participant.id });
 	} catch (error) {
 		return handleWinError(error, "Anmeldung fehlgeschlagen.");
+	}
+}
+
+export async function DELETE() {
+	const user = await currentUser();
+	if (!user) return winError(401, "Bitte mit Discord anmelden.");
+	try {
+		const challenge = await getVisibleChallenge();
+		if (!challenge) return winError(404, "Aktuell gibt es keine Challenge.");
+		const participant = await getParticipantByDiscord(challenge.id, user.discordId);
+		if (!participant) return winError(400, "Du bist nicht angemeldet.");
+		await withdrawSignup({ challenge, participant, actor: user.name });
+		return winJson({ ok: true });
+	} catch (error) {
+		return handleWinError(error, "Abmelden fehlgeschlagen.");
 	}
 }

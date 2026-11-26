@@ -77,7 +77,9 @@ export async function getVisibleChallenge(): Promise<WinChallenge | null> {
 }
 
 export async function getCurrentChallenge(): Promise<WinChallenge | null> {
-	const doc = await (await db())
+	const doc = await (
+		await db()
+	)
 		.collection<Doc<WinChallenge>>(CHALLENGES)
 		.find({ status: { $ne: "archived" } })
 		.sort({ createdAt: -1 })
@@ -92,11 +94,23 @@ export async function saveChallenge(input: ChallengeInput, existingId?: string):
 	const database = await db();
 	const now = new Date().toISOString();
 	if (existingId) {
-		const updated = await database.collection<Doc<WinChallenge>>(CHALLENGES).findOneAndUpdate(
-			{ _id: existingId },
-			{ $set: { name: input.name, startAt: input.startAt, signupOpen: input.signupOpen, split: input.split, games: input.games, ...(input.status ? { status: input.status } : {}), updatedAt: now } },
-			{ returnDocument: "after" }
-		);
+		const updated = await database
+			.collection<Doc<WinChallenge>>(CHALLENGES)
+			.findOneAndUpdate(
+				{ _id: existingId },
+				{
+					$set: {
+						name: input.name,
+						startAt: input.startAt,
+						signupOpen: input.signupOpen,
+						split: input.split,
+						games: input.games,
+						...(input.status ? { status: input.status } : {}),
+						updatedAt: now,
+					},
+				},
+				{ returnDocument: "after" }
+			);
 		if (!updated) throw new WinStoreError("not-found", "Challenge nicht gefunden.");
 		return fromDoc<WinChallenge>(updated)!;
 	}
@@ -119,7 +133,9 @@ export async function saveChallenge(input: ChallengeInput, existingId?: string):
 /* ------------------------------------------------------------------ events */
 
 export async function logEvent(event: Omit<WinEvent, "id" | "at"> & { at?: string }): Promise<void> {
-	await (await db())
+	await (
+		await db()
+	)
 		.collection<Doc<WinEvent>>(EVENTS)
 		.insertOne({ ...event, _id: randomUUID(), at: event.at ?? new Date().toISOString() })
 		.catch((error) => console.warn("[winchallenge] Event nicht gespeichert:", error));
@@ -129,7 +145,9 @@ export async function listEvents(challengeId: string, options: { kinds?: string[
 	const filter: Record<string, unknown> = { challengeId };
 	if (options.kinds) filter.kind = { $in: options.kinds };
 	if (options.teamId) filter.teamId = options.teamId;
-	const docs = await (await db())
+	const docs = await (
+		await db()
+	)
 		.collection<Doc<WinEvent>>(EVENTS)
 		.find(filter)
 		.sort({ at: -1 })
@@ -174,9 +192,7 @@ export async function signUp(input: { challenge: WinChallenge; discordId: string
 
 /** Stores the sub choice and drops the legacy free-text channel. */
 export async function setSubTarget(participantId: string, subTarget: WinSubTarget): Promise<void> {
-	await (await db())
-		.collection<Doc<WinParticipant>>(PARTICIPANTS)
-		.updateOne({ _id: participantId }, { $set: { subTarget }, $unset: { wishChannel: "" } });
+	await (await db()).collection<Doc<WinParticipant>>(PARTICIPANTS).updateOne({ _id: participantId }, { $set: { subTarget }, $unset: { wishChannel: "" } });
 }
 
 /** Keeps the stored Twitch login current, e.g. after a relink. */
@@ -278,7 +294,9 @@ export async function joinTeam(input: { challenge: WinChallenge; participant: Wi
  * Admin pairing for solo sign-ups: puts `participant` into a waiting team, or builds a new team with
  * `partner`. Reuses the player flows, so the same race guards apply. A failed second step undoes the first.
  */
-export async function assignToTeam(input: { challenge: WinChallenge; participant: WinParticipant; actor: string } & ({ team: WinTeam } | { partner: WinParticipant; name: string })): Promise<WinTeam> {
+export async function assignToTeam(
+	input: { challenge: WinChallenge; participant: WinParticipant; actor: string } & ({ team: WinTeam } | { partner: WinParticipant; name: string })
+): Promise<WinTeam> {
 	if (input.participant.teamId) throw new WinStoreError("has-team", `${input.participant.discordName} ist schon in einem Team.`);
 	if ("team" in input) {
 		if (input.team.challengeId !== input.challenge.id || input.team.status !== "forming" || input.team.memberIds.length !== 1) {
@@ -322,6 +340,14 @@ export async function leaveTeam(input: { participant: WinParticipant; actor: str
 	await logEvent({ challengeId: input.participant.challengeId, teamId, actor: input.actor, kind: "team-leave" });
 }
 
+/** A player takes back their sign-up. Only before their team started and while the challenge is open. */
+export async function withdrawSignup(input: { challenge: WinChallenge; participant: WinParticipant; actor: string }): Promise<void> {
+	if (input.challenge.status !== "open") throw new WinStoreError("closed", "Die Challenge ist beendet. Abmelden geht nicht mehr.");
+	if (input.participant.teamId) await leaveTeam({ participant: input.participant, actor: input.actor });
+	await (await db()).collection<{ _id: string }>(PARTICIPANTS).deleteOne({ _id: input.participant.id });
+	await logEvent({ challengeId: input.challenge.id, actor: input.actor, kind: "withdraw" });
+}
+
 export async function regenerateJoinCode(team: WinTeam): Promise<string> {
 	const teams = (await db()).collection<Doc<WinTeam>>(TEAMS);
 	for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -354,7 +380,9 @@ export async function mutateTeam(teamId: string, change: (team: WinTeam) => WinT
 }
 
 export async function controlTeam(input: { team: WinTeam; challenge: WinChallenge; action: WinTeamAction; actor: string; liveCheck?: WinEvent["liveCheck"] }) {
-	const result = await mutateTeam(input.team.id, (team) => applyTeamAction(team, input.action, { games: input.challenge.games, startAt: input.challenge.startAt, now: new Date() }));
+	const result = await mutateTeam(input.team.id, (team) =>
+		applyTeamAction(team, input.action, { games: input.challenge.games, startAt: input.challenge.startAt, now: new Date() })
+	);
 	if (result.after !== result.before) {
 		const gameId = "gameId" in input.action ? (input.action.gameId ?? undefined) : undefined;
 		await logEvent({
@@ -420,7 +448,15 @@ export async function correctTeam(input: { teamId: string; challenge: WinChallen
 		}
 		return settled;
 	});
-	await logEvent({ challengeId: input.challenge.id, teamId: input.teamId, actor: input.actor, kind: "admin", before: summarizeTeam(before), after: summarizeTeam(after), reason: input.reason });
+	await logEvent({
+		challengeId: input.challenge.id,
+		teamId: input.teamId,
+		actor: input.actor,
+		kind: "admin",
+		before: summarizeTeam(before),
+		after: summarizeTeam(after),
+		reason: input.reason,
+	});
 	return after;
 }
 
@@ -443,10 +479,9 @@ export async function removeParticipant(input: { participant: WinParticipant; ac
 			const remaining = team.memberIds.filter((id) => id !== input.participant.id);
 			if (remaining.length === 0) await database.collection<{ _id: string }>(TEAMS).deleteOne({ _id: team._id });
 			else
-				await database.collection<Doc<WinTeam>>(TEAMS).updateOne(
-					{ _id: team._id },
-					{ $set: { memberIds: remaining, ...(team.status === "ready" ? { status: "forming" as const } : {}) }, $inc: { version: 1 } }
-				);
+				await database
+					.collection<Doc<WinTeam>>(TEAMS)
+					.updateOne({ _id: team._id }, { $set: { memberIds: remaining, ...(team.status === "ready" ? { status: "forming" as const } : {}) }, $inc: { version: 1 } });
 		}
 	}
 	await database.collection<{ _id: string }>(PARTICIPANTS).deleteOne({ _id: input.participant.id });
@@ -488,13 +523,19 @@ export async function endChallenge(input: { challenge: WinChallenge; actor: stri
 		channel: subChannelOf(byId.get(assignment.recipientId) ?? { id: assignment.recipientId, twitchLogin: "" }, participants, input.channelFallback),
 		status: "open",
 	}));
-	if (docs.length) await database.collection<Doc<WinPayout>>(PAYOUTS).insertMany(docs, { ordered: false }).catch((error) => {
-		if (!isDuplicateKey(error)) throw error;
-	});
-	await database.collection<Doc<WinChallenge>>(CHALLENGES).updateOne(
-		{ _id: input.challenge.id },
-		{ $set: { status: "ended", signupOpen: false, endedAt: now.toISOString(), finalRanking: ranked.map((row) => row.team.id), updatedAt: now.toISOString() } }
-	);
+	if (docs.length)
+		await database
+			.collection<Doc<WinPayout>>(PAYOUTS)
+			.insertMany(docs, { ordered: false })
+			.catch((error) => {
+				if (!isDuplicateKey(error)) throw error;
+			});
+	await database
+		.collection<Doc<WinChallenge>>(CHALLENGES)
+		.updateOne(
+			{ _id: input.challenge.id },
+			{ $set: { status: "ended", signupOpen: false, endedAt: now.toISOString(), finalRanking: ranked.map((row) => row.team.id), updatedAt: now.toISOString() } }
+		);
 	await logEvent({ challengeId: input.challenge.id, actor: input.actor, kind: "challenge-ended", after: { payouts: docs.length } });
 	return listPayouts(input.challenge.id);
 }
@@ -504,7 +545,13 @@ export async function listPayouts(challengeId: string): Promise<WinPayout[]> {
 	return docs.map((doc) => fromDoc<WinPayout>(doc)!);
 }
 
-export async function setPayoutStatus(input: { payoutId: string; status: WinPayoutStatus; actor: string; challengeId: string; allowedFrom?: WinPayoutStatus[] }): Promise<WinPayout | null> {
+export async function setPayoutStatus(input: {
+	payoutId: string;
+	status: WinPayoutStatus;
+	actor: string;
+	challengeId: string;
+	allowedFrom?: WinPayoutStatus[];
+}): Promise<WinPayout | null> {
 	const now = new Date().toISOString();
 	const filter: Record<string, unknown> = { _id: input.payoutId, challengeId: input.challengeId };
 	if (input.allowedFrom) filter.status = { $in: input.allowedFrom };
@@ -519,7 +566,10 @@ export async function setPayoutStatus(input: { payoutId: string; status: WinPayo
 export async function reassignPayout(input: { payoutId: string; challengeId: string; recipientId: string; channel: string; actor: string }): Promise<void> {
 	await (await db())
 		.collection<Doc<WinPayout>>(PAYOUTS)
-		.updateOne({ _id: input.payoutId, challengeId: input.challengeId }, { $set: { recipientId: input.recipientId, channel: input.channel, status: "open" }, $unset: { paidAt: "", confirmedAt: "", confirmedBy: "" } });
+		.updateOne(
+			{ _id: input.payoutId, challengeId: input.challengeId },
+			{ $set: { recipientId: input.recipientId, channel: input.channel, status: "open" }, $unset: { paidAt: "", confirmedAt: "", confirmedBy: "" } }
+		);
 	await logEvent({ challengeId: input.challengeId, actor: input.actor, kind: "payout", after: { id: input.payoutId, recipientId: input.recipientId } });
 }
 
