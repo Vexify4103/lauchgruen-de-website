@@ -8,11 +8,13 @@ import { LauchgruenOverlay } from "@/components/obs/lauchgruen/LauchgruenOverlay
 import { LauchgruenSmallOverlay } from "@/components/obs/lauchgruen/LauchgruenSmallOverlay";
 import { N4cht4r4Overlay } from "@/components/obs/n4cht4r4/N4cht4r4Overlay";
 import { NachtdienstOverlay } from "@/components/obs/nachtdienst/NachtdienstOverlay";
+import { XzairenNinjaOverlay } from "@/components/obs/xzairen/XzairenNinjaOverlay";
+import { XzairenOverlay } from "@/components/obs/xzairen/XzairenOverlay";
 import { germanTierName, lpTone, overlaySignature } from "@/components/obs/shared/utils";
 
 const POLL_INTERVAL_MS = 20_000;
 
-export type StreamerOverlayLayout = "default" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4";
+export type StreamerOverlayLayout = "default" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "xzairen" | "xzairen-ninja" | "xzairen-ninja-en";
 
 export function StreamerPerformanceOverlay({
 	initial,
@@ -85,6 +87,14 @@ export function StreamerPerformanceOverlay({
 	if (layout === "akuma") {
 		if (!forceVisible && !data.leagueLive) return null;
 		return <AkumaOverlay key={pulseKey} data={data} />;
+	}
+	if (layout === "xzairen-ninja" || layout === "xzairen-ninja-en") {
+		if (!forceVisible && !data.leagueLive) return null;
+		return <XzairenNinjaOverlay key={pulseKey} data={data} lang={layout === "xzairen-ninja-en" ? "en" : "ko"} />;
+	}
+	if (layout === "xzairen") {
+		if (!forceVisible && !data.leagueLive) return null;
+		return <XzairenOverlay key={pulseKey} data={data} />;
 	}
 	if (layout === "n4cht4r4") {
 		if (!forceVisible && !data.leagueLive) return null;

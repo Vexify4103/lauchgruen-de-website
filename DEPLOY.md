@@ -49,7 +49,15 @@ AKUMA_OBS_ALT_RIOT_IDS=
 AKUMA_OBS_ALT_RIOT_PUUIDS=
 N4CHT4R4_OBS_ALT_RIOT_IDS=
 N4CHT4R4_OBS_ALT_RIOT_PUUIDS=
+XZAIREN_OBS_ALT_RIOT_IDS=
+XZAIREN_OBS_ALT_RIOT_PUUIDS=
 ```
+
+xZairen's overlay (`https://lauchgruen.de/obs/xzairen`, Akali ninja theme with
+CS/min) uses `RIOT_API_KEY_OBS_XZAIREN` and follows `Zairen#LeBla`. Like
+Akuma's, it only shows while his stream is in the League category; add `?test`
+to keep it visible. `?style=ninja-ko` shows Korean labels, `?style=akali` the
+simpler first design.
 
 The two lists must use the same order when PUUIDs are supplied.
 

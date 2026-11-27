@@ -99,7 +99,7 @@ type StreamerRiotAccountConfig = {
 };
 
 type StreamerConfig = {
-	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "tlgfabi" | "spaceffs";
+	slug: "lauchgruen" | "hippokrate" | "nachtdienst" | "akuma" | "n4cht4r4" | "tlgfabi" | "spaceffs" | "xzairen";
 	displayName: string;
 	twitchLogin: string;
 	riotGameName: string;
@@ -187,6 +187,14 @@ const STREAMERS: Record<StreamerConfig["slug"], StreamerConfig> = {
 		riotGameName: process.env.SPACEFFS_OBS_RIOT_GAME_NAME?.trim() || "TwTv Spaceffs",
 		riotTagLine: process.env.SPACEFFS_OBS_RIOT_TAG_LINE?.trim() || "ExG",
 		liveCheckMs: 25_000,
+	},
+	xzairen: {
+		slug: "xzairen",
+		displayName: "Zairen",
+		twitchLogin: process.env.XZAIREN_OBS_TWITCH_LOGIN?.trim() || "xzairen",
+		riotGameName: process.env.XZAIREN_OBS_RIOT_GAME_NAME?.trim() || "Zairen",
+		riotTagLine: process.env.XZAIREN_OBS_RIOT_TAG_LINE?.trim() || "LeBla",
+		alternateAccounts: alternateAccounts("XZAIREN"),
 	},
 };
 

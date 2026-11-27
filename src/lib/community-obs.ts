@@ -55,6 +55,7 @@ const OBS_OVERLAY_BY_STREAMER = {
 	nachtdienst: "nachtdienst",
 	tlgfabi: "tlgfabi",
 	space_ffs: "spaceffs",
+	xzairen: "xzairen",
 } as const satisfies Record<string, ObsOverlayName>;
 
 function obsOverlayForStreamer(streamer: string): ObsOverlayName {
